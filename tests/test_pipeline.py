@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import threading
 from pathlib import Path
 
@@ -258,6 +259,24 @@ class Doc(BaseModel):
     n: int
 
 
+def test_an_output_rewritten_at_the_same_size_within_one_mtime_tick_counts_as_rewritten(tmp_path):
+    from contraagent.engine import OutputContract
+
+    out = tmp_path / "out.json"
+    out.write_text('{"n": 1}')
+    tick = out.stat().st_mtime_ns
+    contract = OutputContract(out, Doc)
+    before = contract.before(tmp_path)
+    assert before.digest is not None  # written just now: a rewrite could keep its stamp
+    assert "was not rewritten" in contract.check(tmp_path, before).errors[0]
+    out.write_text('{"n": 2}')
+    os.utime(out, ns=(tick, tick))  # the same size and mtime, as on a file system with coarse ticks
+    assert contract.check(tmp_path, before).ok
+    # A file last written long before the launch keeps no digest: its stamp alone tells.
+    os.utime(out, ns=(tick - 3_600_000_000_000, tick - 3_600_000_000_000))
+    assert contract.before(tmp_path).digest is None
+
+
 def test_python_tasks_are_checked_by_contracts(tmp_path):
     from contraagent._internal.dispatch import make_python_task
     from contraagent.engine import InputContract, OutputContract
@@ -288,7 +307,7 @@ def test_python_tasks_are_checked_by_contracts(tmp_path):
     out.unlink()
     row = go(make_python_task("bad", bad, unit="u", output_contracts=[OutputContract(out, Doc)]))
     assert not row["ok"] and row["stop"] == "invalid_output" and "n:" in row["round_errors"][-1][0]
-    out.write_text('{"n": 1}')  # a file left by an earlier run must not pass
+    out.write_text('{"n": 10}')  # a file left by an earlier run must not pass
     row = go(make_python_task("stale", nothing, unit="u", output_contracts=[OutputContract(out, Doc)]))
     assert row["stop"] == "invalid_output" and "was not rewritten" in row["reason"]
     ran.clear()

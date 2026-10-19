@@ -22,20 +22,20 @@ test('a tree is one tab stop worked with the arrow keys, Enter selects a file an
 
   await tree.getByRole('treeitem', { name: /build\.py/ }).first().focus();
   await page.keyboard.press('ArrowUp');
-  expect(await focusedId(tree)).toBe('ci');
+  await expect.poll(() => focusedId(tree)).toBe('ci');
   await page.keyboard.press('ArrowLeft'); // closes ci
   await expect(tree.locator('[data-id="ci"]')).toHaveAttribute('aria-expanded', 'false');
   await expect(tree.locator('[data-id="ci/build.py"]')).toHaveCount(0);
   await page.keyboard.press('ArrowRight'); // opens it again
   await page.keyboard.press('ArrowRight'); // to its first child
-  expect(await focusedId(tree)).toBe('ci/build.py');
+  await expect.poll(() => focusedId(tree)).toBe('ci/build.py');
   await page.keyboard.press('End');
-  expect(await focusedId(tree)).toBe('README.md');
+  await expect.poll(() => focusedId(tree)).toBe('README.md');
   await page.keyboard.press('ArrowUp'); // tests, folded
   await expect(tree.locator('[data-id="ci/tests"]')).toHaveAttribute('aria-expanded', 'false');
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowDown');
-  expect(await focusedId(tree)).toBe('ci/tests/test_build.py');
+  await expect.poll(() => focusedId(tree)).toBe('ci/tests/test_build.py');
   await page.keyboard.press('Enter');
   await expect(tree.locator('[data-id="ci/tests/test_build.py"]')).toHaveAttribute('aria-selected', 'true');
   await expect(code.locator('.path')).toHaveText('ci/tests/test_build.py');
@@ -43,7 +43,7 @@ test('a tree is one tab stop worked with the arrow keys, Enter selects a file an
 
   // Tab leaves the tree: it is one tab stop.
   await page.keyboard.press('Tab');
-  expect(await focusedId(tree)).toBeNull();
+  await expect.poll(() => focusedId(tree)).toBeNull();
 });
 
 test("a panel body's tree shows the selected file's code beside it, and another file's when it is selected, with no request", async ({ page }) => {
@@ -54,8 +54,9 @@ test("a panel body's tree shows the selected file's code beside it, and another 
   const selected = tree.locator('[role=treeitem][aria-selected="true"]');
   await expect(selected).toHaveCount(1);
   const firstId = (await selected.getAttribute('data-id')) ?? '';
+  // The code beside it shows the selected file once it has drawn.
+  await expect(code.locator('.path')).toHaveText(/^out\/.+\.json$/);
   const firstPath = (await code.locator('.path').textContent()) ?? '';
-  expect(firstPath).toMatch(/^out\/.+\.json$/);
 
   const requests: string[] = [];
   page.on('request', (r) => requests.push(r.url()));

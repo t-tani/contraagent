@@ -136,8 +136,10 @@ def _shared_file(controller: int | None = None) -> Path | None:
 
 @contextmanager
 def _shared_state() -> Iterator[dict | None]:
-    """What the workers have started (`{"postgres": dsn, "rustfs": endpoint, "containers": [...]}`),
-    held under a lock and written back; None when this process is not an xdist worker."""
+    """What the workers have started (`{"postgres": dsn, "postgres-container": id, "rustfs":
+    endpoint, "rustfs-container": id, "containers": [...]}`), held under a lock and written
+    back, also when the caller fails (the controller removes the containers it names); None
+    when this process is not an xdist worker."""
     path = _shared_file()
     if path is None:
         yield None
@@ -148,8 +150,23 @@ def _shared_state() -> Iterator[dict | None]:
             state = json.loads(path.read_text())
         except (OSError, ValueError):
             state = {}
-        yield state
-        path.write_text(json.dumps(state))
+        try:
+            yield state
+        finally:
+            path.write_text(json.dumps(state))
+
+
+def _recorded(shared: dict | None, name: str) -> str | None:
+    """The address another worker recorded for `name` (`postgres`, `rustfs`) while its
+    container runs; None otherwise. The file is named by the controller's pid, so it can be
+    one an earlier run left, whose containers were removed since."""
+    if shared is None or name not in shared or f"{name}-container" not in shared:
+        return None
+    try:
+        running = _docker("inspect", "-f", "{{.State.Running}}", shared[f"{name}-container"], timeout=30)
+    except (RuntimeError, subprocess.TimeoutExpired):
+        return None
+    return shared[name] if running == "true" else None
 
 
 def stop_shared(controller: int) -> None:
@@ -230,12 +247,12 @@ def _postgres_server() -> str:
         if "postgres" not in _started:
             _require_docker()
             with _shared_state() as shared:
-                if shared is not None and "postgres" in shared:
-                    _started["postgres"] = shared["postgres"]
-                    return _started["postgres"]
+                if (recorded := _recorded(shared, "postgres")) is not None:
+                    _started["postgres"] = recorded
+                    return recorded
                 import psycopg
 
-                _, port = _run(
+                cid, port = _run(
                     POSTGRES_IMAGE,
                     5432,
                     *("-c", "max_connections=500", "-c", "fsync=off"),
@@ -252,7 +269,7 @@ def _postgres_server() -> str:
                 _wait(ready, POSTGRES_IMAGE)
                 _started["postgres"] = dsn
                 if shared is not None:
-                    shared["postgres"] = dsn
+                    shared["postgres"], shared["postgres-container"] = dsn, cid
         return _started["postgres"]
 
 
@@ -280,11 +297,11 @@ def _rustfs_server() -> str:
                 _env_before.setdefault(k, os.environ.get(k))
                 os.environ.pop(k, None)
             with _shared_state() as shared:
-                if shared is not None and "rustfs" in shared:
-                    _started["rustfs"] = shared["rustfs"]
-                    return _started["rustfs"]
+                if (recorded := _recorded(shared, "rustfs")) is not None:
+                    _started["rustfs"] = recorded
+                    return recorded
                 env = {"RUSTFS_ACCESS_KEY": RUSTFS_USER, "RUSTFS_SECRET_KEY": RUSTFS_PASSWORD}
-                _, port = _run(RUSTFS_IMAGE, 9000, env=env, shared=shared)
+                cid, port = _run(RUSTFS_IMAGE, 9000, env=env, shared=shared)
                 endpoint = f"http://127.0.0.1:{port}"
 
                 def healthy() -> bool:
@@ -293,13 +310,24 @@ def _rustfs_server() -> str:
 
                 _wait(healthy, RUSTFS_IMAGE)
                 import boto3
+                from botocore.exceptions import ClientError
 
                 s3 = boto3.client("s3", endpoint_url=endpoint, region_name="us-east-1")
+
+                def bucket() -> bool:
+                    try:
+                        s3.create_bucket(Bucket=RUSTFS_BUCKET)
+                    except ClientError as e:
+                        # A create the server did although its answer failed: the bucket is there.
+                        if e.response.get("Error", {}).get("Code") not in ("BucketAlreadyOwnedByYou", "BucketAlreadyExists"):
+                            raise
+                    return True
+
                 # /health answers before every part of the server does: the bucket is made once it can be.
-                _wait(lambda: s3.create_bucket(Bucket=RUSTFS_BUCKET) is not None, f"{RUSTFS_IMAGE} bucket")
+                _wait(bucket, f"{RUSTFS_IMAGE} bucket")
                 _started["rustfs"] = endpoint
                 if shared is not None:
-                    shared["rustfs"] = endpoint
+                    shared["rustfs"], shared["rustfs-container"] = endpoint, cid
         return _started["rustfs"]
 
 

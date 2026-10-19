@@ -1,6 +1,7 @@
 // The tasks tab over the demo's `docs` run: every task of the plan is a row (two
 // passes of review · gamma are two tasks), and every count of tasks agrees.
 import { expect, test, type Page } from '@playwright/test';
+import { feedReady } from './monitor.js';
 
 test('the tasks tab counts and lists as many tasks as the header', async ({ page }) => {
   await page.goto('/?run=docs&tab=tasks');
@@ -23,30 +24,30 @@ test('the tasks tab counts and lists as many tasks as the header', async ({ page
   await expect(page).toHaveURL(/tab=stream/);
 });
 
-/** The element that has the focus, through shadow roots. */
+/** The tag of the element that has the focus, through shadow roots. */
 const focused = (page: Page) =>
   page.evaluate(() => {
     let el = document.activeElement;
     while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
-    return el ? { tag: el.tagName, key: (el as HTMLElement).dataset['key'] ?? null } : null;
+    return el?.tagName ?? null;
   });
 
 for (const [tab, list] of [['tasks', 'ca-task-table'], ['journal', 'ca-journal-table']] as const) {
   test(`${list}: Tab reaches the first row, the arrow keys move, Enter opens the task`, async ({ page }) => {
     await page.goto(`/?run=docs&tab=${tab}`);
-    await expect(page.locator(`${list} tbody tr`).first()).toBeVisible();
+    // Every row is in once the feed has replayed: the first row stays the first.
+    await feedReady(page);
+    const rows = page.locator(`${list} tbody tr`);
+    await expect(rows.first()).toBeVisible();
     await page.locator('ca-monitor .bar input').focus();
     let at = await focused(page);
-    for (let i = 0; i < 30 && at?.tag !== 'TR'; i++) {
+    for (let i = 0; i < 30 && at !== 'TR'; i++) {
       await page.keyboard.press('Tab');
       at = await focused(page);
     }
-    expect(at?.tag).toBe('TR');
-    const rows = page.locator(`${list} tbody tr`);
-    expect(at?.key).toBe(await rows.first().getAttribute('data-key'));
+    await expect(rows.first()).toBeFocused();
     await page.keyboard.press('ArrowDown');
-    at = await focused(page);
-    expect(at?.key).toBe(await rows.nth(1).getAttribute('data-key'));
+    await expect(rows.nth(1)).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/tab=stream/);
     expect(new URL(page.url()).searchParams.get('key')).toBeTruthy();

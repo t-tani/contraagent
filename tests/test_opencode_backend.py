@@ -77,7 +77,7 @@ def test_a_quota_refusal_in_the_log_ends_the_launch(opencode, tmp_path):
     result, _ = opencode(launch)
     assert result.stop == Stop.RATE_LIMITED and result.quota_refusal is not None
     assert result.result_text == "AI_APICallError: Go usage limit exceeded"
-    assert time.monotonic() - t0 < 15
+    assert time.monotonic() - t0 < 25  # ended by the refusal, before the 30 s timeout would end it
 
 
 def test_a_launch_ends_past_its_cost_cap(opencode, tmp_path):

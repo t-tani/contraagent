@@ -5,6 +5,10 @@
 // and every account's utilization. A monitor of one host shows none of it.
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { feedReady } from './monitor.js';
+
+// axe reads colours: none of them mid-way through a fade or a transition.
+test.use({ reducedMotion: 'reduce' });
 
 const HUB = `http://127.0.0.1:${Number(process.env['E2E_HUB_PORT'] ?? 18794)}`;
 
@@ -119,7 +123,8 @@ test.describe('a hub', () => {
   test('axe finds no serious or critical violation on the overview of a run whose host stopped reporting', async ({ page }) => {
     await page.goto(`${HUB}/?run=docs@h2`);
     await expect(page.locator('ca-monitor main > *').first()).toBeVisible();
-    await page.waitForLoadState('networkidle');
+    await feedReady(page);
+    await page.waitForLoadState('networkidle'); // what the view fetches beside the feed
     await noSeriousViolations(page);
   });
 });

@@ -4,6 +4,10 @@
 // violation on any tab.
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { feedReady } from './monitor.js';
+
+// axe reads colours: none of them mid-way through a fade or a transition.
+test.use({ reducedMotion: 'reduce' });
 
 const params = (page: Page) => Object.fromEntries(new URL(page.url()).searchParams);
 
@@ -98,12 +102,13 @@ test('the run picker is a dialog: it takes the focus, keeps it, and gives it bac
 
 test('a problem row opens its task from the keyboard', async ({ page }) => {
   await page.goto('/?run=docs&tab=overview');
+  // The problems are all in once the feed has replayed: the first one stays the first.
+  await feedReady(page);
   const name = page.locator('ca-overview .fl .fl-name').first();
   await expect(name).toBeVisible();
-  const text = (await name.textContent())?.trim();
   await page.locator('ca-monitor .runbtn').focus();
-  const at = await tabUntil(page, (f) => (f?.cls ?? '').includes('fl-name'), 80);
-  expect(at?.text).toBe(text);
+  await tabUntil(page, (f) => (f?.cls ?? '').includes('fl-name'), 80);
+  await expect(name).toBeFocused();
   await page.keyboard.press('Enter');
   await expect.poll(() => params(page).tab).toBe('stream');
 });
@@ -128,7 +133,8 @@ for (const tab of ['overview', 'tasks', 'journal', 'outputs', 'definitions', 'pr
   test(`axe finds no serious or critical violation: ${tab}`, async ({ page }) => {
     await page.goto(`/?run=docs&tab=${tab}`);
     await expect(page.locator('ca-monitor main > *').first()).toBeVisible();
-    await page.waitForLoadState('networkidle');
+    await feedReady(page);
+    await page.waitForLoadState('networkidle'); // what the view fetches beside the feed
     const { violations } = await new AxeBuilder({ page }).analyze();
     const serious = violations
       .filter((v) => v.impact === 'serious' || v.impact === 'critical')

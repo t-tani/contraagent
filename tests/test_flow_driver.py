@@ -14,14 +14,15 @@ from contraagent.engine import FlowDriver, WorkQueue
 
 
 class Runner:
-    """Runs a task by sleeping `params["sleep"]` and ending with `params["stop"]`;
-    records launches and how many ran at once."""
+    """Runs a task by waiting until `params["meet"]` tasks ran at once (10 s at most), then
+    sleeping `params["sleep"]` and ending with `params["stop"]`; records launches and how
+    many ran at once."""
 
     def __init__(self) -> None:
         self.launched: list[str] = []
         self.peak = 0
         self._running = 0
-        self._lock = threading.Lock()
+        self._lock = threading.Condition()
 
     def config(self, task: Task) -> SimpleNamespace:
         return SimpleNamespace(max_concurrent=None)
@@ -31,6 +32,8 @@ class Runner:
             self.launched.append(task.key)
             self._running += 1
             self.peak = max(self.peak, self._running)
+            self._lock.notify_all()
+            self._lock.wait_for(lambda: self.peak >= task.params.get("meet", 0), timeout=10)
         time.sleep(task.params.get("sleep", 0.0))
         with self._lock:
             self._running -= 1
@@ -61,7 +64,7 @@ def test_a_single_yield_receives_the_task_result():
 
 def test_a_batch_waits_for_all_and_answers_in_yield_order():
     def flow():
-        results = yield [t("a-slow", sleep=0.2), t("a-fast")]
+        results = yield [t("a-slow", sleep=0.2, meet=2), t("a-fast", meet=2)]
         return [r.task.key for r in results]
 
     driver, runner, _ = drive(flow())
@@ -79,7 +82,7 @@ def test_an_empty_batch_answers_at_once():
 
 def test_child_generators_are_flow_calls_running_concurrently():
     def per_unit(u):
-        a = yield t(f"a-{u}", sleep=0.2)
+        a = yield t(f"a-{u}", meet=2)
         b = yield t(f"b-{u}")
         return (a.stop, b.task.key)
 

@@ -7,7 +7,7 @@ const node = (key: string, state: PlanNode['state'], after: string[] = []): Plan
   key, kind: key.split('-')[0]!, unit: key.split('-')[1] ?? '', after, state, level: 0, group: key.split('-')[0]!,
 });
 const row = (key: string, stop: Stop, attempt = 0, cost_usd: number | null = null): JournalRow => ({
-  ts: '2026-10-11T00:00:01', key, kind: key.split('-')[0]!, unit: key.split('-')[1] ?? '', stop, ok: stop === 'completed', wall_s: 1, attempt, cost_usd,
+  ts: '2026-10-11T00:00:01Z', key, kind: key.split('-')[0]!, unit: key.split('-')[1] ?? '', stop, ok: stop === 'completed', wall_s: 1, attempt, cost_usd,
 });
 
 // a done after a retry (recovered), c failed, d not started.
@@ -17,7 +17,7 @@ const plan: Plan = {
 };
 const journal = [row('a-1', 'error', 0, 0.25), row('a-1', 'completed', 1, 0.5), row('c-1', 'error', 0, 0.25), row('d-1', 'invalid_input')];
 const summary = {
-  run: 'r', started_at: '2026-10-11T00:00:00', last_ts: '2026-10-11T00:01:05', running: false, cost_usd: 9, quota: [],
+  run: 'r', started_at: '2026-10-11T00:00:00Z', last_ts: '2026-10-11T00:01:05Z', running: false, cost_usd: 9, quota: [],
   tasks: { total: 3, done: 1, failed: 1, not_started: 1, running: 0, waiting: 0, not_run: 0, skipped: 0 },
 } as unknown as RunSummary;
 const state = (ready: boolean): RunState => ({ ...emptyRunState(), journal, plan, ready });

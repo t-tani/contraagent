@@ -1,5 +1,6 @@
 """`WorkQueue`: every accepted task finishes once through `follow_up`, without recursion."""
 
+import inspect
 import sys
 import threading
 import time
@@ -10,11 +11,17 @@ from contraagent.engine import Deferral, WorkQueue
 
 
 class Runner:
-    """Runs a task by sleeping `params["sleep"]` and ending with `params["stop"]`."""
+    """Runs a task by sleeping `params["sleep"]`, then waiting up to `params["gate_s"]` for
+    the gate `params["gate"]` to be set, and ending with `params["stop"]`."""
 
     def __init__(self) -> None:
         self.launched: list[str] = []
+        self.gates: dict[str, threading.Event] = {}
         self._lock = threading.Lock()
+
+    def gate(self, name: str) -> threading.Event:
+        with self._lock:
+            return self.gates.setdefault(name, threading.Event())
 
     def config(self, task: Task) -> SimpleNamespace:
         return SimpleNamespace(max_concurrent=None)
@@ -23,6 +30,8 @@ class Runner:
         with self._lock:
             self.launched.append(task.key)
         time.sleep(task.params.get("sleep", 0.0))
+        if "gate" in task.params:
+            self.gate(task.params["gate"]).wait(timeout=task.params.get("gate_s", 10.0))
         stop = task.params.get("stop", "completed")
         return TaskResult(task=task, ok=stop == "completed", stop=stop)
 
@@ -101,9 +110,13 @@ def test_a_refused_follow_up_task_finishes_as_duplicate_key():
         seen.append(result)
         return [retry] if result.task.key == "fast" else []
 
+    def on_event(event, task, **fields):
+        if event == "duplicate_key_refused":
+            runner.gate("refused").set()
+
     runner = Runner()
-    q = WorkQueue(runner, follow_up=follow_up)
-    q.add(Task("slow", key="slow", params={"sleep": 0.3}))
+    q = WorkQueue(runner, follow_up=follow_up, on_event=on_event)
+    q.add(Task("slow", key="slow", params={"gate": "refused"}))  # in flight until the retry is refused
     q.add(Task("fast", key="fast"))
     q.run()
     by_task = {id(r.task): r.stop for r in seen}
@@ -127,8 +140,9 @@ def test_tail_s_counts_toward_the_critical_path():
 
 def test_a_dependency_chain_longer_than_the_recursion_limit_is_ordered():
     # A low limit for the run proves the same as a chain of thousands: nothing recurses per task.
+    # The limit counts from the test's own depth, which pytest's plugins set.
     limit = sys.getrecursionlimit()
-    sys.setrecursionlimit(250)
+    sys.setrecursionlimit(len(inspect.stack(0)) + 150)
     try:
         n = sys.getrecursionlimit() + 200
         q = WorkQueue(Runner(), max_concurrent=1)
@@ -162,9 +176,18 @@ def starts_of(**options):
 
 def two_claims(overdue_s: float) -> list[str]:
     """`head` claims two names; `heavy` is held when it arrives, `net` is free, and three
-    lower `fillers` claim `net` (the P1 probe of the scheduling report)."""
-    q, starts = starts_of(max_concurrent=4, overdue_s=overdue_s)
-    q.add(Task("hold", key="hold", claims=("heavy",), params={"sleep": 0.2}))
+    lower `fillers` claim `net` (the P1 probe of the scheduling report). `hold` holds
+    `heavy` until `net0` starts, or for 2 s when nothing starts it."""
+    runner, starts = Runner(), []
+
+    def on_event(event, task, **fields):
+        if event == "start":
+            starts.append(task.key)
+            if task.key == "net0":
+                runner.gate("net0").set()
+
+    q = WorkQueue(runner, max_concurrent=4, overdue_s=overdue_s, on_event=on_event)
+    q.add(Task("hold", key="hold", claims=("heavy",), params={"gate": "net0", "gate_s": 2.0}))
     q.add(Task("kick", key="kick"))
 
     def follow_up(res: TaskResult) -> list[Task]:

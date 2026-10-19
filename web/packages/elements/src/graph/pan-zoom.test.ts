@@ -2,7 +2,7 @@
 // The frame's zoom and pan: written on the stage, and the host renders again only
 // when the frame's height or the "Show all" button changes.
 import type { ReactiveControllerHost } from 'lit';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DRAG, PanZoomController, transformOf, type Drawing } from './pan-zoom.js';
 
 function setup(drawing: Drawing | null = { w: 1600, h: 400, down: false, room: 0 }) {
@@ -32,6 +32,7 @@ const pointer = (type: string, x: number, y: number, target: HTMLElement) =>
   ({ type, pointerId: 1, button: 0, pointerType: 'mouse', clientX: x, clientY: y, target, currentTarget: target }) as unknown as PointerEvent;
 
 beforeEach(() => vi.stubGlobal('innerHeight', 1000));
+afterEach(() => vi.unstubAllGlobals());
 
 describe('PanZoomController', () => {
   it('writes the view as a transform', () => {

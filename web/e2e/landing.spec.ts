@@ -63,8 +63,11 @@ async function alongTheScene(page: Page): Promise<string[]> {
   const found: string[] = [];
   for (const f of ALONG) {
     await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), Math.round(from + (to - from) * f));
-    // Two frames: the scroll-driven animations (or the fallback's transitions, which take up to 0.6 s) catch up.
-    await page.waitForTimeout(700);
+    // The scroll-driven animations catch up in a frame or two; the fallback's transitions, which those frames start, then end.
+    await settle(page);
+    await page.evaluate(() =>
+      Promise.allSettled(document.getAnimations().filter((a) => a instanceof CSSTransition).map((a) => a.finished)),
+    );
     found.push(...(await coveredNumbers(page)).map((s) => `${Math.round(f * 100)}%: ${s}`));
   }
   return found;
@@ -118,7 +121,46 @@ async function misfits(page: Page): Promise<string[]> {
   return [...(await overflows(page, '.rr-window')), ...(await clips(page, '.rr-window'))];
 }
 
-/** Scroll the page so that the foot of the replay's window is `fromFoot` px above the foot of the screen. */
+/**
+ * Stop the test's clock (`page.clock`) a second on: from there the page's timers and
+ * requestAnimationFrame move only by `runFor`, so what the replay shows follows from
+ * the test's steps alone, not from how fast the machine ran them.
+ */
+async function pause(page: Page): Promise<void> {
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
+}
+
+/** Two of the browser's frames, counted by a resize observer: they come while the test's clock is paused, as requestAnimationFrame's do not. */
+function frames(page: Page): Promise<void> {
+  return page.evaluate(
+    () =>
+      new Promise<void>((done) => {
+        const probe = document.createElement('div');
+        probe.style.cssText = 'position: fixed; top: 0; left: 0; width: 0; height: 0; pointer-events: none';
+        document.body.append(probe);
+        let seen = 0;
+        const observer = new ResizeObserver(() => {
+          if (++seen === 1) {
+            probe.style.width = '1px';
+            return;
+          }
+          observer.disconnect();
+          probe.remove();
+          done();
+        });
+        observer.observe(probe);
+      }),
+  );
+}
+
+/** `settle` on a paused clock: the layout and the observers (two frames), 200 ms of the page's time, and two frames again. */
+async function settleOnClock(page: Page): Promise<void> {
+  await frames(page);
+  await page.clock.runFor(200);
+  await frames(page);
+}
+
+/** Scroll the page so that the foot of the replay's window is `fromFoot` px above the foot of the screen (the clock paused). */
 async function windowFootAt(page: Page, fromFoot: number): Promise<void> {
   // Twice: the window rises as it comes on screen (a transform), and stands flat once all of it is on it.
   for (let i = 0; i < 2; i++) {
@@ -126,7 +168,7 @@ async function windowFootAt(page: Page, fromFoot: number): Promise<void> {
       const bottom = e.getBoundingClientRect().bottom;
       window.scrollTo({ top: Math.round(scrollY + bottom - innerHeight + up), behavior: 'instant' });
     }, fromFoot);
-    await settle(page);
+    await settleOnClock(page);
   }
 }
 
@@ -138,6 +180,7 @@ for (const [width, height] of [[1280, 720], [1366, 768], [1440, 900], [1920, 108
     await page.clock.install();
     await page.goto(`${DOCS}/`);
     await page.waitForLoadState('networkidle');
+    await pause(page);
     const replay = page.locator('.rr');
     // A third of the window below the screen: it has not started.
     const tall = await page.locator('.rr-window').evaluate((e) => (e as HTMLElement).offsetHeight);
@@ -151,7 +194,7 @@ for (const [width, height] of [[1280, 720], [1366, 768], [1440, 900], [1920, 108
     expect(box.bottom).toBeLessThanOrEqual(box.height);
     // Six seconds into the replay: the graph and the transcript have content, and nothing is cut off.
     await page.clock.runFor(6000);
-    await settle(page);
+    await frames(page);
     expect(await misfits(page)).toEqual([]);
     await context.close();
   });
@@ -214,14 +257,15 @@ for (const size of PHONES)
     for (const reducedMotion of ['no-preference', 'reduce'] as const)
       test(`the landing page fits a phone at ${size.join('×')}, ${colorScheme}, motion ${reducedMotion}`, async ({ browser }) => {
         const { context, page } = await phone(browser, size, colorScheme, reducedMotion);
-        await settle(page);
+        await pause(page);
+        await settleOnClock(page);
         expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(PHONE_BUDGET);
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(size[0]);
         // The page's parts (not their lights and veils, which reach past them on purpose, nor the arrows between the loop's words).
         expect(await overflows(page, '.ca-hero-inner, .rr-window, .rr-more, .rr-lede, .how-lede, .how-steps, .how-nav, .ca-runner, .ca-start .sl-link-card')).toEqual([]);
         // The replay: one stage within the screen under the header, nothing in it cut off or too wide.
         await page.locator('.rr-window').evaluate((e) => e.scrollIntoView({ block: 'center' }));
-        await settle(page);
+        await settleOnClock(page);
         const box = await windowBox(page);
         expect(box.bottom - box.top).toBeLessThanOrEqual(box.height - box.below);
         expect(await misfits(page)).toEqual([]);
@@ -277,6 +321,21 @@ for (const size of PHONES)
     await context.close();
   });
 
+/**
+ * The card at the middle of the steps once their scroll stands still (`centredStep`), or -1
+ * while it moves: `scrollLeft` the same across two frames, a smooth scroll ended.
+ */
+async function settledStep(page: Page): Promise<number> {
+  const still = await page.locator('.how-steps').evaluate(
+    (list) =>
+      new Promise<boolean>((done) => {
+        const at = list.scrollLeft;
+        requestAnimationFrame(() => requestAnimationFrame(() => done(list.scrollLeft === at)));
+      }),
+  );
+  return still ? centredStep(page) : -1;
+}
+
 for (const size of PHONES)
   for (const reducedMotion of ['no-preference', 'reduce'] as const)
     test(`on a phone at ${size.join('×')}, motion ${reducedMotion}, the steps scroll a card at a time`, async ({ browser }) => {
@@ -299,26 +358,11 @@ for (const size of PHONES)
       await expect(next).toHaveAttribute('aria-disabled', 'true');
       await expect(page.locator('.how-loop-step.is-on')).toHaveCount(5);
       // The keyboard: the button before, by Enter; the swipe below comes once its scroll has ended there.
-      await list.evaluate((e) => {
-        const steps = [...e.querySelectorAll<HTMLElement>('.how-step')];
-        const off = (s: HTMLElement) => Math.abs(s.offsetLeft + s.offsetWidth / 2 - (e.scrollLeft + e.clientWidth / 2));
-        // The scroll ended with the sixth card the nearest the middle (within a pixel or two of it, as the snap rounds).
-        const there = () => steps.reduce((best, s, k) => (off(s) < off(steps[best]!) ? k : best), 0) === 5;
-        (window as unknown as { landed: Promise<void> }).landed = new Promise((done) => {
-          const end = () => {
-            if (!there()) return; // the end of an earlier scroll, or one cut short
-            e.removeEventListener('scrollend', end);
-            done();
-          };
-          e.addEventListener('scrollend', end);
-        });
-      });
       await prev.focus();
       await page.keyboard.press('Enter');
       await expect(count).toContainText('Step 6 of 7');
       await expect(page.locator('.how-loop-step.is-on')).toHaveCount(4);
-      await page.evaluate(() => (window as unknown as { landed: Promise<void> }).landed);
-      await expect.poll(() => centredStep(page)).toBe(5);
+      await expect.poll(() => settledStep(page)).toBe(5);
       // A swipe of part of a card back: the list snaps to the card before, not between two.
       const width = await page.locator('.how-step').first().evaluate((e) => (e as HTMLElement).offsetWidth);
       await list.evaluate((e, dx) => e.scrollBy({ left: dx, behavior: 'instant' }), Math.round(-width * 0.6));

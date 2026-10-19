@@ -3,7 +3,8 @@ patterns its task declares (`agent_task(changes=...)`, `TaskAdapter.changes`).
 
 `ChangesEnricher` is the `ResultEnricher` every `AgentRunner` runs first: before the
 dispatch it stamps each file the patterns match under the working directory
-(`(mtime_ns, size)`), after it compares, sets `TaskResult.changes`, and when the
+(`(mtime_ns, size)`, and the digest of a file whose mtime is recent, which a rewrite at
+the same size within one timestamp tick would leave as it was), after it compares, sets `TaskResult.changes`, and when the
 attempt failed removes the files it created (and the directories it created for
 them, once empty), so a retry or a later run starts from the tree as it was. A task
 whose kind keeps a failed attempt's files (`keep_failed_changes`) leaves them in place
@@ -20,10 +21,12 @@ import itertools
 import logging
 import os
 import re
-from collections.abc import Callable, Sequence
+import time
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from contraagent._internal.contracts.contract import file_digest, recent_digest
 from contraagent._internal.dispatch.records import Changes
 from contraagent._internal.dispatch.task import Task, TaskResult
 
@@ -32,12 +35,14 @@ _logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class Snapshot:
-    """What the patterns matched before the dispatch: each file's stamp, and the
-    directories, by path relative to the working directory."""
+    """What the patterns matched before the dispatch: each file's stamp, the digest of
+    each file whose stamp was recent (`recent_digests`), and the directories, by path
+    relative to the working directory."""
 
     patterns: tuple[str, ...]
     files: dict[str, tuple[int, int]]
     dirs: frozenset[str]
+    digests: dict[str, str]
 
 
 #: What starts a pattern that leaves paths out (`"!.git/**"`).
@@ -192,11 +197,36 @@ def scan_tree(cwd: Path, skip: Callable[[Path], bool]) -> dict[str, tuple[int, i
     return files
 
 
-def compare(before: dict[str, tuple[int, int]], after: dict[str, tuple[int, int]]) -> Changes:
-    """The files created, modified (stamp moved) and deleted between two scans."""
+def recent_digests(cwd: Path, files: Mapping[str, tuple[int, int]], since_ns: int) -> dict[str, str]:
+    """The content digest of each of `files` (stamps by path relative to `cwd`, taken at or
+    after `since_ns`) whose stamp is recent (`recent_digest`)."""
+    out = {}
+    for rel, stamp in files.items():
+        digest = recent_digest(cwd / rel, stamp, since_ns)
+        if digest is not None:
+            out[rel] = digest
+    return out
+
+
+def compare(
+    before: Mapping[str, tuple[int, int]],
+    after: Mapping[str, tuple[int, int]],
+    digests: Mapping[str, str] | None = None,
+    cwd: Path | None = None,
+) -> Changes:
+    """The files created, modified and deleted between two scans. A file is modified when
+    its stamp moved, or when `digests` (`recent_digests`, taken with `before`) holds its
+    digest and the file under `cwd` no longer has it."""
+
+    def modified(rel: str) -> bool:
+        if after[rel] != before[rel]:
+            return True
+        digest = (digests or {}).get(rel)
+        return digest is not None and cwd is not None and file_digest(cwd / rel) != digest
+
     return Changes(
         created=tuple(sorted(set(after) - set(before))),
-        modified=tuple(sorted(p for p in set(after) & set(before) if after[p] != before[p])),
+        modified=tuple(sorted(p for p in set(after) & set(before) if modified(p))),
         deleted=tuple(sorted(set(before) - set(after))),
     )
 
@@ -215,14 +245,15 @@ class ChangesEnricher:
         patterns = tuple(self._patterns(task))
         if not patterns:
             return None
+        since = time.time_ns()
         files, dirs = scan(self._cwd, patterns)
-        return Snapshot(patterns, files, dirs)
+        return Snapshot(patterns, files, dirs, recent_digests(self._cwd, files, since))
 
     def enrich(self, task: Task, before: Snapshot | None, result: TaskResult) -> TaskResult | None:
         if before is None:
             return None
         after, dirs = scan(self._cwd, before.patterns)
-        changes = compare(before.files, after)
+        changes = compare(before.files, after, before.digests, self._cwd)
         if not result.ok and changes.created and self._keep(task):
             changes = changes.model_copy(update={"kept": changes.created})
         elif not result.ok and changes.created:

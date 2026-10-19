@@ -7,7 +7,7 @@ import type { CaRunPicker } from './ca-run-picker.js';
 
 const run = (name: string, extra: Partial<RunSummary> = {}): RunSummary =>
   ({
-    run: name, started_at: '2026-10-11T00:00:00', last_ts: '2026-10-11T00:01:05', running: false, quota: [],
+    run: name, started_at: '2026-10-11T00:00:00Z', last_ts: '2026-10-11T00:01:05Z', running: false, quota: [],
     tasks: { total: 1, done: 1, failed: 0, not_started: 0, skipped: 0, running: 0, waiting: 0 }, ...extra,
   }) as unknown as RunSummary;
 

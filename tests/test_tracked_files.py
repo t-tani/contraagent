@@ -38,9 +38,11 @@ def test_no_two_tracked_paths_differ_only_in_case():
 def test_no_tracked_file_names_a_directory_of_this_machine():
     home = Path.home()
     # The home directory itself, and the checkout as the export writes it (`~/...`).
-    private = {str(ROOT), str(home) + "/"}
-    if ROOT.is_relative_to(home) and ROOT != home:
-        private.add(f"~/{ROOT.relative_to(home).as_posix()}")
+    private = {str(ROOT)}
+    if home.parent != home:  # a filesystem root (HOME=/ in some containers) is no one's directory
+        private.add(str(home) + "/")
+        if ROOT.is_relative_to(home) and ROOT != home:
+            private.add(f"~/{ROOT.relative_to(home).as_posix()}")
     found = []
     for p in tracked():
         try:

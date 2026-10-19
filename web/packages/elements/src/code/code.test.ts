@@ -1,10 +1,17 @@
 // @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defineElement } from '../core/define.js';
 import { CaeCode, isMarked, shownText } from './code.js';
 import { highlight, languageOf, tokenLines, tokenize, LANGUAGES } from './highlight.js';
 
 defineElement('cae-code', CaeCode);
+
+// A test may put its own clipboard on navigator; the next one sees the page's again.
+const clipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+afterEach(() => {
+  if (clipboard) Object.defineProperty(navigator, 'clipboard', clipboard);
+  else delete (navigator as { clipboard?: unknown }).clipboard;
+});
 
 const types = (code: string, lang: string) => tokenize(code, lang).filter((t) => t.type).map((t) => `${t.type}:${t.text}`);
 
@@ -93,10 +100,8 @@ describe('a text shown as code', () => {
     expect(root.querySelector('.scroll')!.classList.contains('wrap')).toBe(true);
     expect(wrap!.getAttribute('aria-pressed')).toBe('true');
     copy!.click();
-    await new Promise((r) => setTimeout(r, 0));
-    await el.updateComplete;
-    expect(copied).toBe('x = 1\ny = 2\nz = 3\n');
-    expect(copy!.textContent).toBe('Copied');
+    await vi.waitFor(() => expect(copied).toBe('x = 1\ny = 2\nz = 3\n'));
+    await vi.waitFor(() => expect(copy!.textContent).toBe('Copied'));
     el.remove();
   });
 });

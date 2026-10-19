@@ -41,7 +41,11 @@ def test_write_document_keeps_no_temporary_when_the_replace_fails(tmp_path: Path
     assert [p.name for p in tmp_path.iterdir()] == ["x.json"]
 
 
-def test_concurrent_writers_end_with_one_valid_document(tmp_path: Path):
+def test_concurrent_writers_end_with_one_valid_document(tmp_path: Path, monkeypatch):
+    from contraagent._internal.runs import files
+
+    # Windows: a replace waits while a writer holds the file; a busy runner can hold it past 2 s.
+    monkeypatch.setattr(files, "REPLACE_WAIT_S", 30.0)
     path = tmp_path / "doc.json"
     barrier = threading.Barrier(8)
 
@@ -60,7 +64,11 @@ def test_concurrent_writers_end_with_one_valid_document(tmp_path: Path):
     assert [p.name for p in tmp_path.iterdir()] == ["doc.json"]
 
 
-def test_a_reader_listing_json_never_sees_a_temporary_or_a_part(tmp_path: Path):
+def test_a_reader_listing_json_never_sees_a_temporary_or_a_part(tmp_path: Path, monkeypatch):
+    from contraagent._internal.runs import files
+
+    # Windows: a replace and a read wait for each other; a busy runner can make that past 2 s.
+    monkeypatch.setattr(files, "REPLACE_WAIT_S", 30.0)
     folder = tmp_path / layout.CONTRACTS
     folder.mkdir()
     stop = threading.Event()
@@ -243,7 +251,7 @@ def test_every_writer_of_a_task_file_names_it_by_file_name(tmp_path):
 def test_on_windows_a_document_being_replaced_is_waited_for_and_an_absent_one_is_not(tmp_path, monkeypatch):
     from contraagent._internal.runs import files
 
-    monkeypatch.setattr(files.sys, "platform", "win32")
+    monkeypatch.setattr(files, "WINDOWS", True)
     monkeypatch.setattr(files, "REPLACE_WAIT_S", 30.0)
     doc = tmp_path / "d.json"
     began = time.monotonic()
@@ -253,5 +261,7 @@ def test_on_windows_a_document_being_replaced_is_waited_for_and_an_absent_one_is
     # A replace in progress: Windows may show the document as absent until it ends.
     tmp = tmp_path / ".d.json.1.abc.tmp"
     tmp.write_text("{}")
-    threading.Timer(0.1, lambda: (files.write_document(doc, '{"n": 1}'), tmp.unlink())).start()
+    replace = threading.Timer(0.1, lambda: (files.write_document(doc, '{"n": 1}'), tmp.unlink()))
+    replace.start()
     assert json.loads(files.read_document(doc)) == {"n": 1}
+    replace.join(10)

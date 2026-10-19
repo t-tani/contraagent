@@ -98,19 +98,33 @@ def test_numbers_stay_numbers():
 # --- in the queue ------------------------------------------------------------------------
 
 
-class Spans:
-    def __init__(self) -> None:
-        self.spans: dict[str, tuple[float, float]] = {}
+class Holders:
+    """Runs `a`, which frees memory and then waits for `b` to start; records what happened
+    in order."""
+
+    def __init__(self, mem: list) -> None:
+        self.mem = mem
+        self.seen: list[str] = []
+        self.b_started = threading.Event()
         self._lock = threading.Lock()
 
     def config(self, task: Task) -> SimpleNamespace:
         return SimpleNamespace(max_concurrent=None)
 
-    def run(self, task: Task) -> TaskResult:
-        t0 = time.monotonic()
-        time.sleep(task.params.get("sleep", 0.0))
+    def note(self, what: str) -> None:
         with self._lock:
-            self.spans[task.key] = (t0, time.monotonic())
+            self.seen.append(what)
+
+    def run(self, task: Task) -> TaskResult:
+        if task.key == "a":
+            with self._lock:
+                self.mem[0] = 3000
+                self.seen.append("memory frees")
+            if self.b_started.wait(timeout=30):
+                self.note("a saw b")
+        else:
+            self.note("b starts")
+            self.b_started.set()
         return TaskResult(task=task, ok=True, stop="completed")
 
 
@@ -118,18 +132,16 @@ def test_the_queue_starts_a_holder_once_memory_frees_while_the_others_still_run(
     """`b` waits while `a` runs and memory is short; memory frees with `a` still running,
     and the queue starts `b` without waiting for `a` to finish."""
     mem = [1000]
-    runner = Spans()
+    runner = Holders(mem)
     q = WorkQueue(runner, max_concurrent=4, claim_capacity=sized({"index": PerTask(memory_mb=1000)}, host(mem, clock=time.monotonic)))
-    q.add(Task("serve", key="a", claims=("index",), params={"sleep": 1.8}))
+    q.add(Task("serve", key="a", claims=("index",)))
     q.add(Task("serve", key="b", claims=("index",)))
-    threading.Timer(0.3, lambda: mem.__setitem__(0, 3000)).start()
     q.run()
-    (a0, a1), (b0, _) = runner.spans["a"], runner.spans["b"]
-    assert a0 + 0.2 < b0 < a1
+    assert runner.seen == ["memory frees", "b starts", "a saw b"]
 
 
 def test_a_pattern_sizes_each_name_on_its_own_and_the_guard_sees_room():
-    q = WorkQueue(Spans(), claim_capacity=sized({"index:*": PerTask(memory_mb=1000)}, host([0])))
+    q = WorkQueue(Holders([0]), claim_capacity=sized({"index:*": PerTask(memory_mb=1000)}, host([0])))
     q._held = {"index:a": 1}
     assert q.capacity("index:a") == 1
     assert q.capacity("index:b") == 1  # its own capacity: nothing holds it

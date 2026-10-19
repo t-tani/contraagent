@@ -96,8 +96,15 @@ if (how && list && nav) {
     { passive: true },
   );
   list.addEventListener('scrollend', () => {
-    // The end of a scroll another press cut short is not where the buttons aim.
-    if (aim >= 0 && nearest() === aim) landed();
+    if (aim < 0) return;
+    if (nearest() === aim) return landed();
+    // Elsewhere: the end of a scroll another press cut short, which the next scroll goes on
+    // from, or a swipe that took the list somewhere else, which leaves it still. A list
+    // still a frame later has landed where it is.
+    const x = list.scrollLeft;
+    requestAnimationFrame(() => {
+      if (aim >= 0 && list.scrollLeft === x) landed();
+    });
   });
 
   /**

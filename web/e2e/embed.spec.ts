@@ -90,7 +90,8 @@ test("a task's transcript keeps its open tool calls and position in its monitor,
     sc.scrollTop = 0;
     sc.dispatchEvent(new Event('scroll'));
   });
-  await page.waitForTimeout(400); // the page's memory is written 200 ms after a change
+  // The page's memory writes what it holds 200 ms after a change, or at once when the page hides: hide it now.
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
   const kept = await page.evaluate(() => ({
     state: history.state as unknown,
     session: Object.keys(sessionStorage).filter((k) => k.startsWith('contraagent')),

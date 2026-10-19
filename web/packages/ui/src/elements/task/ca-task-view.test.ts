@@ -2,7 +2,7 @@
 // One task's detail: fetched for the task shown, then its header and the pane
 // of the view chosen.
 import type { ContractSpec, JournalRow, MonitorClient, Plan, TaskDetail } from '@contraagent/api';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { emptyDetail } from '../../controllers/task-detail.js';
 import './ca-task-view.js';
 import type { CaTaskView } from './ca-task-view.js';
@@ -35,29 +35,36 @@ const python: TaskDetail = {
   io: { ...emptyDetail('x').io, executor: 'python' },
 };
 
-/** A client whose `task` answers from `details` after `delay` ms; the keys asked for, in order. */
+/** A client whose `task` answers from `details` after `delay` ms; the keys asked for, and the keys answered, in order. */
 function fakeClient(details: Record<string, TaskDetail>, delay: Record<string, number> = {}) {
   const asked: string[] = [];
+  const answered: string[] = [];
   const client = {
     baseUrl: '',
     task: (_run: string, key: string) => {
       asked.push(key);
       const d = details[key];
-      return new Promise<TaskDetail>((ok, fail) => setTimeout(() => (d ? ok(d) : fail(new Error('404'))), delay[key] ?? 0));
+      return new Promise<TaskDetail>((ok, fail) =>
+        setTimeout(() => {
+          answered.push(key);
+          if (d) ok(d);
+          else fail(new Error('404'));
+        }, delay[key] ?? 0),
+      );
     },
   } as unknown as MonitorClient;
-  return { client, asked };
+  return { client, asked, answered };
 }
 
-const settle = (ms = 10) => new Promise((r) => setTimeout(r, ms));
 const text = (e: Element | null | undefined) => (e?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
+/** A task view, its detail shown (no longer "Loading…"). */
 async function view(props: Partial<CaTaskView>): Promise<CaTaskView> {
   const el = document.createElement('ca-task-view');
   Object.assign(el, { run: 'r', ...props });
   document.body.append(el);
   await el.updateComplete;
-  await settle();
+  await vi.waitFor(() => expect(text(el.shadowRoot!.querySelector('.taskmeta'))).not.toMatch(/Loading…/));
   await el.updateComplete;
   return el;
 }
@@ -110,10 +117,8 @@ describe('ca-task-view', () => {
     const el = await view({ client, taskKey: 'scan-a' });
     expect(text(root(el).querySelector('.verdict'))).toBe('Partly done: timed out');
     el.view = 'output';
-    await el.updateComplete;
-    await settle();
+    await vi.waitFor(() => expect(text(root(el).querySelector('.pane'))).toContain('JSON Lines, one object of schema Finding per line'));
     const pane = text(root(el).querySelector('.pane'));
-    expect(pane).toContain('JSON Lines, one object of schema Finding per line');
     expect(pane).toContain('2 rows');
     el.remove();
   });
@@ -250,11 +255,15 @@ describe('ca-task-view', () => {
   });
 
   it('shows only the task asked for last, and an empty detail when the request fails', async () => {
-    const { client, asked } = fakeClient({ 'review-a': review, 'python:score-a': python }, { 'review-a': 30 });
-    const el = await view({ client, taskKey: 'review-a' });
+    const { client, asked, answered } = fakeClient({ 'review-a': review, 'python:score-a': python }, { 'review-a': 30 });
+    const el = document.createElement('ca-task-view');
+    Object.assign(el, { run: 'r', client, taskKey: 'review-a' });
+    document.body.append(el);
+    await el.updateComplete;
+    // review · a is still being fetched when python:score-a is asked for; it answers last.
     el.taskKey = 'python:score-a';
     await el.updateComplete;
-    await settle(50);
+    await vi.waitFor(() => expect(answered).toEqual(['python:score-a', 'review-a']));
     await el.updateComplete;
     expect(asked).toEqual(['review-a', 'python:score-a']);
     expect(text(root(el).querySelector('.tm-name'))).toBe('score · a');
@@ -262,9 +271,7 @@ describe('ca-task-view', () => {
     el.taskKey = 'gone-x';
     await el.updateComplete;
     expect(text(root(el).querySelector('.taskmeta'))).toBe('gone-x Loading…');
-    await settle();
-    await el.updateComplete;
-    expect(text(root(el).querySelector('.tm-name'))).toBe('gone-x');
+    await vi.waitFor(() => expect(text(root(el).querySelector('.tm-name'))).toBe('gone-x'));
     expect(text(root(el).querySelector('.verdict'))).toBe('Waiting');
     el.remove();
   });

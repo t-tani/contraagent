@@ -30,11 +30,13 @@ A rows output (`rows.RowsFile`) is a JSON Lines file checked line by line
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import logging
 import os
 import re
 import shutil
+import time
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -119,20 +121,22 @@ class OutputContract(_FileContract):
         preserves parts or `compares`. A file that is missing or does not parse as JSON
         preserves nothing."""
         path = self.resolve(cwd)
+        since = time.time_ns()
         stamp = file_stamp(path)
+        digest = recent_digest(path, stamp, since)
         if not (self.preserve or self.compares) or stamp is None:
-            return Before(stamp)
+            return Before(stamp, digest=digest)
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
-            return Before(stamp)
+            return Before(stamp, digest=digest)
         if not self.preserve:
-            return Before(stamp, text=text)
+            return Before(stamp, text=text, digest=digest)
         try:
             document = json.loads(text)
         except ValueError:
-            return Before(stamp, text=text if self.compares else None)
-        return Before(stamp, pointers.select_all(document, self.preserve), text)
+            return Before(stamp, text=text if self.compares else None, digest=digest)
+        return Before(stamp, pointers.select_all(document, self.preserve), text, digest)
 
     def message_path(self, cwd: Path) -> Path:
         """Where an unwrapped output's whole final message is kept: `<output>.message.txt`."""
@@ -152,6 +156,7 @@ class OutputContract(_FileContract):
             call=self.call,
             cwd=cwd,
             preserved=before.preserved if before is not None else None,
+            digest=before.digest if before is not None else None,
             before_value=(lambda: before.value(self.schema)) if before is not None else None,
         )
 
@@ -160,12 +165,14 @@ class OutputContract(_FileContract):
 class Before:
     """An output file ahead of a launch: its stamp (`file_stamp`; None, no file), the values
     its contract's `preserve` pointers select in it (by the pointer that names each one
-    alone), and its text when there is a value to keep or a validator takes `before`
-    (`OutputContract.compares`)."""
+    alone), its text when there is a value to keep or a validator takes `before`
+    (`OutputContract.compares`), and the digest of its content when its stamp was recent
+    (`recent_digest`): a rewrite at the same size and mtime differs from it there."""
 
     stamp: tuple[int, int] | None
     preserved: Mapping[str, Any] = field(default_factory=dict)
     text: str | None = None
+    digest: str | None = None
 
     def value(self, schema: type[BaseModel] | None) -> Any:
         """The text parsed as a check parses the file: the model instance (`schema`), or the
@@ -281,6 +288,11 @@ class Check:
     schema_ok: bool = False
 
 
+#: How close to a stamp's taking a file's mtime must be for a rewrite at the same size to
+#: keep that mtime: a file system moves mtime in ticks (about 16 ms on NTFS, coarser on some).
+RECENT_NS = 2_000_000_000
+
+
 def file_stamp(path: Path) -> tuple[int, int] | None:
     """(mtime_ns, size) of `path`, or None when it does not exist."""
     try:
@@ -288,6 +300,31 @@ def file_stamp(path: Path) -> tuple[int, int] | None:
     except OSError:
         return None
     return (st.st_mtime_ns, st.st_size)
+
+
+def file_digest(path: Path) -> str | None:
+    """The BLAKE2b digest of `path`'s content, or None when it cannot be read."""
+    try:
+        with open(path, "rb") as f:
+            return hashlib.file_digest(f, "blake2b").hexdigest()
+    except OSError:
+        return None
+
+
+def recent_digest(path: Path, stamp: tuple[int, int] | None, since_ns: int) -> str | None:
+    """`file_digest(path)` when `stamp` (`path`'s, taken at or after `since_ns`, wall clock)
+    has an mtime within `RECENT_NS` of `since_ns` or later: a rewrite in the same timestamp
+    tick leaves such a stamp as it was, and only the content tells it. None otherwise."""
+    if stamp is None or stamp[0] < since_ns - RECENT_NS:
+        return None
+    return file_digest(path)
+
+
+def unwritten(path: Path, stamp: tuple[int, int] | None, before: tuple[int, int] | None, digest: str | None = None) -> bool:
+    """Whether the file at `path`, whose stamp is now `stamp`, is as it was before a launch:
+    its stamp then was `before` and, when `digest` (`recent_digest`) was taken, its content
+    still has that digest."""
+    return before is not None and stamp == before and (digest is None or file_digest(path) == digest)
 
 
 def check_file(
@@ -301,14 +338,16 @@ def check_file(
     call: Path | None = None,
     cwd: Path | None = None,
     preserved: Mapping[str, Any] | None = None,
+    digest: str | None = None,
     before_value: Callable[[], Any] | None = None,
 ) -> Check:
     """Validate the file at `path`: its JSON against `schema` (None: any text; a rows file,
     `RowsFile`: each line against its row, `parse_rows`), then every validator on the parsed
     value (a rows file's: the `Rows`).
 
-    `before` is the file's stamp from ahead of the launch; with `fresh`, a
-    file whose stamp has not moved counts as unwritten. `preserved`: values the
+    `before` is the file's stamp from ahead of the launch, `digest` its content's digest
+    then when that stamp was recent (`Before.digest`); with `fresh`, a file whose stamp has
+    not moved, and whose content still has that digest, counts as unwritten. `preserved`: values the
     JSON must still hold, by the pointer that names each (`OutputContract.before`);
     one it no longer holds is an error, reported with the schema's and the validators'.
     `before_value`: the file's value ahead of the task, for the validators that take
@@ -318,7 +357,7 @@ def check_file(
     now = file_stamp(path)
     if now is None:
         return Check(path, False, [f"{path.as_posix()}: file was not written"])
-    if fresh and before is not None and now == before:
+    if fresh and unwritten(path, now, before, digest):
         return Check(path, False, [f"{path.as_posix()}: file predates this task and was not rewritten"])
     try:
         text = path.read_text(encoding="utf-8")
@@ -673,7 +712,7 @@ def _drop_unfinished(contract: OutputContract, cwd: Path, before: Before | None)
         return False
     path = contract.resolve(cwd)
     stamp = file_stamp(path)
-    if stamp is None or (before is not None and stamp == before.stamp):
+    if stamp is None or (before is not None and unwritten(path, stamp, before.stamp, before.digest)):
         return False
     return drop_unfinished(path)
 

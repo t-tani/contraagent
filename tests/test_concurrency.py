@@ -21,13 +21,19 @@ class Peak:
     def __init__(self) -> None:
         self.now = 0
         self.most = 0
-        self._lock = threading.Lock()
+        self._lock = threading.Condition()
 
     def __enter__(self) -> "Peak":
         with self._lock:
             self.now += 1
             self.most = max(self.most, self.now)
+            self._lock.notify_all()
         return self
+
+    def reached(self, most: int) -> None:
+        """Wait until `most` of the group ran at once (10 s at most)."""
+        with self._lock:
+            self._lock.wait_for(lambda: self.most >= most, timeout=10)
 
     def __exit__(self, *exc: object) -> None:
         with self._lock:
@@ -77,11 +83,13 @@ def test_without_a_claim_python_tasks_take_the_slots_with_the_agent_tasks(tmp_pa
     @python_task
     def crunch(unit: str) -> Note:
         with running:
+            running.reached(2)
             time.sleep(0.05)
             return Note(text=unit)
 
     def summarized(launch):
         with running:
+            running.reached(2)
             time.sleep(0.05)
         return {"text": launch.unit}
 

@@ -88,7 +88,7 @@ from contraagent._internal.contracts.contract import OutputContract
 from contraagent._internal.dispatch.records import SafetyStop
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_matches, kind_name
 from contraagent._internal.errors import ContraagentError
-from contraagent._internal.execution.changes import compare, excluded, scan, scan_tree
+from contraagent._internal.execution.changes import compare, excluded, recent_digests, scan, scan_tree
 from contraagent._internal.execution.pipeline_files import Written, write_captured
 from contraagent._internal.platform import envvars
 from contraagent._internal.runs import layout
@@ -220,6 +220,7 @@ class Recorder:
         self.directory: Path = Path(directory)
         self._patterns = patterns
         self._tree: dict[str, tuple[int, int]] | None = None
+        self._digests: dict[str, str] = {}  # of the files `start` found just written (`recent_digests`)
         self._declared: set[str] = set()  # paths relative to cwd: outputs, and what changes= saw
         self._declared_patterns: set[tuple[str, ...]] = set()  # one task's patterns each: a `!` holds for its own
         self.max_file_mb = max_file_mb
@@ -368,8 +369,12 @@ class Recorder:
         return lambda path: path.name in names or path in own
 
     def start(self) -> None:
-        """Stamp every file of the working directory, before the run's flow runs."""
-        self._tree = scan_tree(self._cwd.resolve(), self._skip())
+        """Stamp every file of the working directory, before the run's flow runs, with the
+        content digest of each one written just before (`recent_digests`)."""
+        since = time.time_ns()
+        cwd = self._cwd.resolve()
+        self._tree = scan_tree(cwd, self._skip())
+        self._digests = recent_digests(cwd, self._tree, since)
 
     def finish(self) -> list[str]:
         """The undeclared changes since `start`, in path order: written to `undeclared.json`
@@ -377,7 +382,7 @@ class Recorder:
         if self._tree is None:
             return []
         cwd = self._cwd.resolve()
-        found = compare(self._tree, scan_tree(cwd, self._skip()))
+        found = compare(self._tree, scan_tree(cwd, self._skip()), self._digests, cwd)
         scans = [(group, *scan(cwd, group)) for group in sorted(self._declared_patterns)]
 
         def declared(rel: str) -> bool:

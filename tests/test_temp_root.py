@@ -32,7 +32,9 @@ def test_each_user_has_an_owner_only_directory_and_nothing_else_is_made(systmp):
     assert root == own(systmp) and mode(root) == 0o700
     made = temp_dir("x-")
     assert made.parent == root and mode(made) == 0o700
-    assert temp_root() == root and os.listdir(systmp) == [root.name]  # a second call takes it as it is
+    assert temp_root() == root  # a second call takes it as it is
+    # Only our one directory: the temp dir is the whole process's, and a thread of another test may add files there.
+    assert [n for n in os.listdir(systmp) if n.startswith("contraagent-")] == [root.name]
 
 
 def test_our_directory_others_can_reach_is_made_owner_only(systmp):

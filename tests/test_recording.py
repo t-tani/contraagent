@@ -3,6 +3,7 @@
 
 import contextlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from pydantic import BaseModel
 
 from contraagent import Partial, Pipeline, PipelineConfig, RecordingError, agent_task, python_task
 from contraagent._internal.cli import main
-from contraagent._internal.execution.recording import base_key
+from contraagent._internal.execution.recording import Recorder, base_key
 from contraagent.backends import Stop
 from contraagent.monitor import Monitor
 from contraagent.testing import StubAgent, fails
@@ -499,3 +500,17 @@ def test_a_pipeline_document_over_the_cap_makes_the_attempt_unplayable(tmp_path)
     played = replay(tmp_path, flow_=tally_flow, units=["alpha"])
     assert "by hash only: run kind tally with --execute" in played.results["python:tally-alpha"].reason
     assert not (played.run_dir / "pipeline").exists()
+
+
+def test_an_undeclared_rewrite_at_the_same_size_within_one_mtime_tick_is_seen(tmp_path):
+    work, run_dir = tmp_path / "work", tmp_path / "runs" / "r"
+    work.mkdir()
+    run_dir.mkdir(parents=True)
+    report = work / "report.txt"
+    report.write_text("draft 1\n", encoding="utf-8", newline="\n")
+    recorder = Recorder(tmp_path / "rec", lambda task: (), cwd=work, run_dir=run_dir, run_id="r")
+    recorder.start()
+    tick = report.stat().st_mtime_ns
+    report.write_text("draft 2\n", encoding="utf-8", newline="\n")
+    os.utime(report, ns=(tick, tick))  # the same size and mtime, as on a file system with coarse ticks
+    assert recorder.finish() == ["report.txt"]

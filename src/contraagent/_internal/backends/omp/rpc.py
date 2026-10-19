@@ -201,8 +201,9 @@ class OmpRpcBackend(OmpBackend):
             raise LaunchError(str(exc)) from exc
         live_processes.register(proc, since=since)
         stderr: list[str] = []
+        drain: threading.Thread | None = None
         try:
-            frames = self._start_readers(proc, launch, stderr)
+            frames, drain = self._start_readers(proc, launch, stderr)
             killed, why = self._converse(proc, frames, launch, fold, watch)
         finally:
             try:
@@ -216,7 +217,11 @@ class OmpRpcBackend(OmpBackend):
                 groups.kill(proc)
                 proc.wait()
             live_processes.unregister(proc)
-            # The process is gone; its readers are at EOF or take a closed pipe as one.
+            # The process is gone: its stderr is read to the end before the tail is taken,
+            # unless a process it left behind holds the pipe open.
+            if drain is not None:
+                drain.join(timeout=5)
+            # Its readers are at EOF or take a closed pipe as one.
             for pipe in (proc.stdout, proc.stderr):
                 try:
                     if pipe:
@@ -228,9 +233,10 @@ class OmpRpcBackend(OmpBackend):
 
     # --- exchange -----------------------------------------------------
 
-    def _start_readers(self, proc: subprocess.Popen, launch: Launch, stderr: list[str]) -> queue.Queue:
-        """Threads that put each stdout line on the returned queue (and on the stream file)
-        and keep the tail of stderr in `stderr`."""
+    def _start_readers(self, proc: subprocess.Popen, launch: Launch, stderr: list[str]) -> tuple[queue.Queue, threading.Thread]:
+        """Threads that put each stdout line on the returned queue (and on the stream file),
+        then `eof`, and keep the tail of stderr in `stderr`. Returns the queue and the
+        thread that reads stderr."""
         assert proc.stdout is not None and proc.stderr is not None
         stdout, errout = proc.stdout, proc.stderr
         frames: queue.Queue = queue.Queue()
@@ -263,8 +269,9 @@ class OmpRpcBackend(OmpBackend):
                 pass
 
         threading.Thread(target=read, daemon=True).start()
-        threading.Thread(target=drain, daemon=True).start()
-        return frames
+        drainer = threading.Thread(target=drain, daemon=True)
+        drainer.start()
+        return frames, drainer
 
     def _converse(
         self, proc: subprocess.Popen, frames: queue.Queue, launch: Launch, fold: RpcReader, watch: LimitsWatch
@@ -297,6 +304,7 @@ class OmpRpcBackend(OmpBackend):
             except queue.Empty:
                 continue
             if kind == "eof":
+                frames.put((kind, payload))  # left for `_harvest_state`, which then does not wait
                 return None
             fold.feed_line(payload.encode("utf-8"))
             if fold.done:
@@ -309,7 +317,8 @@ class OmpRpcBackend(OmpBackend):
     def _harvest_state(self, proc: subprocess.Popen, frames: queue.Queue, fold: RpcReader, deadline: float) -> None:
         """get_state after the turn: the session id and the model's context window. Best-effort:
         frames that arrive before its response (late events, a chunked response) go to the
-        reader; waits at most 10 s, never past the launch's deadline."""
+        reader; waits at most 10 s, never past the launch's deadline, and not at all once
+        stdout is closed."""
         self._send(proc, {"id": STATE_REQUEST, "type": "get_state"})
         until = min(deadline, time.monotonic() + 10.0)
         while not fold.state_seen:

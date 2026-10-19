@@ -5,6 +5,7 @@
 // document or the window, no title, no shortcuts outside it.
 import { deriveRun, type Info, type JournalRow, type Plan, type PlanNode, type RunSummary, type Stop } from '@contraagent/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setLocale } from '../../core/i18n.js';
 import './ca-monitor.js';
 import type { CaMonitor } from './ca-monitor.js';
 
@@ -12,7 +13,7 @@ const node = (key: string, state: PlanNode['state'], after: string[] = []): Plan
   key, kind: key.split('-')[0]!, unit: key.split('-')[1] ?? '', after, state, level: 0, group: key.split('-')[0]!,
 });
 const row = (key: string, stop: Stop, attempt = 0): JournalRow => ({
-  ts: '2026-10-11T00:00:01', key, kind: key.split('-')[0]!, unit: key.split('-')[1] ?? '', stop, ok: stop === 'completed', wall_s: 1, attempt,
+  ts: '2026-10-11T00:00:01Z', key, kind: key.split('-')[0]!, unit: key.split('-')[1] ?? '', stop, ok: stop === 'completed', wall_s: 1, attempt,
 });
 
 // a done after a retry, c failed, d not started.
@@ -20,7 +21,7 @@ const plan: Plan = { nodes: [node('a-1', 'done'), node('c-1', 'failed'), node('d
 const journal = [row('a-1', 'error', 0), row('a-1', 'completed', 1), row('c-1', 'error'), row('d-1', 'invalid_input')];
 const info: Info = { title: 'Pipeline', panels: [{ name: 'notes', title: 'Notes', description: '', icon: '' }], api_version: '1' };
 const summary = {
-  run: 'r', started_at: '2026-10-11T00:00:00', last_ts: '2026-10-11T00:01:05', running: false, quota: [],
+  run: 'r', started_at: '2026-10-11T00:00:00Z', last_ts: '2026-10-11T00:01:05Z', running: false, quota: [],
   tasks: { total: 3, done: 1, failed: 1, not_run: 1 },
 } as unknown as RunSummary;
 
@@ -53,9 +54,13 @@ beforeEach(() => {
     return Promise.resolve(new Response(JSON.stringify(body), { status: body ? 200 : 404, headers: { 'Content-Type': 'application/json' } }));
   });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(async () => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  history.replaceState(null, '', '/');
+  await setLocale('en');
+});
 
-const settle = (ms = 80) => new Promise((r) => setTimeout(r, ms));
 const text = (e: Element | null | undefined) => (e?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
 /** A monitor (in memory mode unless `attrs` says otherwise), its run's feed replayed. */
@@ -65,14 +70,13 @@ async function monitor(attrs: Record<string, string> = {}): Promise<CaMonitor> {
   for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
   el.setAttribute('base-url', 'http://monitor.test');
   document.body.append(el);
-  await settle();
+  await vi.waitFor(() => expect(feeds.at(-1)?.url).toBe('http://monitor.test/events?run=r'));
   const feed = feeds.at(-1)!;
-  expect(feed.url).toBe('http://monitor.test/events?run=r');
   feed.es.onopen?.();
   feed.on.get('plan')!({ data: JSON.stringify(plan) });
   for (const r of journal) feed.on.get('journal')!({ data: JSON.stringify(r) });
   feed.on.get('ready')!({ data: 'null' });
-  await settle();
+  await vi.waitFor(() => expect(badge(el, 'Tasks')).toBe(String(plan.nodes.length)));
   await el.updateComplete;
   return el;
 }
@@ -112,18 +116,13 @@ describe('ca-monitor', () => {
       document.title = 'Host page';
       const onDoc = vi.spyOn(document, 'addEventListener');
       const onWin = vi.spyOn(window, 'addEventListener');
-      try {
-        const el = await monitor();
-        expect(text(root(el).querySelector('header .rn'))).toBe('r');
-        expect(onDoc).not.toHaveBeenCalled();
-        // Only @lit/localize's own: each localized element hears the language change on the window.
-        expect(onWin.mock.calls.map(([type]) => type).filter((t) => t !== 'lit-localize-status')).toEqual([]);
-        expect(document.title).toBe('Host page');
-        el.remove();
-      } finally {
-        onDoc.mockRestore();
-        onWin.mockRestore();
-      }
+      const el = await monitor();
+      expect(text(root(el).querySelector('header .rn'))).toBe('r');
+      expect(onDoc).not.toHaveBeenCalled();
+      // Only @lit/localize's own: each localized element hears the language change on the window.
+      expect(onWin.mock.calls.map(([type]) => type).filter((t) => t !== 'lit-localize-status')).toEqual([]);
+      expect(document.title).toBe('Host page');
+      el.remove();
     });
 
     it('takes keys pressed inside it only, and none typed in a field', async () => {
@@ -169,7 +168,6 @@ describe('ca-monitor', () => {
       await el.updateComplete;
       expect(text(root(el).querySelector('nav .tab.sel'))).toMatch(/Tasks/);
       el.remove();
-      history.replaceState(null, '', '/');
     });
   });
 
@@ -212,30 +210,27 @@ describe('ca-monitor', () => {
       const el = document.createElement('ca-monitor');
       el.setAttribute('history', 'memory');
       document.body.append(el);
-      await settle();
-      await el.updateComplete;
+      await vi.waitFor(() => expect(alert(el)).not.toBe(''));
       expect(alert(el)).toBe(`✕ No monitor API at ${location.origin}/api/info: the response is HTML, not JSON`);
       expect(text(root(el).querySelector('main'))).toBe('');
       expect(errors.mock.calls).toEqual([[`No monitor API at ${location.origin}/api/info: the response is HTML, not JSON`]]);
       el.remove();
-      errors.mockRestore();
     });
 
     it('takes a base-url set after connecting: the old feeds close, the new server is read', async () => {
-      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.spyOn(console, 'error').mockImplementation(() => {});
       const el = document.createElement('ca-monitor');
       el.setAttribute('history', 'memory');
       document.body.append(el);
-      await settle();
+      // The page's own server answers with HTML: the monitor says so, and opens no feed.
+      await vi.waitFor(() => expect(alert(el)).not.toBe(''));
       expect(feeds).toEqual([]);
       el.baseUrl = 'http://monitor.test/';
-      await settle();
-      await el.updateComplete;
+      await vi.waitFor(() => expect(text(root(el).querySelector('header .rn'))).toBe('r'));
+      await vi.waitFor(() => expect(alert(el)).toBe(''));
       expect(feeds.map((f) => f.url)).toEqual(['http://monitor.test/events?run=r']);
-      expect(alert(el)).toBe('');
       expect(text(root(el).querySelector('header .rn'))).toBe('r');
       el.remove();
-      errors.mockRestore();
     });
 
     it('closes the feed of the old server when base-url changes, and opens the run named by run', async () => {
@@ -243,21 +238,17 @@ describe('ca-monitor', () => {
       const el = await monitor();
       el.setAttribute('base-url', 'http://monitor.test/other');
       el.run = 'r';
-      await settle();
-      await el.updateComplete;
+      await vi.waitFor(() => expect(feeds.at(-1)!.url).toBe('http://monitor.test/other/events?run=r'));
       expect(closed).toHaveBeenCalled();
-      expect(feeds.at(-1)!.url).toBe('http://monitor.test/other/events?run=r');
       el.remove();
-      closed.mockRestore();
     });
 
     it('opens the run set after connecting', async () => {
       const el = await monitor();
       el.run = 'other';
-      await settle();
+      await vi.waitFor(() => expect(feeds.at(-1)!.url).toBe('http://monitor.test/events?run=other'));
       await el.updateComplete;
       expect(text(root(el).querySelector('header .rn'))).toBe('other');
-      expect(feeds.at(-1)!.url).toBe('http://monitor.test/events?run=other');
       el.remove();
     });
 
@@ -270,7 +261,6 @@ describe('ca-monitor', () => {
       await vi.waitFor(() => expect(document.title).toBe('Pipeline モニター'), { timeout: 3000 });
       expect(el.lang).toBe('ja');
       el.remove();
-      history.replaceState(null, '', '/');
     });
   });
 });

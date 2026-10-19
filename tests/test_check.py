@@ -46,6 +46,16 @@ def plugin_dir(tmp_path):
     return tmp_path / "plugins" / "summarize"
 
 
+@pytest.fixture
+def flow_module():
+    """`flow_module(name)`: the command line imports the module `name`; it leaves
+    `sys.modules` after the test, failed or passed."""
+    names: list[str] = []
+    yield names.append
+    for name in names:
+        sys.modules.pop(name, None)
+
+
 def pipeline(config: dict | None = None) -> Pipeline:
     return Pipeline(PipelineConfig(config or {}), backends=StubAgent().backends())
 
@@ -132,7 +142,8 @@ def test_a_broken_plugin_is_linted(plugin_dir):
     assert any(e.startswith(f"plugin {plugin_dir.resolve()}: hooks.toml: no stop hook") for e in report.errors)
 
 
-def test_the_command_line_imports_a_flow_file_as_the_hook_would(tmp_path, plugin_dir, capsys, monkeypatch):
+def test_the_command_line_imports_a_flow_file_as_the_hook_would(tmp_path, plugin_dir, capsys, monkeypatch, flow_module):
+    flow_module("tasks")
     (tmp_path / "tasks.py").write_text(
         "from pydantic import BaseModel\n"
         "from contraagent import agent_task\n"
@@ -155,10 +166,10 @@ def test_the_command_line_imports_a_flow_file_as_the_hook_would(tmp_path, plugin
     )
     assert main(["check", "tasks.py:flow"]) == 1
     assert "no role 'nobody'" in capsys.readouterr().out
-    sys.modules.pop("tasks", None)
 
 
-def test_a_flow_module_that_prints_when_imported_passes_the_output_import_check(tmp_path, plugin_dir, capsys, monkeypatch):
+def test_a_flow_module_that_prints_when_imported_passes_the_output_import_check(tmp_path, plugin_dir, capsys, monkeypatch, flow_module):
+    flow_module("loud_tasks")
     (tmp_path / "loud_tasks.py").write_text(
         "print('loading the tasks')\n"
         "from pydantic import BaseModel\n"
@@ -174,7 +185,6 @@ def test_a_flow_module_that_prints_when_imported_passes_the_output_import_check(
     assert main(["check", "loud_tasks.py:flow", "--stub"]) == 0
     out = capsys.readouterr().out
     assert "✓ 1 task, 1 kind: summarize 1" in out and "not checked" not in out
-    sys.modules.pop("loud_tasks", None)
 
 
 def test_every_routing_problem_is_reported_in_one_check(plugin_dir):
@@ -266,7 +276,8 @@ def test_the_report_shows_each_kinds_route_and_a_flow_error_at_the_flows_line(pl
     assert f"{__file__}:" in errors[0] and "FileNotFoundError" in errors[0]
 
 
-def test_run_takes_what_check_takes_and_exits_by_the_outcome(tmp_path, capsys, monkeypatch):
+def test_run_takes_what_check_takes_and_exits_by_the_outcome(tmp_path, capsys, monkeypatch, flow_module):
+    flow_module("steps")
     (tmp_path / "steps.py").write_text(
         "from contraagent import python_task\n"
         "@python_task\ndef double(n: int) -> int:\n    return 2 * n\n"
@@ -287,7 +298,6 @@ def test_run_takes_what_check_takes_and_exits_by_the_outcome(tmp_path, capsys, m
     assert main(["run", *args, "--resume"]) == 0
     assert main(["run", "steps.py:failing"]) == 1
     assert "python:fail: error" in capsys.readouterr().out
-    sys.modules.pop("steps", None)
 
 
 def test_a_model_the_coding_agent_does_not_list_is_reported(plugin_dir):

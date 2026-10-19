@@ -280,15 +280,16 @@ def test_deploy_the_compose_hub_and_ship_the_demo_runs_to_it(tmp_path, demo_runs
         pytest.skip(why)
     began = time.monotonic()
     tag = uuid.uuid4().hex[:10]
-    project, image, port = f"contraagent-e2e-{tag}", f"contraagent-hub:e2e-{tag}", _free_port()
-    url = f"http://127.0.0.1:{port}"
+    project, image = f"contraagent-e2e-{tag}", f"contraagent-hub:e2e-{tag}"
     where, compose, env = tmp_path, COMPOSE, {}
     compose_ = lambda *args, timeout=120: _compose(where, project, *args, env=env, timeout=timeout, compose=compose)
     try:
         where, compose, env = _build(built_from, tmp_path, image)
-        env |= {"CONTRAAGENT_HUB_BIND": "127.0.0.1", "CONTRAAGENT_HUB_PORT": str(port)}
         read = read_read_token(where / "secrets" / "read-token")
         relay_env = _env_file(where / "secrets" / "relay-e2e-host.env")
+        port = _free_port()  # after the build, so little time passes before compose binds it
+        url = f"http://127.0.0.1:{port}"
+        env |= {"CONTRAAGENT_HUB_BIND": "127.0.0.1", "CONTRAAGENT_HUB_PORT": str(port)}
         up = compose_("up", "--detach", "--build" if built_from == "package" else "--no-build", timeout=600)
         assert up.returncode == 0, up.stderr
         deadline = time.monotonic() + 120

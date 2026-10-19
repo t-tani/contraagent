@@ -14,10 +14,43 @@ from contraagent.engine import FlowDriver, WorkQueue
 from contraagent.monitor import Monitor
 
 
-class Runner:
-    """Runs a task by sleeping `params["sleep"]`; records the keys it launched."""
+class FakeTime:
+    """The queue's and the flow driver's clock (`time.monotonic`), moved only by `spend`: a
+    deadline is crossed by the work a test says took time, never by how loaded the machine
+    is. `sleep` and `time` stay real."""
 
     def __init__(self) -> None:
+        self.now = 1000.0
+        self._lock = threading.Lock()
+
+    def monotonic(self) -> float:
+        with self._lock:
+            return self.now
+
+    def spend(self, seconds: float) -> None:
+        with self._lock:
+            self.now += seconds
+
+    sleep = staticmethod(time.sleep)
+    time = staticmethod(time.time)
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    import contraagent._internal.dispatch.flow as flow_module
+    import contraagent._internal.dispatch.queue as queue_module
+
+    fake = FakeTime()
+    monkeypatch.setattr(queue_module, "time", fake)
+    monkeypatch.setattr(flow_module, "time", fake)
+    return fake
+
+
+class Runner:
+    """Runs a task by spending `params["sleep"]` on `clock`; records the keys it launched."""
+
+    def __init__(self, clock: FakeTime) -> None:
+        self.clock = clock
         self.launched: list[str] = []
         self._lock = threading.Lock()
 
@@ -27,7 +60,7 @@ class Runner:
     def run(self, task: Task) -> TaskResult:
         with self._lock:
             self.launched.append(task.key)
-        time.sleep(task.params.get("sleep", 0.0))
+        self.clock.spend(task.params.get("sleep", 0.0))
         return TaskResult(task=task, ok=True, stop="completed")
 
 
@@ -35,18 +68,18 @@ def t(key: str, **params) -> Task:
     return Task(key.split("-")[0], key=key, params=params)
 
 
-def drive(*flows, wait_s: float = 0.0, **queue_options):
-    """Run `flows` on a fresh queue, `wait_s` after making it (past a short run deadline)."""
+def drive(clock: FakeTime, *flows, wait_s: float = 0.0, **queue_options):
+    """Run `flows` on a fresh queue, `wait_s` on `clock` after making it (past a short run deadline)."""
     deferred: list[dict] = []
 
     def on_event(event, task, **fields):
         if event == "deferred":
             deferred.append({"key": task.key, **fields, "cause": fields["cause"].to_dict()})
 
-    runner = Runner()
+    runner = Runner(clock)
     driver = FlowDriver(answer=result_or_raise)
     queue = WorkQueue(runner, max_concurrent=4, on_event=on_event, **queue_options)
-    time.sleep(wait_s)
+    clock.spend(wait_s)
     driver.run(queue, *flows)
     return runner, driver, {d["key"]: d for d in deferred}
 
@@ -54,7 +87,7 @@ def drive(*flows, wait_s: float = 0.0, **queue_options):
 # --- the queue's rules, per box ---------------------------------------------------
 
 
-def test_past_its_deadline_a_box_launches_only_its_finishing_kinds_and_the_tasks_outside_go_on():
+def test_past_its_deadline_a_box_launches_only_its_finishing_kinds_and_the_tasks_outside_go_on(clock):
     seen: list[str] = []
 
     def inner():
@@ -71,7 +104,7 @@ def test_past_its_deadline_a_box_launches_only_its_finishing_kinds_and_the_tasks
         yield t("publish-1")  # outside the box: launches though its deadline has passed
         return value
 
-    runner, driver, deferred = drive(flow())
+    runner, driver, deferred = drive(clock, flow())
     assert runner.launched == ["slow-1", "report-1", "publish-1"]
     assert seen == ["work-1"] and driver.calls["0"].value == "inner"
     assert deferred["work-1"]["cause"] == {"cause": "deadline", "flow_call": "0.1"}
@@ -81,7 +114,7 @@ def test_past_its_deadline_a_box_launches_only_its_finishing_kinds_and_the_tasks
     assert driver.calls["0"].time_box is None
 
 
-def test_past_its_grace_window_a_box_launches_nothing_and_its_flow_receives_task_deferred():
+def test_past_its_grace_window_a_box_launches_nothing_and_its_flow_receives_task_deferred(clock):
     def inner():
         yield t("slow-1", sleep=0.2)
         yield t("report-1")
@@ -93,13 +126,13 @@ def test_past_its_grace_window_a_box_launches_nothing_and_its_flow_receives_task
             yield t("publish-1")
             return exc.key
 
-    runner, driver, deferred = drive(flow())
+    runner, driver, deferred = drive(clock, flow())
     assert runner.launched == ["slow-1", "publish-1"]
     assert driver.calls["0"].value == "report-1"  # the box's flow raised; its parent caught it
     assert deferred["report-1"]["cause"] == {"cause": "grace_window", "flow_call": "0.1"}
 
 
-def test_nested_boxes_the_earliest_deadline_stops_a_task_and_names_its_box():
+def test_nested_boxes_the_earliest_deadline_stops_a_task_and_names_its_box(clock):
     def innermost():
         yield t("slow-1", sleep=0.3)
         yield t("work-1")  # past the outer box's deadline, inside the inner's
@@ -122,7 +155,7 @@ def test_nested_boxes_the_earliest_deadline_stops_a_task_and_names_its_box():
             pass
         yield time_box(other(), deadline_s=60)
 
-    runner, driver, deferred = drive(flow())
+    runner, driver, deferred = drive(clock, flow())
     assert deferred["work-1"]["cause"] == {"cause": "deadline", "flow_call": "0.1"}  # the outer box, the earlier
     assert "work-2" not in runner.launched
     assert "in-2" in deferred and deferred["in-2"]["cause"]["flow_call"] == "0.2.1"
@@ -135,7 +168,7 @@ def t_gen(key):
     yield t(key.replace("-1", "-2"))
 
 
-def test_in_a_box_s_endgame_a_task_that_cannot_finish_is_deferred_at_once():
+def test_in_a_box_s_endgame_a_task_that_cannot_finish_is_deferred_at_once(clock):
     def inner():
         yield Task("long", key="long-1", estimate_s=1000)
 
@@ -146,20 +179,20 @@ def test_in_a_box_s_endgame_a_task_that_cannot_finish_is_deferred_at_once():
             pass
         yield t("publish-1")
 
-    runner, _, deferred = drive(flow())
+    runner, _, deferred = drive(clock, flow())
     assert runner.launched == ["publish-1"]
     cause = deferred["long-1"]["cause"]
     assert cause["cause"] == "cannot_finish" and cause["flow_call"] == "0.1" and cause["need_s"] == 1000
 
 
-def test_the_run_s_own_deadline_is_unchanged_and_names_no_flow_call():
+def test_the_run_s_own_deadline_is_unchanged_and_names_no_flow_call(clock):
     def flow():
         try:
             yield t("scan-1")
         except TaskDeferred:
             yield t("report-1")
 
-    runner, _, deferred = drive(flow(), wait_s=0.01, deadline_s=0.001, finishing_kinds=("report",))
+    runner, _, deferred = drive(clock, flow(), wait_s=0.01, deadline_s=0.001, finishing_kinds=("report",))
     assert runner.launched == ["report-1"]
     assert deferred["scan-1"]["cause"] == {"cause": "deadline"}
 
@@ -213,38 +246,6 @@ def cycle(unit: str):
     done = yield time_box(work(unit), deadline_s=0.15, grace_s=60, finishing_kinds=["publish"])
     yield publish(unit)
     return done
-
-
-class FakeTime:
-    """The queue's and the flow driver's clock (`time.monotonic`), moved only by `spend`: a
-    deadline is crossed by the work a test says took time, never by how loaded the machine
-    is. `sleep` and `time` stay real."""
-
-    def __init__(self) -> None:
-        self.now = 1000.0
-        self._lock = threading.Lock()
-
-    def monotonic(self) -> float:
-        with self._lock:
-            return self.now
-
-    def spend(self, seconds: float) -> None:
-        with self._lock:
-            self.now += seconds
-
-    sleep = staticmethod(time.sleep)
-    time = staticmethod(time.time)
-
-
-@pytest.fixture
-def clock(monkeypatch):
-    import contraagent._internal.dispatch.flow as flow_module
-    import contraagent._internal.dispatch.queue as queue_module
-
-    fake = FakeTime()
-    monkeypatch.setattr(queue_module, "time", fake)
-    monkeypatch.setattr(flow_module, "time", fake)
-    return fake
 
 
 def rows(path):
@@ -362,15 +363,17 @@ def test_contraagent_run_exits_0_when_its_tasks_were_deferred_and_the_flow_caugh
     (tmp_path / "boxed.py").write_text(
         "import time\n"
         "from contraagent import TaskDeferred, python_task, time_box\n"
-        # `slow` outlasts the box, which leaves time for `slow` to start on a slow machine.
-        "@python_task\ndef slow(unit: str) -> str:\n    time.sleep(1.3)\n    return unit\n"
+        # `slow` outlasts the box, which leaves `slow` 3 s to start on a slow machine.
+        "@python_task\ndef slow(unit: str) -> str:\n    time.sleep(3.5)\n    return unit\n"
         "@python_task\ndef late(unit: str) -> str:\n    return unit\n"
         "def work(unit):\n    yield slow(unit)\n    try:\n        yield late(unit)\n    except TaskDeferred:\n        return 'cut'\n"
-        "def flow(unit):\n    return (yield time_box(work(unit), deadline_s=1.0))\n"
+        "def flow(unit):\n    return (yield time_box(work(unit), deadline_s=3.0))\n"
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "path", list(sys.path))
-    assert main(["run", "boxed.py:flow", "--kwargs", '{"unit": "a"}']) == 0
+    try:
+        assert main(["run", "boxed.py:flow", "--kwargs", '{"unit": "a"}']) == 0
+    finally:
+        sys.modules.pop("boxed", None)
     out = capsys.readouterr().out
     assert "1/2 tasks done, 1 deferred" in out and "python:late-a: deferred" in out
-    sys.modules.pop("boxed", None)

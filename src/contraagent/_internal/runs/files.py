@@ -40,6 +40,8 @@ BINARY = getattr(os, "O_BINARY", 0)
 #: open (a reader's open file is replaced only once it is closed there), and how long
 #: `read_document` tries again to open one that is being replaced.
 REPLACE_WAIT_S = 2.0
+#: Whether this is Windows, where a file another process holds open cannot be replaced.
+WINDOWS = sys.platform == "win32"
 
 
 def write_document(path: str | os.PathLike[str], text: str | bytes, *, fsync: bool = False) -> Path:
@@ -68,7 +70,7 @@ def write_document(path: str | os.PathLike[str], text: str | bytes, *, fsync: bo
 def _replace(tmp: Path, path: Path) -> None:
     """`os.replace`, tried again for `REPLACE_WAIT_S` on Windows while another process has
     `path` open (`PermissionError`): Python opens a file there without letting it be replaced."""
-    if sys.platform != "win32":
+    if not WINDOWS:
         os.replace(tmp, path)
         return
     deadline = time.monotonic() + REPLACE_WAIT_S
@@ -95,7 +97,7 @@ def read_document(path: str | os.PathLike[str]) -> str:
             with open(path, encoding="utf-8", errors="replace") as f:
                 return f.read()
         except (PermissionError, FileNotFoundError) as e:
-            if sys.platform != "win32" or time.monotonic() >= deadline:
+            if not WINDOWS or time.monotonic() >= deadline:
                 raise
             # Absent, unless it is being replaced or the replace has just ended.
             if isinstance(e, FileNotFoundError) and not (_being_replaced(path) or path.exists()):
