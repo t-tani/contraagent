@@ -1,6 +1,6 @@
 """The task declarations a flow's code can reach, found without running it.
 
-A generator flow creates tasks as it runs, so the kinds of a run are known
+An async flow creates tasks as it runs, so the kinds of a run are known
 only at its end. Its code says which it can create: `reachable(flow, ...)`
 follows what the code of each function refers to, starting from the roots
 (the flow and its arguments), and returns every `AgentTask` and `PythonTask`
@@ -10,7 +10,7 @@ What a function's code refers to: the global names its code (and the code
 nested in it: inner functions, lambdas, comprehensions) uses, an attribute
 of a module it uses by one of those names (`tasks.review`), the values its
 closure holds, and its default arguments. Each value found is followed the
-same way when it is a function of flow code (`origin.flow_code`), a bound
+same way when it is a function of flow code (`code.flow_code`), a bound
 method, a `functools.partial`, a class of flow code (the values its body
 defines: methods, static and class methods, a property's functions, nested
 classes, class attributes; and its bases of flow code), an instance of such a
@@ -35,7 +35,7 @@ from collections.abc import Iterable
 from types import BuiltinFunctionType, CodeType, FunctionType, MethodType, ModuleType
 from typing import Any
 
-from contraagent._internal.pipeline.origin import flow_code
+from contraagent._internal.dispatch.code import flow_code
 from contraagent._internal.pipeline.spec import AgentTask, Implementations, PythonTask
 
 

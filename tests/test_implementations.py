@@ -96,10 +96,10 @@ def test_a_base_kind_table_is_not_an_unknown_one(caplog):
     assert check_task_tables(tables, ["review-go"], {"review-go": "review"}) == ["reveiw"]
 
 
-def review_all(review, units: dict[str, str]):
+async def review_all(review, units: dict[str, str]):
     found = {}
     for unit, lang in units.items():
-        result = yield review[lang](unit)
+        result = await review[lang](unit)
         found[unit] = result.findings
     return found
 
@@ -143,15 +143,15 @@ def test_a_stub_run_launches_each_unit_s_kind_and_the_monitor_draws_one_group(tm
     assert kinds == {"review-py": "review", "review-go": "review"}
 
 
-def created_then_implementation(review, other, lang: str):
-    yield other("a")
-    yield review[lang]("a")
+async def created_then_implementation(review, other, lang: str):
+    await other("a")
+    await review[lang]("a")
 
 
-def reached_only(review, other):  # `other` is reachable, never created
+async def reached_only(review, other):  # `other` is reachable, never created
     if False:
-        yield other("a")
-    yield review["py"]("a")
+        await other("a")
+    await review["py"]("a")
 
 
 def test_a_kind_that_is_a_base_kind_or_an_implementation_kind_of_another_declaration_is_refused(tmp_path, plugins):

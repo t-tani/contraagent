@@ -4,6 +4,7 @@ A pass is one iteration of one loop of flow code, counted from the loop's back e
 (`sys.monitoring`). Bytecode differs between Python versions; run this on each one
 `requires-python` admits (`uv run --python 3.12 pytest tests/test_passes.py`, ... 3.14)."""
 
+import asyncio
 import importlib.util
 import inspect
 import json
@@ -19,33 +20,43 @@ from contraagent.testing import StubAgent
 
 # --- counting, against counters the flows keep themselves ------------------------------
 #
-# Each generator yields the passes it expects at that point, outermost loop first.
+# Each flow awaits `at(...)`: the passes it expects at that point, outermost loop first.
 
 
-def nested(n, m):
+class at:
+    """What a shape expects where it awaits: the driver (`observed`) receives the passes."""
+
+    def __init__(self, *passes: int) -> None:
+        self.passes = list(passes)
+
+    def __await__(self):
+        yield self.passes
+
+
+async def nested(n, m):
     a = 0
     for _ in range(n):
         a += 1
         b = 0
         for _ in range(m):
             b += 1
-            yield [a, b]
-        yield [a]
+            await at(a, b)
+        await at(a)
 
 
-def while_true_starting_with_a_for(ys):
+async def while_true_starting_with_a_for(ys):
     a = 0
     while True:
         a += 1
         b = 0
         for _ in ys:
             b += 1
-            yield [a, b]
+            await at(a, b)
         if a == 3:
             break
 
 
-def while_true_starting_with_a_while(n):
+async def while_true_starting_with_a_while(n):
     a = 0
     while True:
         a += 1
@@ -53,81 +64,81 @@ def while_true_starting_with_a_while(n):
         while k < n:
             b += 1
             k += 1
-            yield [a, b]
+            await at(a, b)
         if a == 3:
             break
-    yield []
+    await at()
 
 
-def a_yield_in_a_while_test(n):
+async def an_await_in_a_while_test(n):
     a = 1
-    while (yield [a]) is None and a < n:
-        yield [a]
+    while (await at(a)) is None and a < n:
+        await at(a)
         a += 1
 
 
-def branches(n):
+async def branches(n):
     a = 0
     for k in range(n):
         a += 1
         if k % 2 == 0:
-            yield [a]
+            await at(a)
         else:
-            yield [a]
+            await at(a)
 
 
-def continue_and_break():
+async def continue_and_break():
     a = 0
     while True:
         a += 1
         if a % 3 == 0:
-            continue  # an iteration that yields nothing
+            continue  # an iteration that awaits nothing
         if a > 10:
             break
-        yield [a]
-    yield []
+        await at(a)
+    await at()
 
 
-def comprehensions_in_a_loop(n):
+async def comprehensions_in_a_loop(n):
     a = 0
     for _ in range(n):
         a += 1
         _ = [y for y in range(5) if y]
-        yield [a]
-        yield [[a] for _ in range(3)][0]
-    yield [[] for _ in range(2)][0]
+        await at(a)
+        await at(*[[a] for _ in range(3)][0])
+    await at(*[[] for _ in range(2)][0])
 
 
-def helper(n):
+async def helper(n):
     a = 0
     for _ in range(n):
         a += 1
-        yield [a]
+        await at(a)
 
 
-def a_loop_through_yield_from(n):
+async def a_loop_through_an_awaited_helper(n):
     a = 0
     for _ in range(n):
         a += 1
-        yield [a]
-        yield from helper(2)
+        await at(a)
+        await helper(2)
 
 
-def exceptions_in_a_loop(n):
+async def exceptions_in_a_loop(n):
     a = 0
     for i in range(n):
         a += 1
         try:
             if i % 2:
                 raise ValueError
-            yield [a]
+            await at(a)
         except ValueError:
             continue
         finally:
             pass
 
 
-def while_with_else(n):
+async def while_with_else(n):
     a = k = 0
     while k < n:
         a += 1
@@ -135,47 +146,51 @@ def while_with_else(n):
         b = 0
         for _ in range(2):
             b += 1
-            yield [a, b]
+            await at(a, b)
     else:
-        yield []
+        await at()
 
 
-def for_with_else(n):
+async def for_with_else(n):
     a = 0
     for _ in range(n):
         a += 1
-        yield [a]
+        await at(a)
     else:
-        yield []
-    yield []
+        await at()
+    await at()
 
 
 SHAPES = [
     (nested, (4, 3)),
     (while_true_starting_with_a_for, ([1, 2],)),
     (while_true_starting_with_a_while, (2,)),
-    (a_yield_in_a_while_test, (3,)),
+    (an_await_in_a_while_test, (3,)),
     (branches, (4,)),
     (continue_and_break, ()),
     (comprehensions_in_a_loop, (3,)),
-    (a_loop_through_yield_from, (3,)),
+    (a_loop_through_an_awaited_helper, (3,)),
     (exceptions_in_a_loop, (5,)),
     (while_with_else, (3,)),
     (for_with_else, (2,)),
 ]
 
 
-def observed(gen, counter):
-    """At each yield: (what the flow expected, the passes counted for its innermost frame)."""
+def innermost(coro):
+    """The frame where `coro` waits: the last coroutine of its `cr_await` chain."""
+    while getattr(coro.cr_await, "cr_frame", None) is not None:
+        coro = coro.cr_await
+    return coro.cr_frame
+
+
+def observed(coro, counter):
+    """At each await of `at`: (what the flow expected, the passes counted for its innermost frame)."""
     out = []
     try:
-        expected = next(gen)
+        expected = coro.send(None)
         while True:
-            inner = gen
-            while inner.gi_yieldfrom is not None:
-                inner = inner.gi_yieldfrom
-            out.append((expected, [loop.pass_ for loop in counter.loops(inner.gi_frame)]))
-            expected = gen.send(None)
+            out.append((expected, [loop.pass_ for loop in counter.loops(innermost(coro))]))
+            expected = coro.send(None)
     except StopIteration:
         pass
     return out
@@ -197,38 +212,39 @@ def line_of(fn, text: str) -> int:
 def test_loops_are_named_by_their_first_lines_outermost_first():
     counter = loops.LoopCounter()
     with loops.counting(counter):
-        gen = nested(2, 2)
-        next(gen)
-        assert [(loop.line, loop.pass_) for loop in counter.loops(gen.gi_frame)] == [
+        coro = nested(2, 2)
+        coro.send(None)
+        assert [(loop.line, loop.pass_) for loop in counter.loops(coro.cr_frame)] == [
             (line_of(nested, "for _ in range(n)"), 1),
             (line_of(nested, "for _ in range(m)"), 1),
         ]
+        coro.close()
 
 
 def test_code_with_no_source_falls_back_to_its_backward_jumps():
-    scope: dict = {}
-    exec(compile("def made(n):\n    for u in range(n):\n        yield u\n", "<made>", "exec"), scope)
+    scope: dict = {"at": at}
+    exec(compile("async def made(n):\n    for u in range(n):\n        await at(u)\n", "<made>", "exec"), scope)
     counter = loops.LoopCounter()
     with loops.counting(counter):
-        gen = scope["made"](3)
-        got = [[(loop.line, loop.pass_) for loop in counter.loops(gen.gi_frame)] for _ in gen]
-    assert got == [[(2, 1)], [(2, 2)], [(2, 3)]]
-    exec(compile("def made_while(n):\n    while n:\n        n -= 1\n        yield n\n", "<made_while>", "exec"), scope)
+        got = [passes for _, passes in observed(scope["made"](3), counter)]
+    assert got == [[1], [2], [3]]
+    assert [loop.line for loop in loops.loops_of(scope["made"].__code__).loops.values()] == [2]
+    exec(compile("async def made_while(n):\n    while n:\n        n -= 1\n        await at(n)\n", "<made_while>", "exec"), scope)
     with loops.counting(counter):
-        assert len(list(scope["made_while"](3))) == 3
+        assert len(observed(scope["made_while"](3), counter)) == 3
     assert not loops.is_while("<made>", 2) and loops.is_while("<made_while>", 2)  # each named by its first line
-    src = "def made_continue(n):\n    while n:\n        n -= 1\n        if n == 2:\n            continue\n        yield n\n"
+    src = "async def made_continue(n):\n    while n:\n        n -= 1\n        if n == 2:\n            continue\n        await at(n)\n"
     exec(compile(src, "<made_continue>", "exec"), scope)
     with loops.counting(counter):
-        gen = scope["made_continue"](4)
-        got = [[(loop.line, loop.pass_) for loop in counter.loops(gen.gi_frame)] for _ in gen]
-    assert got == [[(2, 1)], [(2, 3)], [(2, 4)]]  # `continue` goes back to the same loop
+        got = [passes for _, passes in observed(scope["made_continue"](4), counter)]
+    assert got == [[1], [3], [4]]  # `continue` goes back to the same loop
 
 
 def test_outside_counting_or_with_no_free_tool_id_a_pass_is_none():
-    gen = nested(1, 1)
-    next(gen)
-    assert [loop.pass_ for loop in loops.LoopCounter().loops(gen.gi_frame)] == [None, None]
+    coro = nested(1, 1)
+    coro.send(None)
+    assert [loop.pass_ for loop in loops.LoopCounter().loops(coro.cr_frame)] == [None, None]
+    coro.close()
     mon = sys.monitoring
     taken = [t for t in loops.TOOL_IDS if mon.get_tool(t) is None]
     for t in taken:
@@ -292,17 +308,17 @@ def passes(row, depth=-1):
     return [loop["pass"] for loop in row["flow"][depth]["loops"]]
 
 
-def grid(cols, rows_):
+async def grid(cols, rows_):
     for c in range(cols):
         for r in range(rows_):
-            yield step(f"c{c}r{r}", n=c)
+            await step(f"c{c}r{r}", n=c)
 
 
 def test_nested_loops_record_the_outer_and_inner_pass_and_4_by_3_is_not_too_many(tmp_path):
-    def flow():
+    async def flow():
         for c in range(4):
             for r in range(3):
-                yield step("u", key=f"cell-{c}-{r}", n=c)
+                await step("u", key=f"cell-{c}-{r}", n=c)
 
     rep = pipeline(tmp_path).run(flow)
     assert rep.ok and not rep.flow_errors
@@ -316,12 +332,12 @@ def test_nested_loops_record_the_outer_and_inner_pass_and_4_by_3_is_not_too_many
 
 
 def test_a_branch_in_a_loop_counts_every_iteration(tmp_path):
-    def flow():
+    async def flow():
         for k in range(4):
             if k % 2 == 0:
-                yield step("u", n=k)
+                await step("u", n=k)
             else:
-                yield step("u", n=-k)
+                await step("u", n=-k)
 
     rep = pipeline(tmp_path).run(flow)
     plan = plan_of(rep)
@@ -329,7 +345,7 @@ def test_a_branch_in_a_loop_counts_every_iteration(tmp_path):
 
 
 def test_continue_break_and_iterations_that_create_nothing_still_count(tmp_path):
-    def flow():
+    async def flow():
         k = 0
         while True:
             k += 1
@@ -337,7 +353,7 @@ def test_continue_break_and_iterations_that_create_nothing_still_count(tmp_path)
                 continue  # creates nothing
             if k > 7:
                 break
-            yield step("u", n=k)
+            await step("u", n=k)
 
     rep = pipeline(tmp_path).run(flow)
     plan = plan_of(rep)
@@ -345,22 +361,22 @@ def test_continue_break_and_iterations_that_create_nothing_still_count(tmp_path)
 
 
 def test_a_comprehension_fan_out_has_no_pass_and_no_limit(tmp_path):
-    def flow():
-        return (yield [step(f"u{i}", n=i) for i in range(12)])
+    async def flow():
+        return await asyncio.gather(*[step(f"u{i}", n=i) for i in range(12)])
 
     rep = pipeline(tmp_path).run(flow)
     assert rep.ok and not rep.flow_errors and rep.value == list(range(1, 13))
     assert all(r["flow"][-1]["loops"] == [] for r in plan_of(rep).values())
 
 
-def test_a_loop_inside_yield_from_is_counted_in_its_own_frame(tmp_path):
-    def inner(u):
+def test_a_loop_inside_an_awaited_helper_is_counted_in_its_own_frame(tmp_path):
+    async def inner(u):
         for i in range(3):
-            yield step(u, n=i)
+            await step(u, n=i)
 
-    def flow():
+    async def flow():
         for u in ("a", "b"):
-            yield from inner(u)
+            await inner(u)
 
     rep = pipeline(tmp_path).run(flow)
     plan = plan_of(rep)
@@ -369,15 +385,15 @@ def test_a_loop_inside_yield_from_is_counted_in_its_own_frame(tmp_path):
 
 
 def test_sibling_flow_calls_of_the_same_code_count_on_their_own(tmp_path):
-    def per_unit(u, until):
+    async def per_unit(u, until):
         n = 0
         while True:
-            n = yield step(u, n=n)
+            n = await step(u, n=n)
             if n >= until:
                 return n
 
-    def flow():
-        return (yield [per_unit("a", 4), per_unit("b", 2), per_unit("c", 3)])
+    async def flow():
+        return await asyncio.gather(per_unit("a", 4), per_unit("b", 2), per_unit("c", 3))
 
     rep = pipeline(tmp_path).run(flow)
     assert rep.value == [4, 2, 3]
@@ -393,12 +409,12 @@ def test_sibling_flow_calls_of_the_same_code_count_on_their_own(tmp_path):
 
 
 def test_a_child_flow_call_starts_with_its_parents_frames_and_passes(tmp_path):
-    def child(u):
-        return (yield step(u))
+    async def child(u):
+        return await step(u)
 
-    def flow():
+    async def flow():
         for r in range(2):
-            yield [child(f"u{r}{i}") for i in range(2)]
+            await asyncio.gather(*[child(f"u{r}{i}") for i in range(2)])
 
     rep = pipeline(tmp_path).run(flow)
     starts = {r["id"]: r for r in rows(rep, "flow_calls.jsonl") if r["event"] == "start"}
@@ -409,11 +425,11 @@ def test_a_child_flow_call_starts_with_its_parents_frames_and_passes(tmp_path):
 
 
 def test_max_passes_bounds_each_while_loop_and_names_it(tmp_path):
-    def flow():
+    async def flow():
         for c in range(5):
             r = 0
             while r < 5:
-                yield step(f"u{c}", key=f"cell-{c}-{r}")
+                await step(f"u{c}", key=f"cell-{c}-{r}")
                 r += 1
 
     rep = pipeline(tmp_path, max_passes=4).run(flow)
@@ -425,31 +441,31 @@ def test_max_passes_bounds_each_while_loop_and_names_it(tmp_path):
 
 def test_a_function_bound_takes_the_place_of_the_runs_for_its_own_while_loops(tmp_path):
     @max_passes(6)
-    def converge(u):
+    async def converge(u):
         r = 0
         while r < 5:
-            yield step(u, key=f"{u}-{r}")
+            await step(u, key=f"{u}-{r}")
             r += 1
 
     @max_passes(2)
-    def short(u):
+    async def short(u):
         r = 0
         while r < 5:
-            yield step(u, key=f"{u}-{r}")
+            await step(u, key=f"{u}-{r}")
             r += 1
 
-    def unbounded(u):
+    async def unbounded(u):
         r = 0
         while r < 5:
-            yield step(u, key=f"{u}-{r}")
+            await step(u, key=f"{u}-{r}")
             r += 1
 
-    def flow():
+    async def flow():
         for name, child in (("long", converge), ("short", short), ("plain", unbounded)):
             try:
-                yield [child(name)]
+                await asyncio.gather(child(name))
             except TooManyPasses as exc:
-                yield step(f"failed-{name}", key=f"failed-{name}", n=len(str(exc)))
+                await step(f"failed-{name}", key=f"failed-{name}", n=len(str(exc)))
 
     rep = pipeline(tmp_path, max_passes=3).run(flow)
     assert rep.ok, rep.flow_errors
@@ -459,16 +475,16 @@ def test_a_function_bound_takes_the_place_of_the_runs_for_its_own_while_loops(tm
     assert "failed-short" in rep.results and "failed-plain" in rep.results and "failed-long" not in rep.results
 
 
-def test_a_function_bound_names_itself_and_holds_in_yield_from(tmp_path):
+def test_a_function_bound_names_itself_and_holds_in_an_awaited_helper(tmp_path):
     @max_passes(2)
-    def inner(u):
+    async def inner(u):
         r = 0
         while r < 5:
-            yield step(u, key=f"{u}-{r}")
+            await step(u, key=f"{u}-{r}")
             r += 1
 
-    def flow():
-        yield from inner("u")
+    async def flow():
+        await inner("u")
 
     rep = pipeline(tmp_path).run(flow)
     [call] = rep.flow_errors
@@ -481,7 +497,7 @@ def test_a_function_bound_names_itself_and_holds_in_yield_from(tmp_path):
 def test_max_passes_refuses_what_it_cannot_bound():
     with pytest.raises(ValueError, match="positive integer"):
         max_passes(0)
-    with pytest.raises(TypeError, match="generator function"):
+    with pytest.raises(TypeError, match="async def function"):
 
         @max_passes(3)
         def plain():
@@ -490,29 +506,29 @@ def test_max_passes_refuses_what_it_cannot_bound():
     with pytest.raises(TypeError, match="no `while` loop"):
 
         @max_passes(3)
-        def only_for():
+        async def only_for():
             for u in range(3):
-                yield step(f"u{u}")
+                await step(f"u{u}")
 
 
 def test_a_for_loop_has_no_limit(tmp_path):
-    def flow():
+    async def flow():
         for u in range(25):
-            yield step(f"u{u}")
+            await step(f"u{u}")
 
     rep = pipeline(tmp_path, max_passes=2).run(flow)
     assert rep.ok and not rep.flow_errors and len(rep.results) == 25
     assert passes(plan_of(rep)["python:step-u24"]) == [25]
 
 
-def test_max_passes_bounds_a_while_loop_that_yields_child_flow_calls(tmp_path):
-    def child(u):
-        return (yield step(u))
+def test_max_passes_bounds_a_while_loop_that_creates_child_flow_calls(tmp_path):
+    async def child(u):
+        return await step(u)
 
-    def flow():
+    async def flow():
         r = 0
         while r < 4:
-            yield [child(f"u{r}")]
+            await asyncio.gather(child(f"u{r}"))
             r += 1
 
     rep = pipeline(tmp_path, max_passes=2).run(flow)
@@ -524,12 +540,12 @@ def test_max_passes_bounds_a_while_loop_that_yields_child_flow_calls(tmp_path):
 
 
 def test_resume_of_nested_loops_skips_finished_tasks_with_the_same_keys_and_passes(tmp_path):
-    def flow():
+    async def flow():
         c = 0
         while c < 3:
             n = 0
             while n < 2:
-                n = yield step(f"u{c}", n=n)
+                n = await step(f"u{c}", n=n)
             c += 1
 
     first = pipeline(tmp_path, max_passes=2).run(flow, run_id="r")
@@ -563,9 +579,9 @@ def test_an_edited_instruction_reruns_and_what_received_the_same_output_does_not
         write = agent_task("write", instructions=instructions, output=Doc, max_turns=3, timeout_s=30)
         check = agent_task("check", instructions="c", output=Doc, max_turns=3, timeout_s=30)
 
-        def flow():
-            doc = yield write("u")
-            return (yield check("u", doc=doc))
+        async def flow():
+            doc = await write("u")
+            return await check("u", doc=doc)
 
         return flow
 
@@ -591,7 +607,7 @@ def test_an_edited_python_function_reruns(tmp_path):
     first = (
         "from contraagent import python_task\n"
         "@python_task\ndef add(n: int) -> int:\n    return n + 1\n"
-        "def flow():\n    return (yield add(n=1))\n"
+        "async def flow():\n    return await add(n=1)\n"
     )
     rep = pipeline(tmp_path).run(load(first), run_id="r")
     assert rep.value == 2
@@ -602,15 +618,15 @@ def test_an_edited_python_function_reruns(tmp_path):
 
 
 def test_renaming_a_wrapper_function_does_not_rerun(tmp_path):
-    def body():
-        n = yield step("u")
-        return (yield step("v", n=n))
+    async def body():
+        n = await step("u")
+        return await step("v", n=n)
 
-    def wrapper():
-        return (yield from body())
+    async def wrapper():
+        return await body()
 
-    def renamed():
-        return (yield from body())
+    async def renamed():
+        return await body()
 
     assert pipeline(tmp_path).run(wrapper, run_id="r").value == 2
     rep = pipeline(tmp_path).run(renamed, run_id="r", resume=True)

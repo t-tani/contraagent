@@ -5,8 +5,13 @@ The `Pipeline.check` docstring lists the checks; `reach.py` finds the reachable 
 
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
 import contextlib
+import contextvars
 import fnmatch
+import gc
+import inspect
 import json
 import logging
 import re
@@ -30,7 +35,7 @@ from contraagent._internal.contracts.calls import schema_ref_of
 from contraagent._internal.contracts.contract import example
 from contraagent._internal.contracts.rows import is_rows, row_of
 from contraagent._internal.contracts.validators import CommandValidator
-from contraagent._internal.dispatch.flow import FlowDriver
+from contraagent._internal.dispatch.flow import FlowDriver, generator_flow_error, never_awaited
 from contraagent._internal.dispatch.queue import claim_entry
 from contraagent._internal.dispatch.task import kind_name
 from contraagent._internal.errors import ContraagentError, did_you_mean
@@ -76,7 +81,7 @@ class CheckReport:
     built: bool = True
     #: How each kind will run: agent/model, effort, budget, failover hops.
     routes: dict[str, str] = field(default_factory=dict)
-    #: A generator flow's reachable kinds that its first step did not create, in the order found.
+    #: An async flow's reachable kinds that its first step did not create, in the order found.
     later_kinds: list[str] = field(default_factory=list)
     #: The pointer of each error, once: its own (`POINTER`), else its check's topic.
     _pointers: list[str] = field(default_factory=list, init=False, repr=False, compare=False)
@@ -121,26 +126,33 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     report = CheckReport()
     with tempfile.TemporaryDirectory(prefix="check-", dir=temp_root()) as tmp:
         graph = Graph(Path(tmp) / "out", max_passes=pipeline.max_passes)
-        driver = FlowDriver(waits_for=graph.waits_for, answer=graph.answer, created=graph.take_new, on_flow_call=graph.on_flow_call)
+        driver = FlowDriver(waits_for=graph.waits_for, answer=graph.answer, on_flow_call=graph.on_flow_call)
         graph.driver = driver
+        name = f"{getattr(flow, '__module__', '')}.{getattr(flow, '__qualname__', repr(flow))}"
+        if inspect.isgeneratorfunction(flow):
+            report.built = False
+            report.add("tasks", [f"flow: {generator_flow_error(name)}"])
+            return report
         # The check's directory is the flow's current run: `pipeline_table` reads the config the
         # check is given, as a run's flow reads the one it was started with, and `log` and
         # `save` write into the directory, which goes with the check.
-        with writing_into(tmp, pipeline.config), graph.building():
+        with writing_into(tmp, pipeline.config), graph.building(), never_awaited() as forgotten:
             try:
-                value = flow(*args, **kwargs)
+                driven = _first_steps(flow, args, kwargs, driver)
             except Exception as exc:
                 report.built = False
                 report.add("tasks", [f"flow: {where(exc)}{type(exc).__name__}: {exc}"])
                 return report
-            driven = isinstance(value, GeneratorType)
-            if driven:
-                try:
-                    driver.start(value)  # every flow call it starts, to its first wait for a task
-                finally:
-                    driver.finish()
-    for call in driver.calls.values():
+            gc.collect()  # a coroutine that was never awaited is reported when it is collected
+    report.add("tasks", [f"flow: {line}" for line in forgotten])
+    # An error a flow call raised reaches the flow calls that await it: it is reported once,
+    # for the flow call that raised it first (created last of them).
+    raised: dict[int, Any] = {}
+    for call in reversed(driver.calls.values()):
         if call.error is not None:
+            raised.setdefault(id(call.error), call)
+    for call in driver.calls.values():
+        if call.error is not None and raised[id(call.error)] is call:
             report.add("tasks", [f"flow call {call.id} ({call.function}): {where(call.error)}{type(call.error).__name__}: {call.error}"])
     top = driver.calls.get("0")
     report.built = bool(graph.nodes) or top is None or top.state != "raised"
@@ -163,6 +175,36 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     _check_task_tables(pipeline, specs, report)
     _check_routing(pipeline, agent_specs, report, [n for n in graph.nodes if n.credential])
     return report
+
+
+def _first_steps(flow: Callable[..., Any], args: tuple, kwargs: dict[str, Any], driver: FlowDriver) -> bool:
+    """Call the flow; for an async flow, run every flow call it starts to its first wait for
+    a task, on an event loop of its own, with no task's output given (`FlowDriver.settle`).
+    Whether the flow is an async flow. A generator flow raises TypeError."""
+
+    async def steps() -> bool:
+        with driver.driving():
+            value = flow(*args, **kwargs)
+            if isinstance(value, GeneratorType):
+                value.close()
+                raise generator_flow_error(f"{getattr(flow, '__module__', '')}.{getattr(flow, '__qualname__', repr(flow))}")
+            if not inspect.iscoroutine(value):
+                return False
+            try:
+                driver.start(value)
+                await driver.settle()
+            finally:
+                await driver.finish()
+            return True
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(steps())
+    # This thread's event loop runs: the check's own runs on another thread, in this context.
+    context = contextvars.copy_context()
+    with concurrent.futures.ThreadPoolExecutor(1) as pool:
+        return pool.submit(context.run, asyncio.run, steps()).result()
 
 
 def _check_services(services: dict[str, Any], graph: Graph, declarations: list[Any], report: CheckReport) -> None:

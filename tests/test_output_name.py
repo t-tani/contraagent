@@ -1,6 +1,7 @@
 """Where outputs go (`output_name`): a path template under the run's `out/`, its checks at
 declaration, and one writer per output file."""
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -127,10 +128,10 @@ def test_two_kinds_whose_templates_name_one_file_raise_at_the_second(tmp_path):
 
 
 def test_check_reports_two_reachable_kinds_whose_templates_name_one_file():
-    def flow(units):
-        notes = yield [reports(u) for u in units]
+    async def flow(units):
+        notes = await asyncio.gather(*[reports(u) for u in units])
         if notes:
-            yield also_reports(units[0])
+            await also_reports(units[0])
 
     errors = Pipeline(PipelineConfig({}), backends=StubAgent().backends()).check(flow, ["a"]).errors
     assert any("kinds 'reports' and 'also_reports' both write out/reports/{unit}.json" in e for e in errors), errors

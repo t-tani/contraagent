@@ -6,7 +6,7 @@ duration for every task. A kind's own history is the best guess available: the
 median wall time of its completed rows (`estimate`). A kind with no history gets
 no estimate, and the queue falls back to its own default.
 
-A generator flow creates the work after a task from the task's result, so when
+An async flow creates the work after a task from the task's result, so when
 the task is queued its successors are not. `tail` estimates them: in each past
 run, the tail of a task is the longest chain of wall times along its
 successors, the tasks whose `after` or `created_from` (`plan.jsonl`) names it,
@@ -28,7 +28,7 @@ Samples:
 * in a run, every finished attempt (`observe_attempt`) adds to its kind's
   durations, and every flow call that returns (`flow_call_ended`) adds the tails
   of the tasks it created itself: the chain inside it and the flow calls it
-  yielded, plus the current tail estimate of each last task of that chain (the
+  created, plus the current tail estimate of each last task of that chain (the
   work its parent does after it returns, not known yet). Samples from this run
   replace those of past runs for the same kind or tail key once there is one.
 """

@@ -86,7 +86,12 @@ The queue records nothing itself. It reports through callbacks:
 * `on_result(result, attempt)` for every result, discarded retries included;
 * `follow_up(result) -> list[Task]` for the follow-up work (on the queue's event
   loop; an exception there is reported as a `note` and isolated to that item). Its
-  tasks are queued with `extend()`.
+  tasks are queued with `extend()`;
+* `between_passes()`, awaited before each pass: work outside the queue that adds tasks
+  to it (`FlowDriver.settle`, the flows) runs until it waits, and says whether it may
+  still add tasks. While it may, the queue does not end when no task is queued or
+  running: it waits for a task to be added, until past the run's grace window
+  (`past_hard_stop`).
 
 The queue's loop is a coroutine (`run_async`) on an asyncio event loop; `run()` runs it
 on a new one. Each runner call (`TaskRunner.run`, synchronous) runs on a thread of the
@@ -114,7 +119,7 @@ import fnmatch
 import random
 import time
 from collections import deque
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Protocol
 
@@ -170,6 +175,13 @@ class FollowUp(Protocol):
     reported as a `note` and queues nothing."""
 
     def __call__(self, result: TaskResult, /) -> list[Task]: ...
+
+
+class BetweenPasses(Protocol):
+    """`await between_passes()`: let the work outside the queue that adds tasks to it run
+    until it waits; whether it may still add tasks."""
+
+    def __call__(self) -> Awaitable[bool]: ...
 
 
 class OnResult(Protocol):
@@ -241,6 +253,7 @@ class WorkQueue:
         runner: TaskRunner,
         *,
         follow_up: FollowUp | None = None,
+        between_passes: BetweenPasses | None = None,
         on_event: OnEvent | None = None,
         on_result: OnResult | None = None,
         max_concurrent: int = MAX_CONCURRENT,
@@ -259,6 +272,7 @@ class WorkQueue:
     ):
         self.runner = runner
         self.follow_up: FollowUp = follow_up or (lambda result: [])
+        self.between_passes: BetweenPasses | None = between_passes
         self.max_concurrent: int = max(1, int(max_concurrent))
         self.deadline_at: float | None = time.monotonic() + deadline_s if deadline_s else None
         # From `deadline - slack_s` on, the queue orders for the deadline (the module docstring).
@@ -320,8 +334,14 @@ class WorkQueue:
         self._successors: dict[str, list[Task]] = {}  # by .key: known dependents
         # Tasks queued so far: a pass that queued any (a deferral's follow-ups) did not see them.
         self._added = 0
-        # Set by `add()` while `run_async` runs: what wakes its wait.
+        # Set by `add()` and `wake()` while `run_async` runs: what wakes its wait.
         self._wake: asyncio.Event | None = None
+
+    def wake(self) -> None:
+        """End the loop's current wait now, as an added task does: something outside the
+        queue changed (what `between_passes` answers)."""
+        if self._wake is not None:
+            self._wake.set()
 
     # --- queueing -----------------------------------------------------------
 
@@ -444,7 +464,7 @@ class WorkQueue:
         (`run` lists its keys). Each task's runner call runs on a thread of the queue's
         own pool, so the event loop stays free while tasks run; every callback, and
         `add()` and `extend()`, run on the event loop's thread. It ends when no task is
-        queued or running.
+        queued or running, and `between_passes` (when given) says no more will come.
 
         A task that another coroutine of the same event loop adds while the queue waits
         (`add`, `extend`) wakes the queue: it may start at once. Await it once per queue:
@@ -454,12 +474,19 @@ class WorkQueue:
         self._wake = asyncio.Event()
         try:
             with ThreadPoolExecutor(max_workers=self.max_concurrent) as pool:
-                while self._queued or self._running:
+                while True:
+                    more = await self.between_passes() if self.between_passes is not None else False
                     added = self._added
                     self._start_ready(loop, pool)
                     if not self._running:
                         if not self._queued:
-                            break
+                            if not more or self.past_hard_stop():
+                                break
+                            # Work outside the queue may still add tasks: wait for one, at most
+                            # until the grace window ends.
+                            left = self.hard_stop_at - time.monotonic() if self.hard_stop_at is not None else POLL_S
+                            await self._wait(set(), max(0.0, min(POLL_S, left)))
+                            continue
                         # A deferral in the pass (a rest, a closed time box, work that cannot
                         # finish) queued its follow-ups during it: the pass did not look at them.
                         if self._added != added:

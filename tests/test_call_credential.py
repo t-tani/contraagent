@@ -192,11 +192,11 @@ token = "env:CLAUDE_CODE_OAUTH_TOKEN"
     )
 
 
-def test_a_task_call_later_in_a_generator_flow_is_refused_at_the_call(tmp_path):
+def test_a_task_call_later_in_an_async_flow_is_refused_at_the_call(tmp_path):
     agent = StubAgent({"note": written})
 
-    def flow():
-        yield note("a")
+    async def flow():
+        await note("a")
         note("b", credential="nobody")
 
     report = pipeline(tmp_path, agent).run(flow)

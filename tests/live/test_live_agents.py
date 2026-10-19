@@ -22,6 +22,7 @@ monitor's plan; then resumes the run twice: unchanged (nothing launches), and wi
 task's instructions changed (that task and the tasks that received a changed output run).
 """
 
+import asyncio
 import os
 import shutil
 import sys
@@ -486,19 +487,19 @@ def report(summaries: list[Summary]) -> list[str]:
     return [f"{s.unit}: {len(s.points)} points" for s in summaries]
 
 
-def review_loop(unit: str, revise_task):
+async def review_loop(unit: str, revise_task):
     """One unit: a brief (keyed), then revise until the check approves."""
-    summary = yield brief(unit, key=f"brief-{unit}-short", path=f"in/{unit}.md")
+    summary = await brief(unit, key=f"brief-{unit}-short", path=f"in/{unit}.md")
     while True:
-        verdict = yield check(unit, summary=summary)
+        verdict = await check(unit, summary=summary)
         if verdict.approved:
             return summary
-        summary = yield revise_task(unit, summary=summary, verdict=verdict)
+        summary = await revise_task(unit, summary=summary, verdict=verdict)
 
 
-def review_docs(units: list[str], revise_task):
-    summaries = yield [review_loop(u, revise_task) for u in units]
-    return (yield report(summaries=summaries))
+async def review_docs(units: list[str], revise_task):
+    summaries = await asyncio.gather(*[review_loop(u, revise_task) for u in units])
+    return await report(summaries=summaries)
 
 
 def _rows(path: Path) -> list[dict]:

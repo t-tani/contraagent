@@ -3,6 +3,7 @@ current, and true of what a run writes and of the reference config."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import tomllib
 from pathlib import Path
@@ -84,11 +85,11 @@ def double(unit: str) -> str:
     return unit * 2
 
 
-def _flow(units: list[str]):
-    yield [double(u) for u in units]
+async def _flow(units: list[str]):
+    await asyncio.gather(*[double(u) for u in units])
     for unit in units:
         try:
-            yield review(unit)
+            await review(unit)
         except Exception:
             pass
 

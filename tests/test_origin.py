@@ -12,19 +12,24 @@ def line_of(fn, text: str) -> int:
     return first + next(i for i, line in enumerate(lines) if text in line)
 
 
-def test_the_frames_of_a_suspended_generator_and_its_yield_from_chain():
-    def inner():
-        yield "here"
+def test_the_frames_of_a_suspended_coroutine_and_its_await_chain():
+    class Wait:
+        def __await__(self):
+            yield "here"
 
-    def outer():
-        yield from inner()
+    async def inner():
+        await Wait()
 
-    gen = outer()
-    next(gen)
-    frames = origin.generator_frames(gen)
-    assert [f.function.rpartition(".")[2] for f in frames] == ["outer", "inner"]
-    assert frames[1].line == line_of(inner, 'yield "here"')
+    async def outer():
+        await inner()
+
+    coro = outer()
+    coro.send(None)
+    frames = origin.suspended_frames(coro)
+    assert [f.function.rpartition(".")[2] for f in frames] == ["outer", "inner", "__await__"]
+    assert frames[1].line == line_of(inner, "await Wait()")
     assert all(f.file == __file__ and f.loops == () for f in frames)
+    coro.close()
 
 
 def test_frames_here_keeps_flow_code_and_skips_comprehensions():

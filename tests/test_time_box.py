@@ -68,6 +68,15 @@ def t(key: str, **params) -> Task:
     return Task(key.split("-")[0], key=key, params=params)
 
 
+#: The driver `drive` runs the flows with: what `w` waits through.
+drivers: list[FlowDriver] = []
+
+
+def w(task: Task):
+    """Wait for `task` in a flow that `drive` runs."""
+    return drivers[-1].wait(task)
+
+
 def drive(clock: FakeTime, *flows, wait_s: float = 0.0, **queue_options):
     """Run `flows` on a fresh queue, `wait_s` on `clock` after making it (past a short run deadline)."""
     deferred: list[dict] = []
@@ -78,6 +87,7 @@ def drive(clock: FakeTime, *flows, wait_s: float = 0.0, **queue_options):
 
     runner = Runner(clock)
     driver = FlowDriver(answer=result_or_raise)
+    drivers.append(driver)
     queue = WorkQueue(runner, max_concurrent=4, on_event=on_event, **queue_options)
     clock.spend(wait_s)
     driver.run(queue, *flows)
@@ -90,18 +100,18 @@ def drive(clock: FakeTime, *flows, wait_s: float = 0.0, **queue_options):
 def test_past_its_deadline_a_box_launches_only_its_finishing_kinds_and_the_tasks_outside_go_on(clock):
     seen: list[str] = []
 
-    def inner():
-        yield t("slow-1", sleep=0.3)  # runs past the box's deadline
+    async def inner():
+        await w(t("slow-1", sleep=0.3))  # runs past the box's deadline
         try:
-            yield t("work-1")  # created past it: deferred
+            await w(t("work-1"))  # created past it: deferred
         except TaskDeferred as exc:
             seen.append(exc.key)
-        yield t("report-1")  # a finishing kind: launches in the grace window
+        await w(t("report-1"))  # a finishing kind: launches in the grace window
         return "inner"
 
-    def flow():
-        value = yield time_box(inner(), deadline_s=0.1, grace_s=30, finishing_kinds=["report"])
-        yield t("publish-1")  # outside the box: launches though its deadline has passed
+    async def flow():
+        value = await time_box(inner(), deadline_s=0.1, grace_s=30, finishing_kinds=["report"])
+        await w(t("publish-1"))  # outside the box: launches though its deadline has passed
         return value
 
     runner, driver, deferred = drive(clock, flow())
@@ -115,15 +125,15 @@ def test_past_its_deadline_a_box_launches_only_its_finishing_kinds_and_the_tasks
 
 
 def test_past_its_grace_window_a_box_launches_nothing_and_its_flow_receives_task_deferred(clock):
-    def inner():
-        yield t("slow-1", sleep=0.2)
-        yield t("report-1")
+    async def inner():
+        await w(t("slow-1", sleep=0.2))
+        await w(t("report-1"))
 
-    def flow():
+    async def flow():
         try:
-            yield time_box(inner(), deadline_s=0.05, grace_s=0.0, finishing_kinds=["report"])
+            await time_box(inner(), deadline_s=0.05, grace_s=0.0, finishing_kinds=["report"])
         except TaskDeferred as exc:
-            yield t("publish-1")
+            await w(t("publish-1"))
             return exc.key
 
     runner, driver, deferred = drive(clock, flow())
@@ -133,27 +143,27 @@ def test_past_its_grace_window_a_box_launches_nothing_and_its_flow_receives_task
 
 
 def test_nested_boxes_the_earliest_deadline_stops_a_task_and_names_its_box(clock):
-    def innermost():
-        yield t("slow-1", sleep=0.3)
-        yield t("work-1")  # past the outer box's deadline, inside the inner's
+    async def innermost():
+        await w(t("slow-1", sleep=0.3))
+        await w(t("work-1"))  # past the outer box's deadline, inside the inner's
 
-    def outer():
-        yield time_box(innermost(), deadline_s=60)
-        yield t("work-2")
+    async def outer():
+        await time_box(innermost(), deadline_s=60)
+        await w(t("work-2"))
 
-    def other():
+    async def other():
         try:
-            yield time_box(t_gen("in-1"), deadline_s=0.1)  # an inner box earlier than its outer one
+            await time_box(t_gen("in-1"), deadline_s=0.1)  # an inner box earlier than its outer one
         except TaskDeferred:
             pass
-        yield t("after-1")  # in the outer box only: its deadline is a minute away
+        await w(t("after-1"))  # in the outer box only: its deadline is a minute away
 
-    def flow():
+    async def flow():
         try:
-            yield time_box(outer(), deadline_s=0.1)
+            await time_box(outer(), deadline_s=0.1)
         except TaskDeferred:
             pass
-        yield time_box(other(), deadline_s=60)
+        await time_box(other(), deadline_s=60)
 
     runner, driver, deferred = drive(clock, flow())
     assert deferred["work-1"]["cause"] == {"cause": "deadline", "flow_call": "0.1"}  # the outer box, the earlier
@@ -163,21 +173,21 @@ def test_nested_boxes_the_earliest_deadline_stops_a_task_and_names_its_box(clock
     assert driver.calls["0.1.1"].time_box.deadline_s == 60  # type: ignore[union-attr]
 
 
-def t_gen(key):
-    yield t(key, sleep=0.25)
-    yield t(key.replace("-1", "-2"))
+async def t_gen(key):
+    await w(t(key, sleep=0.25))
+    await w(t(key.replace("-1", "-2")))
 
 
 def test_in_a_box_s_endgame_a_task_that_cannot_finish_is_deferred_at_once(clock):
-    def inner():
-        yield Task("long", key="long-1", estimate_s=1000)
+    async def inner():
+        await w(Task("long", key="long-1", estimate_s=1000))
 
-    def flow():
+    async def flow():
         try:
-            yield time_box(inner(), deadline_s=5, slack_s=5)
+            await time_box(inner(), deadline_s=5, slack_s=5)
         except TaskDeferred:
             pass
-        yield t("publish-1")
+        await w(t("publish-1"))
 
     runner, _, deferred = drive(clock, flow())
     assert runner.launched == ["publish-1"]
@@ -186,25 +196,39 @@ def test_in_a_box_s_endgame_a_task_that_cannot_finish_is_deferred_at_once(clock)
 
 
 def test_the_run_s_own_deadline_is_unchanged_and_names_no_flow_call(clock):
-    def flow():
+    async def flow():
         try:
-            yield t("scan-1")
+            await w(t("scan-1"))
         except TaskDeferred:
-            yield t("report-1")
+            await w(t("report-1"))
 
     runner, _, deferred = drive(clock, flow(), wait_s=0.01, deadline_s=0.001, finishing_kinds=("report",))
     assert runner.launched == ["report-1"]
     assert deferred["scan-1"]["cause"] == {"cause": "deadline"}
 
 
-def test_time_box_takes_a_generator_and_a_positive_deadline():
-    with pytest.raises(TypeError, match="takes a generator"):
+def test_time_box_takes_a_coroutine_and_a_positive_deadline(clock):
+    with pytest.raises(TypeError, match="takes a coroutine"):
         time_box(t("a-1"), deadline_s=1)  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="deadline_s must be a positive"):
         time_box(t_gen("a-1"), deadline_s=0)
     with pytest.raises(TypeError, match="not the string"):
         time_box(t_gen("a-1"), deadline_s=1, finishing_kinds="report")
-    assert time_box(t_gen("a-1"), deadline_s=100).slack_s == 25  # a quarter, as the run's
+    with pytest.raises(RuntimeError, match="in the code of an async flow"):
+        time_box(t_gen("a-1"), deadline_s=1)
+
+    def generator():
+        yield t("a-1")
+
+    with pytest.raises(TypeError, match=r"`yield time_box\(g, ...\)` -> `await time_box\(c, ...\)`"):
+        time_box(generator(), deadline_s=1)  # type: ignore[arg-type]
+
+    async def flow():
+        await time_box(t_gen("a-1"), deadline_s=100)
+
+    _, driver, _ = drive(clock, flow())
+    box = driver.calls["0.1"].time_box
+    assert box is not None and box.slack_s == 25  # a quarter, as the run's
 
 
 # --- a pipeline: the record, the monitor, resume --------------------------------------
@@ -233,18 +257,18 @@ def publish(unit: str) -> str:
     return unit
 
 
-def work(unit):
-    yield slow(unit)
+async def work(unit):
+    await slow(unit)
     try:
-        yield late(unit)
+        await late(unit)
     except TaskDeferred:
         return "cut"
     return "whole"
 
 
-def cycle(unit: str):
-    done = yield time_box(work(unit), deadline_s=0.15, grace_s=60, finishing_kinds=["publish"])
-    yield publish(unit)
+async def cycle(unit: str):
+    done = await time_box(work(unit), deadline_s=0.15, grace_s=60, finishing_kinds=["publish"])
+    await publish(unit)
     return done
 
 
@@ -308,17 +332,17 @@ def test_a_deferral_the_flow_caught_leaves_the_run_ok(tmp_path, clock):
     assert deferred.cause is not None and deferred.cause.cause == "deadline" and "time box of flow call 0.1" in deferred.reason
 
 
-def uncaught(unit):
-    yield slow(unit)
-    yield late(unit)  # deferred: the flow does not catch TaskDeferred
+async def uncaught(unit):
+    await slow(unit)
+    await late(unit)  # deferred: the flow does not catch TaskDeferred
     return "whole"
 
 
 def test_a_deferral_the_flow_does_not_catch_ends_the_flow_and_the_run_is_not_ok(tmp_path, clock):
     spent[:] = [clock]
 
-    def flow(unit):
-        return (yield time_box(uncaught(unit), deadline_s=0.15))
+    async def flow(unit):
+        return await time_box(uncaught(unit), deadline_s=0.15)
 
     report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, log=lambda line: None).run(flow, unit="a")
     assert not report.ok and report.value is None and not report.failed
@@ -332,16 +356,16 @@ def echo(text: str) -> str:
     return text
 
 
-def hands_on(unit):
-    yield slow(unit)
+async def hands_on(unit):
+    await slow(unit)
     return late(unit)  # not waited for: created past the deadline, deferred
 
 
 def test_a_task_that_reads_a_deferred_output_is_deferred_too(tmp_path, clock):
     spent[:] = [clock]
 
-    def flow(unit):
-        text = yield time_box(hands_on(unit), deadline_s=0.15)
+    async def flow(unit):
+        text = await time_box(hands_on(unit), deadline_s=0.15)
         echo(unit, text=text)  # outside the box; its input never comes
         publish(unit, after=[text])  # only ordered after it: it launches
 
@@ -366,8 +390,8 @@ def test_contraagent_run_exits_0_when_its_tasks_were_deferred_and_the_flow_caugh
         # `slow` outlasts the box, which leaves `slow` 3 s to start on a slow machine.
         "@python_task\ndef slow(unit: str) -> str:\n    time.sleep(3.5)\n    return unit\n"
         "@python_task\ndef late(unit: str) -> str:\n    return unit\n"
-        "def work(unit):\n    yield slow(unit)\n    try:\n        yield late(unit)\n    except TaskDeferred:\n        return 'cut'\n"
-        "def flow(unit):\n    return (yield time_box(work(unit), deadline_s=3.0))\n"
+        "async def work(unit):\n    await slow(unit)\n    try:\n        await late(unit)\n    except TaskDeferred:\n        return 'cut'\n"
+        "async def flow(unit):\n    return await time_box(work(unit), deadline_s=3.0)\n"
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "path", list(sys.path))

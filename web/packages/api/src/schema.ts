@@ -986,7 +986,8 @@ export type components = {
         };
         /**
          * FlowCallNode
-         * @description One flow call (`flow_calls.jsonl`): a generator the run drove, or the flow itself.
+         * @description One flow call (`flow_calls.jsonl`): one run of an async flow (the top flow, or an asyncio Task
+         *     its code created), or the flow itself.
          */
         FlowCallNode: {
             /**
@@ -1001,12 +1002,12 @@ export type components = {
             parent: string | null;
             /**
              * Function
-             * @description `module.qualname` of the generator function (or of a flow that does not yield)
+             * @description `module.qualname` of the async def function (or of a flow that does not wait)
              */
             function: string;
             /**
              * Flow
-             * @description the flow path where the parent yielded it, with its loops' passes; empty for a top flow
+             * @description the flow path where the parent created it, with its loops' passes; empty for a top flow
              */
             flow?: components["schemas"]["Frame"][];
             /**
@@ -1016,10 +1017,10 @@ export type components = {
             state: "running" | "returned" | "raised" | "closed";
             /**
              * Error
-             * @description `<type>: <message>` of what it raised (or what closing it raised); else null
+             * @description `<type>: <message>` of what it raised (or what cancelling it raised); else null
              */
             error?: string | null;
-            /** @description its own deadline, for a flow call yielded through `time_box`; else null */
+            /** @description its own deadline, for a flow call started through `time_box`; else null */
             time_box?: components["schemas"]["TimeBoxRecord"] | null;
         };
         /**
@@ -1042,7 +1043,7 @@ export type components = {
             line: number;
             /**
              * Loops
-             * @description the loops of a generator whose pass `line` was in, outermost first; empty outside a loop and for any other frame
+             * @description the loops of an async flow whose pass `line` was in, outermost first; empty outside a loop and for any other frame
              * @default []
              */
             loops?: components["schemas"]["Loop"][];
@@ -1522,7 +1523,7 @@ export type components = {
         };
         /**
          * Loop
-         * @description A `for` or `while` loop of a generator around a call site, and the pass the call
+         * @description A `for` or `while` loop of an async flow around a call site, and the pass the call
          *     site was in.
          */
         Loop: {

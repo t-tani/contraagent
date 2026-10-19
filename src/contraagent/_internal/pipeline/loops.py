@@ -1,6 +1,7 @@
 """The loops of flow code, and the pass of each, counted as the code runs.
 
-A **loop** is a `for` or `while` statement of a generator in flow code, named by
+A **loop** is a `for` or `while` statement of an `async def` function of flow code
+(an async flow), named by
 its first line. Its **pass** is one iteration: 1 when the loop is entered, plus 1
 each time control goes back to the loop's start (a back edge: the end of the
 body, or `continue`), in that frame activation. When a loop goes back to its
@@ -21,7 +22,7 @@ smaller line of its target and of its back jumps, which is its `while` line on
 every Python version. Targets on one line are one loop. `is_while(file, line)`
 says which loops are `while` loops: `max_passes` bounds those only.
 
-**Bounds** (`max_passes(n)`, a decorator). A generator function of flow code may
+**Bounds** (`max_passes(n)`, a decorator). An async flow's function may
 carry its own bound: `n` passes for each `while` loop of its code, in every call of
 it, in place of the run's `max_passes`. `bound(file, line)` is a loop's own bound, or
 None for the run's.
@@ -56,8 +57,8 @@ from dataclasses import dataclass, field
 from types import CodeType, FrameType
 from typing import Any
 
+from contraagent._internal.dispatch.code import flow_code
 from contraagent._internal.dispatch.records import Loop
-from contraagent._internal.pipeline.origin import flow_code
 
 #: The tool ids tried, in order: 0, 1, 2 and 5 are the debugger's, coverage's, the profiler's and the optimizer's.
 TOOL_IDS = (3, 4)
@@ -107,22 +108,22 @@ def bound(file: str, line: int) -> int | None:
 
 
 def max_passes[F: Callable[..., Any]](n: int, /) -> Callable[[F], F]:
-    """A decorator: each `while` loop of the generator function it decorates may make `n`
+    """A decorator: each `while` loop of the `async def` function it decorates may make `n`
     passes, in every call of it, in place of the run's `max_passes` (`Pipeline(max_passes=)`,
-    `[defaults] max_passes`). A task call, or a `yield` of a child flow call, in a later pass
-    raises `TooManyPasses`. It returns the function itself, so a flow stays a plain function.
-    Loops with different bounds go in functions of their own (`yield from` runs one in the
-    same flow call). An `n` that is not a positive integer raises ValueError; a function that
-    is not a generator function, or has no `while` loop (a `for` loop ends with its iterable),
-    raises TypeError."""
+    `[defaults] max_passes`). A task call, or the creation of a child flow call, in a later
+    pass raises `TooManyPasses`. It returns the function itself. Loops with different bounds
+    go in functions of their own (`await helper()` runs one in the same flow call). An `n`
+    that is not a positive integer raises ValueError; a function that is not an `async def`
+    function, or has no `while` loop (a `for` loop ends with its iterable), raises
+    TypeError."""
     if isinstance(n, bool) or not isinstance(n, int) or n < 1:
         raise ValueError(f"max_passes({n!r}): the passes of a `while` loop are a positive integer")
 
     def bounded(fn: F) -> F:
         code = getattr(fn, "__code__", None)
         name = getattr(fn, "__qualname__", repr(fn))
-        if not isinstance(code, CodeType) or not code.co_flags & inspect.CO_GENERATOR:
-            raise TypeError(f"@max_passes({n}) on {name}: only the loops of a generator function are counted {_TOPIC}")
+        if not isinstance(code, CodeType) or not code.co_flags & inspect.CO_COROUTINE:
+            raise TypeError(f"@max_passes({n}) on {name}: only the loops of an async def function are counted {_TOPIC}")
         info = loops_of(code) if flow_code(code.co_filename) else _analyse(code)
         whiles = [loop.line for loop in info.loops.values() if loop.while_]
         if not whiles:
@@ -137,10 +138,10 @@ _TOPIC = "(contraagent docs tasks, Loops and passes)"
 
 
 def loops_of(code: CodeType) -> _Code:
-    """The loops of a generator's code in flow code; none for any other code."""
+    """The loops of an `async def` function's code in flow code; none for any other code."""
     info = _codes.get(code)
     if info is None:
-        info = _codes[code] = _analyse(code) if code.co_flags & inspect.CO_GENERATOR and flow_code(code.co_filename) else _NONE
+        info = _codes[code] = _analyse(code) if code.co_flags & inspect.CO_COROUTINE and flow_code(code.co_filename) else _NONE
         _whiles.update((code.co_filename, loop.line) for loop in info.loops.values() if loop.while_)
     return info
 
@@ -257,10 +258,11 @@ def _from_bytecode(instructions: list[dis.Instruction]) -> _Code:
         last = p.lineno if p is not None and p.lineno is not None else last
         line_at[ins.offset] = last
     for_heads = {ins.offset for ins in instructions if ins.opname == "FOR_ITER"}
+    opnames = {ins.offset: ins.opname for ins in instructions}
     ends: dict[int, int] = {}
     lines: dict[int, int] = {}
     for ins in instructions:
-        if _backward(ins):
+        if _backward(ins) and opnames.get(int(ins.argval)) != "END_SEND":  # not an `await`'s cleanup
             target = int(ins.argval)
             ends[target] = max(ends.get(target, 0), ins.offset)
             # A `for` goes back to its FOR_ITER, on its line. A `while` goes back to its

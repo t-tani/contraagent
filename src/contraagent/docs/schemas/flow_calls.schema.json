@@ -22,7 +22,7 @@
         },
         "loops": {
           "default": [],
-          "description": "the loops of a generator whose pass `line` was in, outermost first; empty outside a loop and for any other frame",
+          "description": "the loops of an async flow whose pass `line` was in, outermost first; empty outside a loop and for any other frame",
           "items": {
             "$ref": "#/$defs/Loop"
           },
@@ -40,7 +40,7 @@
     },
     "Loop": {
       "additionalProperties": false,
-      "description": "A `for` or `while` loop of a generator around a call site, and the pass the call\nsite was in.",
+      "description": "A `for` or `while` loop of an async flow around a call site, and the pass the call\nsite was in.",
       "properties": {
         "line": {
           "description": "the loop's first line, which names it",
@@ -112,7 +112,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "One line of `runs/<run>/flow_calls.jsonl`. `event` `start`: `parent`, `function`,\n`flow` (the flow path where the parent yielded it; empty for a top flow call) and, for a\nflow call yielded through `time_box`, `time_box`; `end`: `state` (`returned`, `raised`,\n`closed`) and `error` (`\"<type>: <message>\"` or null). A row holds only its event's fields.",
+  "description": "One line of `runs/<run>/flow_calls.jsonl`. `event` `start`: `parent`, `function`,\n`flow` (the flow path where the parent created it; empty for a top flow call) and, for a\nflow call started through `time_box`, `time_box`; `end`: `state` (`returned`, `raised`,\n`closed`) and `error` (`\"<type>: <message>\"` or null). A row holds only its event's fields.",
   "properties": {
     "ts": {
       "title": "Ts",

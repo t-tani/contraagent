@@ -1,7 +1,9 @@
-"""Generator flows in `Pipeline`: what a `yield` receives, the recorded origin of each task,
-key and file numbering, failures at the `yield`, late kinds, and resume. Passes and
-fingerprints: `test_passes.py`."""
+"""Async flows in `Pipeline`: what an `await` receives, the recorded origin of each task,
+key and file numbering, failures at the `await`, late kinds, resume, a generator flow
+refused, a coroutine never awaited, and one run per event loop. Passes and fingerprints:
+`test_passes.py`."""
 
+import asyncio
 import json
 import sys
 import threading
@@ -200,24 +202,24 @@ def test_flow_calls_record_parent_flow_path_and_end(tmp_path):
     assert sorted(starts) == ["0", "0.1", "0.2"] and set(ends) == set(starts)
     child = starts["0.2"]
     assert child["parent"] == "0" and child["function"] == f"{example.__name__}.review_loop"
-    [frame] = child["flow"]  # where docs yielded it: outside any loop (a comprehension is none)
+    [frame] = child["flow"]  # where docs created it: outside any loop (a comprehension is none)
     assert (frame["function"], frame["file"], frame["loops"]) == (f"{example.__name__}.docs", example.__file__, [])
     assert {e["state"] for e in ends.values()} == {"returned"} and {e["error"] for e in ends.values()} == {None}
 
 
 def test_nesting_at_any_depth_records_the_whole_flow_path(tmp_path):
-    def leaf(u):
-        return (yield summarize(u, path=u))
+    async def leaf(u):
+        return await summarize(u, path=u)
 
-    def middle(u):
-        first = yield from leaf(u)  # the same flow call
-        return (yield [leaf_review(u, first)])
+    async def middle(u):
+        first = await leaf(u)  # the same flow call
+        return await asyncio.gather(leaf_review(u, first))
 
-    def leaf_review(u, s):
-        return (yield review(u, summary=s))
+    async def leaf_review(u, s):
+        return await review(u, summary=s)
 
-    def top():
-        return (yield [middle("a")])
+    async def top():
+        return await asyncio.gather(middle("a"))
 
     rep = pipeline(tmp_path, stub()).run(top)
     assert rep.ok, rep.failed
@@ -233,15 +235,15 @@ def test_nesting_at_any_depth_records_the_whole_flow_path(tmp_path):
 
 
 def test_a_branch_and_a_fan_out_sized_by_a_result(tmp_path):
-    def per_unit(u):
-        parts = yield sections(u)
-        summaries = yield [summarize(u, key=f"summarize-{p}", path=p) for p in parts]
+    async def per_unit(u):
+        parts = await sections(u)
+        summaries = await asyncio.gather(*[summarize(u, key=f"summarize-{p}", path=p) for p in parts])
         if len(summaries) > 1:  # a branch on a result
-            return (yield write_doc(u, summaries=summaries))
+            return await write_doc(u, summaries=summaries)
         return None
 
-    def flow(units):
-        return (yield [per_unit(u) for u in units])
+    async def flow(units):
+        return await asyncio.gather(*[per_unit(u) for u in units])
 
     agent = stub(write_doc=lambda launch: f"# {len(launch.params['summaries'])}\n")
     rep = pipeline(tmp_path, agent).run(flow, units=["big", "small"])
@@ -265,8 +267,8 @@ def test_a_branch_and_a_fan_out_sized_by_a_result(tmp_path):
 
 
 def test_keyed_tasks_on_one_unit_each_keep_their_own_output(tmp_path):
-    def flow():
-        return (yield [summarize("u", key=f"part-{i}", path=f"p{i}") for i in range(3)])
+    async def flow():
+        return await asyncio.gather(*[summarize("u", key=f"part-{i}", path=f"p{i}") for i in range(3)])
 
     agent = stub(summarize=lambda launch: {"unit": launch.unit, "points": [launch.params["path"]]})
     rep = pipeline(tmp_path, agent).run(flow)
@@ -277,13 +279,13 @@ def test_keyed_tasks_on_one_unit_each_keep_their_own_output(tmp_path):
 
 
 def test_a_python_task_in_the_loop_and_text_outputs_passed_on(tmp_path):
-    def flow():
-        summary = yield summarize("u", path="x")
-        while (yield count("u", summary=summary)) < 3:
-            summary = yield revise("u", summary=summary)
-        doc = yield write_doc("u", summary=summary)
+    async def flow():
+        summary = await summarize("u", path="x")
+        while (await count("u", summary=summary)) < 3:
+            summary = await revise("u", summary=summary)
+        doc = await write_doc("u", summary=summary)
         built = "# built here\n"  # a str the flow built is a value
-        yield write_doc("v", doc=doc, title=built)
+        await write_doc("v", doc=doc, title=built)
 
     agent = stub(write_doc=lambda launch: "# doc\n")
     rep = pipeline(tmp_path, agent).run(flow)
@@ -298,27 +300,27 @@ def test_a_python_task_in_the_loop_and_text_outputs_passed_on(tmp_path):
 
 
 def test_a_task_with_no_output_answers_none(tmp_path):
-    def flow():
-        return (yield nothing("u"))
+    async def flow():
+        return await nothing("u")
 
     rep = pipeline(tmp_path, StubAgent({"nothing": writes_nothing()})).run(flow)
     assert rep.ok and rep.value is None
 
 
-# --- failures at the yield -------------------------------------------------------
+# --- failures at the await -------------------------------------------------------
 
 
-def test_failed_and_refused_tasks_raise_task_failed_at_the_yield(tmp_path):
+def test_failed_and_refused_tasks_raise_task_failed_at_the_await(tmp_path):
     seen = {}
 
-    def flow():
+    async def flow():
         try:
-            yield summarize("a", path="x")
+            await summarize("a", path="x")
         except TaskFailed as exc:
             seen["failed"] = (exc.stop, exc.key, exc.item.key)
-        s = summarize("b", path="x")  # not yielded: review waits for it and is refused
+        s = summarize("b", path="x")  # not awaited: review waits for it and is refused
         try:
-            yield review("b", summary=s)
+            await review("b", summary=s)
         except TaskFailed as exc:
             seen["refused"] = (exc.stop, exc.key)
         return "went on"
@@ -330,11 +332,11 @@ def test_failed_and_refused_tasks_raise_task_failed_at_the_yield(tmp_path):
 
 
 def test_a_deferred_task_raises_task_deferred_and_a_finishing_task_still_runs(tmp_path):
-    def flow():
+    async def flow():
         try:
-            yield summarize("u", path="x")
+            await summarize("u", path="x")
         except TaskDeferred as exc:
-            return (yield write_doc("u", note=exc.stop))
+            return await write_doc("u", note=exc.stop)
 
     agent = stub(write_doc=lambda launch: f"# {launch.params['note']}\n")
     rep = pipeline(tmp_path, agent, deadline_s=1e-6, finishing_kinds=("write_doc",)).run(flow)
@@ -343,8 +345,8 @@ def test_a_deferred_task_raises_task_deferred_and_a_finishing_task_still_runs(tm
 
 
 def test_an_uncaught_exception_after_work_started_is_a_flow_error(tmp_path):
-    def flow():
-        s = yield summarize("u", path="x")
+    async def flow():
+        s = await summarize("u", path="x")
         raise RuntimeError(f"stop after {s.unit}")
 
     rep = pipeline(tmp_path, stub()).run(flow)
@@ -355,9 +357,9 @@ def test_an_uncaught_exception_after_work_started_is_a_flow_error(tmp_path):
 
 
 def test_a_flow_raising_before_its_first_task_raises(tmp_path):
-    def flow():
+    async def flow():
         raise ValueError("bad arguments")
-        yield summarize("u", path="x")
+        await summarize("u", path="x")
 
     with pytest.raises(ValueError, match="bad arguments"):
         pipeline(tmp_path, stub()).run(flow)
@@ -381,12 +383,12 @@ def test_max_passes_comes_from_the_config_defaults(tmp_path):
 
 
 def test_a_key_created_by_two_flow_calls_needs_key(tmp_path):
-    def part(u):
-        yield summarize(u, path=u)
-        return (yield write_doc())  # no unit: the same key in both flow calls
+    async def part(u):
+        await summarize(u, path=u)
+        return await write_doc()  # no unit: the same key in both flow calls
 
-    def flow():
-        return (yield [part("a"), part("b")])
+    async def flow():
+        return await asyncio.gather(part("a"), part("b"))
 
     rep = pipeline(tmp_path, stub(write_doc="# d\n")).run(flow)
     [call] = rep.flow_errors
@@ -396,9 +398,9 @@ def test_a_key_created_by_two_flow_calls_needs_key(tmp_path):
 def test_a_reachable_kind_is_routed_before_the_first_launch(tmp_path):
     late = agent_task("late", instructions="l", output=Summary)  # no budget, here or in the config
 
-    def flow():
-        s = yield summarize("u", path="x")
-        return (yield late("u", summary=s))
+    async def flow():
+        s = await summarize("u", path="x")
+        return await late("u", summary=s)
 
     agent = stub()
     with pytest.raises(RoutingError, match="kind late has no budget"):
@@ -407,10 +409,10 @@ def test_a_reachable_kind_is_routed_before_the_first_launch(tmp_path):
 
 
 def test_a_kind_declared_while_the_flow_runs_is_routed_when_created(tmp_path):
-    def flow():
-        s = yield summarize("u", path="x")
+    async def flow():
+        s = await summarize("u", path="x")
         late = agent_task("late", instructions="l", output=Summary)  # unreachable from the code: routed now
-        return (yield late("u", summary=s))
+        return await late("u", summary=s)
 
     rep = pipeline(tmp_path, stub()).run(flow)
     [call] = rep.flow_errors
@@ -425,16 +427,16 @@ def test_a_kind_declared_while_the_flow_runs_is_routed_when_created(tmp_path):
 revise_v2 = agent_task("revise", instructions="v2", output=Summary, **budget(model="m-v2"))  # revise, declared otherwise
 
 
-def revise_loop(unit, revise=revise):  # the default: a declaration the caller may replace
-    summary = yield summarize(unit, path="x")
-    while not (yield review(unit, summary=summary)).approved:
-        summary = yield revise(unit, summary=summary)
+async def revise_loop(unit, revise=revise):  # the default: a declaration the caller may replace
+    summary = await summarize(unit, path="x")
+    while not (await review(unit, summary=summary)).approved:
+        summary = await revise(unit, summary=summary)
     return summary
 
 
 def test_a_default_argument_the_caller_replaces_is_a_candidate_not_a_conflict(tmp_path):
-    def flow():
-        return (yield revise_loop("u", revise=revise_v2))
+    async def flow():
+        return await revise_loop("u", revise=revise_v2)
 
     agent = stub({"u": 2})
     rep = pipeline(tmp_path, agent).run(flow)
@@ -448,10 +450,10 @@ def test_a_default_argument_the_caller_replaces_is_a_candidate_not_a_conflict(tm
 def test_two_different_declarations_of_one_kind_both_created_raise_at_the_second(tmp_path):
     again = agent_task("revise", instructions="v", output=Summary, **budget())  # declared the same way: one kind
 
-    def flow():
-        s = yield summarize("u", path="x")
-        s = yield [revise("u", summary=s), again("w", summary=s)]
-        return (yield revise_v2("z", summary=s[0]))
+    async def flow():
+        s = await summarize("u", path="x")
+        s = await asyncio.gather(revise("u", summary=s), again("w", summary=s))
+        return await revise_v2("z", summary=s[0])
 
     rep = pipeline(tmp_path, stub()).run(flow)
     [call] = rep.flow_errors
@@ -465,8 +467,8 @@ def test_two_different_declarations_of_one_kind_both_created_raise_at_the_second
 
 
 def test_a_slow_step_is_logged(tmp_path, caplog):
-    def flow():
-        yield summarize("u", path="x")
+    async def flow():
+        await summarize("u", path="x")
         time.sleep(1.1)
 
     with caplog.at_level("WARNING", logger="contraagent"):
@@ -478,7 +480,7 @@ def test_contraagent_run_exits_1_on_a_flow_error(tmp_path, capsys, monkeypatch):
     (tmp_path / "steps.py").write_text(
         "from contraagent import python_task\n"
         "@python_task\ndef double(n: int) -> int:\n    return 2 * n\n"
-        "def flow(n):\n    m = yield double(n=n)\n    raise ValueError(f'got {m}')\n"
+        "async def flow(n):\n    m = await double(n=n)\n    raise ValueError(f'got {m}')\n"
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "path", list(sys.path))
@@ -513,20 +515,20 @@ def test_resume_after_pass_1_launches_only_pass_2_onward_and_a_changed_param_rer
 
     summarize_, review_, revise_ = example.summarize, example.review, example.revise
 
-    def changed(unit):  # the same tasks, another path param for summarize
-        summary = yield summarize_(unit, path=f"elsewhere/{unit}.md")
+    async def changed(unit):  # the same tasks, another path param for summarize
+        summary = await summarize_(unit, path=f"elsewhere/{unit}.md")
         while True:
-            verdict = yield review_(unit, summary=summary)
+            verdict = await review_(unit, summary=summary)
             if verdict.approved:
                 return summary
-            summary = yield revise_(unit, summary=summary, verdict=verdict)
+            summary = await revise_(unit, summary=summary, verdict=verdict)
 
     pipeline(tmp_path, agent).run(changed, "u", run_id="r", resume=True)
     # summarize's params changed: it runs again, and writes the same output, so what received it does not
     assert [launch.key for launch in agent.launches] == ["summarize-u"]
 
 
-def test_resume_reads_numbered_outputs_and_an_off_contract_one_fails_at_the_yield(tmp_path):
+def test_resume_reads_numbered_outputs_and_an_off_contract_one_fails_at_the_await(tmp_path):
     rep = pipeline(tmp_path, stub({"u": 2})).run(example.review_loop, "u", run_id="r")
     assert rep.ok
     (rep.run_dir / "out/revise/u.json").write_text("{}")
@@ -542,10 +544,10 @@ def test_a_resumed_chain_of_skipped_tasks_uses_no_recursion(tmp_path):
     def step(i: int) -> int:
         return i + 1
 
-    def chain(n):
+    async def chain(n):
         i = 0
         for k in range(n):
-            i = yield step(key=f"step-{k}", i=i)
+            i = await step(key=f"step-{k}", i=i)
         return i
 
     agent = stub()
@@ -573,8 +575,8 @@ def heavy(unit: str, meet: int = 1) -> int:
 
 
 def test_a_claiming_kind_runs_within_its_claim_capacity(tmp_path):
-    def flow(meet):
-        return (yield [heavy(u, meet=meet) for u in "abcd"])
+    async def flow(meet):
+        return await asyncio.gather(*[heavy(u, meet=meet) for u in "abcd"])
 
     _running[:] = [0, 0]
     rep = pipeline(tmp_path, StubAgent()).run(flow, 1)
@@ -583,3 +585,103 @@ def test_a_claiming_kind_runs_within_its_claim_capacity(tmp_path):
     _running[:] = [0, 0]
     assert pipeline(tmp_path, StubAgent(), claim_capacity={"heavy": 4}).run(flow, 2, run_id="free").ok
     assert _running[1] > 1  # a capacity of 4: they overlap
+
+
+# --- what an async flow is ----------------------------------------------------------
+
+
+def test_awaits_deliver_typed_answers_and_gather_keeps_their_order(tmp_path):
+    async def flow():
+        summary = await summarize("u", path="x")
+        n, doc = await asyncio.gather(count("u", summary=summary), write_doc("u", summary=summary))
+        return summary, n, doc
+
+    rep = pipeline(tmp_path, stub(write_doc="# d\n")).run(flow)
+    summary, n, doc = rep.value
+    assert isinstance(summary, Summary) and summary.points == ["a"]
+    assert n == 1 and doc == "# d\n" and isinstance(doc, TextOutput)
+
+
+def test_the_frontier_is_the_union_a_gather_received_whatever_order_its_tasks_end_in(tmp_path):
+    async def flow():
+        await asyncio.gather(summarize("a", path="a"), summarize("b", path="b"), summarize("c", path="c"))
+        review("u")  # created from all three
+        await summarize("d", path="d")
+        review("v")  # created from the last await only
+
+    for order in ("abc", "cba"):
+        ended = {u: threading.Event() for u in "abc"}
+
+        def in_order(launch, order=order, ended=ended):
+            """Ends the summaries of a, b and c in `order`."""
+            if launch.unit in order:
+                for u in order[: order.index(launch.unit)]:
+                    ended[u].wait(timeout=10)
+            reply = summary_of(launch)
+            if launch.unit in ended:
+                ended[launch.unit].set()
+            return reply
+
+        agent = stub(summarize=in_order, review={"approved": True})
+        rep = pipeline(tmp_path, agent, max_concurrent=4).run(flow, run_id=f"r-{order}")
+        plan = {r["key"]: r for r in plan_rows(rep)}
+        assert plan["review-u"]["created_from"] == ["summarize-a", "summarize-b", "summarize-c"]
+        assert plan["review-v"]["created_from"] == ["summarize-d"]
+
+
+def test_a_generator_flow_is_refused_with_its_rewrite(tmp_path):
+    def flow():
+        yield summarize("u", path="x")
+
+    for given in (flow, lambda: flow()):
+        with pytest.raises(TypeError) as caught:
+            pipeline(tmp_path, stub()).run(given)
+        message = str(caught.value)
+        assert "generator flow" in message and "`def` -> `async def`" in message
+        for rewrite in (
+            "`yield x` -> `await x`",
+            "`yield [a, b]` -> `await asyncio.gather(a, b)`",
+            "`yield from sub()` -> `await sub()`",
+            "`yield time_box(g, ...)` -> `await time_box(c, ...)`",
+        ):
+            assert rewrite in message
+
+
+def test_a_coroutine_never_awaited_is_a_warning_line(tmp_path):
+    async def sub(u):
+        return await summarize(u, path=u)
+
+    async def flow():
+        sub("a")  # pyright: ignore[reportUnusedCoroutine]  # the await forgotten: it never runs
+        return await summarize("b", path="b")
+
+    lines: list[str] = []
+    agent = stub()
+    rep = Pipeline(None, runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path, log=lines.append).run(flow)
+    assert rep.ok and sorted(rep.results) == ["summarize-b"]
+    [line] = [line for line in lines if "never awaited" in line]
+    assert "sub" in line and "await sub(...)" in line and __file__ in line
+
+
+def test_one_run_per_event_loop_at_a_time(tmp_path):
+    release = threading.Event()
+
+    @python_task
+    def hold(unit: str) -> int:
+        release.wait(timeout=10)
+        return 1
+
+    async def flow():
+        return await hold("u")
+
+    async def main():
+        first = asyncio.ensure_future(pipeline(tmp_path, StubAgent()).run_async(flow, run_id="first"))
+        while not (tmp_path / "runs" / "first").exists():
+            await asyncio.sleep(0)
+        with pytest.raises(RuntimeError, match="one event loop runs one run at a time"):
+            await pipeline(tmp_path, StubAgent()).run_async(flow, run_id="second")
+        release.set()
+        return await first
+
+    assert asyncio.run(main()).value == 1
+    assert not (tmp_path / "runs" / "second").exists()

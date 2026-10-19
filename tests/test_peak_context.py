@@ -41,8 +41,8 @@ def run(tmp_path, config: dict, *, peak: int, **declared):
     stub = StubAgent({"summarize": writes({"note": "n"}, peak_context=peak)})
     lines: list[str] = []
 
-    def flow():
-        yield task("alpha")
+    async def flow():
+        await task("alpha")
 
     report = Pipeline(PipelineConfig(config), runs_dir=tmp_path / "runs", cwd=tmp_path, backends=stub.backends(), log=lines.append).run(
         flow
@@ -80,8 +80,8 @@ def test_without_a_budget_the_row_has_none_and_no_warning(tmp_path):
 def test_a_warning_without_a_budget_is_refused_before_anything_launches(tmp_path):
     task = agent_task("summarize", instructions="x", output=Note, max_turns=1, timeout_s=10, context_warn_pct=80)
 
-    def flow():
-        yield task("alpha")
+    async def flow():
+        await task("alpha")
 
     report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, backends=StubAgent().backends()).check(flow)
     assert not report.ok
@@ -125,8 +125,8 @@ def test_the_journal_records_the_reported_window_beside_the_peak_context(tmp_pat
     task = agent_task("summarize", instructions="x", output=Note, max_turns=1, timeout_s=10)
     stub = StubAgent({"summarize": writes({"note": "n"}, peak_context=250_000, context_window=1_000_000)})
 
-    def flow():
-        yield task("alpha")
+    async def flow():
+        await task("alpha")
 
     report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, backends=stub.backends()).run(flow)
     [row] = [json.loads(line) for line in (report.run_dir / "journal.jsonl").read_text().splitlines()]

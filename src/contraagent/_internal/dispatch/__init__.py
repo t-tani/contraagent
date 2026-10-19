@@ -1,7 +1,7 @@
 """Generic task-dispatch infrastructure: a domain-free envelope
 (`Task`/`TaskResult`), its two pluggable extension points
 (`TaskScope`/`ResultEnricher`), the queue that dispatches it (`WorkQueue`),
-the driver of generator flows over it (`FlowDriver`), and Python tasks
+the driver of async flows over it (`FlowDriver`), and Python tasks
 (`make_python_task`), and the record types every layer shares (`records`).
 Nothing here knows what a "file" or a "finding" is, and nothing here
 depends on the LLM layer.
@@ -17,7 +17,6 @@ from contraagent._internal.dispatch.flow import (
     FlowState,
     TaskDeferred,
     TaskFailed,
-    TimeBoxed,
     result_or_raise,
     time_box,
 )
@@ -86,7 +85,6 @@ __all__ = [
     "TaskScope",
     "TimeBox",
     "TimeBoxRecord",
-    "TimeBoxed",
     "TokenUsage",
     "Window",
     "WindowSpec",

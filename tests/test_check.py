@@ -1,5 +1,6 @@
 """`Pipeline.check` and `contraagent check`: what is found wrong before anything launches."""
 
+import asyncio
 import functools
 import json
 import re
@@ -318,10 +319,10 @@ def test_a_model_the_coding_agent_does_not_list_is_reported(plugin_dir):
     assert report.warnings == ["routing: lint: model 'haiku-ish' is not in the omp model list; omp may still resolve it"]
 
 
-# --- generator flows: the first step, and the kinds the code reaches ---------------
+# --- async flows: the first step, and the kinds the code reaches -------------------
 
 
-def test_a_generator_flow_is_checked_to_its_first_wait_with_its_reachable_kinds():
+def test_an_async_flow_is_checked_to_its_first_wait_with_its_reachable_kinds():
     report = pipeline().check(example.docs, units=["a", "b"])
     assert report.ok, report
     assert report.kinds == {"summarize": 2}  # the first step of each unit's flow call
@@ -330,10 +331,10 @@ def test_a_generator_flow_is_checked_to_its_first_wait_with_its_reachable_kinds(
     assert str(report).startswith("✓ 2 tasks, 1 kind: summarize 2; later kinds: ")
 
 
-def summarize_via_module(unit):
+async def summarize_via_module(unit):
     """Reaches the example's tasks as attributes of its module."""
-    summary = yield example.summarize(unit, path="x")
-    return (yield example.review(unit, summary=summary))
+    summary = await example.summarize(unit, path="x")
+    return await example.review(unit, summary=summary)
 
 
 def test_reachable_follows_globals_module_attributes_closures_and_containers():
@@ -343,9 +344,9 @@ def test_reachable_follows_globals_module_attributes_closures_and_containers():
     def helper(u):  # a closure holding a dict that holds a declaration
         return table["later"](u)
 
-    def flow():
-        yield from summarize_via_module("a")
-        yield helper("a")
+    async def flow():
+        await summarize_via_module("a")
+        await helper("a")
 
     kinds = [spec.kind for spec in reachable(flow)]
     assert sorted(kinds) == ["later", "review", "summarize"]
@@ -356,27 +357,27 @@ def test_reachable_follows_globals_module_attributes_closures_and_containers():
 def test_a_reachable_kinds_routing_is_checked_before_any_task_of_it_exists():
     late = agent_task("late", instructions="l", output=Summary)  # no budget
 
-    def flow():
-        summary = yield example.summarize("a", path="x")
-        yield late("a", summary=summary)
+    async def flow():
+        summary = await example.summarize("a", path="x")
+        await late("a", summary=summary)
 
     report = pipeline().check(flow)
     assert report.kinds == {"summarize": 1} and report.later_kinds == ["late"]
     assert any("kind late has no budget" in e for e in report.errors)
 
 
-def review_twice(unit, revise=example.revise):
+async def review_twice(unit, revise=example.revise):
     """Revises with `revise`: the example's, unless the caller gives another."""
-    summary = yield example.summarize(unit, path="x")
-    yield example.review(unit, summary=summary)
-    return (yield revise(unit, summary=summary))
+    summary = await example.summarize(unit, path="x")
+    await example.review(unit, summary=summary)
+    return await revise(unit, summary=summary)
 
 
 def test_two_reachable_declarations_of_one_kind_that_differ_are_a_warning():
     terse = agent_task("revise", instructions="be terse", output=example.Summary, max_turns=5, timeout_s=60)
 
-    def flow():
-        return (yield from review_twice("a", revise=terse))
+    async def flow():
+        return await review_twice("a", revise=terse)
 
     report = pipeline().check(flow)
     assert report.ok, report
@@ -390,15 +391,14 @@ def test_two_reachable_declarations_of_one_kind_that_differ_are_a_warning():
 def test_the_first_steps_params_and_flow_call_errors_are_reported(plugin_dir):
     named = agent_task("named", plugin=plugin_dir, params=Named, output=Summary, max_turns=5, timeout_s=60)
 
-    def part(u):
-        yield named(u, n=0, name=u)
+    async def part(u):
+        await named(u, n=0, name=u)
 
-    def bad(u):
+    async def bad(u):
         raise ValueError(f"no {u}")
-        yield
 
-    def flow():
-        yield [part("a"), bad("b")]
+    async def flow():
+        await asyncio.gather(part("a"), bad("b"))
 
     report = pipeline().check(flow)
     assert "named-a: param n: Input should be greater than or equal to 1" in report.errors
@@ -406,9 +406,64 @@ def test_the_first_steps_params_and_flow_call_errors_are_reported(plugin_dir):
     assert "bad): " in raised and f"{__file__}:" in raised and raised.endswith("ValueError: no b")
 
 
-def test_a_generator_flow_that_adds_no_task_is_reported():
+def test_every_flow_call_is_driven_to_its_first_wait_however_deep():
+    async def leaf(u):
+        await example.summarize(u, path=u)
+        await example.review(u)  # not reached: the check gives no output
+
+    async def middle(u):
+        async with asyncio.TaskGroup() as group:
+            group.create_task(leaf(f"{u}1"))
+            group.create_task(leaf(f"{u}2"))
+
+    async def flow():
+        await asyncio.gather(middle("a"), asyncio.create_task(middle("b")))
+
+    report = pipeline().check(flow)
+    assert report.ok, report
+    assert report.kinds == {"summarize": 4}
+
+
+def test_a_generator_flow_is_refused_with_its_rewrite():
     def flow():
-        yield []
+        yield example.summarize("a", path="x")
+
+    for given in (flow, lambda: flow()):
+        report = pipeline().check(given)
+        assert not report.ok and not report.built
+        [error] = report.errors
+        assert "is a generator flow" in error and "`yield x` -> `await x`" in error
+        assert "`yield [a, b]` -> `await asyncio.gather(a, b)`" in error and "`yield from sub()` -> `await sub()`" in error
+
+
+def test_a_coroutine_never_awaited_is_an_error():
+    async def sub(u):
+        return await example.summarize(u, path=u)
+
+    async def flow():
+        sub("a")  # pyright: ignore[reportUnusedCoroutine]  # the await forgotten
+        await example.summarize("b", path="b")
+
+    report = pipeline().check(flow)
+    assert not report.ok
+    [error] = report.errors
+    assert "was never awaited" in error and "sub" in error and "await sub(...)" in error and report.kinds == {"summarize": 1}
+
+
+def test_a_check_from_a_running_event_loop_runs_on_a_thread_of_its_own():
+    async def flow():
+        await example.summarize("a", path="x")
+
+    async def main():
+        return pipeline().check(flow)
+
+    report = asyncio.run(main())
+    assert report.ok and report.kinds == {"summarize": 1}
+
+
+def test_an_async_flow_that_adds_no_task_is_reported():
+    async def flow():
+        await asyncio.sleep(0)
 
     report = pipeline().check(flow)
     assert report.ok and not report.kinds and not report.later_kinds
@@ -442,30 +497,30 @@ EDIT_BOARD = """
 from edit_tasks import polish, refine, start
 
 
-def rounds(unit):
-    draft = yield refine(unit)
-    return (yield polish(unit, draft=draft))
+async def rounds(unit):
+    draft = await refine(unit)
+    return await polish(unit, draft=draft)
 
 
 class Base:
-    def inherited(self, unit):
-        return (yield from rounds(unit))
+    async def inherited(self, unit):
+        return await rounds(unit)
 
 
 class Board(Base):
     def __init__(self, unit=""):
         self.unit = unit
 
-    def step(self, unit):
-        return (yield from rounds(unit))
+    async def step(self, unit):
+        return await rounds(unit)
 
     @staticmethod
-    def run(unit):
-        return (yield from rounds(unit))
+    async def run(unit):
+        return await rounds(unit)
 
     @classmethod
-    def create(cls, unit):
-        return (yield from rounds(unit))
+    async def create(cls, unit):
+        return await rounds(unit)
 
     @property
     def drafts(self):
@@ -475,33 +530,33 @@ class Board(Base):
 BOARD = Board()
 
 
-def by_method(unit):
-    return (yield from Board().step(unit))
+async def by_method(unit):
+    return await Board().step(unit)
 
 
-def by_staticmethod(unit):
-    return (yield from Board.run(unit))
+async def by_staticmethod(unit):
+    return await Board.run(unit)
 
 
-def by_classmethod(unit):
-    return (yield from Board.create(unit))
+async def by_classmethod(unit):
+    return await Board.create(unit)
 
 
-def by_property(unit):
-    return (yield from Board(unit).drafts)
+async def by_property(unit):
+    return await Board(unit).drafts
 
 
-def by_instance(unit):
-    return (yield from BOARD.step(unit))
+async def by_instance(unit):
+    return await BOARD.step(unit)
 
 
-def by_base(unit):
-    return (yield from Board().inherited(unit))
+async def by_base(unit):
+    return await Board().inherited(unit)
 
 
-def flow(helper):
-    yield start("a")
-    return (yield from helper("a"))
+async def flow(helper):
+    await start("a")
+    return await helper("a")
 """
 
 

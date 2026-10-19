@@ -219,9 +219,9 @@ def test_a_service_no_task_holds_between_two_tasks_stays_up_until_the_run_ends(t
     def look(unit: str) -> Found:
         return Found(address=service_address("index") or "")
 
-    def flow():
-        yield look("a")
-        yield look("b")
+    async def flow():
+        await look("a")
+        await look("b")
 
     report = pipeline(tmp_path, services={"index": server}).run(flow)
     assert report.ok, report.failed
@@ -371,9 +371,9 @@ def test_the_monitor_shows_each_start_of_a_service_with_its_stop(tmp_path):
     def look(unit: str) -> Found:
         return Found(address=service_address("index") or "")
 
-    def flow():
-        yield look("a")
-        yield look("b")
+    async def flow():
+        await look("a")
+        await look("b")
 
     report = pipeline(tmp_path, services={"index": server}).run(flow)
     assert report.ok

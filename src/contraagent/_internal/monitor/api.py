@@ -385,17 +385,18 @@ TaskState = Literal["pending", "running", "done", "partial", "failed", "skipped"
 
 
 class FlowCallNode(Closed):
-    """One flow call (`flow_calls.jsonl`): a generator the run drove, or the flow itself."""
+    """One flow call (`flow_calls.jsonl`): one run of an async flow (the top flow, or an asyncio Task
+    its code created), or the flow itself."""
 
     id: str = Field(description="`0` for the top flow, `<parent>.<n>` for a child")
     parent: str | None = Field(description="the parent flow call's id; null for a top flow")
-    function: str = Field(description="`module.qualname` of the generator function (or of a flow that does not yield)")
+    function: str = Field(description="`module.qualname` of the async def function (or of a flow that does not wait)")
     flow: list[Frame] = Field(
-        default_factory=list, description="the flow path where the parent yielded it, with its loops' passes; empty for a top flow"
+        default_factory=list, description="the flow path where the parent created it, with its loops' passes; empty for a top flow"
     )
     state: FlowState
-    error: str | None = Field(None, description="`<type>: <message>` of what it raised (or what closing it raised); else null")
-    time_box: TimeBoxRecord | None = Field(None, description="its own deadline, for a flow call yielded through `time_box`; else null")
+    error: str | None = Field(None, description="`<type>: <message>` of what it raised (or what cancelling it raised); else null")
+    time_box: TimeBoxRecord | None = Field(None, description="its own deadline, for a flow call started through `time_box`; else null")
 
 
 class PlanNode(PlanRow):
