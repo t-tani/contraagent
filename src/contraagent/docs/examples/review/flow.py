@@ -1,12 +1,14 @@
 """A flow that depends on results: each unit's summary is reviewed and revised
 until the review approves it, every unit at once, then one report over them all.
 
-The flows are generators: `yield` a task call, and the checked output comes
-back at the `yield`. Passing it on to another task is the dependency, as
-passing the task call itself is in a flow that does not yield.
+The flows are `async def` functions: `await` a task call, and the checked output
+comes back at the `await`. Passing it on to another task is the dependency, as
+passing the task call itself is in a flow that does not wait.
 """
 
 from __future__ import annotations
+
+import asyncio
 
 from pydantic import BaseModel, Field
 
@@ -45,17 +47,17 @@ def report(summaries: list[Summary]) -> str:
     return "\n".join(f"{s.unit}: {len(s.points)} points" for s in summaries)
 
 
-def review_loop(unit: str):
+async def review_loop(unit: str):
     """One unit: summarize, then revise until the review approves (review-<unit>, review-<unit>~2, ...)."""
-    summary = yield summarize(unit, path=f"inputs/{unit}.md")
+    summary = await summarize(unit, path=f"inputs/{unit}.md")
     while True:
-        verdict = yield review(unit, summary=summary)
+        verdict = await review(unit, summary=summary)
         if verdict.approved:
             return summary
-        summary = yield revise(unit, summary=summary, verdict=verdict)
+        summary = await revise(unit, summary=summary, verdict=verdict)
 
 
-def docs(units: list[str]):
+async def docs(units: list[str]):
     """Every unit's loop at once (one flow call each), then one report joining them."""
-    summaries = yield [review_loop(u) for u in units]
-    return (yield report(summaries=summaries))
+    summaries = await asyncio.gather(*[review_loop(u) for u in units])
+    return await report(summaries=summaries)

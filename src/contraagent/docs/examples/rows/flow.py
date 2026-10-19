@@ -59,7 +59,7 @@ def tally(unit: str, findings: list[Finding]) -> Tally:
     return Tally(findings=len(findings), documents=len({f.document for f in findings}))
 
 
-def reviews(units: list[str]):
+async def reviews(units: list[str]):
     for unit in units:
-        findings = yield review(unit)
+        findings = await review(unit)
         tally(unit, findings=findings)

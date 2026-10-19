@@ -11,6 +11,8 @@ given, wherever the monitor reads the run.
 
 from __future__ import annotations
 
+import asyncio
+
 from pydantic import BaseModel
 
 import contraagent
@@ -31,11 +33,11 @@ def count(unit: str, text: str) -> Count:
     return Count(unit=unit, words=words)
 
 
-def tally(texts: dict[str, str]):
+async def tally(texts: dict[str, str]):
     """Every text's count at once, but the texts the pipeline table `[pipeline.tally]` names
     in `skip`; then the flow keeps the total as the document `total`."""
     skip = contraagent.pipeline_table("tally").get("skip", [])  # a check reads it as a run does
-    counts = yield [count(unit, text=text) for unit, text in texts.items() if unit not in skip]
+    counts = await asyncio.gather(*[count(unit, text=text) for unit, text in texts.items() if unit not in skip])
     contraagent.save("total", {"units": len(counts), "words": sum(c.words for c in counts)})
 
 

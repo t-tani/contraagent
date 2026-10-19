@@ -11,6 +11,7 @@ The parsers claim `heavy`: one runs at a time, however many files are ready.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -117,37 +118,38 @@ def summary(reports: list[Report]) -> str:
 
 
 @max_passes(4)
-def analyse_file(cls: Class):
+async def analyse_file(cls: Class):
     """One data file: parse it by its format, rank its columns, then propose a
     meaning for each top column and refine it until `verify` accepts it. The `while`
     loop makes at most 4 passes: the `verify` of a fifth raises `TooManyPasses`."""
     parse = parse_csv if cls.format == "csv" else parse_json  # a kind chosen at run time; both reachable
-    table = yield parse(cls.name, file=cls)
-    ranked = yield rank_columns(cls.name, table=table)
+    table = await parse(cls.name, file=cls)
+    ranked = await rank_columns(cls.name, table=table)
     meanings = []
     for column in ranked.top:
         where = f"{cls.name}-{column.name}"
-        meaning = yield propose(where, column=column)
+        meaning = await propose(where, column=column)
         while True:
-            check = yield verify(where, meaning=meaning)
+            check = await verify(where, meaning=meaning)
             if check.ok:
                 break
-            meaning = yield refine(where, meaning=meaning, check=check)
+            meaning = await refine(where, meaning=meaning, check=check)
         meanings.append(meaning)
     return meanings
 
 
-def analyse_bundle(bundle: str):
+async def analyse_bundle(bundle: str):
     """One bundle: unpack it, classify every file, analyse each data file (a flow
-    call each), then report."""
-    layout = yield unpack(bundle)
-    classes = yield [classify(f.name, file=f) for f in layout.files]  # fan-out sized by the layout
-    data = [c for c in classes if c.data]
-    found = yield [analyse_file(c) for c in data]
-    return (yield report(bundle, meanings=[m for file in found for m in file]))
+    call each), then report. A file whose `classify` failed is left out."""
+    layout = await unpack(bundle)
+    tasks = [classify(f.name, file=f) for f in layout.files]  # fan-out sized by the layout
+    classes = await asyncio.gather(*tasks, return_exceptions=True)  # a failure is its item
+    data = [c for c in classes if isinstance(c, Class) and c.data]
+    found = await asyncio.gather(*[analyse_file(c) for c in data])
+    return await report(bundle, meanings=[m for file in found for m in file])
 
 
-def analyse(bundles: list[str]):
+async def analyse(bundles: list[str]):
     """Every bundle at once (a flow call each), then one summary."""
-    reports = yield [analyse_bundle(b) for b in bundles]
-    return (yield summary(reports=reports))
+    reports = await asyncio.gather(*[analyse_bundle(b) for b in bundles])
+    return await summary(reports=reports)

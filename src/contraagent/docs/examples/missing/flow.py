@@ -3,7 +3,7 @@
 `review` reads the documents of a unit and writes a verdict. A document it needs and
 does not have, it names in `missing`, and it writes the verdict it can without it.
 `review_unit` reads `missing`: it runs `fetch` for each name, which copies the document
-from the archive, and yields `review` again with the documents it now has. What the
+from the archive, and runs `review` again with the documents it now has. What the
 archive does not hold stays missing: the flow logs it as the pipeline log `missing`,
 and the run panel in `PANELS` shows it in the monitor.
 
@@ -12,6 +12,7 @@ and the run panel in `PANELS` shows it in the monitor.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -61,25 +62,25 @@ def fetch(unit: str, name: str) -> Fetched:
     return Fetched(name=name, path=path.as_posix())
 
 
-def review_unit(unit: str, documents: list[str]):
+async def review_unit(unit: str, documents: list[str]):
     """Review a unit; while the review names a missing document that the archive holds,
     fetch it and review again. Log what stays missing."""
-    result = yield review(unit, documents=documents)
+    result = await review(unit, documents=documents)
     while result.missing:
-        fetched = yield [fetch(f"{unit}-{name}", name=name) for name in result.missing]
+        fetched = await asyncio.gather(*[fetch(f"{unit}-{name}", name=name) for name in result.missing])
         found = [f.path for f in fetched if f.path is not None]
         if not found:
             break  # nothing new to review with
         documents = documents + found
-        result = yield review(unit, documents=documents)  # the same unit again: key review-<unit>~2
+        result = await review(unit, documents=documents)  # the same unit again: key review-<unit>~2
     for name in result.missing:
         contraagent.log("missing", {"unit": unit, "document": name})
     return result
 
 
-def reviews(units: dict[str, list[str]]):
+async def reviews(units: dict[str, list[str]]):
     """Every unit at once, a flow call each."""
-    return (yield [review_unit(unit, documents) for unit, documents in units.items()])
+    return await asyncio.gather(*[review_unit(unit, documents) for unit, documents in units.items()])
 
 
 def missing(run: RunRecords) -> TableBody:
