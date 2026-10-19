@@ -25,7 +25,7 @@ test.describe('docs: a review loop per unit', () => {
   test.beforeEach(({ page }) => open(page, 'docs'));
 
   test('opens below the single top node, with the breadcrumb', async ({ page }) => {
-    expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs']);
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'docs']);
     await expect(nodeName(page, 'review_loop')).toBeVisible();
     await expect(nodeName(page, 'report')).toBeVisible();
   });
@@ -44,7 +44,7 @@ test.describe('docs: a review loop per unit', () => {
   test("shows the loop's passes as units by node and pass, and Escape goes back to the box", async ({ page }) => {
     await enter(page, 'review_loop');
     await graph(page).locator('.cluster > .hd .name').dblclick();
-    expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop', expect.stringMatching(/^Loop at tasks\.py:\d+$/)]);
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop', expect.stringMatching(/^Loop at tasks\.py:\d+$/)]);
     const matrix = graph(page).locator('table.matrix');
     await expect(matrix.locator('thead th.group')).toHaveText(['Pass 1', 'Pass 2']);
     await expect(matrix.locator('tbody th')).toHaveText(['alpha', 'beta', 'gamma', 'delta', 'epsilon']);
@@ -63,7 +63,7 @@ test.describe('docs: a review loop per unit', () => {
     await page.keyboard.press('Escape');
     await expect.poll(() => params(page).sel).toBeUndefined();
     await page.keyboard.press('Escape');
-    expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop']);
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop']);
     await expect(graph(page).locator('.cluster > .hd .name')).toBeFocused();
   });
 
@@ -135,7 +135,7 @@ test.describe('docs: a review loop per unit', () => {
     expect(Math.abs((await views.boundingBox())!.x - at.x)).toBeLessThan(1);
     await expect(views.getByRole('radio', { name: 'Table' })).toHaveAttribute('aria-checked', 'true');
     await views.getByRole('radio', { name: 'Graph' }).click();
-    expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop']);
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop']);
     await expect(graph(page).locator('.cluster.sel')).toHaveCount(1);
     await expect(inspector(page).locator('h4')).toHaveText(/Loop at tasks\.py:\d+$/);
   });
@@ -145,11 +145,11 @@ test.describe('analyse: nested flow calls and loops', () => {
   test.beforeEach(({ page }) => open(page, 'analyse'));
 
   test('drills down three layers of flow calls with the breadcrumb, and back up', async ({ page }) => {
-    expect(await crumbTexts(page)).toEqual(['Pipeline', 'analyse']);
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'analyse']);
     await enter(page, 'analyse_bundle');
-    expect(await crumbTexts(page)).toEqual(['Pipeline', 'analyse', 'analyse_bundle']);
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'analyse', 'analyse_bundle']);
     await enter(page, 'analyse_file');
-    expect(await crumbTexts(page)).toEqual(['Pipeline', 'analyse', 'analyse_bundle', 'analyse_file']);
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'analyse', 'analyse_bundle', 'analyse_file']);
     await expect(nodeName(page, 'parse_csv')).toBeVisible();
     await expect(nodeName(page, 'parse_json')).toBeVisible();
     await crumbs(page).locator('button', { hasText: 'analyse_bundle' }).click();
@@ -171,7 +171,7 @@ test.describe('analyse: nested flow calls and loops', () => {
     await expect(graph(page).locator('.cluster .cluster .hd .spread')).toHaveText('1 pass: 7 | 2 passes: 1');
     await graph(page).locator('.cluster .cluster > .hd .name').dblclick();
     // Each loop is named by where it is: the outer one and the one inside it are told apart.
-    expect(await crumbTexts(page)).toEqual(['Pipeline', 'analyse', 'analyse_bundle', 'analyse_file', 'Loop at flow.py:128', 'Loop at flow.py:131']);
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'analyse', 'analyse_bundle', 'analyse_file', 'Loop at flow.py:128', 'Loop at flow.py:131']);
     const matrix = graph(page).locator('table.matrix');
     // Each column names its node, after the mark of who runs it.
     await expect(matrix.locator('thead th.nh')).toHaveText([/verify$/, /refine$/, /verify$/]);
@@ -197,7 +197,7 @@ test.describe('docs: selecting, and where a selection leads', () => {
     await expect(prepare.locator('.mark.sel')).toHaveCount(1);
     await expect(inspector(page).locator('h4')).toHaveText('prepare · zeta');
     await expect(inspector(page).locator('dd').first()).toHaveText('failed');
-    expect(params(page).sel).toBe('kind:prepare#zeta');
+    await expect.poll(() => params(page).sel).toBe('kind:prepare#zeta');
     // A reload keeps the selection.
     await page.reload();
     await expect(inspector(page).locator('h4')).toHaveText('prepare · zeta');
@@ -207,10 +207,10 @@ test.describe('docs: selecting, and where a selection leads', () => {
 
   test('a function node: a click selects it, its link opens its layer; a kind node links to its tasks', async ({ page }) => {
     await nodeName(page, 'review_loop').click();
-    expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs']);
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'docs']);
     await expect(inspector(page)).toContainText('Function');
     await inspector(page).locator('.go', { hasText: 'Inside review_loop' }).click();
-    expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop']);
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop']);
     // Who runs a kind's tasks: prepare is Python, summarize an agent.
     const prepare = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'prepare' }) });
     const summarize = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'summarize' }) });
@@ -226,7 +226,7 @@ test.describe('docs: selecting, and where a selection leads', () => {
   test('a double click follows the first link: a mark to its task, a loop box to its passes', async ({ page }) => {
     await enter(page, 'review_loop');
     await graph(page).locator('.cluster > .hd').dblclick();
-    expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop', expect.stringMatching(/^Loop at tasks\.py:\d+$/)]);
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop', expect.stringMatching(/^Loop at tasks\.py:\d+$/)]);
     await page.goBack();
     // The loop box is selected again; its card may cover a mark: close it.
     await inspector(page).locator('.switch', { hasText: 'Clear selection' }).click();
@@ -241,7 +241,7 @@ test.describe('docs: selecting, and where a selection leads', () => {
     await nodeName(page, 'review_loop').focus();
     await expect.poll(() => params(page).sel).toBe('fx::contraagent.docs.examples.demo.tasks.docs/flow:contraagent.docs.examples.demo.tasks.review_loop');
     await page.keyboard.press('Enter');
-    expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop']);
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop']);
     const prepare = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'prepare' }) });
     await prepare.locator('.mark[tabindex="0"]').focus();
     await page.keyboard.press('ArrowRight');
@@ -250,7 +250,7 @@ test.describe('docs: selecting, and where a selection leads', () => {
     await expect.poll(() => params(page).sel).toBeUndefined();
     await expect(cardOf(page)).toHaveCount(0);
     await page.keyboard.press('Escape');
-    expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs']);
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'docs']);
   });
 });
 
@@ -359,7 +359,7 @@ test.describe('a layer the run does not have', () => {
   test('opens the first layer, names the layer, and sets the URL right', async ({ page }) => {
     await page.goto('/?run=docs&tab=overview&layer=flows.gone');
     await expect(graph(page).locator('.missing')).toHaveText('No layer flows.gone in this run');
-    expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs']);
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'docs']);
     await expect.poll(() => params(page).layer).toBeUndefined();
     // Going elsewhere forgets it.
     await enter(page, 'review_loop');
@@ -399,7 +399,7 @@ test.describe('functions drawn open: the whole flow in one drawing', () => {
 
   test('a function with agent tasks and a failure opens on its own: its kinds are drawn without going in', async ({ page }) => {
     await open(page, 'docs');
-    expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs']);
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'docs']);
     await expect(cluster(page, 'review_loop')).toBeVisible();
     await expect(cluster(page, 'review_loop').locator('.node .name', { hasText: 'prepare' })).toBeVisible();
     await expect(cluster(page, 'review_loop').locator('.cluster > .hd .count')).toHaveText('up to 2 passes');

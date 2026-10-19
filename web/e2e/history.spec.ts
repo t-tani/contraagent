@@ -1,9 +1,13 @@
 // Back, Forward and reload return the reader to where they were.
 import { expect, test, type Page } from '@playwright/test';
+import { feedReady } from './monitor.js';
 
 const params = (page: Page) => Object.fromEntries(new URL(page.url()).searchParams);
 const main = (page: Page) => page.locator('ca-monitor main');
 const tab = (page: Page, name: string) => page.getByRole('tab', { name: new RegExp(name, 'i') });
+/** What the monitor remembers under `id` in the current history entry (`core/memory.ts`), once written. */
+const remembered = (page: Page, id: string) =>
+  page.evaluate((id) => (history.state as { contraagent?: Record<string, unknown> } | null)?.contraagent?.[id], id);
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
@@ -53,25 +57,18 @@ test('a filter refines the place: it is in the URL but adds no history entry', a
 test('reload and Back restore how far the list was scrolled', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 420 });
   await tab(page, 'history').click();
+  // The rows arrive over the feed: measure once it has replayed, when all of them are in.
+  await feedReady(page);
   await expect(page.locator('ca-journal-table tbody tr[data-executor="agent"]').first()).toBeVisible();
-  // The rows arrive over the feed: measure once their number has stopped changing.
-  const rows = page.locator('ca-journal-table tbody tr');
-  let count = -1;
-  await expect
-    .poll(async () => {
-      const now = await rows.count();
-      const still = now === count;
-      count = now;
-      return still;
-    }, { intervals: [300] })
-    .toBe(true);
   const max = await main(page).evaluate((m) => m.scrollHeight - m.clientHeight);
   test.skip(max < 120, 'the demo journal is too short to scroll');
   const y = Math.round(max / 2);
   await main(page).evaluate((m, top) => m.scrollTo({ top }), y);
-  await page.waitForTimeout(400); // the position is written to the history entry shortly after scrolling
+  // The scroll's event comes at the next frame, and the position is written to the history entry after it.
+  await expect.poll(() => remembered(page, 'main')).toBe(y);
 
   await page.reload();
+  await feedReady(page);
   await expect.poll(() => main(page).evaluate((m) => m.scrollTop)).toBe(y);
 
   await tab(page, 'tasks').click();
@@ -85,7 +82,8 @@ test('open contracts stay open across a reload', async ({ page }) => {
   const first = page.locator('ca-contracts details.ct').first();
   await first.locator('summary.ct-sum').click();
   await expect(first).toHaveJSProperty('open', true);
-  await page.waitForTimeout(400);
+  // Written to the history entry once its toggle event has come.
+  await expect.poll(async () => ((await remembered(page, 'contracts:open')) as unknown[] | undefined)?.length).toBe(1);
   await page.reload();
   await expect(page.locator('ca-contracts details.ct').first()).toHaveJSProperty('open', true);
 });
@@ -116,7 +114,9 @@ test('the page makes no request the monitor does not answer', async ({ page }) =
   page.on('pageerror', (e) => failed.push(String(e)));
   for (const t of ['overview', 'tasks', 'journal', 'outputs', 'definitions', 'procs', 'stream']) {
     await page.goto(`/?run=${params(page).run || 'docs'}&tab=${t}`);
-    await page.waitForTimeout(300);
+    // What the tab asks for: the feed, then what the view fetches beside it.
+    await feedReady(page);
+    await page.waitForLoadState('networkidle');
   }
   expect(failed).toEqual([]);
 });

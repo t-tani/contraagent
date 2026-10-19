@@ -76,18 +76,20 @@ class DemoAgent(Backend):
             n = self.rounds[launch.label] = self.rounds.get(launch.label, 0) + 1
         stream = Path(launch.stream_path) if launch.stream_path else None
         self.mark_launch(launch)  # one marker per round
+        # Each round draws from its own generator: the same figures on every run, whatever order the threads take.
+        rng = random.Random(f"{launch.label}:{n}")
 
         def emit(event, pause=0.5):
             if stream:
                 with open(stream, "a", encoding="utf-8", newline="\n") as f:
                     f.write(json.dumps(event, ensure_ascii=False) + "\n")
-            time.sleep(self.pace * pause * random.uniform(0.6, 1.4))
+            time.sleep(self.pace * pause * rng.uniform(0.6, 1.4))
 
         def text(delta):
             emit({"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": delta}}, 0.25)
 
         def tool(name, args, output, err=False):
-            cid = f"{launch.label}-{random.randrange(10**6)}"
+            cid = f"{launch.label}-{rng.randrange(10**6)}"
             emit({"type": "tool_execution_start", "toolCallId": cid, "toolName": name, "args": args})
             emit(
                 {
@@ -101,8 +103,8 @@ class DemoAgent(Backend):
 
         def done(stop=Stop.COMPLETED, **kw):
             # Plausible token counts, priced at Sonnet-like list rates (USD per million tokens).
-            fresh, cached, written = random.randint(1500, 4000), random.randint(8000, 20000), random.randint(0, 3000)
-            out = random.randint(150, 900) if stop != Stop.RATE_LIMITED else 0
+            fresh, cached, written = rng.randint(1500, 4000), rng.randint(8000, 20000), rng.randint(0, 3000)
+            out = rng.randint(150, 900) if stop != Stop.RATE_LIMITED else 0
             usage = Usage(
                 calls=[CallUsage(model=launch.model or "demo-model", input=fresh, cache_read=cached, cache_creation=written, output=out)],
                 output_total=out,

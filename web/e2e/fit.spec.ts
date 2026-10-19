@@ -15,6 +15,7 @@ import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { clips, overflows, settle } from './fit.js';
 import { DOCS } from './docs-site.js';
+import { feedReady } from './monitor.js';
 
 const WIDTHS = [360, 600, 900, 1280];
 const HUB = `http://127.0.0.1:${Number(process.env['E2E_HUB_PORT'] ?? 18794)}`;
@@ -27,11 +28,12 @@ const PLACES = [
   '/?page=trends',
 ];
 
-/** The monitor at `url`, drawn: its header names a run or a page, and its main view has content. */
+/** The monitor at `url`, drawn: its header names a run or a page, its main view has content, and a run's feed has replayed. */
 async function openMonitor(page: Page, url: string) {
   await page.goto(url);
   await expect(page.locator('ca-monitor header .runbtn')).toBeVisible();
   await expect(page.locator('ca-monitor main#main > *').first()).toBeVisible();
+  if (new URL(url, 'http://x').searchParams.has('run')) await feedReady(page);
   await page.waitForLoadState('networkidle');
   await settle(page);
 }
@@ -154,6 +156,8 @@ for (const path of PAGES) {
     for (const theme of ['contraagent-light', 'contraagent-dark']) {
       test(`its live elements pass axe in ${theme}`, async ({ page }) => {
         test.setTimeout(60_000);
+        // axe reads colours: none of them mid-way through the theme's transition or a fade.
+        await page.emulateMedia({ reducedMotion: 'reduce' });
         await openDocs(page, path);
         // One analysis of every frame (one per frame costs several times more); its time grows with the frames:
         // about 0.8 s each alone (24 frames, 18 s), so the budget is a guard against a hang, not a race with the machine.
