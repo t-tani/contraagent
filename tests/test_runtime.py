@@ -90,14 +90,16 @@ def test_timeout_kills_the_process_group(tmp_path):
         time.sleep(30)
     """
     t0 = time.monotonic()
-    out, _, exit_code, killed = run_process(_py(code), dict(os.environ), _launch(tmp_path, timeout=0.8))
+    # The timeout is longer than a Python start and a spawn under load; the kill still
+    # comes well before the child's 30 s sleep ends.
+    out, _, exit_code, killed = run_process(_py(code), dict(os.environ), _launch(tmp_path, timeout=2))
     assert killed is Stop.TIMEOUT
-    assert time.monotonic() - t0 < 5
+    assert time.monotonic() - t0 < 6
     assert out == b"started\n"
     if sys.platform != "win32":  # Windows has no signal to report: the job is ended
         assert exit_code == -signal.SIGTERM
     grandchild = int(pidfile.read_text())
-    deadline = time.monotonic() + 2
+    deadline = time.monotonic() + 10
     while _alive(grandchild) and time.monotonic() < deadline:
         time.sleep(0.02)
     assert not _alive(grandchild), "the child's own child outlived the group kill"

@@ -14,17 +14,27 @@ from contraagent.testing import StubAgent
 
 
 class Spans:
-    """Runs a task by sleeping `params["sleep"]`; records each task's (start, end)."""
+    """Runs a task by counting it as one of the group `params["join"]`, waiting until each
+    group in `params["wait"]` has had that many tasks start (10 s at most), then sleeping
+    `params["sleep"]`; records each task's (start, end). Tasks that wait for each other
+    overlap however loaded the machine is."""
 
     def __init__(self) -> None:
         self.spans: dict[str, tuple[float, float]] = {}
-        self._lock = threading.Lock()
+        self.started: dict[str, int] = {}
+        self._lock = threading.Condition()
 
     def config(self, task: Task) -> SimpleNamespace:
         return SimpleNamespace(max_concurrent=None)
 
     def run(self, task: Task) -> TaskResult:
         t0 = time.monotonic()
+        with self._lock:
+            if "join" in task.params:
+                self.started[task.params["join"]] = self.started.get(task.params["join"], 0) + 1
+                self._lock.notify_all()
+            wait = task.params.get("wait", {})
+            self._lock.wait_for(lambda: all(self.started.get(g, 0) >= n for g, n in wait.items()), timeout=10)
         time.sleep(task.params.get("sleep", 0.0))
         with self._lock:
             self.spans[task.key] = (t0, time.monotonic())
@@ -41,10 +51,11 @@ class Spans:
 def test_one_task_at_a_time_holds_a_name_across_kinds_and_within_one():
     runner = Spans()
     q = WorkQueue(runner, max_concurrent=4)
-    q.add(Task("style", key="style-a", unit="a", claims=("topic:a",), params={"sleep": 0.15}))
-    q.add(Task("terms", key="terms-a", unit="a", claims=("topic:a",), params={"sleep": 0.15}))
-    q.add(Task("terms", key="terms-a~2", unit="a", claims=("topic:a",), params={"sleep": 0.15}))
-    q.add(Task("terms", key="terms-b", unit="b", claims=("topic:b",), params={"sleep": 0.15}))
+    write = {"sleep": 0.15, "join": "a", "wait": {"b": 1}}
+    q.add(Task("style", key="style-a", unit="a", claims=("topic:a",), params=write))
+    q.add(Task("terms", key="terms-a", unit="a", claims=("topic:a",), params=write))
+    q.add(Task("terms", key="terms-a~2", unit="a", claims=("topic:a",), params=write))
+    q.add(Task("terms", key="terms-b", unit="b", claims=("topic:b",), params={"join": "b", "wait": {"a": 1}}))
     q.run()
     writes = ["style-a", "terms-a", "terms-a~2"]
     assert not any(runner.overlap(a, b) for a in writes for b in writes if a < b)
@@ -55,9 +66,10 @@ def test_one_task_at_a_time_holds_a_name_across_kinds_and_within_one():
 def test_tasks_that_claim_nothing_run_together_whatever_their_kind_and_unit():
     runner = Spans()
     q = WorkQueue(runner, max_concurrent=4)
-    q.add(Task("write", key="write-a", unit="a", claims=("topic:a",), params={"sleep": 0.15}))
-    q.add(Task("triage", key="triage-a", unit="a", params={"sleep": 0.15}))
-    q.add(Task("triage", key="triage-a~2", unit="a", params={"sleep": 0.15}))
+    together = {"join": "all", "wait": {"all": 3}}
+    q.add(Task("write", key="write-a", unit="a", claims=("topic:a",), params=together))
+    q.add(Task("triage", key="triage-a", unit="a", params=together))
+    q.add(Task("triage", key="triage-a~2", unit="a", params=together))
     q.run()
     assert runner.overlap("write-a", "triage-a") and runner.overlap("triage-a", "triage-a~2")
 
@@ -66,8 +78,8 @@ def test_a_pattern_caps_each_name_it_matches_on_its_own():
     runner = Spans()
     q = WorkQueue(runner, max_concurrent=4, claim_capacity={"heavy:*": 2})
     for key in ("x1", "x2", "x3"):
-        q.add(Task("parse", key=key, claims=("heavy:x",), params={"sleep": 0.15}))
-    q.add(Task("parse", key="y1", claims=("heavy:y",), params={"sleep": 0.15}))
+        q.add(Task("parse", key=key, claims=("heavy:x",), params={"sleep": 0.15, "join": "x", "wait": {"x": 2, "y": 1}}))
+    q.add(Task("parse", key="y1", claims=("heavy:y",), params={"join": "y", "wait": {"x": 1}}))
     q.run()
     xs = ["x1", "x2", "x3"]
     pairs = [runner.overlap(a, b) for a in xs for b in xs if a < b]
@@ -242,10 +254,15 @@ def test_the_claims_example_writes_each_topic_one_task_at_a_time(tmp_path):
     from contraagent.docs.examples.claims import flow as example
 
     spans: dict[str, tuple[float, float]] = {}
+    # Both styles and alpha's triage wait for each other: they overlap however loaded the
+    # machine is, and a broken barrier fails the reply.
+    first = threading.Barrier(3, timeout=10)
 
     def timed(answer):
         def reply(launch):
             t0 = time.monotonic()
+            if launch.key in ("style-alpha", "style-beta", "triage-alpha"):
+                first.wait()
             time.sleep(0.1)
             spans[launch.key] = (t0, time.monotonic())
             return answer(launch)

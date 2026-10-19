@@ -4,6 +4,7 @@ fingerprints: `test_passes.py`."""
 
 import json
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -481,10 +482,12 @@ def test_contraagent_run_exits_1_on_a_flow_error(tmp_path, capsys, monkeypatch):
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "path", list(sys.path))
-    assert main(["run", "steps.py:flow", "--kwargs", '{"n": 2}']) == 1
+    try:
+        assert main(["run", "steps.py:flow", "--kwargs", '{"n": 2}']) == 1
+    finally:
+        sys.modules.pop("steps", None)
     out = capsys.readouterr().out
     assert "1/1 tasks done" in out and "flow call 0 (steps.flow): ValueError: got 4" in out
-    sys.modules.pop("steps", None)
 
 
 # --- resume -----------------------------------------------------------------------
@@ -552,25 +555,31 @@ def test_a_resumed_chain_of_skipped_tasks_uses_no_recursion(tmp_path):
 
 
 _running: list[int] = [0, 0]  # now, most at once
+_running_changed = threading.Condition()
 
 
 @python_task(claims=["heavy"])
-def heavy(unit: str) -> int:
-    _running[0] += 1
-    _running[1] = max(_running[1], _running[0])
+def heavy(unit: str, meet: int = 1) -> int:
+    """Waits until `meet` of its kind ran at once (10 s at most)."""
+    with _running_changed:
+        _running[0] += 1
+        _running[1] = max(_running[1], _running[0])
+        _running_changed.notify_all()
+        _running_changed.wait_for(lambda: _running[1] >= meet, timeout=10)
     time.sleep(0.05)
-    _running[0] -= 1
+    with _running_changed:
+        _running[0] -= 1
     return 1
 
 
 def test_a_claiming_kind_runs_within_its_claim_capacity(tmp_path):
-    def flow():
-        return (yield [heavy(u) for u in "abcd"])
+    def flow(meet):
+        return (yield [heavy(u, meet=meet) for u in "abcd"])
 
     _running[:] = [0, 0]
-    rep = pipeline(tmp_path, StubAgent()).run(flow)
+    rep = pipeline(tmp_path, StubAgent()).run(flow, 1)
     assert rep.ok and rep.value == [1, 1, 1, 1]
     assert _running[1] == 1  # four ready at once, one at a time
     _running[:] = [0, 0]
-    assert pipeline(tmp_path, StubAgent(), claim_capacity={"heavy": 4}).run(flow, run_id="free").ok
+    assert pipeline(tmp_path, StubAgent(), claim_capacity={"heavy": 4}).run(flow, 2, run_id="free").ok
     assert _running[1] > 1  # a capacity of 4: they overlap

@@ -129,20 +129,22 @@ def test_a_trends_panel_is_checked_as_a_run_panel_is(tmp_path):
 
 def test_a_slow_panel_holds_no_other_route_back(tmp_path):
     """Many requests for a panel that takes seconds (a page refreshing, many trends panels)
-    used to take every thread the server answers routes with: the run list waited for them."""
+    leave threads to answer the other routes with: the run list does not wait for them."""
     pytest.importorskip("fastapi")
     import httpx2
 
     from contraagent._internal.monitor import server
 
     write_run(tmp_path, "r1", [row("2026-10-14T01:00:00Z")])
+    # The slow panels take 10 s, or until the run list has answered.
+    answered = threading.Event()
 
     def slow(runs: PeriodRuns, period: Period) -> dict:
-        time.sleep(2.0)
+        answered.wait(timeout=10)
         return {"done": True}
 
     def slow_run(run: RunRecords) -> dict:
-        time.sleep(2.0)
+        answered.wait(timeout=10)
         return {"done": True}
 
     panels = {"slow0": Panel(slow, scope="trends"), "slow1": Panel(slow, scope="trends"), "slowrun": Panel(slow_run)}
@@ -159,12 +161,13 @@ def test_a_slow_panel_holds_no_other_route_back(tmp_path):
             t0 = time.monotonic()
             runs = await c.get("/api/runs")
             took = time.monotonic() - t0
+            answered.set()
             assert runs.status_code == 200 and runs.json()[0]["run"] == "r1"
             codes = [r.status_code for r in await asyncio.gather(*heavy)]
             return took, codes
 
     took, codes = asyncio.run(scenario())
-    assert took < 1.0, f"/api/runs took {took:.2f}s while slow panels were being made"
+    assert took < 5.0, f"/api/runs took {took:.2f}s while slow panels were being made"  # well before their 10 s
     assert codes == [200] * 82
 
 
@@ -175,9 +178,11 @@ def test_a_slow_run_panel_does_not_stop_the_event_loop(tmp_path):
     from contraagent._internal.monitor import server
 
     write_run(tmp_path, "r1", [row("2026-10-14T01:00:00Z")])
+    ticked = threading.Event()  # the loop ran 10 ticks while the panel was being made
+    seen: list[bool] = []
 
     def slow_run(run: RunRecords) -> dict:
-        time.sleep(1.0)
+        seen.append(ticked.wait(timeout=10))  # a blocked loop never ticks: the wait times out
         return {"done": True}
 
     mon = Monitor(tmp_path, panels={"slowrun": Panel(slow_run)})
@@ -190,6 +195,8 @@ def test_a_slow_run_panel_does_not_stop_the_event_loop(tmp_path):
             nonlocal ticks
             while not stop.is_set():
                 ticks += 1
+                if ticks >= 10:
+                    ticked.set()
                 await asyncio.sleep(0.05)
 
         async def connected() -> bool:
@@ -203,4 +210,5 @@ def test_a_slow_run_panel_does_not_stop_the_event_loop(tmp_path):
         await t
         return ticks
 
-    assert asyncio.run(scenario()) >= 10  # about 20 in the second the panel took
+    assert asyncio.run(scenario()) >= 10
+    assert seen == [True]
