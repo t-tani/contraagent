@@ -184,6 +184,9 @@ class CredentialRests:
         self._resting: dict[tuple[str, str], Rest] = {}  # by credential and account: the rest it began with
         self._ruled: dict[tuple[str, str], tuple[Rest, datetime]] = {}  # rests the rule gave an end, and that end
         self._refused: dict[tuple[str, str, str], Rest] = {}  # by credential, coding agent and model
+        # By credential and account: held while a rest is judged, recorded and told, so that
+        # two threads judging the same account at once record its rests in the order judged.
+        self._judging: dict[tuple[str, str], threading.RLock] = {}
 
     def refuse(self, name: str, agent: str, model: str) -> Rest | None:
         """A launch as credential `name` (a pool's member by its own name) on coding agent
@@ -252,8 +255,22 @@ class CredentialRests:
         if refused is not None:  # no grace window: a refused credential is refused again
             return refused
         acct = account(name) if account is not None and read else ""  # asked only of a credential with readings
-        reading = self.latest(name, acct)
         key = (name, acct)
+        with self._lock:
+            judging = self._judging.setdefault(key, threading.RLock())
+        with judging:
+            rest, since = self._judge(name, pool, key)
+        if rest is None:
+            return None
+        if kind in self.finishing_kinds and self._clock() - since < self.grace_s:
+            return None
+        return rest
+
+    def _judge(self, name: str, pool: Pool | None, key: tuple[str, str]) -> tuple[Rest | None, float]:
+        """Whether credential `name` rests for account `key[1]` now, recorded and told
+        (`on_change`) when that begins or ends; with the time it was first found resting.
+        The caller holds the account's judging lock."""
+        reading = self.latest(name, key[1])
         rest = None
         with self._lock:
             held = self._ruled.get(key)
@@ -295,11 +312,7 @@ class CredentialRests:
                 self.on_change(*event)
             except Exception:  # a record that cannot be written must not stop a launch
                 pass
-        if rest is None:
-            return None
-        if kind in self.finishing_kinds and self._clock() - since < self.grace_s:
-            return None
-        return rest
+        return rest, since
 
     def _capped(self, name: str, reading: QuotaReading, pool: Pool | None) -> Rest | None:
         cred = self.credentials.get(name)

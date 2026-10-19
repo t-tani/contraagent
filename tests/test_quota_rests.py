@@ -170,6 +170,33 @@ def test_a_quota_rule_rests_a_credential_by_its_reading(tmp_path):
     assert r.reason("sub-b") == "sub-b rests: pace 60%"
 
 
+def test_two_threads_that_judge_one_account_at_once_record_its_rests_in_the_order_judged(tmp_path):
+    entered, release = threading.Event(), threading.Event()
+
+    def rule(cred, rd):
+        if (rd.seven_day_pct or 0) > 50:
+            entered.set()
+            assert release.wait(10)
+            return "pace"
+        return None
+
+    events = []
+    r = rests(tmp_path, rule=rule, on_change=lambda event, rest: events.append((event, rest.rule)))
+    r.observe(reading("sub-b", week=60))
+    first = threading.Thread(target=r.rests, args=("sub-b",))
+    first.start()
+    assert entered.wait(10)  # the first judgement is inside the rule, on the reading of 60%
+    r.observe(reading("sub-b", week=10, observed=NOW + timedelta(minutes=1)))
+    second = threading.Thread(target=r.rests, args=("sub-b",))
+    second.start()
+    second.join(0.2)  # unserialized, the second would judge 10% and finish here, before the first records its rest
+    release.set()
+    first.join(10)
+    second.join(10)
+    # The rest the first judgement found began, and the second, on the newer reading, ended it.
+    assert events == [("start", "pace"), ("end", "pace")]
+
+
 def test_a_pool_rests_when_every_member_does(tmp_path):
     r = rests(tmp_path, rule=None)
     r.observe(reading("personal", five=95))
