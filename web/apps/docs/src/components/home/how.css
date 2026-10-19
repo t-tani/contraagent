@@ -324,7 +324,11 @@
     scroll-snap-type: x mandatory;
     scroll-padding-inline: var(--sl-content-pad-x, 1rem);
     scrollbar-width: none;
+    /* A sideways swipe is ./how-carousel.ts's, which moves the list at most a card. */
+    touch-action: pan-y pinch-zoom;
   }
+  /* While a swipe moves the list and until it lands, no snapping: the list follows the finger. */
+  .how-carousel .how-steps.is-swiped { scroll-snap-type: none; }
   .how-carousel .how-steps::-webkit-scrollbar { display: none; }
   .how-carousel .how-rail { display: none; }
   .how-carousel .how-step {
