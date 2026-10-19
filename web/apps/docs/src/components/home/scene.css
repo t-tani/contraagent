@@ -193,7 +193,7 @@
   padding-bottom: 2px;
 }
 .ca-secondary:hover { border-bottom-color: var(--hero-accent-a); }
-.ca-source { display: inline-flex; align-items: center; gap: 0.4rem; }
+.ca-repo { display: inline-flex; align-items: center; gap: 0.4rem; }
 .ca-primary:focus-visible, .ca-secondary:focus-visible, .ca-copy:focus-visible, .ca-down:focus-visible {
   outline: 2px solid var(--hero-accent-a);
   outline-offset: 3px;
