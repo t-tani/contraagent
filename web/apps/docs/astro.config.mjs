@@ -4,7 +4,7 @@ import starlight from '@astrojs/starlight';
 import { defineConfig, passthroughImageService } from 'astro/config';
 import { satteri } from '@astrojs/markdown-satteri';
 import { tableCards } from './src/lib/table-cards.mjs';
-import { BASE, SITE } from './site.ts';
+import { BASE, REPOSITORY, SITE } from './site.ts';
 
 const repo = fileURLToPath(new URL('../../..', import.meta.url));
 
@@ -32,6 +32,8 @@ export default defineConfig({
         alt: 'contraagent',
         replacesTitle: true,
       },
+      // The repository, by its icon at the end of the header on every page (in the menu on a phone).
+      social: [{ icon: 'github', label: 'GitHub', href: REPOSITORY }],
       // favicon.svg follows the reader's colour scheme; the PNGs are for browsers and home screens without SVG icons.
       // Starlight adds the base to `favicon`, not to the links in `head`.
       favicon: '/favicon.svg',

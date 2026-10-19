@@ -29,6 +29,7 @@
   .site-title { min-height: 2.75rem; }
   .sl-menu-button { align-items: center; justify-content: center; }
   site-search button[data-open-modal] { min-width: 2.75rem; min-height: 2.75rem; justify-content: center; }
+  .social-icons a { min-width: 2.75rem; min-height: 2.75rem; margin: 0; align-items: center; justify-content: center; }
   mobile-starlight-toc summary { font-size: var(--sl-text-sm); }
   mobile-starlight-toc .isMobile a { min-height: 2.75rem; align-items: center; }
   #starlight__sidebar a,

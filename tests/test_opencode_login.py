@@ -2,6 +2,7 @@
 own way, and agree on the account it bills and on the Go subscription's usage."""
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -169,7 +170,8 @@ def test_one_login_is_one_account_so_a_rest_on_one_agent_holds_on_the_others(tmp
     agents = [OpencodeBackend(base_env=env), PiBackend(base_env={**env, "PI_CODING_AGENT_DIR": str(pi_home)}), OmpBackend(base_env=env)]
     accounts = {be.name: be.account(sub, GO_MODEL) for be in agents}
     assert set(accounts.values()) == {login.account_of_key(KEY)}
-    rests = CredentialRests({"oc": sub})
+    # Before the recorded reading's weekly window resets (2026-10-19), whatever day the test runs.
+    rests = CredentialRests({"oc": sub}, now=lambda: datetime(2026, 10, 14, 22, 0, tzinfo=UTC))
     reading = login.go_reading(go_body(), KEY)
     assert isinstance(reading, QuotaReading)
     rests.observe(reading.model_copy(update={"credential": "oc"}))  # as the runner labels a reading of the opencode launch
