@@ -57,6 +57,7 @@ dev = [
     "griffe==2.3.0",        # tests/api: the public API snapshot; `griffe check`
     "import-linter>=2.15",
     "towncrier>=26.9",
+    "mypy>=2.4",            # tests/test_typing.py: the public types under mypy --strict
 ]
 
 [tool.hatch.build.targets.wheel]
