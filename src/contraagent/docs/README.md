@@ -137,7 +137,7 @@ and the [documentation site](https://t-tani.github.io/contraagent/) print the qu
 
 `examples/tutorial/` is the tutorial's pipeline, finished. `examples/demo/` is a whole pipeline (its tasks, plugin, config, a test, and a
 script that runs it); `examples/review/flow.py` and `examples/analysis/flow.py`
-are generator flows (a review loop per unit; a three-layer nested flow);
+are async flows (a review loop per unit; a three-layer nested flow);
 `examples/changes/flow.py` is a task that changes files beside its output;
 `examples/mcp/flow.py` builds an MCP server for each task from its params;
 `examples/services/flow.py` is a local server that the tasks which claim its name share;

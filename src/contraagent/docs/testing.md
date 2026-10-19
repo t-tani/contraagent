@@ -24,10 +24,11 @@ error reported until it is fixed. `Pipeline.check(flow, ...)`
 does the same in Python; its docstring (`help(contraagent.Pipeline.check)`) lists
 every check, and `contraagent check --help` every option.
 
-A generator flow creates its tasks as it runs, so `check` runs it to its first
-wait: every flow call it starts runs up to the first `yield` that waits for a
+An async flow creates its tasks as it runs, so `check` runs it to its first
+wait: every flow call it starts runs up to the first `await` that waits for a
 task, and the tasks created by then are checked like a flow's that does not
-yield. The kinds it creates later are found in its code: the task declarations
+wait. A coroutine created by then and never awaited (a `sub(u)` without `await`)
+is an error. The kinds it creates later are found in its code: the task declarations
 the flow refers to, directly or through the functions, modules, closures and
 containers it refers to (the glossary's **reachable kind**, in [Concepts](concepts.md), says
 exactly what is followed). Their declarations and routing are checked too, and
@@ -322,8 +323,8 @@ call file and the launch itself (its budget, environment and plugin).
 
 ::code{file="examples/demo/test_demo.py" from="def test_the_flow_checks_clean" to="def test_the_report_covers"}
 
-What a flow returns is `RunReport.value`, as the flow returned it: a generator
-flow's return value, or, for a flow that does not yield and returns a task call,
+What a flow returns is `RunReport.value`, as the flow returned it: an async
+flow's return value, or, for a flow that does not wait and returns a task call,
 that task's `Pending` (its output is `report.value.output`):
 
 ::code{file="examples/demo/test_demo.py" from="def test_the_report_covers"}

@@ -247,7 +247,7 @@ A credential that does not exist, that does not carry a trait the task `requires
 that the coding agent of one of the routes cannot use with its model, is refused before
 the task launches: by `contraagent check` for the tasks the flow creates before its
 first wait, by `Pipeline.run` before anything launches for those same tasks, and at the
-task call for a task a generator flow creates later (a `ValueError` in that flow call).
+task call for a task an async flow creates later (a `ValueError` in that flow call).
 The preflight does not probe a route as a call's credential.
 
 A call's credential that rests on its quota is passed over like any resting
