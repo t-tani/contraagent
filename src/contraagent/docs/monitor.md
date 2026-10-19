@@ -68,7 +68,7 @@ task. A breadcrumb names the layer
 it is at, so a loop and the loop inside it are told apart. A solid edge is a dependency (`after`); a dashed
 one joins a task to a result its flow call had received when it created the task
 (`created_from`), drawn only where the task does not also wait for that output.
-A flow that does not yield is one layer: its kinds.
+A flow that does not wait is one layer: its kinds.
 
 The layer shown is drawn with some of its functions open: a function drawn open
 is a box that holds its own layer (its kinds, its loops, the functions it called,
@@ -444,7 +444,7 @@ under `/api/runs/<run>/` (the journal, the plan, outputs, one task by its key,
 a task's transcript) is in that document. The plan (`/api/runs/<run>/plan`)
 carries each task's origin (`flow`, each frame with its loops and their passes; `created_from`, `flow_call`)
 and the run's `flow_calls` (each with `flow`, its parent's frames where it was
-yielded), and `models`: what the agent sessions spent on each model (`ModelUsage`,
+created), and `models`: what the agent sessions spent on each model (`ModelUsage`,
 summed from each journal row's hops, which record their own tokens, cost and time;
 a hop's spend on other models, such as Claude Code's summary of a fetched page on a
 smaller model, counts on each of them, `Hop.other_models`);

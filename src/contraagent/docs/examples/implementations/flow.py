@@ -31,10 +31,10 @@ review = agent_task(
 )
 
 
-def review_all(units: dict[str, str]):
+async def review_all(units: dict[str, str]):
     """`units` maps each unit to its language, `python` or `go`."""
     counts = {}
     for unit, lang in units.items():
-        result = yield review[lang](unit, path=f"src/{unit}")
+        result = await review[lang](unit, path=f"src/{unit}")
         counts[unit] = len(result.findings)
     return counts
