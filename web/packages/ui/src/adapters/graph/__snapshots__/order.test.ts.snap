@@ -6748,37 +6748,37 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
     "at": [
       "kind:prepare 16,48 118x64",
       "kind:summarize 190,48 126x64",
-      "loop:154 372,16 442x120",
-      "kind:score@154 384,48 110x64",
-      "kind:review@154 534,48 114x64",
-      "kind:revise@154 688,48 114x64",
+      "loop:155 372,16 442x120",
+      "kind:score@155 384,48 110x64",
+      "kind:review@155 534,48 114x64",
+      "kind:revise@155 688,48 114x64",
       "kind:write_note 870,48 130x64",
     ],
     "boxes": [
-      "loop:154 <  passes 2 spread [[1,7],[2,1]] [["kind:score@154"],["kind:review@154"],["kind:revise@154"]]",
+      "loop:155 <  passes 2 spread [[1,7],[2,1]] [["kind:score@155"],["kind:review@155"],["kind:revise@155"]]",
     ],
     "edgePaths": [
       "after: kind:prepare@ | kind:summarize@",
-      "after: kind:review@154@loop:154 | kind:revise@154@loop:154",
-      "created: kind:review@154@loop:154 | loop:154@ | ~|by:loop:154|kind:review@154|created|2@ | kind:write_note@",
-      "after: kind:revise@154@loop:154 | loop:154@ | kind:write_note@",
-      "after: kind:score@154@loop:154 | kind:review@154@loop:154",
-      "after: kind:summarize@ | ~|by:loop:154|>:kind:summarize|after|2@ | loop:154@ | kind:review@154@loop:154",
-      "after: kind:summarize@ | ~|by:loop:154|>:kind:summarize|after|2@ | loop:154@ | kind:revise@154@loop:154",
-      "after: kind:summarize@ | loop:154@ | kind:score@154@loop:154",
+      "after: kind:review@155@loop:155 | kind:revise@155@loop:155",
+      "created: kind:review@155@loop:155 | loop:155@ | ~|by:loop:155|kind:review@155|created|2@ | kind:write_note@",
+      "after: kind:revise@155@loop:155 | loop:155@ | kind:write_note@",
+      "after: kind:score@155@loop:155 | kind:review@155@loop:155",
+      "after: kind:summarize@ | ~|by:loop:155|>:kind:summarize|after|2@ | loop:155@ | kind:review@155@loop:155",
+      "after: kind:summarize@ | ~|by:loop:155|>:kind:summarize|after|2@ | loop:155@ | kind:revise@155@loop:155",
+      "after: kind:summarize@ | loop:155@ | kind:score@155@loop:155",
       "after: kind:summarize@ | ~|kind:summarize|after|2@ | kind:write_note@",
     ],
     "edges": [
       "kind:prepare > kind:summarize after 8",
-      "kind:review@154 > kind:revise@154 after 1",
-      "kind:review@154 > kind:write_note created 8",
-      "kind:revise@154 > kind:review@154 after 1 back",
-      "kind:revise@154 > kind:score@154 after 1 back",
-      "kind:revise@154 > kind:write_note after 1",
-      "kind:score@154 > kind:review@154 after 9",
-      "kind:summarize > kind:review@154 after 8",
-      "kind:summarize > kind:revise@154 after 1",
-      "kind:summarize > kind:score@154 after 8",
+      "kind:review@155 > kind:revise@155 after 1",
+      "kind:review@155 > kind:write_note created 8",
+      "kind:revise@155 > kind:review@155 after 1 back",
+      "kind:revise@155 > kind:score@155 after 1 back",
+      "kind:revise@155 > kind:write_note after 1",
+      "kind:score@155 > kind:review@155 after 9",
+      "kind:summarize > kind:review@155 after 8",
+      "kind:summarize > kind:revise@155 after 1",
+      "kind:summarize > kind:score@155 after 8",
       "kind:summarize > kind:write_note after 7",
     ],
     "layers": [
@@ -6789,7 +6789,7 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
         "kind:summarize",
       ],
       [
-        "loop:154",
+        "loop:155",
       ],
       [
         "kind:write_note",
@@ -6797,34 +6797,34 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
     ],
     "lines": [
       "kind:prepare > kind:summarize: M134,80 L190,80",
-      "kind:review@154 > kind:revise@154: M648,80 L688,80",
-      "kind:review@154 > kind:write_note: M648,80 C668,80 668,152 688,152 L814,152 C842,152 842,80 870,80",
-      "kind:revise@154 > kind:write_note: M802,80 L814,80 L870,80",
-      "kind:score@154 > kind:review@154: M494,80 L534,80",
-      "kind:summarize > kind:review@154: M316,80 C344,80 344,164 372,164 L494,164 C514,164 514,80 534,80",
-      "kind:summarize > kind:revise@154: M316,80 C344,80 344,164 372,164 L648,164 C668,164 668,80 688,80",
-      "kind:summarize > kind:score@154: M316,80 L372,80 L384,80",
+      "kind:review@155 > kind:revise@155: M648,80 L688,80",
+      "kind:review@155 > kind:write_note: M648,80 C668,80 668,152 688,152 L814,152 C842,152 842,80 870,80",
+      "kind:revise@155 > kind:write_note: M802,80 L814,80 L870,80",
+      "kind:score@155 > kind:review@155: M494,80 L534,80",
+      "kind:summarize > kind:review@155: M316,80 C344,80 344,164 372,164 L494,164 C514,164 514,80 534,80",
+      "kind:summarize > kind:revise@155: M316,80 C344,80 344,164 372,164 L648,164 C668,164 668,80 688,80",
+      "kind:summarize > kind:score@155: M316,80 L372,80 L384,80",
       "kind:summarize > kind:write_note: M316,80 C344,80 344,176 372,176 L814,176 C842,176 842,80 870,80",
     ],
     "nodes": [
       "kind:prepare [python:prepare-alpha python:prepare-beta python:prepare-gamma python:prepare-delta python:prepare-eta python:prepare-theta python:prepare-iota python:prepare-kappa] []",
       "kind:summarize [summarize-alpha summarize-beta summarize-gamma summarize-delta summarize-eta summarize-theta summarize-iota summarize-kappa] []",
-      "kind:score@154 [python:score-alpha python:score-beta python:score-gamma~2 python:score-delta python:score-eta python:score-theta python:score-iota python:score-kappa] []",
-      "kind:review@154 [review-alpha review-beta review-gamma~2 review-delta review-eta review-theta review-iota review-kappa] []",
-      "kind:revise@154 [- - revise-gamma - - - - -] []",
+      "kind:score@155 [python:score-alpha python:score-beta python:score-gamma~2 python:score-delta python:score-eta python:score-theta python:score-iota python:score-kappa] []",
+      "kind:review@155 [review-alpha review-beta review-gamma~2 review-delta review-eta review-theta review-iota review-kappa] []",
+      "kind:revise@155 [- - revise-gamma - - - - -] []",
       "kind:write_note [write_note-alpha write_note-beta write_note-gamma write_note-delta write_note-eta write_note-theta write_note-iota write_note-kappa] []",
     ],
     "order": {
       "boxes": {
-        "loop:154": [
+        "loop:155": [
           [
-            "kind:score@154",
+            "kind:score@155",
           ],
           [
-            "kind:review@154",
+            "kind:review@155",
           ],
           [
-            "kind:revise@154",
+            "kind:revise@155",
           ],
         ],
       },
@@ -6836,7 +6836,7 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
           "kind:summarize",
         ],
         [
-          "loop:154",
+          "loop:155",
         ],
         [
           "kind:write_note",
@@ -6844,7 +6844,7 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
       ],
     },
     "returns": [
-      "loop:154: M745,115 L745,118 Q745,124 739,124 L445,124 Q439,124 439,118 L439,115",
+      "loop:155: M745,115 L745,118 Q745,124 739,124 L445,124 Q439,124 439,118 L439,115",
     ],
     "size": "1016x192",
     "slots": {
@@ -6856,24 +6856,24 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
           "kind:summarize",
         ],
         [
-          "loop:154",
-          "~|by:loop:154|kind:review@154|created|2",
-          "~|by:loop:154|>:kind:summarize|after|2",
+          "loop:155",
+          "~|by:loop:155|kind:review@155|created|2",
+          "~|by:loop:155|>:kind:summarize|after|2",
           "~|kind:summarize|after|2",
         ],
         [
           "kind:write_note",
         ],
       ],
-      "loop:154": [
+      "loop:155": [
         [
-          "kind:score@154",
+          "kind:score@155",
         ],
         [
-          "kind:review@154",
+          "kind:review@155",
         ],
         [
-          "kind:revise@154",
+          "kind:revise@155",
         ],
       ],
     },
@@ -6893,37 +6893,37 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
     "at": [
       "kind:prepare 152,16 118x64",
       "kind:summarize 148,120 126x64",
-      "loop:154 16,224 164x316",
-      "kind:score@154 28,274 110x64",
-      "kind:review@154 26,370 114x64",
-      "kind:revise@154 26,466 114x64",
+      "loop:155 16,224 164x316",
+      "kind:score@155 28,274 110x64",
+      "kind:review@155 26,370 114x64",
+      "kind:revise@155 26,466 114x64",
       "kind:write_note 18,580 130x64",
     ],
     "boxes": [
-      "loop:154 <  passes 2 spread [[1,7],[2,1]] [["kind:score@154"],["kind:review@154"],["kind:revise@154"]]",
+      "loop:155 <  passes 2 spread [[1,7],[2,1]] [["kind:score@155"],["kind:review@155"],["kind:revise@155"]]",
     ],
     "edgePaths": [
       "after: kind:prepare@ | kind:summarize@",
-      "after: kind:review@154@loop:154 | kind:revise@154@loop:154",
-      "created: kind:review@154@loop:154 | loop:154@ | ~|by:loop:154|kind:review@154|created|2@ | kind:write_note@",
-      "after: kind:revise@154@loop:154 | loop:154@ | kind:write_note@",
-      "after: kind:score@154@loop:154 | kind:review@154@loop:154",
-      "after: kind:summarize@ | ~|by:loop:154|>:kind:summarize|after|2@ | loop:154@ | kind:review@154@loop:154",
-      "after: kind:summarize@ | ~|by:loop:154|>:kind:summarize|after|2@ | loop:154@ | kind:revise@154@loop:154",
-      "after: kind:summarize@ | ~|by:loop:154|>:kind:summarize|after|2@ | loop:154@ | kind:score@154@loop:154",
+      "after: kind:review@155@loop:155 | kind:revise@155@loop:155",
+      "created: kind:review@155@loop:155 | loop:155@ | ~|by:loop:155|kind:review@155|created|2@ | kind:write_note@",
+      "after: kind:revise@155@loop:155 | loop:155@ | kind:write_note@",
+      "after: kind:score@155@loop:155 | kind:review@155@loop:155",
+      "after: kind:summarize@ | ~|by:loop:155|>:kind:summarize|after|2@ | loop:155@ | kind:review@155@loop:155",
+      "after: kind:summarize@ | ~|by:loop:155|>:kind:summarize|after|2@ | loop:155@ | kind:revise@155@loop:155",
+      "after: kind:summarize@ | ~|by:loop:155|>:kind:summarize|after|2@ | loop:155@ | kind:score@155@loop:155",
       "after: kind:summarize@ | ~|kind:summarize|after|2@ | kind:write_note@",
     ],
     "edges": [
       "kind:prepare > kind:summarize after 8",
-      "kind:review@154 > kind:revise@154 after 1",
-      "kind:review@154 > kind:write_note created 8",
-      "kind:revise@154 > kind:review@154 after 1 back",
-      "kind:revise@154 > kind:score@154 after 1 back",
-      "kind:revise@154 > kind:write_note after 1",
-      "kind:score@154 > kind:review@154 after 9",
-      "kind:summarize > kind:review@154 after 8",
-      "kind:summarize > kind:revise@154 after 1",
-      "kind:summarize > kind:score@154 after 8",
+      "kind:review@155 > kind:revise@155 after 1",
+      "kind:review@155 > kind:write_note created 8",
+      "kind:revise@155 > kind:review@155 after 1 back",
+      "kind:revise@155 > kind:score@155 after 1 back",
+      "kind:revise@155 > kind:write_note after 1",
+      "kind:score@155 > kind:review@155 after 9",
+      "kind:summarize > kind:review@155 after 8",
+      "kind:summarize > kind:revise@155 after 1",
+      "kind:summarize > kind:score@155 after 8",
       "kind:summarize > kind:write_note after 7",
     ],
     "layers": [
@@ -6934,7 +6934,7 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
         "kind:summarize",
       ],
       [
-        "loop:154",
+        "loop:155",
       ],
       [
         "kind:write_note",
@@ -6942,34 +6942,34 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
     ],
     "lines": [
       "kind:prepare > kind:summarize: M211,80 L211,120",
-      "kind:review@154 > kind:revise@154: M83,434 L83,466",
-      "kind:review@154 > kind:write_note: M83,434 C83,450 196,450 196,466 L196,540 C196,560 83,560 83,580",
-      "kind:revise@154 > kind:write_note: M83,530 L83,540 L83,580",
-      "kind:score@154 > kind:review@154: M83,338 L83,370",
-      "kind:summarize > kind:review@154: M211,184 C211,204 208,204 208,224 L208,338 C208,354 83,354 83,370",
-      "kind:summarize > kind:revise@154: M211,184 C211,204 208,204 208,224 L208,434 C208,450 83,450 83,466",
-      "kind:summarize > kind:score@154: M211,184 C211,204 208,204 208,224 L208,254 C208,264 83,264 83,274",
+      "kind:review@155 > kind:revise@155: M83,434 L83,466",
+      "kind:review@155 > kind:write_note: M83,434 C83,450 196,450 196,466 L196,540 C196,560 83,560 83,580",
+      "kind:revise@155 > kind:write_note: M83,530 L83,540 L83,580",
+      "kind:score@155 > kind:review@155: M83,338 L83,370",
+      "kind:summarize > kind:review@155: M211,184 C211,204 208,204 208,224 L208,338 C208,354 83,354 83,370",
+      "kind:summarize > kind:revise@155: M211,184 C211,204 208,204 208,224 L208,434 C208,450 83,450 83,466",
+      "kind:summarize > kind:score@155: M211,184 C211,204 208,204 208,224 L208,254 C208,264 83,264 83,274",
       "kind:summarize > kind:write_note: M211,184 C211,204 220,204 220,224 L220,540 C220,560 83,560 83,580",
     ],
     "nodes": [
       "kind:prepare [python:prepare-alpha python:prepare-beta python:prepare-gamma python:prepare-delta python:prepare-eta python:prepare-theta python:prepare-iota python:prepare-kappa] []",
       "kind:summarize [summarize-alpha summarize-beta summarize-gamma summarize-delta summarize-eta summarize-theta summarize-iota summarize-kappa] []",
-      "kind:score@154 [python:score-alpha python:score-beta python:score-gamma~2 python:score-delta python:score-eta python:score-theta python:score-iota python:score-kappa] []",
-      "kind:review@154 [review-alpha review-beta review-gamma~2 review-delta review-eta review-theta review-iota review-kappa] []",
-      "kind:revise@154 [- - revise-gamma - - - - -] []",
+      "kind:score@155 [python:score-alpha python:score-beta python:score-gamma~2 python:score-delta python:score-eta python:score-theta python:score-iota python:score-kappa] []",
+      "kind:review@155 [review-alpha review-beta review-gamma~2 review-delta review-eta review-theta review-iota review-kappa] []",
+      "kind:revise@155 [- - revise-gamma - - - - -] []",
       "kind:write_note [write_note-alpha write_note-beta write_note-gamma write_note-delta write_note-eta write_note-theta write_note-iota write_note-kappa] []",
     ],
     "order": {
       "boxes": {
-        "loop:154": [
+        "loop:155": [
           [
-            "kind:score@154",
+            "kind:score@155",
           ],
           [
-            "kind:review@154",
+            "kind:review@155",
           ],
           [
-            "kind:revise@154",
+            "kind:revise@155",
           ],
         ],
       },
@@ -6981,7 +6981,7 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
           "kind:summarize",
         ],
         [
-          "loop:154",
+          "loop:155",
         ],
         [
           "kind:write_note",
@@ -6989,7 +6989,7 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
       ],
     },
     "returns": [
-      "loop:154: M143,498 L146,498 Q152,498 152,492 L152,312 Q152,306 146,306 L141,306",
+      "loop:155: M143,498 L146,498 Q152,498 152,492 L152,312 Q152,306 146,306 L141,306",
     ],
     "size": "290x660",
     "slots": {
@@ -7001,24 +7001,24 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
           "kind:summarize",
         ],
         [
-          "loop:154",
-          "~|by:loop:154|kind:review@154|created|2",
-          "~|by:loop:154|>:kind:summarize|after|2",
+          "loop:155",
+          "~|by:loop:155|kind:review@155|created|2",
+          "~|by:loop:155|>:kind:summarize|after|2",
           "~|kind:summarize|after|2",
         ],
         [
           "kind:write_note",
         ],
       ],
-      "loop:154": [
+      "loop:155": [
         [
-          "kind:score@154",
+          "kind:score@155",
         ],
         [
-          "kind:review@154",
+          "kind:review@155",
         ],
         [
-          "kind:revise@154",
+          "kind:revise@155",
         ],
       ],
     },
@@ -7034,25 +7034,25 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
       "kappa",
     ],
   },
-  "contraagent.docs.examples.demo.tasks.docs / contraagent.docs.examples.demo.tasks.review_loop | loop:154": {
+  "contraagent.docs.examples.demo.tasks.docs / contraagent.docs.examples.demo.tasks.review_loop | loop:155": {
     "columns": [
-      "kind:score@154|1",
-      "kind:review@154|1",
-      "kind:revise@154|1",
-      "kind:score@154|2",
-      "kind:review@154|2",
+      "kind:score@155|1",
+      "kind:review@155|1",
+      "kind:revise@155|1",
+      "kind:score@155|2",
+      "kind:review@155|2",
     ],
     "head": [
       [
-        "pass loop:154 1 3x1",
-        "pass loop:154 2 2x1",
+        "pass loop:155 1 3x1",
+        "pass loop:155 2 2x1",
       ],
       [
-        "kind:score@154 1x1",
-        "kind:review@154 1x1",
-        "kind:revise@154 1x1",
-        "kind:score@154 1x1",
-        "kind:review@154 1x1",
+        "kind:score@155 1x1",
+        "kind:review@155 1x1",
+        "kind:revise@155 1x1",
+        "kind:score@155 1x1",
+        "kind:review@155 1x1",
       ],
     ],
     "rows": [

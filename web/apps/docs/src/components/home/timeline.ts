@@ -56,7 +56,7 @@ export function code(): CodeLine[] {
     lines(file, 'def review_loop(', 'def review_loop('),
     lines(file, '    try:', 'return summary'),
     lines(file, 'def docs(', 'def docs('),
-    lines(file, 'summaries = yield [review_loop', 'return (yield report('),
+    lines(file, 'summaries = await asyncio.gather(', 'return await report('),
   ];
   const out: CodeLine[] = [];
   for (const p of parts) {
