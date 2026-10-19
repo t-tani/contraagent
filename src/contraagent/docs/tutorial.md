@@ -239,10 +239,10 @@ uv run contraagent run tasks.py:triage_all --stub --kwargs '{"reports": ["login-
 
 ```
 4 tasks created:
-  triage · login-timeout | completed | triage_all (line 62)
-  triage · csv-export | completed | triage_all (line 62)
-  triage · dark-mode | completed | triage_all (line 62)
-  write_table | completed | triage_all (line 63)
+  triage · login-timeout | completed | triage_all (line 63)
+  triage · csv-export | completed | triage_all (line 63)
+  triage · dark-mode | completed | triage_all (line 63)
+  write_table | completed | triage_all (line 64)
 ✓ 4/4 tasks done in 1.3s; run in runs/triage_all-stub
 ```
 
