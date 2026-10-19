@@ -135,7 +135,8 @@ def test_pi_takes_opencodes_stored_login_when_its_own_directory_has_none(tmp_pat
     assert be.account(sub, GO_MODEL) == login.account_of_key(OTHER)
 
 
-def test_omp_bills_the_key_of_its_env_files_and_says_they_break_isolation(tmp_path):
+def test_omp_bills_the_key_of_its_env_files_and_says_they_break_isolation(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # omp reads the working directory's .env first: not the checkout's
     env = store(tmp_path, {})
     home = Path(env["HOME"])
     (home / ".env").write_text(f"OPENCODE_API_KEY={KEY}\nLITELLM_BASE_URL=https://gw\n")
@@ -161,7 +162,8 @@ def test_omp_bills_the_key_of_its_env_files_and_says_they_break_isolation(tmp_pa
     assert ant.isolated is False and f"ANTHROPIC_API_KEY from {home / '.env'}" in ant.isolation
 
 
-def test_one_login_is_one_account_so_a_rest_on_one_agent_holds_on_the_others(tmp_path):
+def test_one_login_is_one_account_so_a_rest_on_one_agent_holds_on_the_others(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # omp reads the working directory's .env first: not the checkout's
     env = store(tmp_path, {"opencode-go": {"type": "api", "key": KEY}})
     (Path(env["HOME"]) / ".env").write_text(f"OPENCODE_API_KEY={KEY}\n")
     pi_home = tmp_path / "pi"

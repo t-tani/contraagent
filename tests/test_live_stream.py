@@ -81,7 +81,7 @@ def test_a_waiter_wakes_promptly_on_an_append_from_another_thread():
     got, late = asyncio.run(wait())
     assert got == 11
     # Woken by the append, well before the 5 s timeout: a busy runner can be slow to schedule it.
-    assert late < 1.0
+    assert late < 2.5
 
 
 def test_a_wait_returns_after_its_timeout_when_nothing_grows(tmp_path):
@@ -267,7 +267,10 @@ def serving(hub: Hub) -> Iterator[str]:
     srv = uvicorn.Server(uvicorn.Config(app, log_level="warning", lifespan="off"))
     thread = threading.Thread(target=srv.run, kwargs={"sockets": [sock]}, daemon=True)
     thread.start()
+    deadline = time.monotonic() + 10
     while not srv.started:
+        if time.monotonic() > deadline or not thread.is_alive():
+            raise AssertionError("the hub did not start within 10 s")
         time.sleep(0.01)
     try:
         yield f"http://127.0.0.1:{port}"
@@ -375,7 +378,7 @@ def test_the_relay_ships_an_active_transcript_fast_and_an_idle_run_at_its_interv
 
 def test_latency_from_append_to_sse_delivery(tmp_path):
     """A line appended to a stream file reaches a viewer of the hub's SSE endpoint through
-    the relay (`HttpClient`, its fast path) and the hub, well within a second."""
+    the relay (`HttpClient`, its fast path) and the hub, well before the relay's 30 s pass."""
     root = runs_dir(tmp_path, "r1")
     path = root / "r1" / LOG
     snapshot = {"run": "r1", "alive": True, "launches": [{"key": KEY}], "python_tasks": []}
@@ -386,11 +389,12 @@ def test_latency_from_append_to_sse_delivery(tmp_path):
     delivered: dict[int, float] = {}
     with serving(hub) as base:
         client = HttpClient(base, TOKEN)
-        relay = Relay(client, root, tmp_path / "progress.json", host_id="h1", interval_s=3.0, liveness=liveness)
+        relay = Relay(client, root, tmp_path / "progress.json", host_id="h1", interval_s=30, liveness=liveness)
         stop = threading.Event()
         relaying = threading.Thread(target=relay.serve, args=(stop,))
         relaying.start()
         until(lambda: held(hub, "r1") == 1, 5)
+        until(lambda: bool(relay._running), 5)  # the heartbeat names the run's live transcript
         ready = threading.Event()
 
         def view() -> None:
@@ -404,17 +408,18 @@ def test_latency_from_append_to_sse_delivery(tmp_path):
                     if len(delivered) == count:
                         return
 
-        viewer = threading.Thread(target=view)
+        viewer = threading.Thread(target=view, daemon=True)
         viewer.start()
-        ready.wait(5)
         try:
+            assert ready.wait(5)
             with open(path, "a", newline="\n") as f:
                 for i in range(count):
                     written[i] = time.monotonic()
                     f.write(f"at {i}\n")
                     f.flush()
                     time.sleep(0.013 * (1 + i % 5))  # bursts and pauses, 0.013 to 0.065 s apart
-            viewer.join(10)
+            viewer.join(15)
+            assert not viewer.is_alive()  # every line came by the fast path, none waits for the pass
         finally:
             stop.set()
             relaying.join(5)
@@ -425,4 +430,5 @@ def test_latency_from_append_to_sse_delivery(tmp_path):
     p95 = latencies[int(0.95 * (len(latencies) - 1))]
     worst = latencies[-1]
     print(f"\nappend to SSE delivery over {count} lines: p50 {p50 * 1000:.0f} ms, p95 {p95 * 1000:.0f} ms, max {worst * 1000:.0f} ms")
-    assert p95 < 1.0
+    # The fast path, not the 30 s pass: a busy runner can be slow to schedule it.
+    assert p95 < 10

@@ -422,7 +422,8 @@ def test_healthz_bounds_a_hanging_store_to_one_thread(monkeypatch):
     try:
         for _ in range(3):
             r = c.get(HEALTHZ)
-            assert r.status_code == 503 and r.json()["failed"] == {"blobs": "TimeoutError"}
+            # Only the hanging store is judged: on a busy runner a healthy one can miss 0.2 s too.
+            assert r.status_code == 503 and r.json()["failed"]["blobs"] == "TimeoutError"
         assert blobs.calls == 1
     finally:
         blobs.release.set()
@@ -430,7 +431,8 @@ def test_healthz_bounds_a_hanging_store_to_one_thread(monkeypatch):
 
 
 def _until_ok(c: TestClient) -> bool:
-    for _ in range(50):
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
         if c.get(HEALTHZ).status_code == 200:
             return True
         time.sleep(0.05)

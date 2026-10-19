@@ -121,13 +121,13 @@ def test_the_template_names_every_agent_and_file_it_renders_for(plugin):
         assert readme.splitlines()[2] in (copy / "README.md").read_text(encoding="utf-8")
 
 
-def test_a_new_agent_registers_its_own_renderer(plugin):
+def test_a_new_agent_registers_its_own_renderer(plugin, monkeypatch):
+    # The registration goes into copies: the other tests see the agents as they are.
+    monkeypatch.setattr(hooks, "RENDERERS", dict(hooks.RENDERERS))
+    monkeypatch.setattr(hooks, "RENDERED_FILES", dict(hooks.RENDERED_FILES))
     hooks.register_renderer("fake", lambda p: ({"fake.txt": ",".join(h["on"] for h in p.hooks)}, []))
-    try:
-        files, _ = hooks.render(Plugin.load(plugin), ["fake"])
-        assert files == {"fake.txt": "stop"}
-    finally:
-        hooks.RENDERERS.pop("fake")
+    files, _ = hooks.render(Plugin.load(plugin), ["fake"])
+    assert files == {"fake.txt": "stop"}
 
 
 def test_a_coding_agent_without_a_named_agent_flag_gets_the_role_attached(plugin, tmp_path):

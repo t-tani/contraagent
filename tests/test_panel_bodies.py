@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -215,7 +216,7 @@ def test_the_server_sends_a_run_panel_and_lists_each_panel_s_scope(tmp_path):
         c.get("/api/runs/r1/panels/bad")
 
 
-def test_the_monitor_command_loads_panels_groups_and_task_detail(tmp_path, monkeypatch):
+def test_the_monitor_command_loads_panels_groups_and_task_detail(tmp_path, monkeypatch, request):
     pytest.importorskip("fastapi")
     from contraagent._internal.cli import main as cli_main
     from contraagent._internal.monitor import server
@@ -231,6 +232,10 @@ def test_the_monitor_command_loads_panels_groups_and_task_detail(tmp_path, monke
     monkeypatch.setattr(server, "bind_option", lambda host, port: None)
     monkeypatch.setattr(server, "_serve", lambda monitor, *a, **k: seen.setdefault("monitor", monitor))
     monkeypatch.chdir(tmp_path)
+    # The command puts the working directory on `sys.path` and this `views` in `sys.modules`: both are put back after.
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    monkeypatch.delitem(sys.modules, "views", raising=False)
+    request.addfinalizer(lambda: sys.modules.pop("views", None))
     argv = ["--runs-dir", str(tmp_path), "--panels", f"{views}:PANELS", "--groups", "views.py:GROUPS"]
     assert cli_main(["monitor", *argv, "--task-detail", "views:detail"]) == 0
     mon = seen["monitor"]

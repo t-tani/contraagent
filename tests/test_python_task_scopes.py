@@ -222,6 +222,9 @@ def test_a_scope_that_raises_on_enter_fails_a_python_task_as_it_fails_an_agent_t
 def test_the_example_starts_an_index_server_for_each_attempt_of_find_sources(tmp_path, monkeypatch):
     from contraagent.docs.examples.scopes import flow
 
+    # The example asks its local server with urllib, which goes through a proxy the environment names.
+    for name in ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"):
+        monkeypatch.delenv(name, raising=False)
     seen_kinds: list[str] = []
 
     def watching(task):

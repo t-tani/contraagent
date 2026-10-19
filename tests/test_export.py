@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from contraagent import Pipeline, agent_task
 from contraagent._internal.cli import main as cli_main
 from contraagent._internal.monitor import api
+from contraagent._internal.runs import layout
 from contraagent.monitor import Monitor, Panel, Period, RunRecords, export
 from contraagent.testing import StubAgent
 
@@ -99,11 +100,14 @@ def test_an_export_holds_each_route_of_the_runs_as_a_file(tmp_path):
     assert not list(out.rglob("*.stream.jsonl"))
 
 
-def test_this_machine_s_paths_and_name_are_taken_out(tmp_path):
+def test_this_machine_s_paths_and_name_are_taken_out(tmp_path, monkeypatch):
+    monkeypatch.setenv(layout.HOST_ID_ENV, "host-of-the-export-test")  # a name no other text holds
     export(Monitor(runs(tmp_path), panels={"p": panel}), tmp_path / "site", now=NOW)
     text = "\n".join(files(tmp_path / "site" / "data").values())
     assert not any(form in text for path in (tmp_path, Path.home()) for form in written(path))
-    assert socket.gethostname() not in text
+    assert "host-of-the-export-test" not in text
+    if len(socket.gethostname()) >= 8:  # a short host name can be part of another word
+        assert socket.gethostname() not in text
     journal = json.loads((tmp_path / "site/data/runs/second/journal.json").read_text(encoding="utf-8"))
     reasons = " ".join(e["reason"] for e in journal["entries"])
     assert "out/note/b.json" in reasons  # made relative to the run directory, not dropped
@@ -134,11 +138,12 @@ def test_keep_puts_the_paths_back_and_exclude_takes_a_key_out(tmp_path):
 def test_an_export_written_again_holds_only_the_runs_chosen_now(tmp_path):
     rd = runs(tmp_path)
     out = tmp_path / "site"
-    export(Monitor(rd), out, runs=None, now=NOW)
+    period = Period.parse()  # one period for every export: the default one ends on today's date
+    export(Monitor(rd), out, runs=None, now=NOW, period=period)
     first = files(out)
-    export(Monitor(rd), out, runs=None, now=NOW)
+    export(Monitor(rd), out, runs=None, now=NOW, period=period)
     assert files(out) == first  # the same runs: the same files
-    export(Monitor(rd), out, runs=1, now=NOW)
+    export(Monitor(rd), out, runs=1, now=NOW, period=period)
     assert not (out / "data/runs/first").exists()
 
 
@@ -158,7 +163,9 @@ def test_an_export_holds_the_trends_of_its_period_and_the_trend_panels(tmp_path)
         return {"panel": "days", "where": str(tmp_path)}
 
     rd = runs(tmp_path, ids=("only",))
-    today = datetime.now(ZoneInfo("Asia/Tokyo")).date().isoformat()  # the period's day, not UTC's
+    started = json.loads((rd / "only" / "run.json").read_text(encoding="utf-8"))["started_at"]
+    # The day the run started in Tokyo, not UTC's; read from the run, so midnight between the run and this line does not matter.
+    today = datetime.fromisoformat(started).astimezone(ZoneInfo("Asia/Tokyo")).date().isoformat()
     monitor = Monitor(rd, panels={"days": Panel(days, scope="trends"), "p": Panel(panel)})
     export(monitor, tmp_path / "site", now=NOW, period=Period.parse(today, today, "Asia/Tokyo"))
     data = tmp_path / "site/data"

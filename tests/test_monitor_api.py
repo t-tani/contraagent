@@ -149,7 +149,7 @@ def test_the_live_feed_says_when_the_journal_replay_is_over(demo_runs):
                 return out
         raise AssertionError("the feed ended")
 
-    msgs = asyncio.run(first_round())
+    msgs = asyncio.run(asyncio.wait_for(first_round(), 30))
     names = [m["event"] for m in msgs]
     assert names.count("journal") == json.loads(msgs[-1]["data"])["journal"] == mon.journal(run)[1] > 0
     assert names.count("ready") == 1
@@ -578,7 +578,7 @@ def test_the_live_feed_sends_the_plan_when_a_flow_call_ends(review_run, tmp_path
                 return states
         raise AssertionError("the feed ended")
 
-    assert asyncio.run(feed()) == ["running", "raised"]
+    assert asyncio.run(asyncio.wait_for(feed(), 30)) == ["running", "raised"]
 
 
 def test_a_task_detail_is_one_task_key(demo_runs):

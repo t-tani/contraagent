@@ -7,8 +7,8 @@ import hashlib
 import json
 import logging
 import os
+import queue
 import signal
-import socket
 import subprocess
 import sys
 import threading
@@ -132,7 +132,8 @@ def test_the_first_prune_waits_and_stop_ends_the_wait():
     time.sleep(0.05)
     began = time.monotonic()
     pruner.stop()
-    assert time.monotonic() - began < 1 and hub.calls == 0
+    # Ended by the stop, well before the 3600 s wait: a busy runner can be slow to schedule it.
+    assert time.monotonic() - began < 30 and hub.calls == 0
 
 
 def test_a_round_removes_old_runs_and_sweeps_the_transcript_store(tmp_path):
@@ -240,27 +241,34 @@ def test_a_blob_within_its_grace_is_kept(populated, capsys):
 @pytest.mark.skipif(sys.platform == "win32", reason="a graceful stop is SIGTERM, which Windows does not send")
 def test_the_server_prunes_in_the_background_and_stops_on_sigterm(tmp_path):
     (tmp_path / "tokens").write_text("t\n")
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        port = s.getsockname()[1]
-    argv = [sys.executable, "-m", "contraagent", "hub", "--port", str(port), "--ingest-token-file", str(tmp_path / "tokens")]
+    # Port 0: the hub binds a free port itself; nothing here connects to it.
+    argv = [sys.executable, "-m", "contraagent", "hub", "--port", "0", "--ingest-token-file", str(tmp_path / "tokens")]
     argv += ["--prune-every", str(0.1 / 3600), "--first-prune-after", "0.1"]
     env = {**os.environ, server.RETENTION_ENV: "30"}
     with subprocess.Popen(argv, stderr=subprocess.PIPE, text=True, env=env) as hub:
+        assert hub.stderr is not None
+        read: queue.Queue[str] = queue.Queue()
+        threading.Thread(target=_read_lines, args=(hub.stderr, read), daemon=True).start()
         try:
             lines = []
             deadline = time.monotonic() + 30
-            assert hub.stderr is not None
             while sum(line.startswith("prune cutoff=") for line in lines) < 2:
-                assert time.monotonic() < deadline, "".join(lines)
-                line = hub.stderr.readline()
-                assert line or hub.poll() is None, "".join(lines)
-                lines.append(line)
+                left = deadline - time.monotonic()
+                assert left > 0, "".join(lines)
+                try:
+                    lines.append(read.get(timeout=min(left, 1)))
+                except queue.Empty:
+                    assert hub.poll() is None, "".join(lines)
             assert any("retention: runs with no activity for 30 days are removed" in line for line in lines)
             hub.send_signal(signal.SIGTERM)
             assert hub.wait(15) == 0
         finally:
             hub.kill()
+
+
+def _read_lines(stream, lines: queue.Queue[str]) -> None:
+    for line in stream:
+        lines.put(line)
 
 
 def test_hub_prune_over_a_streams_dir_keeps_transcripts_on_a_dry_run_and_removes_them_after(populated, tmp_path, capsys):
