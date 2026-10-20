@@ -493,9 +493,16 @@ class Monitor:
         same numbers the run's own page shows. Running tasks are looked up only
         for a run that is `live`; a task deferred, or queued in a run that is not
         live, is `not_run` (it will not run), and only a live run's queued tasks wait."""
-        names = ("total", "done", "partial", "failed", "not_started", "running", "waiting", "not_run", "skipped")
+        names = ("total", "done", "partial", "failed", "not_started", "running", "waiting", "not_run", "skipped", "cancelled")
         counts: dict[str, int] = dict.fromkeys(names, 0)
-        name = {"done": "done", "partial": "partial", "failed": "failed", "blocked": "not_started", "skipped": "skipped"}
+        name = {
+            "done": "done",
+            "partial": "partial",
+            "failed": "failed",
+            "blocked": "not_started",
+            "skipped": "skipped",
+            "cancelled": "cancelled",
+        }
         running = _running_keys(self.liveness.snapshot(run)) if live else set()
         for n in self.plan(run, live={})["nodes"]:
             counts["total"] += 1
@@ -587,6 +594,8 @@ class Monitor:
                 state = "blocked"  # refused before launch: it never ran
             elif j.get("stop") == "partial":
                 state = "partial"  # ok, its output a placeholder a resume makes again
+            elif j.get("stop") == "cancelled":
+                state = "cancelled"  # no flow call waited for it any longer
             else:
                 state = "done" if j.get("ok") else "failed"
             node = {**r, "state": state}
@@ -741,7 +750,7 @@ class Monitor:
 
     def _groups(self, nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
         def tally(sid: str, label: str, members: list[dict[str, Any]]) -> dict[str, Any]:
-            states = ("done", "partial", "failed", "running", "pending", "skipped", "blocked")
+            states = ("done", "partial", "failed", "running", "pending", "skipped", "blocked", "cancelled")
             c = {s: sum(1 for n in members if n["state"] == s) for s in states}
             return {"id": sid, "label": label, "total": len(members), **c}
 

@@ -100,3 +100,21 @@ async def waits() -> None:
     assert_type(await placeholder("a", topic="x"), list[str])
     both = await asyncio.gather(lookup("a", topic="x"), count("b", text="..."))
     assert_type(both, tuple[Triage, int])
+
+
+# Call options: `.options()` returns the task as it is typed, so a call through it keeps its
+# output type, and a generic helper that gives a key keeps it too.
+assert_type(triage.options(key="k", priority=2, credential="team", cancellable=True), AgentTask[Triage])
+assert_type(review["fast"].options(after=["triage-a"]), AgentTask[Triage])
+assert_type(count.options(key="k").options(priority=1, cancellable=True), PythonTask[int])
+count.options(credential="team")  # type: ignore[call-arg]  # a Python task has no credential
+
+
+async def attempt[Out](task: AgentTask[Out], unit: str, *, key: str) -> Out:
+    return await task.options(key=key)(unit)
+
+
+async def keyed() -> None:
+    assert_type(await triage.options(key="k")("a", text="..."), Triage)
+    assert_type(await attempt(triage, "a", key="k"), Triage)
+    assert_type(count.options(cancellable=True)("a", text="..."), Pending[int])

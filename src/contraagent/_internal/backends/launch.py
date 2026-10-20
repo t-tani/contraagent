@@ -34,8 +34,10 @@ class Stop(str, enum.Enum):
     """Why one launch ended: exactly one per launch. A task's result (`TaskResult.stop`)
     holds one of these too, or one of a task's own: `partial` (ok: a Python task's
     placeholder output, or what an agent task wrote before its launch was stopped,
-    `agent_task(partial_on=)`), `skipped` (a resume skipped it), `deferred` (not launched)
-    or `duplicate_key` (not queued: a task with the same key was in flight).
+    `agent_task(partial_on=)`), `skipped` (a resume skipped it), `deferred` (not launched),
+    `cancelled` (called with `.options(cancellable=True)` and waited for by no flow call
+    any longer: not launched, or its launch stopped) or `duplicate_key` (not queued: a task
+    with the same key was in flight).
 
     `completed`: ran to the end (`ok` still decides success). `timeout`: past `Limits.timeout_s`,
     killed. `max_turns`: the coding agent stopped on its turn cap. `budget`: it stopped on

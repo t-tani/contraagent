@@ -596,7 +596,8 @@ class Run:
         other argument is the `WorkQueue`'s.
 
         Agent tasks are journaled per attempt by `RetryingRunner(on_attempt=
-        run.record_attempt)`, so nothing is written twice. `resume=True` skips every
+        run.record_attempt)`, so nothing is written twice; a task the queue cancels before it
+        launches is journaled here, as a Python task's attempts are. `resume=True` skips every
         task an earlier attempt finished, unless `skip` is given. `retry_on` and `throttle_on`
         default to the stops of a coding agent's failure (`api_error`, `no_output`,
         `launch_failed`) and of its rate limit (`rate_limited`); `estimate`, to what the
@@ -609,7 +610,7 @@ class Run:
             runner,
             follow_up=follow_up,
             on_event=self._on_event,
-            on_result=self._journal_python_task,
+            on_result=self._journal_queue_result,
             max_concurrent=max_concurrent,
             deadline_s=deadline_s,
             retry_wait_s=retry_wait_s,
@@ -661,8 +662,10 @@ class Run:
 
     # --- queue callbacks ---------------------------------------------------
 
-    def _journal_python_task(self, res: TaskResult, attempt: int) -> None:
-        if res.task.fn is not None:
+    def _journal_queue_result(self, res: TaskResult, attempt: int) -> None:
+        """Journal what no runner journals: a Python task's attempts, and a task the queue
+        cancelled before it launched (attempt 0)."""
+        if res.task.fn is not None or attempt == 0:
             self.record_attempt(res)
 
     def _on_event(self, event: str, task: Task | None, **fields) -> None:

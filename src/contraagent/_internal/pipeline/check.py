@@ -506,8 +506,8 @@ def _plugin_errors(specs: dict[str, Any]) -> list[str]:
 
 
 def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckReport, calls: list[Node]) -> None:
-    """The routing plan of `specs`, and the credential each of `calls` names (a task call's
-    `credential=`): one that does not exist, or that a route of its kind cannot carry."""
+    """The routing plan of `specs`, and the credential each of `calls` names (the `credential`
+    of its call options): one that does not exist, or that a route of its kind cannot carry."""
     if not specs:
         return
     with _warnings_of("contraagent") as warnings:

@@ -60,7 +60,7 @@ for another port).
 | A server that several tasks use? | A service that a claim name stands for (`Pipeline(services=)`); the runner starts and stops it. → [Tasks](tasks.md#services-a-server-that-the-tasks-of-a-claim-share) |
 | A rule the schema cannot express? | A validator; a `CommandValidator` when the agent should also run it before it stops. → [Contracts](contracts.md) |
 | A rule about the output and the input together? | A validator that takes `params` (or a `CommandValidator` given `{call}`). → [Contracts](contracts.md) |
-| Order without passing data? | `after=` on the later task. |
+| Order without passing data? | `.options(after=[...])` on the later task. |
 | What runs depends on results? | An `async def` flow: `await` a task call and receive its output there; loops, branches and fan-outs are plain Python and asyncio (`asyncio.gather`). → [Tasks](tasks.md#flows-that-depend-on-results) |
 | A one-off task with no plugin? | `agent_task(..., instructions=...)`; a plugin for anything kept. |
 | Where may a task's data go? | `requires=` traits in code; credentials in the config. → [Routing](routing.md) |
@@ -77,7 +77,7 @@ for another port).
 - Task knowledge in a prompt or in Python: it belongs in the plugin's role.
   Per-task data belongs in params: the agent reads it from its call file.
   Nothing in a plugin names a run, a unit or a file path.
-- The same kind on the same unit from two flow calls needs `key=`; within one
+- The same kind on the same unit from two flow calls needs `.options(key=...)`; within one
   flow call the second is numbered (`<key>~2`).
 - A coroutine never awaited never runs: `await sub(u)`, or
   `asyncio.gather(sub(u), ...)` for flow calls of their own, not `sub(u)`.

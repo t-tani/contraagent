@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { NodeCounts } from './types.js';
 import { countOf, doneOf, exceptions, notDone, stateCounts, stateWord, where } from './words.js';
 
-const counts = (c: Partial<NodeCounts>): NodeCounts => ({ total: 0, done: 0, partial: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0, ...c });
+const counts = (c: Partial<NodeCounts>): NodeCounts => ({ total: 0, done: 0, partial: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0, cancelled: 0, ...c });
 
 describe('pipeline graph words', () => {
   it('counts the tasks done (done after retrying included), and skipped ones apart', () => {

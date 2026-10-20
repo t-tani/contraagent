@@ -222,7 +222,8 @@ traits every member carries.
 ## A task call's credential
 
 A kind runs as one credential, but the data of one unit may have to go under another
-account. The task call names it, as the name of a `[credentials.<name>]`:
+account. The task's call options name it, as the name of a `[credentials.<name>]`
+(`.options(credential="company")`):
 
 ::code{file="examples/credentials/flow.py" from="#: The documents"}
 
@@ -254,7 +255,7 @@ A call's credential that rests on its quota is passed over like any resting
 credential: every hop is on it, so the task is deferred, not failed.
 
 The `[route]` line of a kind names the kind's credential. `contraagent check` adds the
-tasks whose calls name another one to their kind's line (`credential=company for
+tasks whose call options name another one to their kind's line (`credential=company for
 summarize-beta, by their task calls`), and a run's `[start]` line names the call's
 credential (`[start] summarize-beta credential=company`). With an override, neither
 does, since the override's credential is in effect.

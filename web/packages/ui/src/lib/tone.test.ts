@@ -34,6 +34,7 @@ describe('stopTone', () => {
     partial: 'attention',
     invalid_input: 'attention',
     skipped: 'muted',
+    cancelled: 'muted',
     timeout: 'failed',
     max_turns: 'failed',
     budget: 'failed',
@@ -54,7 +55,7 @@ describe('stopTone', () => {
 
   it('lists every stop contraagent writes', () => {
     expect([...ALL_STOPS].sort()).toEqual(Object.keys(expected).sort());
-    expect(ALL_STOPS).toHaveLength(20);
+    expect(ALL_STOPS).toHaveLength(21);
   });
 
   it('gives every stop its tone and its words', () => {
@@ -75,8 +76,8 @@ describe('stopTone', () => {
 
 describe('outcomeTone and contractTone', () => {
   it('colour a task and a checked file by their status', () => {
-    const outcomes = ['done', 'recovered', 'failed', 'not_started', 'running', 'waiting', 'skipped'] as const;
-    expect(outcomes.map(outcomeTone)).toEqual(['done', 'done', 'failed', 'attention', 'running', 'muted', 'muted']);
+    const outcomes = ['done', 'recovered', 'failed', 'not_started', 'running', 'waiting', 'skipped', 'cancelled'] as const;
+    expect(outcomes.map(outcomeTone)).toEqual(['done', 'done', 'failed', 'attention', 'running', 'muted', 'muted', 'muted']);
     const statuses = ['valid', 'invalid', 'failed', 'refused', 'running', 'pending'] as const;
     expect(statuses.map(contractTone)).toEqual(['done', 'failed', 'failed', 'attention', 'running', 'muted']);
     expect(contractTone(undefined)).toBe('neutral');

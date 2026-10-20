@@ -35,8 +35,8 @@ def test_ready_python_tasks_start_by_priority_and_the_plan_records_it(tmp_path):
 
     def flow():
         note("plain")
-        note("high", priority=3)
-        note("mid", priority=1.5)
+        note.options(priority=3)("high")
+        note.options(priority=1.5)("mid")
 
     report = run(tmp_path, flow, max_concurrent=1)
     assert report.ok, report.failed
@@ -49,24 +49,33 @@ def test_priority_leaves_the_fingerprint_alone(tmp_path):
     task = agent_task("summarize", instructions="x", output=Written, max_turns=1, timeout_s=1)
 
     def fingerprint(priority: float) -> str:
-        report = run(tmp_path / str(priority), lambda: task("alpha", priority=priority), StubAgent({"summarize": written}))
+        report = run(tmp_path / str(priority), lambda: task.options(priority=priority)("alpha"), StubAgent({"summarize": written}))
         return lines(report, "journal.jsonl")[0]["fingerprint"]
 
     assert fingerprint(0) == fingerprint(7.5)
 
 
-def test_a_params_field_or_a_function_parameter_named_priority_is_refused_at_declaration():
+def test_a_params_field_or_a_function_parameter_named_priority_is_a_param(tmp_path):
     class Params(BaseModel):
         topic: str
         priority: int
 
-    with pytest.raises(TypeError, match="params Params has a field named priority"):
-        agent_task("summarize", instructions="x", params=Params, max_turns=1, timeout_s=1)
+    ranked: list[int] = []
+    summarize = agent_task("summarize", instructions="x", params=Params, output=Written, max_turns=1, timeout_s=1)
 
-    with pytest.raises(TypeError, match="has a parameter named priority"):
+    @python_task
+    def rank(topic: str, priority: int) -> None:
+        ranked.append(priority)
 
-        @python_task
-        def rank(topic: str, priority: int) -> None: ...
+    def flow():
+        summarize("a", topic="t", priority=4)
+        rank.options(priority=9)(topic="t", priority=2)
+
+    report = run(tmp_path, flow, StubAgent({"summarize": written}))
+    assert report.ok, report.failed
+    assert report.results["summarize-a"].task.params == {"topic": "t", "priority": 4}
+    assert report.results["summarize-a"].task.priority == 0.0
+    assert ranked == [2] and report.results["python:rank"].task.priority == 9.0
 
 
 def test_a_priority_that_is_not_a_finite_number_is_refused_at_the_task_call(tmp_path):
@@ -75,4 +84,4 @@ def test_a_priority_that_is_not_a_finite_number_is_refused_at_the_task_call(tmp_
 
     for bad in ("high", float("nan"), True):
         with pytest.raises(TypeError, match="priority must be a finite number"):
-            run(tmp_path / repr(bad), lambda bad=bad: note("a", priority=bad))
+            run(tmp_path / repr(bad), lambda bad=bad: note.options(priority=bad)("a"))

@@ -416,6 +416,7 @@ def test_the_run_list_counts_tasks_as_the_run_page_does(demo_runs):
         "waiting": 0,
         "not_run": 0,
         "skipped": 0,
+        "cancelled": 0,
     }
     assert (row["attempts"], row["not_run"]) == (33, 1)
 

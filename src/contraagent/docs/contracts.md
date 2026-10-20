@@ -135,7 +135,7 @@ no document is checked as it is, and goes back as before.
 A task may fill in a file that holds values already: a Python task writes a
 report's items, and an agent task writes their summaries into the same file.
 `output_of` names the task declaration whose file it writes: for each task, the
-file of the latest task of that kind created so far for the same unit (or `key=`),
+file of the latest task of that kind created so far for the same unit (or key),
 else the file that kind's `output_name` names for it. The task waits for the
 latest task created so far that writes that file, of any kind, so two never write
 it at once. `output` is the schema of the whole file after the task.

@@ -82,8 +82,13 @@ Rules:
   waits for a key leaves the others waiting for it.
 * A deferred task (`TaskResult.stop == "deferred"`) is answered like any other result
   before `past_grace()`; after it, the waiting flow call is cancelled (closed), and so
-  is a parent that awaits it. The tasks a cancelled flow call created are not
-  cancelled: they run, as a task nothing awaits does.
+  is a parent that awaits it.
+* The tasks a closed flow call created run to their end, as a task nothing awaits does,
+  but a `Task.cancellable` one: once the flow call that created it and every flow call
+  that waited for it are closed, and no flow call waits for it (each `await` waits on a
+  future of its own, which closing its flow call cancels), the driver cancels it
+  (`WorkQueue.cancel`; before `attach`, as it attaches). A flow call that returns or
+  raises does not cancel what it created.
 * A **time box** (`time_box(coroutine, deadline_s=, ...)`) runs the coroutine as a
   flow call with a deadline of its own, counted from its creation: every task created
   in it, or in a flow call it starts, carries its `TimeBox` (`Task.time_boxes`,
@@ -302,6 +307,8 @@ class FlowCall:
     _closing: bool = field(default=False, init=False, repr=False)
     # Why the driver closes it, when it waits for what nothing answers: its `error` then.
     _stopped: BaseException | None = field(default=None, init=False, repr=False)
+    # The keys of the cancellable tasks it created or waited for (`Task.cancellable`).
+    _cancellable: set[str] = field(default_factory=set, init=False, repr=False)
 
 
 #: The flow call whose code runs.
@@ -356,6 +363,10 @@ class FlowDriver:
         self._waiters: dict[str, list[asyncio.Future[TaskResult]]] = {}  # by task key, one per await
         self._queued_keys: set[str] = set()
         self._open: set[str] = set()  # keys queued whose result has not come
+        # The cancellable tasks whose result has not come, by key: the flow call that created each.
+        self._creators: dict[str, FlowCall] = {}
+        # The keys to cancel as the queue is attached: closed before it was.
+        self._to_cancel: list[str] = []
         # What `answer` raised at an await, by id (kept alive): a task's outcome, not a flow call's own.
         self._outcomes: dict[int, BaseException] = {}
         self._outbox: list[Task] = []
@@ -437,6 +448,9 @@ class FlowDriver:
             self.past_grace = queue.past_hard_stop
         out, self._outbox = self._outbox, []
         queue.extend(out)
+        doomed, self._to_cancel = self._to_cancel, []
+        for key in doomed:
+            queue.cancel(key)
 
     def follow_up(self, result: TaskResult) -> list[Task]:
         """`WorkQueue`'s `follow_up`: record the result and complete the futures that wait for
@@ -446,6 +460,7 @@ class FlowDriver:
         if result.stop != STOP_DUPLICATE_KEY:  # the key's own result is still to come
             self.done[key] = result
             self._open.discard(key)
+            self._creators.pop(key, None)
         answered = False
         for fut in self._waiters.pop(key, ()):
             if not fut.done():  # one whose flow call was cancelled is done
@@ -571,6 +586,9 @@ class FlowDriver:
         if call is not None:
             call._ran = True
             self._record(call)
+            if task.cancellable and task.key not in self.done and task.key not in self._creators:
+                self._creators[task.key] = call
+                call._cancellable.add(task.key)
         self._enqueue(task, call)
 
     def wait(self, item: Any) -> Coroutine[Any, Any, Any]:
@@ -590,6 +608,8 @@ class FlowDriver:
             call._ran = True
         key = task.key
         result = self.done.get(key)
+        if call is not None and key in self._creators:
+            call._cancellable.add(key)
         if result is None:
             fut: asyncio.Future[TaskResult] = self._loop.create_future()
             self._waiters.setdefault(key, []).append(fut)
@@ -763,6 +783,23 @@ class FlowDriver:
             _logger.exception("on_flow_call('end') of flow call %s raised", call.id)
         if call.parent is not None and state != "closed":
             self._receive(call.parent, call.frontier, call._order)
+        if state == "closed":
+            for key in sorted(call._cancellable):
+                self._cancel_unwaited(key)
+
+    def _cancel_unwaited(self, key: str) -> None:
+        """Cancel the cancellable task of `key` when the flow call that created it is closed
+        and no flow call waits for it: every flow call that waited for it was closed too."""
+        creator = self._creators.get(key)
+        if creator is None or creator.state != "closed" or key in self.done:
+            return
+        if any(not fut.done() for fut in self._waiters.get(key, ())):
+            return  # a flow call still waits for it
+        del self._creators[key]
+        if self._queue is not None:
+            self._queue.cancel(key)
+        else:
+            self._to_cancel.append(key)
 
 
 class _Wait(collections.abc.Coroutine[Any, Any, Any]):

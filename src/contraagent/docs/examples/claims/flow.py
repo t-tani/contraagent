@@ -74,4 +74,4 @@ def topics(names: list[str]):
         style(name)
         terms(name)  # one topic's rewrites run one after the other
         triage(name, subject="security")  # claims nothing: runs beside them
-    merge(names[0], key="merge", topics=names)  # claims every topic it names
+    merge.options(key="merge")(names[0], topics=names)  # claims every topic it names

@@ -88,7 +88,7 @@ def test_every_route_of_the_kind_runs_the_task_as_its_call_s_credential(tmp_path
 
     def flow():
         note("a")
-        note("b", credential="company")
+        note.options(credential="company")("b")
 
     report = pipeline(tmp_path, agent).run(flow)
     assert report.ok, report.failed
@@ -105,9 +105,9 @@ def test_a_429_on_the_call_s_credential_moves_its_own_breaker_not_the_kind_s(tmp
     agent = StubAgent({"note-b": lambda launch: rate_limited() if launch.model == "m1" else written(launch), "note": written})
 
     def flow():
-        note("b", credential="company", priority=3)
-        note("c", credential="company", priority=2)
-        note("a", priority=1)
+        note.options(credential="company", priority=3)("b")
+        note.options(credential="company", priority=2)("c")
+        note.options(priority=1)("a")
 
     report = pipeline(tmp_path, agent, max_concurrent=1).run(flow)
     assert report.ok, report.failed
@@ -123,7 +123,7 @@ def test_the_call_outranks_the_kind_s_table_and_declaration(tmp_path):
 
     def flow():
         declared("a")
-        declared("b", credential="company")
+        declared.options(credential="company")("b")
 
     report = Pipeline(config(tmp_path, text), runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path).run(flow)
     assert report.ok, report.failed
@@ -133,7 +133,7 @@ def test_the_call_outranks_the_kind_s_table_and_declaration(tmp_path):
 def test_a_run_wide_override_outranks_the_call_and_says_so(tmp_path, caplog):
     agent = StubAgent({"note": written})
     with caplog.at_level(logging.WARNING, logger="contraagent"):
-        report = pipeline(tmp_path, agent, overrides=Overrides(credential="other")).run(lambda: note("b", credential="company"))
+        report = pipeline(tmp_path, agent, overrides=Overrides(credential="other")).run(lambda: note.options(credential="company")("b"))
     assert report.ok, report.failed
     assert journal(report)["note-b"]["credential"] == "other"
     assert "credential" not in lines(report, "plan.jsonl")[0]  # the call's choice was not in effect
@@ -145,7 +145,7 @@ def test_an_unknown_credential_is_refused_before_anything_launches(tmp_path):
 
     def flow():
         note("a")
-        note("b", credential="compnay")
+        note.options(credential="compnay")("b")
 
     with pytest.raises(RoutingError, match=r"note-b: credential='compnay': no \[credentials.compnay\] \(did you mean company\?\)"):
         pipeline(tmp_path, agent).run(flow)
@@ -159,14 +159,14 @@ def test_a_credential_without_a_trait_the_task_requires_is_refused(tmp_path):
     agent = StubAgent({"private": written})
 
     def flow():
-        needs_zdr("a", credential="personal")
+        needs_zdr.options(credential="personal")("a")
 
     with pytest.raises(RoutingError, match="the task requires zdr; credential personal carries no traits"):
         pipeline(tmp_path, agent).run(flow)
     assert agent.launches == []
     [error] = pipeline(tmp_path, agent).check(flow).errors
     assert error.startswith("routing: private-a: credential='personal': hop 1/1 claude@personal: the task requires zdr")
-    assert pipeline(tmp_path, agent).check(lambda: needs_zdr("a", credential="company")).ok
+    assert pipeline(tmp_path, agent).check(lambda: needs_zdr.options(credential="company")("a")).ok
 
 
 def test_a_hop_whose_coding_agent_cannot_use_the_call_s_credential_is_refused(tmp_path):
@@ -186,7 +186,7 @@ key = "env:OPENAI_API_KEY"
 type = "oauth_token"
 token = "env:CLAUDE_CODE_OAUTH_TOKEN"
 """
-    report = Pipeline(config(tmp_path, text), runs_dir=tmp_path / "runs", cwd=tmp_path).check(lambda: note("a", credential="token"))
+    report = Pipeline(config(tmp_path, text), runs_dir=tmp_path / "runs", cwd=tmp_path).check(lambda: note.options(credential="token")("a"))
     assert [e for e in report.errors if "credential='token'" in e][0].startswith(
         "routing: note-a: credential='token': hop 1/1 codex/gpt-6.1-sol@token: "
     )
@@ -197,7 +197,7 @@ def test_a_task_call_later_in_an_async_flow_is_refused_at_the_call(tmp_path):
 
     async def flow():
         await note("a")
-        note("b", credential="nobody")
+        note.options(credential="nobody")("b")
 
     report = pipeline(tmp_path, agent).run(flow)
     assert set(journal(report)) == {"note-a"}
@@ -226,7 +226,7 @@ def test_a_resting_call_credential_defers_the_task_and_the_kind_s_still_run(tmp_
 
     def flow():
         note("a")
-        note("b", credential="company")
+        note.options(credential="company")("b")
 
     report = pipeline(tmp_path, agent).run(flow)
     assert report.ok and not report.failed  # deferred: not a failure
@@ -240,7 +240,7 @@ def test_the_call_s_credential_is_outside_the_fingerprint(tmp_path):
     """A credential is who the work is billed to, not what the work is: a resumed run that
     names another one for a call skips the task it already finished."""
     agent = StubAgent({"note": written})
-    first = pipeline(tmp_path, agent).run(lambda: note("b", credential="company"), run_id="r")
+    first = pipeline(tmp_path, agent).run(lambda: note.options(credential="company")("b"), run_id="r")
     assert first.ok and len(agent.launches) == 1
     again = pipeline(tmp_path, agent).run(lambda: note("b"), run_id="r", resume=True)
     assert again.ok and len(agent.launches) == 1
@@ -252,7 +252,7 @@ def test_the_plan_and_the_monitor_record_the_call_s_credential(tmp_path):
 
     def flow():
         note("a")
-        note("b", credential="company")
+        note.options(credential="company")("b")
 
     report = pipeline(tmp_path, agent).run(flow)
     plan = {row["key"]: row for row in lines(report, "plan.jsonl")}
@@ -264,8 +264,8 @@ def test_the_plan_and_the_monitor_record_the_call_s_credential(tmp_path):
 def test_the_check_s_routes_and_the_run_s_progress_name_the_call_s_credential(tmp_path):
     def flow():
         note("a")
-        note("b", credential="company")
-        note("c", credential="company")
+        note.options(credential="company")("b")
+        note.options(credential="company")("c")
 
     agent = StubAgent({"note": written})
     report = pipeline(tmp_path, agent).check(flow)
@@ -286,15 +286,20 @@ def test_a_credential_that_is_not_a_name_is_refused_at_the_task_call(tmp_path):
     for i, bad in enumerate((3, "", " team")):
         (tmp_path / str(i)).mkdir()
         with pytest.raises(TypeError, match="credential must name a"):
-            pipeline(tmp_path / str(i), agent).run(lambda bad=bad: note("a", credential=bad))
+            pipeline(tmp_path / str(i), agent).run(lambda bad=bad: note.options(credential=bad)("a"))
 
 
-def test_a_params_field_named_credential_is_refused_at_declaration():
+def test_a_params_field_named_credential_is_a_param_and_the_option_is_given_by_options(tmp_path):
     class Params(BaseModel):
         credential: str
 
-    with pytest.raises(TypeError, match="params Params has a field named credential"):
-        agent_task("summarize", instructions="x", params=Params, max_turns=1, timeout_s=1)
+    holder = agent_task("holder", instructions="x", params=Params, output=Note, max_turns=1, timeout_s=1)
+    report = pipeline(tmp_path, StubAgent({"holder": written})).run(lambda: holder("a", credential="vault"))
+    assert report.ok, report.failed
+    assert report.results["holder-a"].task.params == {"credential": "vault"}
+    assert report.results["holder-a"].task.credential == ""  # a param, not the call option
+    with pytest.raises(TypeError, match=r"credential= is a call option.*note\.options\(credential=\.\.\.\)"):
+        note("a", credential="company")  # refused at the call, before it reaches a run
 
 
 def test_a_router_on_a_credential_is_its_chain_each_route_on_it_and_no_hop_twice():

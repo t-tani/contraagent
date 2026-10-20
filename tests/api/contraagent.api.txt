@@ -28,16 +28,7 @@ class AgentTask[Out]
         base_kind: str = '',
         outside_state: OutsideState | None = None,
     ) -> None
-    def __call__(
-        self,
-        unit: str = '',
-        *,
-        key: str | None = None,
-        after: Sequence[Pending[Any] | str] = (),
-        priority: float = 0.0,
-        credential: str | None = None,
-        **params: Any,
-    ) -> Pending[Out]
+    def __call__(self, unit: str = '', **params: Any) -> Pending[Out]
     base_kind: str = ''
     changes: tuple[str, ...] = ()
     claims: tuple[str, ...] = ()
@@ -48,6 +39,15 @@ class AgentTask[Out]
     instructions: str | None
     kind: str
     @property light: bool
+    def options(
+        self,
+        *,
+        key: str | None = None,
+        after: Sequence[Pending[Any] | str] | None = None,
+        priority: float | None = None,
+        credential: str | None = None,
+        cancellable: bool | None = None,
+    ) -> Self
     output: type | None
     @property output_format: str | None
     output_from: str = 'file'
@@ -353,15 +353,7 @@ class PythonTask[Out]
         output_name: str = DEFAULT_OUTPUT_NAME,
         outside_state: OutsideState | None = None,
     ) -> None
-    def __call__(
-        self,
-        unit: str = '',
-        *,
-        key: str | None = None,
-        after: Sequence[Pending[Any] | str] = (),
-        priority: float = 0.0,
-        **kwargs: Any,
-    ) -> Pending[Out]
+    def __call__(self, unit: str = '', **kwargs: Any) -> Pending[Out]
     def arguments(self, unit: str, kwargs: dict[str, Any]) -> dict[str, Any]
     claims: tuple[str, ...] = ()
     def definition(self, cwd: Path | None = None) -> dict[str, Any]
@@ -371,6 +363,14 @@ class PythonTask[Out]
     def invoke(self, unit: str, kwargs: dict[str, Any]) -> Any
     @property kind: str
     name: str
+    def options(
+        self,
+        *,
+        key: str | None = None,
+        after: Sequence[Pending[Any] | str] | None = None,
+        priority: float | None = None,
+        cancellable: bool | None = None,
+    ) -> Self
     output_format = 'json'
     output_name: str = DEFAULT_OUTPUT_NAME
     output_schema: type[BaseModel] | None
@@ -432,6 +432,7 @@ class RunReport
         value: Any = None,
         flow_errors: list[FlowCall] = list(),
     ) -> None
+    @property cancelled: list[TaskResult]
     @property deferred: list[TaskResult]
     @property failed: list[TaskResult]
     flow_errors: list[FlowCall] = field(default_factory=list)
@@ -484,10 +485,12 @@ class Task
         fingerprint_at_start: bool = False,
         outside: str = '',
         credential: str = '',
+        cancellable: bool = False,
     ) -> None
     after: tuple[str, ...] = ()
     attempt: int = 0
     base_kind: str = ''
+    cancellable: bool = False
     claims: tuple[str, ...] = ()
     credential: str = ''
     @property declared_unit: str
@@ -541,6 +544,8 @@ class TaskResult
         payload: Any = None,
         max_corrections: int | None = None,
     ) -> None
+    @classmethod
+    def cancelled(cls, task: Task, reason: str = '') -> TaskResult
     cause: DeferralCause | None = None
     changes: Changes | None = None
     @classmethod
@@ -1862,6 +1867,7 @@ class AgentRunner
     adapter: TaskAdapter
     def backend_for_route(self, task: Task, route: Route | None) -> Backend
     backends: dict[str, Backend]
+    def cancel(self, task: Task) -> None
     def config(self, task: Task) -> KindConfig
     configs: Mapping[str, KindConfig]
     def credential_for(self, task: Task, route: Route | None) -> Credential
@@ -2181,6 +2187,7 @@ class PythonTaskRunner
         enrichers: Sequence[ResultEnricher] = (),
         config: PipelineConfig | None = None,
     ) -> None
+    def cancel(self, task: Task) -> None
     def config(self, task: Task) -> RunnerConfig
     def contracts(self, task: Task) -> tuple[list[Any], list[Any]]
     def deferral(self, task: Task) -> Deferral | None
@@ -2212,6 +2219,7 @@ class RetryingRunner
         on_exhausted: Callable[[Task, TaskResult], None] | None = None,
     )
     backoff: Callable[[float, int], float] = staticmethod(backoff_s)
+    def cancel(self, task: Task) -> None
     def config(self, task: Task) -> KindConfig
     def deferral(self, task: Task) -> Deferral | None
     def run(self, task: Task) -> TaskResult
@@ -2450,6 +2458,7 @@ class WorkQueue
     )
     def add(self, task: Task) -> bool
     between_passes: BetweenPasses | None
+    def cancel(self, key: str) -> bool
     def capacity(self, name: str) -> int
     claim_capacity: dict[str, int | ClaimCapacity]
     deadline_at: float | None
@@ -2978,7 +2987,7 @@ def serve(
 
 ## contraagent.monitor.api
 
-API_VERSION = '3.6.0'
+API_VERSION = '3.7.0'
 
 class AccountQuota(Closed)
     account: str = Field('', description='the account the readings are of (`QuotaReading.account`); empty when not known')
@@ -3289,6 +3298,7 @@ class Plan(Closed)
 
 class PlanGroup(Closed)
     blocked: int
+    cancelled: int = 0
     done: int
     failed: int
     id: str
@@ -3452,6 +3462,7 @@ class Substitution(RecordModel)
     to_model: str
 
 class TaskCounts(Closed)
+    cancelled: int = 0
     done: int
     failed: int
     model_config: ConfigDict = ConfigDict(extra='forbid')

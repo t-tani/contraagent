@@ -237,7 +237,7 @@ def test_nesting_at_any_depth_records_the_whole_flow_path(tmp_path):
 def test_a_branch_and_a_fan_out_sized_by_a_result(tmp_path):
     async def per_unit(u):
         parts = await sections(u)
-        summaries = await asyncio.gather(*[summarize(u, key=f"summarize-{p}", path=p) for p in parts])
+        summaries = await asyncio.gather(*[summarize.options(key=f"summarize-{p}")(u, path=p) for p in parts])
         if len(summaries) > 1:  # a branch on a result
             return await write_doc(u, summaries=summaries)
         return None
@@ -268,7 +268,7 @@ def test_a_branch_and_a_fan_out_sized_by_a_result(tmp_path):
 
 def test_keyed_tasks_on_one_unit_each_keep_their_own_output(tmp_path):
     async def flow():
-        return await asyncio.gather(*[summarize("u", key=f"part-{i}", path=f"p{i}") for i in range(3)])
+        return await asyncio.gather(*[summarize.options(key=f"part-{i}")("u", path=f"p{i}") for i in range(3)])
 
     agent = stub(summarize=lambda launch: {"unit": launch.unit, "points": [launch.params["path"]]})
     rep = pipeline(tmp_path, agent).run(flow)
@@ -392,7 +392,7 @@ def test_a_key_created_by_two_flow_calls_needs_key(tmp_path):
 
     rep = pipeline(tmp_path, stub(write_doc="# d\n")).run(flow)
     [call] = rep.flow_errors
-    assert isinstance(call.error, ValueError) and "pass key=" in str(call.error) and "write_doc" in str(call.error)
+    assert isinstance(call.error, ValueError) and "options(key=)" in str(call.error) and "write_doc" in str(call.error)
 
 
 def test_a_reachable_kind_is_routed_before_the_first_launch(tmp_path):
@@ -547,7 +547,7 @@ def test_a_resumed_chain_of_skipped_tasks_uses_no_recursion(tmp_path):
     async def chain(n):
         i = 0
         for k in range(n):
-            i = await step(key=f"step-{k}", i=i)
+            i = await step.options(key=f"step-{k}")(i=i)
         return i
 
     agent = stub()

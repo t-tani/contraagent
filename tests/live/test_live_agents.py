@@ -490,7 +490,7 @@ def report(summaries: list[Summary]) -> list[str]:
 
 async def review_loop(unit: str, revise_task):
     """One unit: a brief (keyed), then revise until the check approves."""
-    summary = await brief(unit, key=f"brief-{unit}-short", path=f"in/{unit}.md")
+    summary = await brief.options(key=f"brief-{unit}-short")(unit, path=f"in/{unit}.md")
     while True:
         verdict = await check(unit, summary=summary)
         if verdict.approved:

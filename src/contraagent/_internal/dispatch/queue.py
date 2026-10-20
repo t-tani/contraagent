@@ -110,6 +110,13 @@ starts, or skips, that one.
 A runner that finds the same once the task has started returns a `deferred`
 result, finished as a deferral too. A deferral is reported with its reason and its
 cause as data (`on_event("deferred", task, reason=, cause=)`, a `DeferralCause`).
+
+`cancel(key)` cancels a task (`FlowDriver` calls it for a `Task.cancellable` task no flow
+call waits for any longer): one queued finishes `cancelled` at once, without launching,
+its result given to `on_result` as attempt 0 since no attempt ran. For one running, the
+queue calls the runner's `cancel(task)` when it has one, as it asks `deferral` and
+`starting`: the runner stops what it can (an agent task's launch) and returns its
+result, `cancelled` or the one the task ended with first; the queue does not retry it.
 """
 
 from __future__ import annotations
@@ -186,7 +193,7 @@ class BetweenPasses(Protocol):
 
 class OnResult(Protocol):
     """`on_result(result, attempt)`: every attempt's result, a retried one included;
-    `attempt` counts from 1."""
+    `attempt` counts from 1; 0 for a task cancelled before it launched (`WorkQueue.cancel`)."""
 
     def __call__(self, result: TaskResult, attempt: int, /) -> None: ...
 
@@ -317,6 +324,7 @@ class WorkQueue:
         # guards against is two *concurrent* dispatches of the same work.
         self._inflight_keys: set[str] = set()
         self._running: dict[asyncio.Future[TaskResult], Task] = {}
+        self._cancelled: set[str] = set()  # by .id: running tasks `cancel` was called for
         # Per claimed name: how many running tasks hold it.
         self._held: dict[str, int] = {}
         self._done: dict[str, TaskResult] = {}  # by .id
@@ -381,6 +389,35 @@ class WorkQueue:
                 continue
             if not self.add(task):
                 self._settle(TaskResult.duplicate_key(task))
+
+    def cancel(self, key: str) -> bool:
+        """Cancel the task of `key` (see the module docstring): one queued finishes `cancelled`
+        now; for one running, the runner's `cancel(task)` is called, when it has one, and the
+        task is not retried. Whether a task of `key` was queued or running; one that finished,
+        or that the queue does not know, is left as it is."""
+        for task in self._queued:
+            if task.key == key:
+                self._queued.remove(task)
+                self._ready_since.pop(task.id, None)
+                result = TaskResult.cancelled(task)
+                if self._on_result is not None:
+                    try:
+                        self._on_result(result, 0)
+                    except Exception as exc:  # recording never stops progress
+                        self.on_event("note", task, record_failed=repr(exc)[:200])
+                self._settle(result)
+                return True
+        for task in self._running.values():
+            if task.key == key:
+                self._cancelled.add(task.id)
+                ask = getattr(self.runner, "cancel", None)
+                if ask is not None:
+                    try:
+                        ask(task)
+                    except Exception as exc:  # a broken hook must not stop the queue: the task runs on
+                        self.on_event("note", task, cancel_failed=repr(exc)[:200])
+                return True
+        return False
 
     # --- launch conditions --------------------------------------------------
 
@@ -705,6 +742,8 @@ class WorkQueue:
             return task
 
     def _on_done(self, task: Task, fut: asyncio.Future[TaskResult]) -> None:
+        cancelled = task.id in self._cancelled  # `cancel` was called: not retried
+        self._cancelled.discard(task.id)
         try:
             res: TaskResult = fut.result()
         except Exception as exc:  # one task must not stop the driver
@@ -731,7 +770,7 @@ class WorkQueue:
             self._consec_throttled = 0
 
         past_a_deadline = any(time.monotonic() >= box.deadline_at for box in self._boxes(task))
-        if res.stop in self.retry_on and self._attempt.get(task.id, 1) < 2 and not past_a_deadline:
+        if res.stop in self.retry_on and self._attempt.get(task.id, 1) < 2 and not past_a_deadline and not cancelled:
             # Full jitter (AWS's "Exponential Backoff and Jitter"): with a
             # fixed wait, every task that failed in the same outage would
             # retry at the same instant.
