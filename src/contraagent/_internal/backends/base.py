@@ -510,9 +510,10 @@ class Backend(abc.ABC):
     def reclassify(self, launch_result: LaunchResult, stderr: str) -> None:
         """Second look at a launch's result, now that its stderr is whole.
 
-        CLIs do not agree on where they report a refusal: omp prints `429 Go usage limit
-        exceeded` on stderr while stdout holds a spinner line, and a CLI that dies at start
-        prints only there. A failed launch (`signals.stderr_stops`) whose stderr words a quota
+        CLIs do not agree on where they report a refusal: omp's text mode prints `429 Go
+        usage limit exceeded` only on stderr and exits 1, and a CLI that dies at start prints
+        only there. `signals.quota` matches the forms a refusal takes, never a single word, as
+        stderr may also hold a traceback or a path. A failed launch (`signals.stderr_stops`) whose stderr words a quota
         refusal (`signals.quota`) is `rate_limited`, which is in the failover path; read from
         stdout alone it is an ordinary error, and a run keeps launching into a blown quota.
         """
