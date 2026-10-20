@@ -27,6 +27,7 @@ the test names it. Rewrite it with:
 | what the monitor returns | `uv run python web/apps/docs/scripts/fixture.py` (the docs site's fixtures) |
 | what the CLI prints on the demo | `uv run python web/apps/docs/scripts/landing.py` |
 | the omp version | `uv run python tests/fixtures/omp/record.py` (spends a few cents), then `tests/test_omp_wire.py` |
+| the codex version | `uv run python tests/fixtures/codex/record.py` (spends a fraction of a cent), then `tests/test_codex_wire.py` |
 
 Release checks: `uv run pyright --verifytypes contraagent --ignoreexternal` (no unknown
 type outside `contraagent.docs`), `uv run griffe check --search src contraagent --against

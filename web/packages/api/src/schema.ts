@@ -1410,6 +1410,12 @@ export type components = {
             unread_events?: {
                 [key: string]: number;
             };
+            /**
+             * Usage Unknown
+             * @default
+             * @enum {string}
+             */
+            usage_unknown?: "" | "calls" | "tokens";
             changes?: components["schemas"]["Changes"] | null;
             /** Context Budget */
             context_budget?: number | null;

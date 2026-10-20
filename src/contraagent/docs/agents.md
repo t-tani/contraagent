@@ -48,6 +48,16 @@ recorded: the journal holds each launch's turns, cost and peak context as the ag
 reports them. On omp, the budgets contraagent enforces are read from its event stream,
 which `OmpBackend(trace=False)` turns off.
 
+Codex prints a launch's token totals in its `turn.completed` event, and each API call's
+tokens, the model's context window and the plan's quota only in its rollout file
+(`$CODEX_HOME/sessions/`), a file of its own that contraagent reads after the launch.
+Its calls are checked against the printed totals. When the file is
+missing, holds nothing this contraagent can read, or does not add up, the launch keeps
+the printed totals as one call, has no quota reading, and its journal row says so:
+`usage_unknown` is `calls`, or `tokens` when the launch printed no totals either. The
+monitor marks such an attempt. After a newer Codex, a run whose rows show
+`usage_unknown` needs a newer contraagent for its per-call tokens and its peak context.
+
 omp has no flag that denies a tool. A launch whose task sets `disallowed_tools` loads
 an extension of contraagent's own (`-e`), which sees each tool call before it runs. A
 tool denied whole is taken out of the tools the model is offered, and a call that a

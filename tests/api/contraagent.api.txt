@@ -1547,6 +1547,7 @@ class LaunchResult
         hollow: bool = False,
         safety_stops: list[SafetyStop] = list(),
         unread_events: dict[str, int] = dict(),
+        usage_unknown: Literal['', 'calls', 'tokens'] = '',
         init_model: str = '',
         init_tools: int = 0,
         init_errors: list[dict[str, Any]] = list(),
@@ -1610,6 +1611,7 @@ class LaunchResult
     unread_events: dict[str, int] = field(default_factory=dict)
     unwrapped: bool = False
     usage: Usage = field(default_factory=Usage)
+    usage_unknown: Literal['', 'calls', 'tokens'] = ''
     wall_s: float = 0.0
     web_queries: list[str] = field(default_factory=list)
 
@@ -3183,6 +3185,7 @@ class JournalRow(RecordModel)
     unit: str = ''
     unread_events: dict[str, int] = Field(default_factory=dict)
     usage: TokenUsage | None = None
+    usage_unknown: Literal['', 'calls', 'tokens'] = ''
     wall_s: float = 0.0
     web_queries: list[str] = Field(default_factory=list)
 

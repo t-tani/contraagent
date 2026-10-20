@@ -187,6 +187,7 @@ def test_task_ran_on_its_configured_route_and_met_its_contract(run_all, task, un
     assert row["agent"] == agent
     assert row["model"] == model
     assert row["ok"] and row["stop"] == "completed", row["reason"]
+    assert not row.get("usage_unknown"), "the agent wrote its tokens where this contraagent does not read them"
     summary = run_all["handles"][unit].output
     print(f"  {unit}: {summary.model_dump_json()[:220]}")
     assert summary.unit == unit and summary.points and summary.summary

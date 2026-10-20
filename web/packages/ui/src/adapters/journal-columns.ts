@@ -8,7 +8,7 @@ import { msg, str } from '@lit/localize';
 import { html, nothing } from 'lit';
 import { stopTone } from '../lib/tone.js';
 import { executorIcon } from '../words/executor.js';
-import { facts, fmtDur, kindUnit, localTime, sentence, tokenCount, unreadEvents, usd } from '../words/format.js';
+import { facts, fmtDur, kindUnit, localTime, sentence, tokenCount, unreadEvents, usageUnknown, usageUnknownWords, usd } from '../words/format.js';
 import { attemptLabel, correctionsText, credentialLabel, credentialTip, modelSwitch, notStartedCause, outcomeLabel, replayedLabel, replayedTip, stopLabel } from '../words/index.js';
 import { accountReading, readingShort } from '../words/quota.js';
 import { customColumnTip, customValue } from '../words/row-extras.js';
@@ -189,6 +189,7 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
       width: 'minmax(200px,2.2fr)',
       cell: (e) => {
         const unread = unreadEvents([e]);
+        const unknown = usageUnknownWords(usageUnknown([e]));
         const stops = e.safety_stops ?? [];
         return html`<span class="jwhy" title=${e.reason || nothing}>${reason(e)}${stops.length
           ? html` <span class="tone-text nw" data-tone="attention" title=${[safetyStopTip(), ...stops.map(safetyStopLine)].join('\n')}
@@ -198,6 +199,8 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
           ? html` <span class="unread nw" title=${msg(str`Event types this contraagent version does not know (unread_events): ${unread}`)}
               ><span aria-hidden="true">⚠</span> ${msg('Unrecognized events')}</span
             >`
+          : nothing}${unknown
+          ? html` <span class="unread nw" title=${unknown.tip}><span aria-hidden="true">⚠</span> ${unknown.label}</span>`
           : nothing}</span>`;
       },
     },

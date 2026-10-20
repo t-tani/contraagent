@@ -12,6 +12,7 @@ import pytest
 
 from contraagent import CredentialError
 from contraagent._internal.backends.codex.wire import EventReader, normalize_event, read_rollout
+from contraagent._internal.execution.schemas import LaunchRow
 from contraagent.backends import CodexBackend, Launch, LaunchResult, Stop, normalize_stream_line
 from contraagent.config import ApiKey, Gateway, Limits, Subscription
 from fake_cli import write_fake_cli
@@ -47,8 +48,12 @@ out({"type": "item.completed", "item": {"id": "item_1", "type": "command_executi
      "aggregated_output": "hi\n", "exit_code": 0, "status": "completed"}})
 out({"type": "item.completed", "item": {"id": "item_2", "type": "web_search", "query": "python release"}})
 out({"type": "item.completed", "item": {"id": "item_3", "type": "agent_message", "text": os.environ.get("FAKE_TEXT", "DONE")}})
-out({"type": "turn.completed", "usage": {"input_tokens": 17240, "cached_input_tokens": 8509, "cache_write_input_tokens": 8727,
-     "output_tokens": 197}})
+# The thread's totals so far: FAKE_TURNS launches of the same two calls.
+n = int(os.environ.get("FAKE_TURNS", "1"))
+out({"type": "turn.completed", "usage": {"input_tokens": 17240 * n, "cached_input_tokens": 8509 * n,
+     "cache_write_input_tokens": 8727 * n, "output_tokens": 197 * n}})
+if mode == "no-rollout":
+    sys.exit(0)
 home = pathlib.Path(os.environ.get("CODEX_HOME") or pathlib.Path.home() / ".codex")
 d = home / "sessions" / "2026" / "10" / "15"
 d.mkdir(parents=True, exist_ok=True)
@@ -88,10 +93,10 @@ def fake(tmp_path):
     work = tmp_path / "work"
     work.mkdir()
 
-    def run(mode="ok", **kw):
+    def run(mode="ok", backend=None, **kw):
         launch = Launch(**{"prompt": "hello", "label": "t", "model": "gpt-5.6-luna", "cwd": work, "limits": Limits(timeout_s=30), **kw})
         launch = launch.__class__(**{**launch.__dict__, "env": {"FAKE_DUMP": str(dump), "FAKE_MODE": mode, **launch.env}})
-        backend = CodexBackend(base_env=base)
+        backend = backend or CodexBackend(base_env=base)
         result = backend.run(launch)
         return backend, result, json.loads(dump.read_text(encoding="utf-8"))
 
@@ -170,6 +175,26 @@ def test_a_resumed_launch_counts_only_its_own_calls(fake, tmp_path):
     _, second, seen = fake(credential=cred, persist_session=True, resume=THREAD, prompt="again")
     assert seen["argv"][1:4] == ["exec", "resume", THREAD] and seen["argv"][-1] == "again"
     assert len(second.usage.calls) == 2  # the rollout holds four calls by now
+
+
+def test_a_launch_whose_rollout_is_missing_keeps_the_printed_totals_and_says_so(fake, tmp_path):
+    _, r, _ = fake("no-rollout")
+    assert r.ok and r.usage_unknown == "calls" and r.quota == []
+    assert [(c.input, c.cache_read, c.cache_creation, c.output) for c in r.usage.calls] == [(4, 8509, 8727, 197)]
+    record = tmp_path / "launches.jsonl"
+    r.record(record)
+    assert LaunchRow.model_validate_json(record.read_text()).usage_unknown == "calls"
+
+
+def test_a_resumed_launch_without_its_rollout_counts_its_own_tokens(fake, tmp_path):
+    """The backend keeps each thread's printed totals: a resumed launch's are the thread's."""
+    cred = ApiKey(name="k", provider="openai", key="env:MY_KEY")
+    backend, first, _ = fake("no-rollout", credential=cred, persist_session=True)
+    _, second, _ = fake("no-rollout", backend=backend, credential=cred, persist_session=True, resume=THREAD, env={"FAKE_TURNS": "2"})
+    assert second.usage_unknown == "calls" and second.usage.totals() == first.usage.totals()
+    # Another backend does not know the thread's earlier totals: the thread's stand, never fewer.
+    _, other, _ = fake("no-rollout", credential=cred, persist_session=True, resume=THREAD, env={"FAKE_TURNS": "2"})
+    assert other.usage_unknown == "calls" and sum(c.output for c in other.usage.calls) == 2 * 197
 
 
 def test_a_gateway_is_a_model_provider_of_its_own(fake):
