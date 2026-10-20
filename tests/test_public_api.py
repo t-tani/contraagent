@@ -445,8 +445,9 @@ def test_published_classes_keep_their_annotations_and_pickle():
 
 
 PUBLISHED_ANNOTATIONS = """
-import importlib, inspect, sys
+import importlib, inspect, sys, typing
 import pydantic
+PYDANTIC = tuple(int(part) for part in pydantic.VERSION.split(".")[:2])
 modules = [importlib.import_module(m) for m in sys.argv[1:]]
 classes = {id(o): o for m in modules for o in (getattr(m, n) for n in m.__all__) if isinstance(o, type)}
 read = []
@@ -463,9 +464,19 @@ for cls in classes.values():
             assert get(cls) == cls.__dict__["__annotations__"], cls.__qualname__
         read_alike += 1
     if issubclass(cls, pydantic.BaseModel) and cls.__module__.startswith("contraagent"):
+        # The type each annotation names, looked up from the public module; pydantic keeps
+        # an outer `Annotated`'s metadata on the field, not in its annotation.
+        hints = {n: h.__origin__ if typing.get_origin(h) is typing.Annotated else h
+                 for n, h in typing.get_type_hints(cls, include_extras=True).items()}
         before = {name: field.annotation for name, field in cls.model_fields.items()}
         assert cls.model_rebuild(force=True) is not False, cls.__qualname__
-        assert {name: field.annotation for name, field in cls.model_fields.items()} == before, cls.__qualname__
+        assert {name: field.annotation for name, field in cls.model_fields.items()} == {n: hints[n] for n in before}, cls.__qualname__
+        for name, annotation in before.items():
+            # Before pydantic 2.12, a field a model inherits keeps the ForwardRef its parent
+            # read it as (`_Process.children`: `list[ProcNode]`, ProcNode defined after it),
+            # though the model's schema already validates the type it names.
+            if not (isinstance(annotation, typing.ForwardRef) and PYDANTIC < (2, 12)):
+                assert annotation == hints[name], (cls.__qualname__, name)
         rebuilt += 1
 print(read_alike, rebuilt)
 """
@@ -477,7 +488,7 @@ def test_published_annotations_read_alike_and_a_model_rebuilds_after_publish():
     annotations (`inspect.get_annotations`; on 3.14 `annotationlib.get_annotations` in each
     format, PEP 649/749) gives the replaced dict, and (2) a pydantic model rebuilt after the
     move (`model_rebuild`, which looks names up in the module `__module__` names) still
-    resolves every field to the same type. A fresh interpreter, so no rebuild touches the
+    resolves every field to the type its annotation names (`typing.get_type_hints`). A fresh interpreter, so no rebuild touches the
     classes the other tests use. (A rebuild of a model that holds a self-referencing one,
     `Procs` and its `ProcNode`, names that model's `$defs` entry twice in its JSON Schema:
     the old reference carries the module the model had before `publish`. Nothing in
