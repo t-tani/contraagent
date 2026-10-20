@@ -77,6 +77,57 @@ test('reload and Back restore how far the list was scrolled', async ({ page }) =
   await expect.poll(() => main(page).evaluate((m) => m.scrollTop)).toBe(y);
 });
 
+test('a reload restores the position in the whole list, not in the rows arrived so far', async ({ page }) => {
+  // On a slow machine the replay arrives in parts, the newest rows (the top of the
+  // list) last. Here the page holds the feed's last journal rows and its `ready` until
+  // the test lets them through, once the rows before them are on screen.
+  await page.addInitScript(() => {
+    const pass = sessionStorage.getItem('hold-feed');
+    if (pass === null) return;
+    let held: (() => void)[] | null = [];
+    let journal = 0;
+    const release = () => {
+      const go = held ?? [];
+      held = null;
+      for (const f of go) f();
+    };
+    Object.assign(window, { releaseFeed: release });
+    // The monitor listens with a function for each event name (`feed.ts`).
+    Object.defineProperty(EventSource.prototype, 'addEventListener', {
+      value(this: EventSource, type: string, fn: (ev: Event) => void, opts?: boolean | AddEventListenerOptions) {
+        const hold = type === 'journal' || type === 'ready';
+        EventTarget.prototype.addEventListener.call(this, type, !hold ? fn : (ev: Event) => {
+          if (held && (held.length || type === 'ready' || ++journal > Number(pass))) held.push(() => fn(ev));
+          else fn(ev);
+        }, opts);
+      },
+    });
+  });
+  await page.setViewportSize({ width: 1280, height: 420 });
+  await tab(page, 'history').click();
+  await feedReady(page);
+  const rows = page.locator('ca-journal-table tbody tr');
+  const total = await rows.count();
+  const max = await main(page).evaluate((m) => m.scrollHeight - m.clientHeight);
+  const rowHeight = await rows.first().evaluate((r) => r.getBoundingClientRect().height);
+  // Held back: the newest rows, half as many as stay scrollable to the position without them.
+  const y = Math.round(max / 2);
+  const hold = Math.floor((max - y) / rowHeight / 2);
+  test.skip(hold < 2, 'the demo journal is too short to scroll');
+  await main(page).evaluate((m, top) => m.scrollTo({ top }), y);
+  await expect.poll(() => remembered(page, 'main')).toBe(y);
+
+  await page.evaluate((pass) => sessionStorage.setItem('hold-feed', String(pass)), total - hold);
+  await page.reload();
+  // The rows before the held ones are enough to scroll to the position.
+  await expect.poll(() => main(page).evaluate((m) => m.scrollTop)).toBe(y);
+  await page.evaluate(() => (window as unknown as { releaseFeed(): void }).releaseFeed());
+  await feedReady(page);
+  await expect(rows).toHaveCount(total);
+  await expect.poll(() => main(page).evaluate((m) => m.scrollTop)).toBe(y);
+  await expect.poll(() => remembered(page, 'main')).toBe(y);
+});
+
 test('open contracts stay open across a reload', async ({ page }) => {
   await tab(page, 'outputs').click();
   const first = page.locator('ca-contracts details.ct').first();
