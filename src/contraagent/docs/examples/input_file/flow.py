@@ -52,7 +52,7 @@ review = agent_task(
 @python_task
 def count_words(unit: str, report: InputFile) -> int:
     """How many words the report has: the file is read here, in this process."""
-    return len(report.read_text().split())
+    return len(report.read_text(encoding="utf-8").split())
 
 
 async def report(topic: str) -> tuple[Verdict, int]:
