@@ -135,7 +135,9 @@ them, and calling what it returns is the task call, as in
 `summarize.options(key="summary-short", priority=2)("alpha", length="short")`.
 
 `options` takes each option as a keyword, and an option it is not given keeps the
-value it had, so `summarize.options(priority=2).options(key="k")` has both. The task
+value it had, so `summarize.options(priority=2).options(key="k")` has both. None
+given as `key` or `credential` clears it: the key is `<kind>-<unit>` again, and the
+credential is the kind's. The task
 it returns has the same declaration: one kind, one digest, one `[tasks.<kind>]`
 table. Its type is the task's own (`AgentTask[Summary]` stays `AgentTask[Summary]`),
 so a function that takes a task and calls it with a key keeps the output type too.

@@ -611,7 +611,7 @@ def signed(unit: str, credential: str) -> Doc:
         ({"priority": "high"}, "priority must be a finite number, not 'high'"),
         ({"after": "other"}, "after takes a list of tasks (each a task call's result or a task key), not 'other'"),
         ({"after": [3]}, "not 3 in it"),
-        ({"key": 3}, "key must be a string, not 3"),
+        ({"key": 3}, "key must be a string or None, not 3"),
         ({"words": 2}, "the function cannot take this call: got an unexpected keyword argument 'words'"),
     ],
 )

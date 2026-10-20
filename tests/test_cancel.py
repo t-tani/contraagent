@@ -86,6 +86,24 @@ def test_the_graph_computes_the_digest_of_one_declaration_once(tmp_path, monkeyp
     assert calls.count("probe") == 1
 
 
+def test_an_option_not_given_keeps_its_value_and_none_clears_it(tmp_path):
+    keyed = probe.options(key="x", credential="team", priority=2)
+    kept = keyed.options(cancellable=True)  # key, credential and priority not given: kept
+    cleared = kept.options(key=None, credential=None)
+    assert kept._options.key == "x" and kept._options.credential == "team" and kept._options.priority == 2.0
+    assert cleared._options.key is None and cleared._options.credential == "" and cleared._options.priority == 2.0
+
+    keys: list[str] = []
+
+    def flow():
+        keys.append(kept.options(credential=None)("a").key)
+        keys.append(cleared("a").key)
+
+    report = pipeline(tmp_path, StubAgent({"probe": answered})).run(flow)
+    assert report.ok, report.failed
+    assert keys == ["x", "probe-a"]
+
+
 def test_options_of_a_python_task_keep_its_parameter_types_and_take_no_credential():
     @python_task
     def tally(n: int) -> int:
@@ -106,7 +124,7 @@ def test_a_call_option_given_to_the_call_names_options(word):
 @pytest.mark.parametrize(
     ("given", "says"),
     [
-        ({"key": 3}, "probe.options(...): key must be a string, not 3"),
+        ({"key": 3}, "probe.options(...): key must be a string or None, not 3"),
         ({"priority": "high"}, "probe.options(...): priority must be a finite number"),
         ({"after": "other"}, "probe.options(...): after takes a list of tasks"),
         ({"credential": " team"}, "probe.options(...): credential must name a [credentials.<name>]"),

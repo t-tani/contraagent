@@ -31,6 +31,7 @@ from typing import Any, Literal, Protocol, Self, TypeVar, overload
 
 from pydantic import BaseModel, ConfigDict, RootModel, TypeAdapter, ValidationError
 from pydantic.errors import PydanticSchemaGenerationError
+from typing_extensions import Sentinel
 
 from contraagent._internal.contracts.pointers import schema_error, syntax_error
 from contraagent._internal.contracts.rows import is_rows, rows_file, rows_model
@@ -82,6 +83,10 @@ def output_format_of(output: Any) -> str:
     return "jsonl" if rows_model(output) is not None else "json"
 
 
+#: The default of each argument of `options`: an option not given keeps the value it had.
+KEEP = Sentinel("KEEP")
+
+
 @dataclass(frozen=True)
 class _CallOptions:
     """A task's call options as `options` gave them: what the graph is given beside the
@@ -98,21 +103,22 @@ class _CallOptions:
         self,
         where: str,
         *,
-        key: str | None,
-        after: Sequence[Pending[Any] | str] | None,
-        priority: float | None,
-        credential: str | None,
-        cancellable: bool | None,
+        key: str | None | KEEP,
+        after: Sequence[Pending[Any] | str] | KEEP,
+        priority: float | KEEP,
+        credential: str | None | KEEP,
+        cancellable: bool | KEEP,
     ) -> _CallOptions:
-        """These options with each one given replaced, checked; `where` names the call in an error."""
-        if cancellable is not None and not isinstance(cancellable, bool):
+        """These options with each one given (not `KEEP`) replaced, checked; `where` names
+        the call in an error."""
+        if cancellable is not KEEP and not isinstance(cancellable, bool):
             raise TypeError(f"{where}(...): cancellable must be True or False, not {cancellable!r}")
         return _CallOptions(
-            key=self.key if key is None else _checked_key(where, key),
-            after=self.after if after is None else _checked_after(where, after),
-            priority=self.priority if priority is None else _checked_priority(where, priority),
-            credential=self.credential if credential is None else _checked_credential(where, credential),
-            cancellable=self.cancellable if cancellable is None else cancellable,
+            key=self.key if key is KEEP else _checked_key(where, key),
+            after=self.after if after is KEEP else _checked_after(where, after),
+            priority=self.priority if priority is KEEP else _checked_priority(where, priority),
+            credential=self.credential if credential is KEEP else _checked_credential(where, credential),
+            cancellable=self.cancellable if cancellable is KEEP else cancellable,
         )
 
 
@@ -282,11 +288,11 @@ class AgentTask[Out]:
     def options(
         self,
         *,
-        key: str | None = None,
-        after: Sequence[Pending[Any] | str] | None = None,
-        priority: float | None = None,
-        credential: str | None = None,
-        cancellable: bool | None = None,
+        key: str | None | KEEP = KEEP,
+        after: Sequence[Pending[Any] | str] | KEEP = KEEP,
+        priority: float | KEEP = KEEP,
+        credential: str | None | KEEP = KEEP,
+        cancellable: bool | KEEP = KEEP,
     ) -> Self:
         """This task with call options: calling what it returns is a task call of this task,
         its declaration the same (one kind, one digest), so `summarize.options(key="k")(unit)`
@@ -295,14 +301,15 @@ class AgentTask[Out]:
 
         `key`: the task's key in place of `<kind>-<unit>`; it names its output file in place of
         the unit too (`{unit}` of `output_name`), so two keys on one unit write two files.
+        None clears it: the key is `<kind>-<unit>` again.
         `after`: tasks this one starts after, each a task call's `Pending` or a task's key,
         for an order with no output passed on. `priority`: breaks ties in the queue, higher
         first (`WorkQueue`). `credential` names a `[credentials.<name>]` this task runs as on
         every route of its kind, failover hops included, in place of the kind's; it outranks
         the kind's `[tasks.<kind>]` table and its declaration; a run-wide override
-        (`Overrides(credential=)`) outranks it. A credential that does not exist or does not
-        carry the traits the task `requires` is refused before the task launches.
-        `cancellable`: True cancels the task (stop `cancelled`) once the flow call that
+        (`Overrides(credential=)`) outranks it; None clears it, so the kind's credential is
+        used. A credential that does not exist or does not carry the traits the task
+        `requires` is refused before the task launches. `cancellable`: True cancels the task (stop `cancelled`) once the flow call that
         created it and every flow call that waited for it were closed and no flow call waits
         for it: a queued one is not launched, a running one's launch is stopped. False, the
         default: it runs to its end whatever happens to its flow calls. None of them is part
@@ -1076,16 +1083,16 @@ class PythonTask[Out]:
     def options(
         self,
         *,
-        key: str | None = None,
-        after: Sequence[Pending[Any] | str] | None = None,
-        priority: float | None = None,
-        cancellable: bool | None = None,
+        key: str | None | KEEP = KEEP,
+        after: Sequence[Pending[Any] | str] | KEEP = KEEP,
+        priority: float | KEEP = KEEP,
+        cancellable: bool | KEEP = KEEP,
     ) -> Self:
         """This task with call options, as `AgentTask.options`: `key`, `after`, `priority`
         and `cancellable`. A Python task runs no coding agent, so it has no credential. A
         cancelled Python task that is running runs to its end: a thread cannot be stopped."""
         made = self._options.given(
-            f"{self.kind}.options", key=key, after=after, priority=priority, credential=None, cancellable=cancellable
+            f"{self.kind}.options", key=key, after=after, priority=priority, credential=KEEP, cancellable=cancellable
         )
         return _with_options(self, made)
 
@@ -1457,9 +1464,9 @@ def _refuse_call_options(kind: str, given: Mapping[str, Any], params: set[str], 
 
 
 def _checked_key(where: str, key: Any) -> str | None:
-    """A task's `key` option: a string; empty: the kind and unit make it."""
-    if not isinstance(key, str):
-        raise TypeError(f"{where}(...): key must be a string, not {key!r}")
+    """A task's `key` option: a string; None or empty: the kind and unit make it."""
+    if key is not None and not isinstance(key, str):
+        raise TypeError(f"{where}(...): key must be a string or None, not {key!r}")
     return key or None
 
 
@@ -1482,9 +1489,12 @@ def _checked_priority(where: str, priority: Any) -> float:
 
 
 def _checked_credential(where: str, credential: Any) -> str:
-    """An agent task's `credential` option: the name of a `[credentials.<name>]`."""
+    """An agent task's `credential` option: the name of a `[credentials.<name>]`; None, its
+    kind's (empty)."""
+    if credential is None:
+        return ""
     if not isinstance(credential, str) or not credential.strip() or credential != credential.strip():
-        raise TypeError(f"{where}(...): credential must name a [credentials.<name>], not {credential!r}")
+        raise TypeError(f"{where}(...): credential must name a [credentials.<name>] or be None, not {credential!r}")
     return credential
 
 

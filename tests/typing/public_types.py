@@ -107,6 +107,7 @@ async def waits() -> None:
 assert_type(triage.options(key="k", priority=2, credential="team", cancellable=True), AgentTask[Triage])
 assert_type(review["fast"].options(after=["triage-a"]), AgentTask[Triage])
 assert_type(count.options(key="k").options(priority=1, cancellable=True), PythonTask[int])
+assert_type(triage.options(key="k").options(key=None, credential=None), AgentTask[Triage])
 count.options(credential="team")  # type: ignore[call-arg]  # a Python task has no credential
 
 

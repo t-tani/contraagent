@@ -4,4 +4,4 @@ A task call takes the task's params only. Its key, its order without data, its p
 - `task(u, after=[p])` → `task.options(after=[p])(u)`.
 - A call that still gives `key=`, `after=`, `priority=`, `credential=` or `cancellable=` to a task with no param of that name raises `TypeError`, which names `.options()`; a Python task given `credential=` raises as before.
 - A params field or a Python task's parameter named `key`, `after`, `priority` or `credential` was refused where the task was declared → it is a param like any other, and the call gives it.
-- `key=None` and `credential=None` on a call meant "none" → `options` takes a string for each, and None keeps the value the task had.
+- `key=None` and `credential=None` on a call meant "none" → `options(key=None, credential=None)` clears the key and the credential the task had; an option not given keeps its value.
