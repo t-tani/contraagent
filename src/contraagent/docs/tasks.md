@@ -447,10 +447,14 @@ the n-th asyncio Task its parent created, counted from 1. The numbers follow the
 of creation, not the order of finishing, so the same flow code gives the same ids in
 every run. Every Task takes a number, also the one asyncio makes around each task
 call given to `asyncio.gather`, but `flow_calls.jsonl` and the monitor show a flow
-call only once it creates a task or a flow call, or ends with an error. A Task that
-only waits for a task already created leaves no record, so the ids on record may
-skip numbers: `analyse_bundle` gathers two `classify` task calls first, and its
-`analyse_file` flow calls are then `0.1.3` and `0.1.4`. `examples/analysis/flow.py` has three layers: `analyse` gathers one
+call only once it creates a task or a flow call, or ends with an error of its own. A
+task's `TaskFailed` or `TaskDeferred` that only passes through a flow call is no
+error of its own: the task's record already says it. A Task that only waits for a
+task already created leaves no record, so the ids on record may skip numbers:
+`analyse_bundle` gathers two `classify` task calls first, and its `analyse_file`
+flow calls are then `0.1.3` and `0.1.4`.
+
+`examples/analysis/flow.py` has three layers: `analyse` gathers one
 `analyse_bundle` per bundle; each `analyse_bundle` fans out a `classify` per file (a
 group sized by what `unpack` returned), leaves out a file whose `classify` failed,
 and gathers one `analyse_file` per data file; each `analyse_file` picks its parser

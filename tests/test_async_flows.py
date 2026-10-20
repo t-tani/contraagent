@@ -767,3 +767,31 @@ def test_a_flow_call_is_on_record_once_it_creates_something(tmp_path):
     }
     # What the Tasks that left no record received reached the flow all the same.
     assert plan["write_doc-d"]["created_from"] == ["summarize-c"]
+
+
+def test_a_task_failure_passing_through_a_flow_call_puts_it_on_no_record(tmp_path):
+    async def passes(pending):
+        return await pending  # the task's TaskFailed passes through unchanged
+
+    async def own(pending):
+        try:
+            await pending
+        except TaskFailed as exc:
+            raise ValueError(f"no summary: {exc.key}") from exc
+
+    async def flow():
+        bad = summarize("a", path="a")
+        caught = []
+        for awaited in (asyncio.gather(bad), asyncio.create_task(passes(bad)), asyncio.create_task(own(bad))):
+            try:
+                await awaited  # 0.1 (asyncio's Task around the task call), 0.2, 0.3
+            except (TaskFailed, ValueError) as exc:
+                caught.append(type(exc).__name__)
+        return caught
+
+    rep = pipeline(tmp_path, stub(**{"summarize-a": fails()})).run(flow)
+    assert rep.value == ["TaskFailed", "TaskFailed", "ValueError"]
+    rows = flow_call_rows(rep)
+    assert [r["id"] for r in rows if r["event"] == "start"] == ["0", "0.3"]
+    [end] = [r for r in rows if r["event"] == "end" and r["id"] == "0.3"]
+    assert end["state"] == "raised" and end["error"] == "ValueError: no summary: summarize-a"

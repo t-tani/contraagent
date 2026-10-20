@@ -23,8 +23,10 @@ every run, whatever order its tasks finish in. `await helper()` runs in the same
 call. The flow call whose code runs is a context variable (`current`).
 
 A flow call is on record only once it does something a run shows: it creates a task
-(`add`, a task call) or a flow call, or it ends `raised` or with an error; a top flow
-call is on record from its start. So a Task that only awaits a task already created
+(`add`, a task call) or a flow call, or it ends with an error of its own (one that is
+not what `answer` raised at an await of a task, passing through unchanged: that task's
+own record says it) or the error the driver closed it with; a top flow call is on
+record from its start. So a Task that only awaits a task already created
 (asyncio's around `gather(task_call)`, or a helper that awaits its parent's task call)
 and ends otherwise leaves no record, and the ids on record may skip numbers. Each flow
 call is reported through `on_flow_call(event, call)`: `"create"` when its Task is
@@ -354,6 +356,8 @@ class FlowDriver:
         self._waiters: dict[str, list[asyncio.Future[TaskResult]]] = {}  # by task key, one per await
         self._queued_keys: set[str] = set()
         self._open: set[str] = set()  # keys queued whose result has not come
+        # What `answer` raised at an await, by id (kept alive): a task's outcome, not a flow call's own.
+        self._outcomes: dict[int, BaseException] = {}
         self._outbox: list[Task] = []
         self._queue: WorkQueue | None = None
         self._main: asyncio.AbstractEventLoop | None = None
@@ -595,7 +599,11 @@ class FlowDriver:
             self._cancel(call, own)
         if call is not None:
             self._receive(call, (key,), order)
-        return self._answer(item, result)
+        try:
+            return self._answer(item, result)
+        except BaseException as exc:
+            self._outcomes[id(exc)] = exc
+            raise
 
     def _enqueue(self, task: Task, call: FlowCall | None) -> None:
         if task.key in self._queued_keys or task.key in self.done:
@@ -713,6 +721,12 @@ class FlowDriver:
         task.add_done_callback(lambda t, call=call: self._task_done(call, t))
         return task
 
+    def _shows(self, call: FlowCall, state: FlowState, error: BaseException | None) -> bool:
+        """Whether the end of `call` is something to see: an error of its own, or the error
+        the driver closed it with. A task's outcome that `answer` raised at an await and that
+        passed through unchanged is not: the task's own record says it."""
+        return error is not None and self._outcomes.get(id(error)) is not error
+
     def _record(self, call: FlowCall) -> None:
         """Put `call` on record (`on_flow_call("start", call)`), once: at the first thing it
         does that a run shows. Its parent is on record already: creating it put it there."""
@@ -741,7 +755,7 @@ class FlowDriver:
         call.value = value
         call.error = error
         self._running -= 1
-        if state == "raised" or error is not None:  # an error is something to see
+        if self._shows(call, state, error):
             self._record(call)
         try:
             self._on_flow_call("end", call)
