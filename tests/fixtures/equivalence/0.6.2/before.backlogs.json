@@ -1,0 +1,50 @@
+{
+  "call": "examples/before/flow.py:backlogs",
+  "config": false,
+  "flow": "before.backlogs",
+  "kwargs": {
+    "topics": {
+      "billing": [
+        "invoices by email"
+      ],
+      "search": [
+        "faster index"
+      ]
+    }
+  },
+  "outputs": {
+    "start/billing.json": "11329653c47788ee5d4409ab853dd23a5f3a603829f92766e4efed76fddf5d52",
+    "start/search.json": "11329653c47788ee5d4409ab853dd23a5f3a603829f92766e4efed76fddf5d52"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 2,
+    "flow_errors": [],
+    "ok": false,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "grow-billing": {
+      "kind": "grow",
+      "stop": "invalid_output",
+      "unit": "billing"
+    },
+    "grow-search": {
+      "kind": "grow",
+      "stop": "invalid_output",
+      "unit": "search"
+    },
+    "python:start-billing": {
+      "kind": "start",
+      "stop": "completed",
+      "unit": "billing"
+    },
+    "python:start-search": {
+      "kind": "start",
+      "stop": "completed",
+      "unit": "search"
+    }
+  },
+  "value": null
+}

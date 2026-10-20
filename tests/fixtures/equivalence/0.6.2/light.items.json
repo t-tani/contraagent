@@ -1,0 +1,36 @@
+{
+  "call": "examples/light/flow.py:items",
+  "config": false,
+  "flow": "light.items",
+  "kwargs": {
+    "titles": {
+      "n1": "A patch for the login server",
+      "n2": "Our new plan"
+    }
+  },
+  "outputs": {
+    "classify/n1.json": "6fe8bcf3b33d10559283ee4efa523c2f3dfaa31730c316befcc15c62d52b4df6",
+    "classify/n2.json": "6fe8bcf3b33d10559283ee4efa523c2f3dfaa31730c316befcc15c62d52b4df6"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "classify-n1": {
+      "kind": "classify",
+      "stop": "completed",
+      "unit": "n1"
+    },
+    "classify-n2": {
+      "kind": "classify",
+      "stop": "completed",
+      "unit": "n2"
+    }
+  },
+  "value": null
+}

@@ -1,0 +1,50 @@
+{
+  "call": "examples/missing/flow.py:reviews",
+  "config": false,
+  "flow": "missing.reviews",
+  "kwargs": {
+    "units": {
+      "alpha": [
+        "a.md",
+        "b.md"
+      ],
+      "beta": [
+        "c.md"
+      ]
+    }
+  },
+  "outputs": {
+    "review/alpha.json": "8d59b33e8eacc55e63fa82b90512ec3410c47bc80a021c98c029f51b69c50a94",
+    "review/beta.json": "8d59b33e8eacc55e63fa82b90512ec3410c47bc80a021c98c029f51b69c50a94"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "review-alpha": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-beta": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "beta"
+    }
+  },
+  "value": [
+    {
+      "missing": [],
+      "verdict": ""
+    },
+    {
+      "missing": [],
+      "verdict": ""
+    }
+  ]
+}

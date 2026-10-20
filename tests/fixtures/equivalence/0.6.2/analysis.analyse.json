@@ -1,0 +1,54 @@
+{
+  "call": "examples/analysis/flow.py:analyse",
+  "config": false,
+  "flow": "analysis.analyse",
+  "kwargs": {
+    "bundles": [
+      "q3",
+      "q4"
+    ]
+  },
+  "outputs": {
+    "report/q3.json": "b461c369a556b899a61c624cb4ce1dfa6d45939ed323d442964227d2e80abe16",
+    "report/q4.json": "b461c369a556b899a61c624cb4ce1dfa6d45939ed323d442964227d2e80abe16",
+    "summary/summary.json": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+    "unpack/q3.json": "2f7c6d78d7af2b4d6e9ab59e5ec0b5718eb4955c73dbbfd238bc28532d05d557",
+    "unpack/q4.json": "2f7c6d78d7af2b4d6e9ab59e5ec0b5718eb4955c73dbbfd238bc28532d05d557"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "python:report-q3": {
+      "kind": "report",
+      "stop": "completed",
+      "unit": "q3"
+    },
+    "python:report-q4": {
+      "kind": "report",
+      "stop": "completed",
+      "unit": "q4"
+    },
+    "python:summary": {
+      "kind": "summary",
+      "stop": "completed",
+      "unit": "python:summary"
+    },
+    "python:unpack-q3": {
+      "kind": "unpack",
+      "stop": "completed",
+      "unit": "q3"
+    },
+    "python:unpack-q4": {
+      "kind": "unpack",
+      "stop": "completed",
+      "unit": "q4"
+    }
+  },
+  "value": ""
+}
