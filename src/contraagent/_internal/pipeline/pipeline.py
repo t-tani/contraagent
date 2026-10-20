@@ -516,14 +516,19 @@ class Pipeline:
                 recorder.start()  # before the flow runs: its own side effects count too
 
             def on_flow_call(event: str, call: FlowCall) -> None:
-                if event == "start":
-                    flow = graph.flow_call_started(call)
+                if event == "create":  # its flow path is where its parent's code is now
+                    graph.check_passes(graph.flow_call_created(call), f"flow call {call.id} ({call.function})", call.id)
+                elif event == "start":  # on record: it did something the run shows
                     parent = call.parent.id if call.parent is not None else None
                     box = {"time_box": call.time_box, "started_at": call.started_at}
-                    run.record_flow_call("start", call.id, parent=parent, function=call.function, flow=flow, **box)
-                    graph.check_passes(flow, f"flow call {call.id} ({call.function})", call.id)
+                    try:
+                        run.record_flow_call("start", call.id, parent=parent, function=call.function, flow=graph.flow_path(call), **box)
+                    except Exception as exc:  # the monitor's record only: the flow goes on
+                        run._record_failed(layout.FLOW_CALLS, exc, f"flow call {call.id}")
                 else:
                     graph.flow_call_ended(call)
+                    if not call.recorded:
+                        return
                     try:
                         run.record_flow_call("end", call.id, state=call.state, error=call.error)
                     except Exception as exc:  # the monitor's record only: the flow goes on

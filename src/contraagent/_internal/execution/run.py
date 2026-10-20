@@ -773,11 +773,13 @@ class Run:
         """One line of `flow_calls.jsonl` (a `FlowCallRow`). `event` "start": its `parent`,
         `function` and `flow`, the flow path where the parent created it (the parent's frames,
         with their loops' passes, as in `plan.jsonl`; empty for a top flow call), and for a
-        flow call started through `time_box`, its `time_box` (a `TimeBoxRecord`; `started_at`:
-        when the flow call started, where its deadline counts from); "end": its `state` and
-        `error`."""
+        flow call started through `time_box`, its `time_box` (a `TimeBoxRecord`). `started_at`
+        (`time.time()`): when the flow call started, where a time box's deadline counts from,
+        and the start row's `ts`; a flow call may go on record after it started (`FlowDriver`).
+        "end": its `state` and `error`."""
         ts = now_iso()
         if event == "start":
+            ts = iso_of(started_at) if started_at is not None else ts
             box = {"time_box": _time_box_record(time_box, started_at)} if time_box is not None else {}
             start = {"ts": ts, "id": call_id, "event": "start", "parent": parent, "function": function, "flow": list(flow)}
             row = FlowCallRow.model_validate(start | box)

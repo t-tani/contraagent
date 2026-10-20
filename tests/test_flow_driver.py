@@ -85,18 +85,26 @@ def test_gather_waits_for_all_and_answers_in_order():
     assert runner.peak == 2
 
 
-def test_gather_wrapping_waits_takes_no_flow_call_id():
-    driver = FlowDriver()
+def test_every_task_takes_a_number_and_one_that_only_waits_is_not_on_record():
+    events: list[tuple[str, str]] = []
+    driver = FlowDriver(on_flow_call=lambda event, call: events.append((event, call.id)))
 
     async def child():
         return (await driver.wait(t("b-1"))).task.key
 
+    async def adder():
+        driver.add(t("c-1"))
+
     async def flow():
         await asyncio.gather(driver.wait(t("a-1")), driver.wait(t("a-2")))
+        await asyncio.create_task(adder())
         return await asyncio.gather(child(), driver.wait(t("a-3")))
 
     drive(flow(), driver=driver)
-    assert list(driver.calls) == ["0", "0.1"] and driver.calls["0"].value[0] == "b-1"
+    assert list(driver.calls) == ["0", "0.1", "0.2", "0.3", "0.4", "0.5"] and driver.calls["0"].value[0] == "b-1"
+    assert [c.id for c in driver.calls.values() if c.recorded] == ["0", "0.3"]
+    assert [e for e in events if e[0] == "start"] == [("start", "0"), ("start", "0.3")]
+    assert ("end", "0.1") in events and driver.calls["0"].frontier == ("b-1", "a-3")
 
 
 def test_child_coroutines_in_tasks_are_flow_calls_running_concurrently():
@@ -118,7 +126,8 @@ def test_child_coroutines_in_tasks_are_flow_calls_running_concurrently():
     child = driver.calls["0.1"]
     assert child.parent is driver.calls["0"] and child.function.endswith("per_unit")
     assert child.site is not None and child.site[0] == __file__
-    assert started[:3] == [("start", "0"), ("start", "0.1"), ("start", "0.2")] and ("end", "0") == started[-1]
+    assert [e for e in started if e[0] == "create"] == [("create", "0"), ("create", "0.1"), ("create", "0.2")]
+    assert ("start", "0") in started and ("start", "0.1") not in started and ("end", "0") == started[-1]
 
 
 def test_create_task_and_task_group_make_flow_calls_too():
@@ -174,7 +183,7 @@ def test_an_error_from_on_flow_call_at_a_child_start_fails_the_child_before_it_r
     ran: list[str] = []
 
     def on_flow_call(event, call):
-        if event == "start" and call.id == "0.2":
+        if event == "create" and call.id == "0.2":
             raise LookupError("refused")
 
     driver = FlowDriver(on_flow_call=on_flow_call)

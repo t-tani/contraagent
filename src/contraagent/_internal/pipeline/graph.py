@@ -47,9 +47,7 @@ is numbered:
 
 from __future__ import annotations
 
-import abc
 import asyncio
-import collections.abc
 import contextlib
 import dataclasses
 import glob
@@ -64,7 +62,7 @@ from collections.abc import Callable, Generator, Iterator, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel, RootModel
 from pydantic_core import to_jsonable_python
@@ -197,11 +195,6 @@ class Pending[Out]:
         state = "pending" if self.result is None else self.result.stop
         return f"Pending({self.key!r}, {state})"
 
-
-# A coroutine to asyncio, as what `FlowDriver.wait` returns is: `asyncio.gather` and
-# `create_task` hand a `Pending` to the flow loop as it is, which awaits it in a Task that
-# is no flow call (`FlowDriver._make_task`).
-cast(abc.ABCMeta, collections.abc.Coroutine).register(Pending)
 
 _UNSET = object()
 
@@ -536,10 +529,10 @@ class Graph:
             self._produced[id(value)] = (value, item)
         return value
 
-    def flow_call_started(self, call: FlowCall) -> tuple[Frame, ...]:
+    def flow_call_created(self, call: FlowCall) -> tuple[Frame, ...]:
         """The flow path where a child flow call was created: its parent's frames where its
         code created the Task, with their loops' passes (empty for a top flow call). The
-        child's tasks' flow paths start with it."""
+        child's tasks' flow paths start with it (`flow_path`)."""
         parent = call.parent
         if parent is None:
             return ()
@@ -551,17 +544,21 @@ class Graph:
         self._prefix[call.id] = frames
         return frames
 
+    def flow_path(self, call: FlowCall) -> tuple[Frame, ...]:
+        """The flow path where `call` was created (`flow_call_created`)."""
+        return self._prefix.get(call.id, ())
+
     def flow_call_ended(self, call: FlowCall) -> None:
         """Forget the passes counted in a flow call's frames."""
         self.loops.drop(call)
 
     def on_flow_call(self, event: str, call: FlowCall) -> None:
-        """A `FlowDriver` `on_flow_call`: the flow path of a child flow call, checked
-        against `max_passes` (`TooManyPasses` fails the child, and its parent receives it
-        where it awaits the child)."""
-        if event == "start":
-            self.check_passes(self.flow_call_started(call), f"flow call {call.id} ({call.function})", call.id)
-        else:
+        """A `FlowDriver` `on_flow_call`: the flow path of a child flow call as it is created,
+        checked against `max_passes` (`TooManyPasses` fails the child, and its parent
+        receives it where it awaits the child)."""
+        if event == "create":
+            self.check_passes(self.flow_call_created(call), f"flow call {call.id} ({call.function})", call.id)
+        elif event == "end":
             self.flow_call_ended(call)
 
     def check_passes(self, frames: tuple[Frame, ...], what: str, call_id: str) -> None:

@@ -736,3 +736,34 @@ def test_run_async_drives_the_flows_from_a_loop_of_the_callers_own(tmp_path):
 
     rep = asyncio.run(main())
     assert rep.ok and rep.value == "ab"
+
+
+def test_a_flow_call_is_on_record_once_it_creates_something(tmp_path):
+    async def helper(pending):
+        return await pending  # waits for its parent's task call: no record
+
+    async def sub(u):
+        return await summarize(u, path=u)  # creates a task: on record
+
+    async def flow():
+        first = summarize("a", path="a")
+        await asyncio.gather(first, summarize("b", path="b"))  # 0.1 and 0.2 wait only
+        await asyncio.create_task(helper(first))  # 0.3
+        done = await asyncio.gather(sub("c"))  # 0.4
+        follow = await write_doc("d", path="d")
+        return done, follow
+
+    rep = pipeline(tmp_path, stub(write_doc=lambda launch: "text")).run(flow)
+    assert rep.ok
+    rows = flow_call_rows(rep)
+    assert [r["id"] for r in rows if r["event"] == "start"] == ["0", "0.4"]
+    assert [r["id"] for r in rows if r["event"] == "end"] == ["0.4", "0"]
+    plan = {r["key"]: r for r in plan_rows(rep)}
+    assert {key: r["flow_call"] for key, r in plan.items()} == {
+        "summarize-a": "0",
+        "summarize-b": "0",
+        "summarize-c": "0.4",
+        "write_doc-d": "0",
+    }
+    # What the Tasks that left no record received reached the flow all the same.
+    assert plan["write_doc-d"]["created_from"] == ["summarize-c"]

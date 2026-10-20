@@ -12,19 +12,35 @@ with `await`; at this level it waits for a `Task` through `driver.wait`:
 
 Flow code runs on an event loop of the driver's own, its `FlowLoop` (`flowloop.py`):
 a queue of ready callbacks with no clock, no threads and no I/O. A flow call is one
-asyncio Task on it whose coroutine is a coroutine of an `async def` function: the top
-flow passed to `start()` (ids `"0"`, `"1"`, ... in start order), or a Task that flow
-code creates (`asyncio.gather` of coroutines, `asyncio.create_task`,
-`asyncio.TaskGroup.create_task`, `time_box`), whose id is `"<parent>.<n>"`, numbered
-from 1 in creation order within the parent. A Task asyncio makes around something else
-that flow code awaits (`gather` given what `wait` returns, or a task call) is no flow
-call and takes no number: such an awaitable is a coroutine to asyncio
-(`collections.abc.Coroutine.register`), so `gather` hands it to the loop as it is, and
-the loop tells it from a coroutine of flow code by its type. So the same flow code gives
-the same ids in every run, whatever order its tasks finish in. `await helper()` runs in
-the same flow call. The flow call whose code runs is a context variable (`current`).
-Each flow call is reported through `on_flow_call("start" | "end", call)`; its `state` is
-`running` until it `returned`, `raised` or was `closed` (cancelled).
+asyncio Task on it: the top flow passed to `start()` (ids `"0"`, `"1"`, ... in start
+order), or a Task created while a flow call's code runs (`asyncio.gather`,
+`asyncio.create_task`, `asyncio.TaskGroup.create_task`, `time_box`), whose id is
+`"<parent>.<n>"`, numbered from 1 in creation order within the parent. Every Task
+takes a number, the one asyncio makes around a task call that `gather` is given too
+(`ensure_future` wraps an awaitable that is no coroutine in one); since the flow loop
+runs its callbacks in the order they come, the same flow code gives the same ids in
+every run, whatever order its tasks finish in. `await helper()` runs in the same flow
+call. The flow call whose code runs is a context variable (`current`).
+
+A flow call is on record only once it does something a run shows: it creates a task
+(`add`, a task call) or a flow call, or it ends `raised` or with an error; a top flow
+call is on record from its start. So a Task that only awaits a task already created
+(asyncio's around `gather(task_call)`, or a helper that awaits its parent's task call)
+and ends otherwise leaves no record, and the ids on record may skip numbers. Each flow
+call is reported through `on_flow_call(event, call)`: `"create"` when its Task is
+created, `"start"` when it is put on record (its `started_at` is still its creation),
+`"end"` when it ends (`call.recorded` says whether it is on record). Its `state` is
+`running` until it `returned`, `raised` or was `closed` (cancelled). What it receives
+reaches its parent when it ends, on record or not.
+
+Why every Task counts: `asyncio.ensure_future`, which `gather` calls on each item,
+wraps an awaitable that is neither a future nor a coroutine (a task call) in a Task of
+a coroutine of asyncio's own. Telling that Task from a flow call's would take asyncio's
+internal names or a look at frames, and making a task call pass for a coroutine or a
+future would make it claim a protocol it does not keep. So the driver tells no Task
+apart: the numbers stay deterministic, and the record shows what a flow call did.
+`wait()` returns a coroutine that keeps the protocol (`send`, `throw`, `close`), used
+once, so `gather` hands it to the loop as any coroutine.
 
 Flow code runs only when the driver drains the flow loop (`settle`, `finish`): from a
 plain callback of the event loop that `driving()` runs on, never inside one of its Task
@@ -93,7 +109,6 @@ what its output is: that is `answer`'s business.
 
 from __future__ import annotations
 
-import abc
 import asyncio
 import collections.abc
 import contextlib
@@ -104,11 +119,10 @@ import logging
 import re
 import time
 import warnings
-import weakref
 from collections.abc import Awaitable, Callable, Coroutine, Generator, Iterable, Iterator
 from dataclasses import dataclass, field, replace
 from types import CodeType, FrameType, GeneratorType
-from typing import Any, Literal, NoReturn, Protocol, cast
+from typing import Any, Literal, NoReturn, Protocol
 
 from contraagent._internal.dispatch.code import flow_code
 from contraagent._internal.dispatch.entry import run_sync
@@ -138,8 +152,10 @@ class Answer(Protocol):
 
 
 class OnFlowCall(Protocol):
-    """`on_flow_call(event, call)`: a flow call started (`event` `"start"`) or ended
-    (`"end"`, its `state` and `value` or `error` set)."""
+    """`on_flow_call(event, call)`: a flow call was created (`event` `"create"`, before its
+    code runs), was put on record (`"start"`, at the first thing it does that a run shows),
+    or ended (`"end"`, its `state` and `value` or `error` set; `call.recorded` says whether
+    a `"start"` came)."""
 
     def __call__(self, event: str, call: FlowCall, /) -> None: ...
 
@@ -251,9 +267,10 @@ class FlowCall:
     `frontier`: the keys whose results it received when it was last resumed.
     `value`: what it returned; `error`: what it raised (or what cancelling it
     raised, or, for one closed because it waited for what nothing would answer,
-    the RuntimeError that says where it waited). `time_box`: its own deadline, when it was started through
-    `time_box`; `started_at` (`time.time()`): when it started. `task`: its
-    asyncio Task."""
+    the RuntimeError that says where it waited). `time_box`: its own deadline,
+    when it was started through `time_box`; `started_at` (`time.time()`): when it
+    started. `recorded`: whether it is on record (`on_flow_call("start")` came:
+    see the module docstring). `task`: its asyncio Task."""
 
     id: str
     parent: FlowCall | None = field(default=None, repr=False)
@@ -265,6 +282,7 @@ class FlowCall:
     error: BaseException | None = None
     time_box: TimeBox | None = None
     started_at: float = field(default_factory=time.time)
+    recorded: bool = False
     task: asyncio.Task[Any] | None = field(default=None, repr=False)
     #: Its coroutine (the flow code the Task runs).
     coro: Any = field(default=None, repr=False)
@@ -344,8 +362,6 @@ class FlowDriver:
         self._next: _Next | None = None
         self._made: FlowCall | None = None
         self._orders = itertools.count()
-        # The place of each Task that is no flow call, created by a flow call's code.
-        self._task_order: weakref.WeakKeyDictionary[asyncio.Task[Any], int] = weakref.WeakKeyDictionary()
 
     # --- the cycle -----------------------------------------------------------
 
@@ -550,21 +566,22 @@ class FlowDriver:
         call = _call.get()
         if call is not None:
             call._ran = True
+            self._record(call)
         self._enqueue(task, call)
 
-    def wait(self, item: Any) -> Awaitable[Any]:
-        """What flow code awaits for the task `waits_for(item)` gives (queued when it is not
-        yet): `answer(item, result)` once it finished. Past `past_grace()` a deferred task
-        cancels the flow call that waits (CancelledError)."""
-        return _Wait(self, item)
+    def wait(self, item: Any) -> Coroutine[Any, Any, Any]:
+        """A coroutine that waits for the task `waits_for(item)` gives (queued when it is not
+        yet) and returns `answer(item, result)` once it finished; awaited once, as any
+        coroutine. Past `past_grace()` a deferred task cancels the flow call that waits
+        (CancelledError)."""
+        return _Wait(self._waiting(item))
 
     def _waiting(self, item: Any) -> Generator[Any, None, Any]:
         task = self._waits_for(item)
         call = _call.get()
         here = asyncio.current_task()
         own = call is not None and here is call.task
-        order = self._task_order.get(here, -1) if not own and here is not None else -1
-        order = order if order >= 0 else next(self._orders)
+        order = next(self._orders)
         if own and call is not None:
             call._ran = True
         key = task.key
@@ -648,21 +665,16 @@ class FlowDriver:
             self._next = None
 
     def _make_task(self, coro: Any, *, name: str | None = None, context: contextvars.Context | None = None) -> asyncio.Task[Any]:
-        """`FlowLoop.create_task`: a coroutine of an async def function is a new flow call; any
-        other awaitable (what `wait` returns, a task call) is awaited in a Task that is no
-        flow call."""
+        """`FlowLoop.create_task`: every Task is a new flow call, numbered in its parent (the
+        flow call whose code creates it), which creating it puts on record (`_record`)."""
         nxt = self._next if self._next is not None and self._next.coro is coro else None
         self._next = None
         parent = _call.get()
-        if parent is not None:
-            parent._ran = True
-        if nxt is None and not inspect.iscoroutine(coro):
-            made = asyncio.Task(_awaiting(coro), loop=self._loop, name=name, context=context)
-            if parent is not None:  # a wait it runs has this place
-                self._task_order[made] = next(self._orders)
-            return made
         if nxt is not None and nxt.top:
             parent = None
+        if parent is not None:
+            parent._ran = True
+            self._record(parent)
         code = _code(coro)
         call_id = f"{parent.id}.{next(parent._children)}" if parent is not None else str(next(self._tops))
         call = FlowCall(
@@ -689,15 +701,28 @@ class FlowDriver:
         self._running += 1
         self._made = call
         try:
-            self._on_flow_call("start", call)
+            self._on_flow_call("create", call)
         except Exception as error:  # the child does not run; the parent receives the error
             coro.close()
             coro = _raise(error)
+        if parent is None:  # a top flow call is always on record
+            self._record(call)
         call.coro = coro
         task = asyncio.Task(coro, loop=self._loop, name=name, context=context)
         call.task = task
         task.add_done_callback(lambda t, call=call: self._task_done(call, t))
         return task
+
+    def _record(self, call: FlowCall) -> None:
+        """Put `call` on record (`on_flow_call("start", call)`), once: at the first thing it
+        does that a run shows. Its parent is on record already: creating it put it there."""
+        if call.recorded:
+            return
+        call.recorded = True
+        try:
+            self._on_flow_call("start", call)
+        except Exception:
+            _logger.exception("on_flow_call('start') of flow call %s raised", call.id)
 
     def _task_done(self, call: FlowCall, task: asyncio.Task[Any]) -> None:
         if call.state != "running":
@@ -716,6 +741,8 @@ class FlowDriver:
         call.value = value
         call.error = error
         self._running -= 1
+        if state == "raised" or error is not None:  # an error is something to see
+            self._record(call)
         try:
             self._on_flow_call("end", call)
         except Exception:
@@ -724,25 +751,34 @@ class FlowDriver:
             self._receive(call.parent, call.frontier, call._order)
 
 
-class _Wait:
-    """What `FlowDriver.wait` returns: awaited, it waits for its task (`FlowDriver._waiting`)."""
+class _Wait(collections.abc.Coroutine[Any, Any, Any]):
+    """What `FlowDriver.wait` returns: a coroutine over the generator of
+    `FlowDriver._waiting`, run once, by `await` or by a Task's `send` and `throw`."""
 
-    __slots__ = ("_driver", "_item")
+    __slots__ = ("_steps", "_used")
 
-    def __init__(self, driver: FlowDriver, item: Any) -> None:
-        self._driver, self._item = driver, item
+    def __init__(self, steps: Generator[Any, Any, Any]) -> None:
+        self._steps = steps
+        self._used = False
 
-    def __await__(self) -> Generator[Any, None, Any]:
-        return self._driver._waiting(self._item)
+    def __await__(self) -> Generator[Any, Any, Any]:
+        if self._used:
+            raise RuntimeError("cannot reuse an awaited FlowDriver.wait(): call wait() again")
+        self._used = True
+        return self._steps
 
+    def send(self, value: Any) -> Any:
+        self._used = True
+        return self._steps.send(value)
 
-# A coroutine to asyncio: `gather` and `ensure_future` hand it to the flow loop as it is,
-# which awaits it in a Task that is no flow call (`FlowDriver._make_task`).
-cast(abc.ABCMeta, collections.abc.Coroutine).register(_Wait)
+    def throw(self, typ: Any, val: Any = None, tb: Any = None) -> Any:
+        self._used = True
+        if val is None and tb is None:
+            return self._steps.throw(typ)
+        return self._steps.throw(typ, val, tb)  # pyright: ignore[reportCallIssue, reportArgumentType]
 
-
-async def _awaiting[T](awaitable: Awaitable[T]) -> T:
-    return await awaitable
+    def close(self) -> None:
+        self._steps.close()
 
 
 async def _raise(error: BaseException) -> NoReturn:

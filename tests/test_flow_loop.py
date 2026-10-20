@@ -112,7 +112,8 @@ def test_a_gather_nested_four_deep_reaches_the_next_wait_in_one_settle():
     driver, passes = run(top)
     assert passes == [["a", "b", "c", "e", "f"], ["next"]]
     assert (driver.calls["0"].state, driver.calls["0"].value) == ("returned", "v:next")
-    assert list(driver.calls) == ["0"]  # a gather of waits takes no flow call id
+    # Every Task of a gather takes a number; those that only wait leave no record.
+    assert len(driver.calls) == 6 and [c.id for c in driver.calls.values() if c.recorded] == ["0"]
 
 
 @pytest.mark.parametrize("depth", range(1, 7))
@@ -223,7 +224,12 @@ def test_cancelling_one_of_two_flow_calls_that_wait_for_a_key_leaves_the_other_i
 def test_one_task_call_awaited_by_two_flow_calls_one_of_them_cancelled():
     rec: dict[str, Any] = {}
     driver = make()
-    shared = driver.wait("s")  # awaited by both: each await waits on a future of its own
+
+    class Shared:  # awaited by both, as a task call is: each await waits on a future of its own
+        def __await__(self):
+            return driver.wait("s").__await__()
+
+    shared = Shared()
 
     async def a(d):
         await shared

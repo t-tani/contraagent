@@ -260,8 +260,8 @@ summary could not be made (`zeta`) ends its loop there.
 - Work at the same time is plain asyncio; contraagent adds no functions of its
   own for it. `await asyncio.gather(a, b)` waits for every item and receives the
   outputs in order, each with its own type. An item may be a task call or a child
-  flow, `sub(...)`: every asyncio Task that flow code starts for a coroutine is a
-  flow call of its own, beside the others, and what it returns is its item.
+  flow, `sub(...)`: every asyncio Task that flow code starts is a flow call of its
+  own, beside the others, and what it returns is its item.
   `asyncio.TaskGroup` and `asyncio.create_task` start flow calls in the same way.
 - Passing a received output on to another task is the dependency, as passing
   the task call is: the second review waits for the revision and reads its file.
@@ -443,9 +443,14 @@ use (3 and 4) are both taken, `pass` is null and no loop is bounded.
 A child flow that a flow gives to `asyncio.gather`, `asyncio.TaskGroup` or
 `asyncio.create_task` runs as its own flow call, so flows nest to any depth, with
 loops inside loops. A flow call's id is its parent's and a number: `0.1`, `0.1.2`,
-the n-th flow call its parent created, counted from 1. The numbers follow the order
+the n-th asyncio Task its parent created, counted from 1. The numbers follow the order
 of creation, not the order of finishing, so the same flow code gives the same ids in
-every run. `examples/analysis/flow.py` has three layers: `analyse` gathers one
+every run. Every Task takes a number, also the one asyncio makes around each task
+call given to `asyncio.gather`, but `flow_calls.jsonl` and the monitor show a flow
+call only once it creates a task or a flow call, or ends with an error. A Task that
+only waits for a task already created leaves no record, so the ids on record may
+skip numbers: `analyse_bundle` gathers two `classify` task calls first, and its
+`analyse_file` flow calls are then `0.1.3` and `0.1.4`. `examples/analysis/flow.py` has three layers: `analyse` gathers one
 `analyse_bundle` per bundle; each `analyse_bundle` fans out a `classify` per file (a
 group sized by what `unpack` returned), leaves out a file whose `classify` failed,
 and gathers one `analyse_file` per data file; each `analyse_file` picks its parser

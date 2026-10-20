@@ -2032,6 +2032,7 @@ class FlowCall
         error: BaseException | None = None,
         time_box: TimeBox | None = None,
         started_at: float = time.time(),
+        recorded: bool = False,
         task: asyncio.Task[Any] | None = None,
         coro: Any = None,
     ) -> None
@@ -2041,6 +2042,7 @@ class FlowCall
     function: str = ''
     id: str
     parent: FlowCall | None = field(default=None, repr=False)
+    recorded: bool = False
     site: tuple[str, int] | None = None
     started_at: float = field(default_factory=time.time)
     state: FlowState = 'running'
@@ -2076,7 +2078,7 @@ class FlowDriver
     slow_step_s
     def start(self, flow: Coroutine[Any, Any, Any]) -> FlowCall
     def time_boxes(self, call: FlowCall | None) -> tuple[TimeBox, ...]
-    def wait(self, item: Any) -> Awaitable[Any]
+    def wait(self, item: Any) -> Coroutine[Any, Any, Any]
 
 class FollowUp(Protocol)
     def __call__(self, result: TaskResult, /) -> list[Task]
