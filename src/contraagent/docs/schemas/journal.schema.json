@@ -644,7 +644,8 @@
         "invalid_input",
         "credential_mismatch",
         "skipped",
-        "partial"
+        "partial",
+        "cancelled"
       ],
       "title": "Stop",
       "type": "string"

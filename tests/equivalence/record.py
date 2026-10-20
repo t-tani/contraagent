@@ -78,6 +78,7 @@ class Flow:
 FLOWS = [
     Flow("analysis", "flow", "analyse", {"bundles": ["q3", "q4"]}),
     Flow("before", "flow", "backlogs", {"topics": {"search": ["faster index"], "billing": ["invoices by email"]}}),
+    Flow("cancel", "flow", "review", {"change": "c1"}),
     Flow("changes", "flow", "topics", {"subjects": {"alpha": "caching", "beta": "retries"}}),
     Flow("claims", "flow", "topics", {"names": UNITS}),
     Flow("concurrency", "flow", "reports", {"units": UNITS}),

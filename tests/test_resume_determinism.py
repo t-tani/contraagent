@@ -74,7 +74,7 @@ def in_finishing_order():
         order: list[str] = []
 
         async def one(unit: str, priority: float) -> None:
-            await write(unit, priority=priority)
+            await write.options(priority=priority)(unit)
             order.append(unit)
 
         await asyncio.gather(one("x", 0), one("y", 2))

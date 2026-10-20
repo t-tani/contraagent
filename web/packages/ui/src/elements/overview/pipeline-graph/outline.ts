@@ -32,7 +32,7 @@ export interface OutlineItem {
   parts: { id: string; layer: string[]; name: string }[];
 }
 
-const ZERO = (): NodeCounts => ({ total: 0, done: 0, partial: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0 });
+const ZERO = (): NodeCounts => ({ total: 0, done: 0, partial: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0, cancelled: 0 });
 
 /** The outline of the flow: the places of `stats` (from the top of the flow) as a tree, a loop an item around the places in it. */
 export function outlineTree(stats: ReadonlyMap<string, PlaceStats>): OutlineItem[] {

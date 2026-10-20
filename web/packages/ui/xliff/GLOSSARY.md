@@ -84,6 +84,7 @@ wherever the UI shows a state or a count to the reader.
 | partly done (a task or attempt whose output is only part of the work: a placeholder, or what a launch stopped for its time wrote; partial; neither done nor failed) | 一部のみ完了（「部分的に完了」「一部完了」は使わない） |
 | failed / not started | 失敗 / 未実行（文の中では「実行されていません」「実行されなかった」） |
 | waiting / running / skipped | 待機中 / 実行中 / スキップ |
+| cancelled (a task stopped, or never started, because nothing waited for its result any longer) | 取り消し（「キャンセル」「中止」は使わない） |
 | status (a task's outcome: done, failed, not started, ...) | 状態 |
 | outcome (how one attempt ended) | 結果 |
 | attempt N | N 回目 (not 「N 回目の試行」) |

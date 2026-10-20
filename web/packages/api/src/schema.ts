@@ -1379,7 +1379,7 @@ export type components = {
              * Stop
              * @enum {string}
              */
-            stop: "completed" | "timeout" | "max_turns" | "budget" | "context_budget" | "stalled" | "auth_failed" | "api_error" | "rate_limited" | "refused" | "aborted" | "denied" | "error" | "no_output" | "launch_failed" | "invalid_output" | "invalid_input" | "credential_mismatch" | "skipped" | "partial";
+            stop: "completed" | "timeout" | "max_turns" | "budget" | "context_budget" | "stalled" | "auth_failed" | "api_error" | "rate_limited" | "refused" | "aborted" | "denied" | "error" | "no_output" | "launch_failed" | "invalid_output" | "invalid_input" | "credential_mismatch" | "skipped" | "partial" | "cancelled";
             /** Ok */
             ok: boolean;
             /**
@@ -1919,6 +1919,11 @@ export type components = {
             skipped: number;
             /** Blocked */
             blocked: number;
+            /**
+             * Cancelled
+             * @default 0
+             */
+            cancelled?: number;
         };
         /** PlanMessage */
         PlanMessage: {
@@ -1969,7 +1974,7 @@ export type components = {
             priority?: number;
             /**
              * Credential
-             * @description the credential its task call names (`credential=`), which every route of its kind ran it as; empty when it names none, or a run-wide override outranks it
+             * @description the credential its call options name (`.options(credential=)`), which every route of its kind ran it as; empty when it names none, or a run-wide override outranks it
              * @default
              */
             credential?: string;
@@ -2004,7 +2009,7 @@ export type components = {
              * State
              * @enum {string}
              */
-            state: "pending" | "running" | "done" | "partial" | "failed" | "skipped" | "blocked";
+            state: "pending" | "running" | "done" | "partial" | "failed" | "skipped" | "blocked" | "cancelled";
             /**
              * Level
              * @description depth in the dependency graph, 0 for a task that waits for nothing
@@ -2712,7 +2717,8 @@ export type components = {
          * @description A run's tasks (not attempts) by how they ended. `not_started`: refused for
          *     an input, or waiting behind a task that failed; `running`: running now (in a
          *     live run); `waiting`: queued in a live run; `not_run`: deferred, or queued in a
-         *     run that is no longer live (it will not run).
+         *     run that is no longer live (it will not run); `cancelled`: cancelled once no flow
+         *     call waited for it (called with `.options(cancellable=True)`).
          */
         TaskCounts: {
             /** Total */
@@ -2743,6 +2749,11 @@ export type components = {
             not_run?: number;
             /** Skipped */
             skipped: number;
+            /**
+             * Cancelled
+             * @default 0
+             */
+            cancelled?: number;
         };
         /**
          * TaskDefinition

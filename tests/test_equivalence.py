@@ -109,6 +109,7 @@ PENDING: dict[str, str] = {}
 
 #: Flows that 0.6.2's examples do not have, and why they were added.
 NEW = {
+    "cancel.review": "the example of cancellable tasks: probes whose answers stop being needed (.options(cancellable=True))",
     "review.publish.approve": "the all-or-nothing example of keep going: one report only when every unit's loop got through (TaskGroup)",
 }
 

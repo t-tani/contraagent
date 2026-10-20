@@ -319,6 +319,11 @@ class _Holding:
         ask: Any = getattr(self._runner, "deferral", None)
         return ask(task) if ask is not None else None
 
+    def cancel(self, task: Task) -> None:
+        ask: Any = getattr(self._runner, "cancel", None)
+        if ask is not None:
+            ask(task)
+
     def run(self, task: Task) -> TaskResult:
         try:
             with self._services.held(task):

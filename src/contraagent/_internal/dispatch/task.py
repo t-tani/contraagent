@@ -161,9 +161,13 @@ class Task:
     `base_kind`: for a kind that is one of several implementations of one step, the
     step's kind (`agent_task(implementations=)`); empty for any other. Recorded in
     `plan.jsonl`; nothing here reads it.
-    `credential`: the credential its task call names (a `[credentials.<name>]`), which
+    `credential`: the credential its call options name (a `[credentials.<name>]`), which
     every route of its kind runs it as; empty: its kind's own. Routing, not work: no part
     of the fingerprint.
+    `cancellable`: its task call's options gave `cancellable=True`: once the flow call that
+    created it and every flow call that waited for it were closed, and no flow call waits for
+    it, the flow driver cancels it (`WorkQueue.cancel`). False: it runs to its end whatever
+    happens to its flow calls.
     """
 
     kind: str
@@ -189,6 +193,7 @@ class Task:
     outside: str = ""
     credential: str = ""
     fingerprint_parts: dict[str, str] = field(default_factory=dict)
+    cancellable: bool = False
 
     def __post_init__(self) -> None:
         # Generic, collision-safe fallbacks -- a domain that always assigns
@@ -225,6 +230,13 @@ STOP_DEFERRED = "deferred"
 STOP_DUPLICATE_KEY = "duplicate_key"
 # A Python task that returned a `Partial`: ok, its output a placeholder; a resume runs it again.
 STOP_PARTIAL = "partial"
+# A task called with `cancellable=True` that no flow call waits for any longer (`WorkQueue.cancel`):
+# not launched, or its launch stopped; not ok, not retried, run again by a resume.
+STOP_CANCELLED = "cancelled"
+
+
+#: Why a task ends `cancelled`, in one line.
+CANCELLED_REASON = "cancelled: no flow call waits for it any longer"
 
 
 @dataclass(frozen=True)
@@ -311,6 +323,11 @@ class TaskResult:
     @classmethod
     def deferred(cls, task: Task, deferral: Deferral) -> TaskResult:
         return cls(task=task, ok=False, stop=STOP_DEFERRED, reason=deferral.reason, cause=deferral.cause)
+
+    @classmethod
+    def cancelled(cls, task: Task, reason: str = "") -> TaskResult:
+        """The result of a task cancelled before it launched (`WorkQueue.cancel`)."""
+        return cls(task=task, ok=False, stop=STOP_CANCELLED, reason=reason or CANCELLED_REASON)
 
     @classmethod
     def duplicate_key(cls, task: Task) -> TaskResult:

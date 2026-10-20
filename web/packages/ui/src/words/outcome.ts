@@ -23,6 +23,8 @@ export function outcomeLabel(o: Outcome): string {
       return msg('waiting');
     case 'skipped':
       return msg('skipped');
+    case 'cancelled':
+      return msg('cancelled', { id: 'outcome-cancelled', desc: 'The status of a task that was stopped, or never started, because no part of the pipeline waited for its result any longer (cancelled)' });
   }
 }
 
@@ -55,6 +57,8 @@ export function stateCount(s: Outcome | 'not_run', n: number): string {
       return msg(str`${n} waiting`);
     case 'skipped':
       return msg(str`${n} skipped`);
+    case 'cancelled':
+      return msg(str`${n} cancelled`);
     case 'not_run':
       return msg(str`${n} not run`);
   }

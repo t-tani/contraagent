@@ -37,7 +37,7 @@ from contraagent._internal.backends.omp.backend import (
     session_args,
 )
 from contraagent._internal.backends.omp.wire import TraceReader
-from contraagent._internal.backends.process import LaunchError
+from contraagent._internal.backends.process import STOPPED, LaunchError, stop_requested
 from contraagent._internal.backends.refusal import FAILED_STOPS, Signals
 from contraagent._internal.backends.wire import EventFold, LimitsWatch, positive_int
 from contraagent._internal.platform.commands import commands
@@ -182,6 +182,8 @@ class OmpRpcBackend(OmpBackend):
         one, then `get_state`. A limit (`watch`, the deadline) sends `abort`. No process exit
         to weigh: the exit status is None."""
         assert isinstance(fold, RpcReader)
+        if stop_requested():
+            raise LaunchError(STOPPED)
         since = live_processes.epoch()
         try:
             proc = subprocess.Popen(
@@ -288,19 +290,22 @@ class OmpRpcBackend(OmpBackend):
             self._send(proc, {"id": "proto-1", "type": "negotiate_protocol", "protocolVersion": 2})
         self._send(proc, {"id": fold.prompt_id, "type": "prompt", "message": self._message(launch)})
         killed = self._drain_loop(proc, frames, fold, watch, deadline)
-        if killed is None:
+        if killed is None and not stop_requested():
             self._harvest_state(proc, frames, fold, deadline)
         return killed, ""
 
     def _drain_loop(self, proc: subprocess.Popen, frames: queue.Queue, fold: RpcReader, watch: LimitsWatch, deadline: float) -> Stop | None:
         """Frames until the terminal one. The kill reason, or None."""
         while True:
+            if stop_requested():  # its task was cancelled (`stopped_by`)
+                self._send(proc, {"id": f"{fold.prompt_id}-abort", "type": "abort"})
+                return None
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 self._send(proc, {"id": f"{fold.prompt_id}-abort", "type": "abort"})
                 return Stop.TIMEOUT
             try:
-                kind, payload = frames.get(timeout=min(remaining, 5.0))
+                kind, payload = frames.get(timeout=min(remaining, 1.0))
             except queue.Empty:
                 continue
             if kind == "eof":
