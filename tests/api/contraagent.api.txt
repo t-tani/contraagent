@@ -175,6 +175,13 @@ class Implementations[ParamsT: BaseModel | None, Out](Mapping[str, AgentTask[Par
     kind
     @property kinds: list[str]
 
+class InputFile
+    def __init__(self, path: str | os.PathLike[str]) -> None
+    @property path: Path
+    def read_bytes(self) -> bytes
+    def read_text(self, encoding: str = 'utf-8') -> str
+    @property sha256: str | None
+
 class LaunchError(ContraagentError)
 
 class Loop(RecordModel)
@@ -236,6 +243,7 @@ class Partial[Out]
 
 class Pending[Out]
     def __init__(self) -> None
+    def input_file(self) -> InputFile
     @property key: str
     @property ok: bool
     @property origin: Origin | None
@@ -368,13 +376,13 @@ class PythonTask[**P, Out]
         outside_state: OutsideState | None = None,
     ) -> None
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Pending[Out]
-    def arguments(self, unit: str, kwargs: dict[str, Any]) -> dict[str, Any]
+    def arguments(self, unit: str, kwargs: dict[str, Any], *, cwd: Path | None = None) -> dict[str, Any]
     claims: tuple[str, ...] = ()
     def definition(self, cwd: Path | None = None) -> dict[str, Any]
     def digest(self) -> str
     executor = 'python'
     fn: Callable[P, Any]
-    def invoke(self, unit: str, kwargs: dict[str, Any]) -> Any
+    def invoke(self, unit: str, kwargs: dict[str, Any], *, cwd: Path | None = None) -> Any
     kind: str
     def options(
         self,

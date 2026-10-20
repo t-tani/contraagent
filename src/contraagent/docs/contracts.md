@@ -273,7 +273,15 @@ succeeded: the flow receives its output. The params themselves are checked at th
 call: an agent task's instance of its params model again under the model, a Python
 task's against its parameters' annotations as it starts (`invalid_input`).
 
+A task of a pipeline reads no other task's file as it starts. A large input is given as
+an input file (`InputFile`): its path and hash are taken at the task call, and a file
+that no longer has that content as the task is about to start refuses the task
+(`invalid_input`; see [Tasks](tasks.md#large-inputs-input-files)). The file a task fills
+in (`output_of`) is read then for its fingerprint, and checked as its output after the
+launch, and the task's outside state is worked out then, a function that raises
+refusing the task. Nothing else is checked when a task starts.
+
 An **input contract** (`InputContract`) is a file a task reads, checked before launch,
-for a runner built on the engine (`TaskAdapter.input_contracts`): a file that is
-missing or off its schema refuses the task (`invalid_input`) rather than run it on
-nothing.
+for a runner built on the engine (`TaskAdapter.input_contracts`), not for a pipeline: a
+file that is missing or off its schema refuses the task (`invalid_input`) rather than run
+it on nothing.

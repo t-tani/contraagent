@@ -133,7 +133,8 @@ class JournalRow(RecordModel):
     fingerprint: str = ""
     #: The digest of each part of what the fingerprint covers, by the part's name
     #: (`Task.fingerprint_parts`): `definition`, `params`, `outside`, `output_of` (the file it
-    #: fills in, as it was when the attempt started); a run of 0.6 also has `output:<key>` (an
+    #: fills in, as it was when the attempt started), `input_files` (the path and hash of each
+    #: input file among its params, which `params` holds too); a run of 0.6 also has `output:<key>` (an
     #: output it read) and `after:<key>` (a task it only waited for). What a resume names when
     #: it runs the task again; empty in a run of an earlier release.
     fingerprint_parts: dict[str, str] = Field(default_factory=dict)
