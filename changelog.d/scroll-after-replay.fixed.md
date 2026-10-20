@@ -1,0 +1,1 @@
+The monitor returns to the same place in the history list after a reload, also when the run's rows arrive in parts, as on a slow machine or connection. Before, the position was set as soon as the first rows were tall enough, and the newer rows that arrived after them, above it in the list, moved the list down by their height.
