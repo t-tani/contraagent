@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -212,6 +213,35 @@ def test_the_credentials_example_runs_the_restricted_document_as_its_call_s_cred
     assert [(h["model"], h["credential"]) for h in rows["summarize-plan"]["hops"]] == [("claude-opus-5-5", "team")]
 
 
+def test_the_demo_check_counts_no_slow_step_for_contraagents_own_work(monkeypatch, caplog):
+    """A slow step is flow code's own time (`FlowLoop.slow_s`): the work contraagent does for
+    a task call is left out, however long it takes (on a busy machine, a cold process). Here
+    each task call takes ten seconds of contraagent's work, on the flow loop's clock."""
+    import time
+    from types import SimpleNamespace
+
+    from contraagent import Pipeline
+    from contraagent._internal.dispatch import flowloop
+    from contraagent._internal.pipeline import origin
+    from contraagent.docs.examples.demo.tasks import docs as demo_flow
+    from contraagent.testing import StubAgent
+
+    offset = [0.0]
+    monkeypatch.setattr(flowloop, "time", SimpleNamespace(monotonic=lambda: time.monotonic() + offset[0]))
+    frames_here = origin.frames_here
+
+    def slow_frames_here(*args, **kwargs):
+        offset[0] += 10.0
+        return frames_here(*args, **kwargs)
+
+    monkeypatch.setattr(origin, "frames_here", slow_frames_here)
+    with caplog.at_level("WARNING", logger="contraagent"):
+        report = Pipeline(EXAMPLES / "demo" / "pipeline.toml", backends=StubAgent().backends()).check(demo_flow, units=["alpha", "beta"])
+    assert report.ok, report
+    assert offset[0] >= 40  # each task call of the first steps took its ten seconds
+    assert "heavy work belongs in a Python task" not in caplog.text
+
+
 def test_the_demo_plugin_is_clean():
     assert Plugin.load(EXAMPLES / "demo" / "plugins" / "docs").lint() == []
 
@@ -245,28 +275,31 @@ def test_the_demo_runs_end_to_end_as_its_docstring_says(tmp_path, monkeypatch):
     assert notes["alpha"].startswith("# alpha\n")
 
 
-def test_the_demo_tests_pass_on_the_stub_agent():
+def _example_tests(path: Path, basetemp: Path) -> None:
+    """An example's own tests pass, in a pytest session of their own. Its temporary
+    directories are under `basetemp`: in pytest's shared one (`<temp dir>/pytest-of-<user>`),
+    each session that ends removes the old directories of others, and two sessions that end
+    at once can remove the same one. The session that loses that race warns, and warnings
+    are errors here: it would fail although every test passed."""
     proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", str(EXAMPLES / "demo" / "test_demo.py")],
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--basetemp", str(basetemp), str(path)],
         capture_output=True,
         text=True,
         encoding="utf-8",
     )
-    assert proc.returncode == 0, proc.stdout[-2000:]
+    assert proc.returncode == 0, proc.stdout[-2000:] + proc.stderr[-2000:]
+
+
+def test_the_demo_tests_pass_on_the_stub_agent(tmp_path):
+    _example_tests(EXAMPLES / "demo" / "test_demo.py", tmp_path / "basetemp")
 
 
 def test_the_tutorial_plugin_is_clean():
     assert Plugin.load(EXAMPLES / "tutorial" / "plugins" / "triage").lint() == []
 
 
-def test_the_tutorial_tests_pass_on_the_stub_agent():
-    proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", str(EXAMPLES / "tutorial" / "test_tutorial.py")],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
-    assert proc.returncode == 0, proc.stdout[-2000:]
+def test_the_tutorial_tests_pass_on_the_stub_agent(tmp_path):
+    _example_tests(EXAMPLES / "tutorial" / "test_tutorial.py", tmp_path / "basetemp")
 
 
 def test_the_tutorial_commands_print_what_the_page_shows(tmp_path):

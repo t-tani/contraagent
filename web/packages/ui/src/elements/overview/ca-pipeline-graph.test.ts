@@ -100,6 +100,31 @@ describe('ca-pipeline-graph', () => {
     expect([...m.querySelectorAll('table.matrix thead th.group')].map((n) => n.textContent)).toEqual(['Pass 1', 'Pass 2']);
   });
 
+  it('keeps the generic graph, and the focus in it, when the outline appears or moves', async () => {
+    const { el, root } = await graph(staticDemo());
+    // A narrow frame (`wide`, from the element's size reports).
+    const sized = el as unknown as { wide: boolean };
+    sized.wide = false;
+    await settle(el);
+    const inner = root.querySelector('cae-layered-graph');
+    expect(root.querySelector('nav.outline')).toBeNull();
+    // A plan that gains a function: the outline appears above the graph.
+    el.plan = reviewRun({ a: 1, b: 2 });
+    let g = await settle(el);
+    expect(root.querySelector('details.odet nav.outline')).not.toBeNull();
+    expect(root.querySelector('cae-layered-graph')).toBe(inner);
+    const name = g.querySelector<HTMLElement>('.cluster > .hd .name, .node .name')!;
+    name.focus();
+    // The frame becomes wide and narrow again: the outline moves beside the graph and back.
+    for (const wide of [true, false]) {
+      sized.wide = wide;
+      g = await settle(el);
+      expect(root.querySelector(wide ? '.whole.side > nav.outline' : 'details.odet nav.outline')).not.toBeNull();
+      expect(root.querySelector('cae-layered-graph')).toBe(inner);
+      expect(g.activeElement).toBe(name);
+    }
+  });
+
   it('sets the view route right, after the update, for a layer the run does not have', async () => {
     const { root, sent } = await graph(staticDemo(), { layer: 'flows.gone' });
     await Promise.resolve();

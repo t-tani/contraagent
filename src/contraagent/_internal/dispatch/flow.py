@@ -140,7 +140,8 @@ Rules:
 
 Flow code runs on the thread of the event loop that drives it; a callback of the flow
 loop longer than `slow_step_s` (a step of one flow call between two waits) is logged,
-and so is a drain that runs that long in all. Nothing here knows what a task does or
+and so is a drain that runs that long in all; contraagent's own work in the step (a task
+call, a flow call's creation) is not counted (`FlowLoop`, `not_flow_code`). Nothing here knows what a task does or
 what its output is: that is `answer`'s business.
 """
 
