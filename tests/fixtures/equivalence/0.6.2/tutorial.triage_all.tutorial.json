@@ -1,0 +1,49 @@
+{
+  "call": "examples/tutorial/tasks.py:triage_all",
+  "config": true,
+  "flow": "tutorial.triage_all.tutorial",
+  "kwargs": {
+    "reports": [
+      "login-timeout",
+      "csv-export",
+      "dark-mode"
+    ]
+  },
+  "outputs": {
+    "triage/csv-export.json": "fd1d177d20224d67b395c965c8a0e0c77f79085dd3fa079784e3e3535aa0d57d",
+    "triage/dark-mode.json": "fd1d177d20224d67b395c965c8a0e0c77f79085dd3fa079784e3e3535aa0d57d",
+    "triage/login-timeout.json": "2c5193da32b5e1ceadfbeab56fb71cad7abcaf2fd8566b8dd302ff5c086a80c6",
+    "write_table/write_table.json": "929c7da2ff7d2e9214ba96eae3cfba4bdc3be663f848707f0c39b8b274974b1f"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "tutorial",
+  "tasks": {
+    "python:write_table": {
+      "kind": "write_table",
+      "stop": "completed",
+      "unit": "python:write_table"
+    },
+    "triage-csv-export": {
+      "kind": "triage",
+      "stop": "completed",
+      "unit": "csv-export"
+    },
+    "triage-dark-mode": {
+      "kind": "triage",
+      "stop": "completed",
+      "unit": "dark-mode"
+    },
+    "triage-login-timeout": {
+      "kind": "triage",
+      "stop": "completed",
+      "unit": "login-timeout"
+    }
+  },
+  "value": "| Report | Severity | Area | Summary |\n|---|---|---|---|\n| login-timeout | high | login | Login fails on slow networks. |\n| csv-export | low | settings | Icons are hard to see in dark mode. |\n| dark-mode | low | settings | Icons are hard to see in dark mode. |\n"
+}

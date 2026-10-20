@@ -1,0 +1,49 @@
+{
+  "call": "examples/tutorial/tasks.py:triage_and_plan",
+  "config": true,
+  "flow": "tutorial.triage_and_plan",
+  "kwargs": {
+    "reports": [
+      "login-timeout",
+      "csv-export",
+      "dark-mode"
+    ]
+  },
+  "outputs": {
+    "triage/csv-export.json": "233d81f8c39a5116244bf32be3f9c02cff85a6a128759be322455e77c1e6d4e1",
+    "triage/dark-mode.json": "233d81f8c39a5116244bf32be3f9c02cff85a6a128759be322455e77c1e6d4e1",
+    "triage/login-timeout.json": "233d81f8c39a5116244bf32be3f9c02cff85a6a128759be322455e77c1e6d4e1",
+    "write_table/write_table.json": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "python:write_table": {
+      "kind": "write_table",
+      "stop": "completed",
+      "unit": "python:write_table"
+    },
+    "triage-csv-export": {
+      "kind": "triage",
+      "stop": "completed",
+      "unit": "csv-export"
+    },
+    "triage-dark-mode": {
+      "kind": "triage",
+      "stop": "completed",
+      "unit": "dark-mode"
+    },
+    "triage-login-timeout": {
+      "kind": "triage",
+      "stop": "completed",
+      "unit": "login-timeout"
+    }
+  },
+  "value": ""
+}

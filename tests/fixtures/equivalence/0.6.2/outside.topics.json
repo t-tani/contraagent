@@ -1,0 +1,48 @@
+{
+  "call": "examples/outside/flow.py:topics",
+  "config": false,
+  "flow": "outside.topics",
+  "kwargs": {
+    "names": [
+      "alpha",
+      "beta"
+    ]
+  },
+  "outputs": {
+    "count_open/alpha.json": "cc1bb0d0675e324ccc7f245b5300a1faa2bbfe94adac59d5041557ef10f2df95",
+    "count_open/beta.json": "cc1bb0d0675e324ccc7f245b5300a1faa2bbfe94adac59d5041557ef10f2df95",
+    "summarize/alpha.json": "aefd190dd5cbfe036b39ddefbc318fcd7158feb4664ae87179e69bc4bea78024",
+    "summarize/beta.json": "aefd190dd5cbfe036b39ddefbc318fcd7158feb4664ae87179e69bc4bea78024"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "python:count_open-alpha": {
+      "kind": "count_open",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "python:count_open-beta": {
+      "kind": "count_open",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "summarize-alpha": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "summarize-beta": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "beta"
+    }
+  },
+  "value": null
+}
