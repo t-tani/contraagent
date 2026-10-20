@@ -372,6 +372,9 @@ class FlowCall:
     _context: contextvars.Context | None = field(default=None, init=False, repr=False)
     # The keys of the results that reached it since it last resumed, in the order they came.
     _reached: dict[str, None] = field(default_factory=dict[str, None], init=False, repr=False)
+    # The keys of every result that reached it, its parent's when it was created, and those of
+    # the flow calls it started that ended (`FlowDriver.received`).
+    _received: set[str] = field(default_factory=set[str], init=False, repr=False)
     # It is being cancelled by the driver: it ends `closed`, whatever it ends with.
     _closing: bool = field(default=False, init=False, repr=False)
     # Why the driver closes it, when it waits for what nothing answers: its `error` then.
@@ -630,6 +633,16 @@ class FlowDriver:
     def _unused(self, top: str) -> tuple[str, ...]:
         return tuple(key for key in self._created.get(top, {}) if key not in self._used)
 
+    def received(self, call: FlowCall | None) -> frozenset[str]:
+        """The keys of the results that reached `call` (its causal past): every result that
+        resumed it or reached it in a callback (as for its frontier, but from its start, not
+        only its last resume), what its parent had received when it created `call`, and what
+        each flow call `call` started had received when that one ended. With no flow call (a
+        flow that does not wait), every result given so far."""
+        if call is None:
+            return frozenset(self.done)
+        return frozenset(call._received)
+
     def time_boxes(self, call: FlowCall | None) -> tuple[TimeBox, ...]:
         """The time boxes over the tasks `call` creates: its own and its ancestors',
         outermost first."""
@@ -735,6 +748,7 @@ class FlowDriver:
             call._cancellable.add(key)
         if result is not None and call is not None:  # given before: a resume by its key, at once
             call.frontier, call._reached = (key,), {}
+            call._received.add(key)
             self._loop.set_cause(call.frontier)
         if result is None:
             fut: asyncio.Future[TaskResult] = self._loop.create_future()
@@ -778,6 +792,7 @@ class FlowDriver:
         if call is None:
             return cause
         call._reached.update(dict.fromkeys(cause))
+        call._received.update(cause)
         if context is call._context:  # its Task runs every step in this context, and nothing else does
             last = ((sys.maxsize,), 0)  # a key queued elsewhere: after, in the order it came
             call.frontier = tuple(sorted(call._reached, key=lambda key: self._queued_keys.get(key, last)))
@@ -831,6 +846,8 @@ class FlowDriver:
             site=_site(parent) if parent is not None else None,
             frontier=parent.frontier if parent is not None else (),
         )
+        if parent is not None:  # what its parent had received is what it can be given
+            call._received = set(parent._received)
         if nxt is not None and nxt.box is not None:  # its clock starts now, with the flow call
             box = nxt.box
             call.time_box = TimeBox(
@@ -962,6 +979,8 @@ class FlowDriver:
         call.value = value
         call.error = error
         call.ended_at = time.time()
+        if call.parent is not None:  # what it received reaches its parent with what it returns
+            call.parent._received |= call._received
         if state == "returned":
             try:
                 self._used.update(self._holds(value))

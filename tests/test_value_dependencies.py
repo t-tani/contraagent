@@ -288,3 +288,39 @@ def test_a_flow_that_does_not_wait_lists_its_unawaited_tasks(tmp_path):
 
     rep = pipeline(tmp_path, Agent()).run(flow)
     assert flow_call_ends(rep)["0"]["unawaited"] == ["check-u"]
+
+
+# --- given from: the causal past of the creating flow call ----------------------------------
+
+
+def test_equal_outputs_of_sibling_flow_calls_do_not_cross(tmp_path):
+    async def unit(u):
+        doc = await write.options(key=f"write-{u}")("same")  # each unit's output is equal
+        await check.options(key=f"before-{u}")("same")
+        await check.options(key=f"check-{u}")("same", doc=doc)
+
+    async def flow():
+        await asyncio.gather(unit("a"), unit("b"))
+
+    rep = pipeline(tmp_path, Agent()).run(flow)
+    assert rep.ok
+    given = {k: r["given_from"] for k, r in plan(rep).items()}
+    assert given["check-a"] == ["write-a"] and given["check-b"] == ["write-b"]
+
+
+def test_a_value_passed_to_a_child_and_one_returned_by_a_child_count(tmp_path):
+    async def child(u, doc):
+        await check.options(key=f"check-{u}")("same", doc=doc)  # given as an argument
+        return await write.options(key=f"again-{u}")("same")
+
+    async def flow():
+        docs = await asyncio.gather(*[write.options(key=f"write-{u}")("same") for u in ("a", "b")])
+        returned = await asyncio.gather(*[child(u, d) for u, d in zip(("a", "b"), docs, strict=True)])
+        await check.options(key="all")("same", docs=list(returned))  # returned by the children
+
+    rep = pipeline(tmp_path, Agent()).run(flow)
+    assert rep.ok
+    given = {k: r["given_from"] for k, r in plan(rep).items()}
+    # Both writes reached the parent before it created the children, and their outputs are equal: both named.
+    assert given["check-a"] == given["check-b"] == ["write-a", "write-b"]
+    assert given["all"][:2] == ["write-a", "write-b"] and sorted(given["all"][2:]) == ["again-a", "again-b"]  # in creation order

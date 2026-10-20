@@ -2093,6 +2093,7 @@ class FlowDriver
     def flow_errors(self) -> list[FlowCall]
     def follow_up(self, result: TaskResult) -> list[Task]
     past_grace: Callable[[], bool] | None
+    def received(self, call: FlowCall | None) -> frozenset[str]
     def run(self, queue: WorkQueue, *flows: Coroutine[Any, Any, Any]) -> dict[str, Any]
     async def run_async(self, queue: WorkQueue, *flows: Coroutine[Any, Any, Any]) -> dict[str, Any]
     async def settle(self) -> bool
