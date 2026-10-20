@@ -244,7 +244,11 @@ class PlanRow(RecordModel):
     )
     executor: Executor = "agent"
     flow: list[Frame] = Field(default_factory=list, description="the flow path: frames of flow code that created it, outermost first")
-    created_from: list[str] = Field(default_factory=list, description="keys whose results its flow call had received when it created it")
+    created_from: list[str] = Field(
+        default_factory=list,
+        description="keys of the results that reached its flow call between that flow call's previous resume "
+        "and the one in which it created the task",
+    )
     flow_call: str | None = Field(None, description="the id of the flow call that created it; null for a task with no origin")
     base_kind: str = Field(
         "",

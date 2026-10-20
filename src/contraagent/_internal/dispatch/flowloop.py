@@ -45,6 +45,15 @@ An asynchronous generator that flow code starts during `drain()` is finalized on
 loop: `drain()` puts in the loop's own `sys.set_asyncgen_hooks` while it runs, and
 `close_asyncgens()` closes the ones still open, as `shutdown_asyncgens` does.
 
+Each ready callback also carries a cause: the keys of the task results that led to it.
+`call_soon` gives a callback the cause of the callback running now, or, outside
+`drain()`, the cause of `caused_by(keys)` around the code that completes a future (the
+driver, giving a result). Before a callback runs, `on_run(context, cause)` returns the
+cause of the callbacks it schedules; without `on_run`, its own. Since every callback of
+a Future or a Task goes through `call_soon`, the cause follows each future, done
+callback and Task step, inside `asyncio.gather` and `asyncio.TaskGroup` too, without
+reading them.
+
 A callback that runs longer than `slow_s` is reported to `on_slow(context, seconds)`;
 a drain that has run longer than `slow_s` in all, with no such callback before, is
 reported once, with no context. An exception a callback raises goes to the loop's
@@ -56,13 +65,14 @@ from __future__ import annotations
 
 import asyncio
 import collections
+import contextlib
 import contextvars
 import inspect
 import logging
 import sys
 import time
 import weakref
-from collections.abc import AsyncGenerator, Callable, Coroutine, Generator
+from collections.abc import AsyncGenerator, Callable, Coroutine, Generator, Iterator
 from typing import Any, NoReturn, Protocol, TypeVarTuple, cast
 
 _logger = logging.getLogger(__name__)
@@ -77,6 +87,17 @@ class MakeTask(Protocol):
     """`make_task(coro, name=, context=)`: the Task `FlowLoop.create_task` returns for `coro`."""
 
     def __call__(self, coro: Any, /, *, name: str | None = None, context: contextvars.Context | None = None) -> asyncio.Task[Any]: ...
+
+
+#: The keys of the task results that led to a callback (see the module docstring).
+Cause = tuple[str, ...]
+
+
+class OnRun(Protocol):
+    """`on_run(context, cause)`: a callback with `cause` is about to run in `context`; the
+    cause of the callbacks it schedules."""
+
+    def __call__(self, context: contextvars.Context, cause: Cause, /) -> Cause: ...
 
 
 class OnSlow(Protocol):
@@ -112,10 +133,20 @@ class FlowLoop(asyncio.AbstractEventLoop):
     """The event loop flow code runs on: a FIFO ready queue, run by `drain()` (see the
     module docstring)."""
 
-    def __init__(self, *, make_task: MakeTask | None = None, on_slow: OnSlow | None = None, slow_s: float = 1.0) -> None:
-        self._ready: collections.deque[tuple[asyncio.Handle, Callable[..., object], tuple[object, ...]]] = collections.deque()
+    def __init__(
+        self,
+        *,
+        make_task: MakeTask | None = None,
+        on_run: OnRun | None = None,
+        on_slow: OnSlow | None = None,
+        slow_s: float = 1.0,
+    ) -> None:
+        self._ready: collections.deque[tuple[asyncio.Handle, Callable[..., object], tuple[object, ...], Cause]] = collections.deque()
         self._make_task = make_task
+        self._on_run = on_run
         self._on_slow = on_slow
+        # The cause of the callback running now, or of `caused_by` outside a drain.
+        self._cause: Cause = ()
         self.slow_s = slow_s
         self._closed = False
         self._draining = False
@@ -126,7 +157,7 @@ class FlowLoop(asyncio.AbstractEventLoop):
 
     def call_soon(self, callback: Callable[[*_Ts], object], *args: *_Ts, context: contextvars.Context | None = None) -> asyncio.Handle:
         handle = asyncio.Handle(callback, args, self, context)
-        self._ready.append((handle, callback, args))
+        self._ready.append((handle, callback, args, self._cause))
         return handle
 
     def create_future(self) -> asyncio.Future[Any]:
@@ -196,6 +227,21 @@ class FlowLoop(asyncio.AbstractEventLoop):
 
     # --- the driver's side ----------------------------------------------------
 
+    @contextlib.contextmanager
+    def caused_by(self, cause: Cause) -> Iterator[None]:
+        """Within the block, outside `drain()`, a callback scheduled has `cause`."""
+        if self._draining:
+            raise RuntimeError("FlowLoop.caused_by() is for the code that drives the loop, outside drain()")
+        self._cause = cause
+        try:
+            yield
+        finally:
+            self._cause = ()
+
+    def set_cause(self, cause: Cause) -> None:
+        """Within the callback running now, a callback scheduled from here on has `cause`."""
+        self._cause = cause
+
     def ready(self) -> bool:
         """Whether a callback is ready to run: false once `drain()` returned and nothing was
         scheduled since."""
@@ -214,13 +260,15 @@ class FlowLoop(asyncio.AbstractEventLoop):
         told = False
         try:
             while self._ready:
-                handle, callback, args = self._ready.popleft()
+                handle, callback, args, cause = self._ready.popleft()
                 if handle.cancelled():
                     continue
                 ran += 1
+                context = handle.get_context()
+                self._cause = self._on_run(context, cause) if self._on_run is not None else cause
                 began = time.monotonic()
                 try:
-                    handle.get_context().run(callback, *args)
+                    context.run(callback, *args)
                 except (SystemExit, KeyboardInterrupt):
                     raise
                 except BaseException as exc:
@@ -229,12 +277,13 @@ class FlowLoop(asyncio.AbstractEventLoop):
                     now = time.monotonic()
                     if now - began > self.slow_s:
                         told = True
-                        self._on_slow(handle.get_context(), now - began)
+                        self._on_slow(context, now - began)
                     elif not told and now - start > self.slow_s:
                         told = True
                         self._on_slow(None, now - start)
         finally:
             self._draining = False
+            self._cause = ()
             sys.set_asyncgen_hooks(*hooks)
             asyncio._set_running_loop(previous)  # pyright: ignore[reportPrivateUsage]
         return ran
