@@ -42,7 +42,8 @@ def opencode(tmp_path):
     dump = tmp_path / "dump.json"
 
     def run(launch: Launch, **base) -> tuple:
-        env = {"PATH": f"{bindir}{os.pathsep}/usr/bin:/bin", **base}
+        # A home of its own: a login the host stores for opencode-go would send a request to opencode.ai.
+        env = {"PATH": f"{bindir}{os.pathsep}/usr/bin:/bin", "HOME": str(tmp_path / "home"), **base}
         result = OpencodeBackend(base_env=env).run(launch.__class__(**{**launch.__dict__, "env": {"FAKE_DUMP": str(dump), **launch.env}}))
         seen = json.loads(dump.read_text()) if dump.exists() else {}
         return result, seen
