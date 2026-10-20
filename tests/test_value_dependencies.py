@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Pipeline, agent_task, python_task
+from contraagent import Pipeline, Rows, agent_task, python_task
 from contraagent.testing import StubAgent
 
 
@@ -49,6 +49,7 @@ class Agent(StubAgent):
                 "write": lambda launch: {"unit": launch.unit, "text": self.text},
                 "check": lambda launch: reply,
                 "hold": lambda launch: reply,
+                "collect": lambda launch: [{"unit": "u", "text": "a"}, {"unit": "u", "text": "b"}],
             }
         )
 
@@ -171,7 +172,7 @@ def test_a_default_given_and_a_default_left_out_have_one_fingerprint(tmp_path):
 # --- a received output is a value ------------------------------------------------------------
 
 
-def test_a_copy_or_a_field_of_an_output_is_the_same_value(tmp_path):
+def test_a_copy_of_an_output_is_the_same_value_and_given_from_it(tmp_path):
     async def flow():
         doc = await write("u")
         check.options(key="whole")("u", doc=doc)
@@ -189,8 +190,26 @@ def test_a_copy_or_a_field_of_an_output_is_the_same_value(tmp_path):
     assert params["field"] == params["literal"] != params["built"]
     given = {k: r["given_from"] for k, r in plan(rep).items()}
     assert given["whole"] == given["copy"] == given["dumped"] == given["typed"] == ["write-u"]
-    assert given["field"] == given["literal"] == ["write-u"]  # by content alone
-    assert given["built"] == [] and given["write-u"] == []
+    assert given["field"] == given["literal"] == given["built"] == []  # a field of an output is no output
+    assert given["write-u"] == []
+    assert plan(rep)["field"]["created_from"] == ["write-u"]  # what it came after, all the same
+
+
+def test_a_whole_row_of_a_rows_output_records_the_edge(tmp_path):
+    collect = agent_task("collect", instructions="Collect.", output=Rows[Doc], max_turns=3, timeout_s=30)
+
+    async def flow():
+        rows = await collect("u")
+        for i, row in enumerate(rows):
+            check.options(key=f"row-{i}")("u", doc=row)
+        check.options(key="all")("u", docs=list(rows))
+        check.options(key="text")("u", text=rows[0].text)
+
+    rep = pipeline(tmp_path, Agent()).run(flow)
+    assert rep.ok, rep.failed
+    given = {k: r["given_from"] for k, r in plan(rep).items()}
+    assert given["row-0"] == given["row-1"] == given["all"] == ["collect-u"]
+    assert given["text"] == []
 
 
 def test_given_from_never_changes_what_a_resume_skips(tmp_path):

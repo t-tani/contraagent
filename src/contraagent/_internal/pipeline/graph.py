@@ -37,9 +37,10 @@ is numbered:
   `TooManyPasses` at the task call, and at the creation of a child flow call (a
   `for` loop ends with its iterable and has no limit);
 * it is given from (`Origin.given_from`) the tasks whose outputs the flow had received
-  when it created the task and whose content, or the content of a part of them, is
-  among its params: found by content alone, so a copy of an output or a field of it
-  counts as the output. It is shown only, never part of the fingerprint;
+  when it created the task and are among its params, at any depth: a value whose JSON
+  is that of a whole output, or of one whole item of an output that is a list (a Rows).
+  So a copy of an output counts as the output, and a field taken out of it does not.
+  It is shown only, never part of the fingerprint;
 * its fingerprint is a digest of its kind, unit, key, the JSON of its params (with a
   Python task's defaults filled in), and its definition (`AgentTask.digest`,
   `PythonTask.digest`). An output it was given is part of its params, by its content,
@@ -318,10 +319,10 @@ class Graph:
         self._named: dict[int, Any] = {}  # id(spec) -> every declaration reached or created, for `kind_clash`
         self._prefix: dict[str, tuple[Frame, ...]] = {}  # flow call id -> the frames before its own
         # The digest of each output the flow received -> the keys of the tasks whose output it
-        # is, and the digest of each part of one -> the keys of the tasks whose output holds it
-        # (`given_from`).
+        # is, and of each item of an output that is a list (a Rows) -> the keys of the tasks
+        # whose output holds it (`given_from`).
         self._outputs: dict[str, set[str]] = {}
-        self._inside: dict[str, set[str]] = {}
+        self._items: dict[str, set[str]] = {}
         self._layouts: dict[str, str] = {}  # output_name with its kind filled in -> the kind
         self._writers: dict[Path, str] = {}  # output file -> the key of the task it is given to
 
@@ -547,8 +548,9 @@ class Graph:
         whole = _digest(received)
         if whole is not None:
             self._outputs.setdefault(whole, set()).add(item.key)
-        for part in _parts(received):
-            self._inside.setdefault(part, set()).add(item.key)
+        for row in received if isinstance(received, list) else ():
+            if (digest := _digest(row)) is not None:
+                self._items.setdefault(digest, set()).add(item.key)
         return value
 
     def holds(self, value: Any) -> list[str]:
@@ -666,18 +668,18 @@ class Graph:
         self._named[id(spec)] = spec
 
     def _given_from(self, params: dict[str, Any]) -> tuple[str, ...]:
-        """The keys of the tasks whose outputs the flow received so far and whose content, or
-        the content of a part of them, is among `params` (the JSON of a task call's params),
-        in the order the tasks were created. Each value of the params, at any depth, is
-        matched first against the outputs whole, then against their parts; a value that
-        matches is not looked into further, so a value given whole names the task whose
-        output it is, not every task an output of which holds a field of it."""
+        """The keys of the tasks whose outputs the flow received so far and are among `params`
+        (the JSON of a task call's params), in the order the tasks were created. A value of
+        the params, at any depth, counts when its JSON is that of a whole output, or of one
+        whole item of an output that is a list (a Rows); a value that counts is not looked
+        into further. A field or a text taken out of an output, or a value built from it,
+        counts for nothing."""
         keys: set[str] = set()
         todo = list(params.values())
         while todo:
             value = todo.pop()
             digest = _digest(value)
-            if digest is not None and (found := self._outputs.get(digest) or self._inside.get(digest)):
+            if digest is not None and (found := self._outputs.get(digest) or self._items.get(digest)):
                 keys |= found
             elif isinstance(value, dict):
                 todo += value.values()
@@ -885,16 +887,6 @@ def _digest(value: Any) -> str | None:
     if isinstance(value, (dict, list, str)) and value:
         return hashlib.sha256(_canonical(value).encode()).hexdigest()
     return None
-
-
-def _parts(value: Any) -> Iterator[str]:
-    """The digest (`_digest`) of each part of `value`, a JSON value, at any depth: a value of
-    its fields or items, and the parts of those."""
-    inner = value.values() if isinstance(value, dict) else value if isinstance(value, list) else ()
-    for v in inner:
-        if (digest := _digest(v)) is not None:
-            yield digest
-        yield from _parts(v)
 
 
 def _inside(value: Any) -> Iterator[tuple[str, Any]]:

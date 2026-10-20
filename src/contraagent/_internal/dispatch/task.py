@@ -82,9 +82,9 @@ class Origin:
     (the flow call's frontier: see `FlowDriver`).
     `flow_call`: the id of the flow call that created it.
     `given_from`: the keys of the tasks whose outputs it was given in its params: of the
-    outputs the flow had received when it created the task, each one whose content, or the
-    content of a part of it, is among its params. Shown only, never part of its
-    fingerprint.
+    outputs the flow had received when it created the task, each one that is among its
+    params whole, or one whole item of which is (an output that is a list, a Rows), by its
+    JSON. Shown only, never part of its fingerprint.
     """
 
     flow: tuple[Frame, ...] = ()

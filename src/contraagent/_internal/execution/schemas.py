@@ -262,8 +262,8 @@ class PlanRow(RecordModel):
     flow_call: str | None = Field(None, description="the id of the flow call that created it; null for a task with no origin")
     given_from: list[str] = Field(
         default_factory=list,
-        description="keys of the tasks whose outputs it was given in its params, found by their content among its params; "
-        "shown only, never part of its fingerprint",
+        description="keys of the tasks whose outputs it was given in its params: an output, or one item of an output that "
+        "is a list, whose JSON is a value of its params; shown only, never part of its fingerprint",
     )
     base_kind: str = Field(
         "",

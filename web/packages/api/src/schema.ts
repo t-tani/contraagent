@@ -2006,7 +2006,7 @@ export type components = {
             flow_call?: string | null;
             /**
              * Given From
-             * @description keys of the tasks whose outputs it was given in its params, found by their content among its params; shown only, never part of its fingerprint
+             * @description keys of the tasks whose outputs it was given in its params: an output, or one item of an output that is a list, whose JSON is a value of its params; shown only, never part of its fingerprint
              */
             given_from?: string[];
             /**
