@@ -139,6 +139,50 @@ def not_flow_code() -> contextlib.AbstractContextManager[None]:
     return loop.not_flow_code() if isinstance(loop, FlowLoop) else contextlib.nullcontext()
 
 
+class Observed(Protocol):
+    """`observed(task, at_once)`: flow code got the value of `task`, a `FlowTask` that has
+    ended: an `await` of it returned (`at_once`: it had ended before the `await`, which did
+    not suspend), or its `result()` returned (`gather` collecting it, or flow code)."""
+
+    def __call__(self, task: FlowTask[Any], at_once: bool, /) -> None: ...
+
+
+class FlowTask[T](asyncio.Task[T]):
+    """The asyncio Task of a flow call: a subclass of `asyncio.Task`, as an event loop may
+    return from `create_task`, that tells `observed` when flow code gets its value. Every
+    way to get a Task's value goes through one of the two methods it overrides: an `await`
+    (`__await__`, the awaitable protocol) and `result()` (what `asyncio.gather` and a
+    wakeup call). `done()`, `exception()` and `cancelled()` give no value and tell nothing,
+    and neither does an `await` or a `result()` that raises."""
+
+    def __init__(
+        self,
+        coro: Coroutine[Any, Any, T],
+        *,
+        loop: asyncio.AbstractEventLoop,
+        name: str | None = None,
+        context: contextvars.Context | None = None,
+        observed: Observed | None = None,
+    ) -> None:
+        super().__init__(coro, loop=loop, name=name, context=context)
+        self._observed = observed
+
+    def result(self) -> T:
+        value = super().result()
+        if self._observed is not None:
+            self._observed(self, False)
+        return value
+
+    def __await__(self) -> Generator[Any, None, T]:
+        at_once = self.done()
+        value = yield from super().__await__()
+        if self._observed is not None:
+            self._observed(self, at_once)
+        return value
+
+    __iter__ = __await__
+
+
 class FlowLoop(asyncio.AbstractEventLoop):
     """The event loop flow code runs on: a FIFO ready queue, run by `drain()` (see the
     module docstring)."""

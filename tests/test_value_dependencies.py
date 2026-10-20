@@ -362,3 +362,50 @@ def test_a_childs_results_reach_its_parent_only_when_the_parent_awaits_it(tmp_pa
     rep = pipeline(tmp_path, Agent()).run(flow)
     assert rep.ok
     assert plan(rep)["final"]["given_from"] == (["write-child"] if awaits else [])
+
+
+async def _child():
+    return await write.options(key="write-child")("same")
+
+
+async def _child_ended():
+    """A child flow call, started and left to end: a task ordered after its write is awaited."""
+    started = asyncio.get_running_loop().create_task(_child())
+    await check_any.options(after=["write-child"], key="later")("same", Loose())
+    assert started.done()
+    return started
+
+
+@pytest.mark.parametrize("how", ["await", "gather", "taskgroup"])
+def test_a_child_that_ended_before_it_is_awaited_reaches_its_parent(tmp_path, how):
+    async def flow():
+        if how == "taskgroup":
+            async with asyncio.TaskGroup() as group:
+                started = group.create_task(_child())
+                await check_any.options(after=["write-child"], key="later")("same", Loose())
+            doc = await started  # ended within the group
+        else:
+            started = await _child_ended()
+            doc = await started if how == "await" else (await asyncio.gather(started))[0]
+        await check_any.options(key="final")("same", Loose(doc=doc))
+
+    rep = pipeline(tmp_path, Agent()).run(flow)
+    assert rep.ok
+    final = plan(rep)["final"]
+    assert final["given_from"] == ["write-child"]
+    assert "write-child" in final["created_from"]
+    if how == "await":  # the await resumes the flow call at once, by the child's frontier
+        assert final["created_from"] == ["write-child"]
+
+
+def test_a_childs_end_seen_without_its_value_reaches_no_one(tmp_path):
+    async def flow():
+        started = await _child_ended()
+        assert started.done() and started.exception() is None  # neither gives its value
+        await check_any.options(key="final")("same", Loose(doc={"unit": "same", "text": "first"}))
+        await started
+
+    rep = pipeline(tmp_path, Agent()).run(flow)
+    assert rep.ok
+    final = plan(rep)["final"]
+    assert final["given_from"] == [] and final["created_from"] == ["later"]

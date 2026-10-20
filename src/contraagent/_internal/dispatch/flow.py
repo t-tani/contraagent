@@ -111,8 +111,11 @@ Rules:
   ends, which brings that flow call's frontier. An await of a result given before
   resumes it at once, by that key. So a `gather` gives the union of its items, an
   awaited child flow call its frontier when it ended, a child starts with its parent's,
-  and the results of a task or a flow call that nothing awaits reach no one; awaiting a
-  flow call that has already ended does not resume, so it brings nothing. The keys are
+  and the results of a task or a flow call that nothing awaits reach no one. Awaiting a
+  flow call that has already ended does not suspend; it resumes the flow call at once,
+  by that flow call's frontier, as an await of a result given before does: its Task, a
+  `FlowTask`, tells the driver when flow code gets its value (`await`, and `result()`,
+  which `gather` calls on an item that has ended). The keys are
   listed by the flow call that queued each (by id), then in the order it queued them:
   so a flow whose code does not depend on the order its tasks finish in gives the same
   frontiers in every order. How the driver finds them: each callback of the flow loop
@@ -177,7 +180,7 @@ from typing import Any, Literal, NoReturn, Protocol
 
 from contraagent._internal.dispatch.code import contraagent_file, flow_code
 from contraagent._internal.dispatch.entry import run_sync
-from contraagent._internal.dispatch.flowloop import DRAIN_CODE, Cause, FlowLoop
+from contraagent._internal.dispatch.flowloop import DRAIN_CODE, Cause, FlowLoop, FlowTask
 from contraagent._internal.dispatch.queue import GRACE_S, SLACK_SHARE, WorkQueue
 from contraagent._internal.dispatch.records import Frame
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, STOP_SKIPPED, Task, TaskResult, TimeBox
@@ -472,6 +475,8 @@ class FlowDriver:
         self._wake_due = False
         self._next: _Next | None = None
         self._made: FlowCall | None = None
+        # The flow call whose step the flow loop runs now (a callback in its own context).
+        self._step: FlowCall | None = None
         # The keys of the tasks created under each top flow call (by id; "" for a flow that
         # does not wait), in creation order, and the keys of those used (see `unawaited`).
         self._created: dict[str, dict[str, None]] = {}
@@ -638,9 +643,9 @@ class FlowDriver:
         resumed it or reached it in a callback (as for its frontier, but from its start, not
         only its last resume), what its parent had received when it created `call`, and what
         each flow call whose end `call` observed (awaited directly, through `gather` or a
-        `TaskGroup`, or in a done callback in its context) had received. A flow call it
-        started and never awaited gives it nothing, and neither does one that had already
-        ended when `call` awaited it (as for the frontier: the await does not resume `call`). With no flow call (a flow that does not
+        `TaskGroup`, or in a done callback in its context) had received, whether it was
+        still running or had already ended when `call` got its value (`FlowTask`). A flow
+        call it started and never awaited gives it nothing. With no flow call (a flow that does not
         wait), every result given so far."""
         if call is None:
             return frozenset(self.done)
@@ -794,6 +799,7 @@ class FlowDriver:
         becomes what reached it, and what the step schedules is led by its frontier and all it
         received."""
         call = context.get(_call)
+        self._step = call if call is not None and context is call._context else None
         if call is None:
             return cause
         led = cause if isinstance(cause, _Led) else _Led()
@@ -881,7 +887,9 @@ class FlowDriver:
             self._record(call)
         call.coro = coro
         call._context = context
-        task = asyncio.Task(coro, loop=self._loop, name=name, context=context)
+        task = FlowTask(
+            coro, loop=self._loop, name=name, context=context, observed=lambda t, at_once, call=call: self._observe(call, at_once)
+        )
         call.task = task
         # In an empty context: the driver's own callback reaches no flow call.
         task.add_done_callback(lambda t, call=call: self._task_done(call, t), context=contextvars.Context())
@@ -1012,6 +1020,29 @@ class FlowDriver:
         if state == "closed":
             for key in sorted(call._cancellable):
                 self._cancel_unwaited(key)
+
+    def _observe(self, child: FlowCall, at_once: bool) -> None:
+        """Flow code got the value of `child`, a flow call that ended (`FlowTask`): what
+        `child` had received reaches the flow call whose code runs, and so does its frontier
+        when nothing else brings it. An `await` of a child that had ended before it does not
+        resume the flow call: as an await of a result given before, it resumes it at once,
+        by the child's frontier. `gather` collecting the child's value in a done callback
+        brings its frontier to the next resume; `gather` of items that had all ended collects
+        them in the step that calls it, and their frontiers join the flow call's at once. In
+        a step that a callback of the child resumed, the cause already brought both."""
+        call = _call.get()
+        if call is None or call is child:
+            return
+        call._received |= child._received
+        if self._step is not call:  # a callback in its context: the next resume brings it
+            call._reached.update(dict.fromkeys(child.frontier))
+            return
+        if at_once:  # an await that did not suspend: a resume by the child's end, at once
+            call.frontier, call._reached = child.frontier, {}
+        else:  # got in a step without a resume (`gather` of items that had all ended), or one that brought it
+            last = ((sys.maxsize,), 0)
+            call.frontier = tuple(sorted({*call.frontier, *child.frontier}, key=lambda key: self._queued_keys.get(key, last)))
+        self._loop.set_cause(_Led(call.frontier, frozenset(call._received)))
 
     def _ended(self, call: FlowCall) -> None:
         try:
