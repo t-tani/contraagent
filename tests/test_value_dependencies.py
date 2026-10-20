@@ -316,8 +316,8 @@ def test_a_flow_that_does_not_wait_lists_its_unawaited_tasks(tmp_path):
 def test_equal_outputs_of_sibling_flow_calls_do_not_cross(tmp_path):
     async def unit(u):
         doc = await write.options(key=f"write-{u}")("same")  # each unit's output is equal
-        await check.options(key=f"before-{u}")("same")
-        await check.options(key=f"check-{u}")("same", doc=doc)
+        await check_any.options(key=f"before-{u}")("same", Loose())
+        await check_any.options(key=f"check-{u}")("same", Loose(doc=doc))
 
     async def flow():
         await asyncio.gather(unit("a"), unit("b"))
@@ -330,13 +330,13 @@ def test_equal_outputs_of_sibling_flow_calls_do_not_cross(tmp_path):
 
 def test_a_value_passed_to_a_child_and_one_returned_by_a_child_count(tmp_path):
     async def child(u, doc):
-        await check.options(key=f"check-{u}")("same", doc=doc)  # given as an argument
+        await check_any.options(key=f"check-{u}")("same", Loose(doc=doc))  # given as an argument
         return await write.options(key=f"again-{u}")("same")
 
     async def flow():
         docs = await asyncio.gather(*[write.options(key=f"write-{u}")("same") for u in ("a", "b")])
         returned = await asyncio.gather(*[child(u, d) for u, d in zip(("a", "b"), docs, strict=True)])
-        await check.options(key="all")("same", docs=list(returned))  # returned by the children
+        await check_any.options(key="all")("same", Loose(docs=list(returned)))  # returned by the children
 
     rep = pipeline(tmp_path, Agent()).run(flow)
     assert rep.ok
@@ -356,8 +356,8 @@ def test_a_childs_results_reach_its_parent_only_when_the_parent_awaits_it(tmp_pa
         if awaits:
             await started  # resumed by the child's end
         else:
-            await check.options(after=["write-child"], key="later")("same")  # the child's result is given before
-        await check.options(key="final")("same", doc={"unit": "same", "text": "first"})  # equal to the child's output
+            await check_any.options(after=["write-child"], key="later")("same", Loose())  # the child's result is given before
+        await check_any.options(key="final")("same", Loose(doc={"unit": "same", "text": "first"}))  # equal to the child's output
 
     rep = pipeline(tmp_path, Agent()).run(flow)
     assert rep.ok
