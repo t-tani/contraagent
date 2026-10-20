@@ -56,7 +56,10 @@ reading them.
 
 A callback that runs longer than `slow_s` is reported to `on_slow(context, seconds)`;
 a drain that has run longer than `slow_s` in all, with no such callback before, is
-reported once, with no context. An exception a callback raises goes to the loop's
+reported once, with no context. Both count the time of flow code only: contraagent's own
+work that flow code calls (a task call, the creation of a flow call, the analysis of a
+loop), marked by `not_flow_code()`, is left out. It is the same on every machine and
+takes longer on a busy one; moving work to a Python task would not shorten it. An exception a callback raises goes to the loop's
 exception handler (by default, a logged error); SystemExit and KeyboardInterrupt stop
 `drain()` and are raised again.
 """
@@ -129,6 +132,12 @@ def not_run_here(what: str) -> TypeError:
     return TypeError(f"{what}: contraagent runs the event loop of flow code; flow code does not start, stop or close it")
 
 
+def not_flow_code() -> contextlib.AbstractContextManager[None]:
+    """`FlowLoop.not_flow_code()` of the flow loop that runs on this thread; nothing outside one."""
+    loop = asyncio._get_running_loop()  # pyright: ignore[reportPrivateUsage]
+    return loop.not_flow_code() if isinstance(loop, FlowLoop) else contextlib.nullcontext()
+
+
 class FlowLoop(asyncio.AbstractEventLoop):
     """The event loop flow code runs on: a FIFO ready queue, run by `drain()` (see the
     module docstring)."""
@@ -150,6 +159,10 @@ class FlowLoop(asyncio.AbstractEventLoop):
         self.slow_s = slow_s
         self._closed = False
         self._draining = False
+        # The time of contraagent's own work in flow code so far (`not_flow_code`), and how
+        # deep such work is nested now (only the outermost counts).
+        self._own_s = 0.0
+        self._own_depth = 0
         self._handler: Callable[[asyncio.AbstractEventLoop, dict[str, Any]], object] | None = None
         self._asyncgens: weakref.WeakSet[AsyncGenerator[Any, Any]] = weakref.WeakSet()
 
@@ -175,8 +188,22 @@ class FlowLoop(asyncio.AbstractEventLoop):
         if kwargs:
             raise TypeError(f"FlowLoop.create_task() takes no {', '.join(kwargs)}")
         if self._make_task is not None:
-            return self._make_task(coro, name=name, context=context)
+            with self.not_flow_code():
+                return self._make_task(coro, name=name, context=context)
         return asyncio.Task(cast(Coroutine[Any, Any, T], coro), loop=self, name=name, context=context)
+
+    @contextlib.contextmanager
+    def not_flow_code(self) -> Iterator[None]:
+        """Contraagent's own work that flow code calls: its time is not flow code's, so a
+        slow step (`slow_s`) leaves it out."""
+        self._own_depth += 1
+        began = time.monotonic()
+        try:
+            yield
+        finally:
+            self._own_depth -= 1
+            if not self._own_depth:
+                self._own_s += time.monotonic() - began
 
     def time(self) -> float:
         """`time.monotonic()`: what `asyncio.timeout(None)` reads; nothing here schedules by it."""
@@ -256,7 +283,7 @@ class FlowLoop(asyncio.AbstractEventLoop):
         sys.set_asyncgen_hooks(firstiter=self._asyncgen_firstiter, finalizer=self._asyncgen_finalizer)
         self._draining = True
         ran = 0
-        start = time.monotonic()
+        start, own_start = time.monotonic(), self._own_s
         told = False
         try:
             while self._ready:
@@ -266,7 +293,7 @@ class FlowLoop(asyncio.AbstractEventLoop):
                 ran += 1
                 context = handle.get_context()
                 self._cause = self._on_run(context, cause) if self._on_run is not None else cause
-                began = time.monotonic()
+                began, own_began = time.monotonic(), self._own_s
                 try:
                     context.run(callback, *args)
                 except (SystemExit, KeyboardInterrupt):
@@ -275,12 +302,14 @@ class FlowLoop(asyncio.AbstractEventLoop):
                     self.call_exception_handler({"message": "exception in a callback", "exception": exc, "handle": handle})
                 if self._on_slow is not None:
                     now = time.monotonic()
-                    if now - began > self.slow_s:
+                    step = now - began - (self._own_s - own_began)
+                    drained = now - start - (self._own_s - own_start)
+                    if step > self.slow_s:
                         told = True
-                        self._on_slow(context, now - began)
-                    elif not told and now - start > self.slow_s:
+                        self._on_slow(context, step)
+                    elif not told and drained > self.slow_s:
                         told = True
-                        self._on_slow(None, now - start)
+                        self._on_slow(None, drained)
         finally:
             self._draining = False
             self._cause = ()
