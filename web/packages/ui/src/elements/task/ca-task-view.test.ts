@@ -88,6 +88,67 @@ describe('ca-task-view', () => {
     el.remove();
   });
 
+  it('shows its input files, the lineage of its earlier and later tasks, where its failure stopped a flow call, and a divergence', async () => {
+    const sha = 'ab'.repeat(32);
+    const count: TaskDetail = {
+      ...emptyDetail('count-a'),
+      rows: [
+        row('count-a', { attempt: 0, fingerprint_parts: { definition: 'd1', params: 'p1' } }),
+        row('count-a', {
+          ts: '2026-10-11T00:00:09', attempt: 0, ok: false, stop: 'error', reason: 'boom',
+          fingerprint_parts: { definition: 'd1', params: 'p2' }, rerun: 'divergence: the flow gave it other params; changed: its params',
+        }),
+      ],
+      io: {
+        ...emptyDetail('count-a').io,
+        input_files: [
+          { param: 'note', path: 'out/write/a.md', sha256: sha, writer: 'write-a', check: 'passed', reason: '' },
+          { param: 'spec', path: 'in/spec.md', sha256: sha, writer: null, check: 'refused', reason: 'input file in/spec.md changed after the task call' },
+        ],
+        upstream: [
+          { key: 'write-a', kind: 'write', unit: 'a', executor: 'agent', outputs: [], lineage: ['given_from'] },
+          { key: 'index-a', kind: 'index', unit: 'a', executor: 'agent', outputs: [], lineage: ['after'] },
+          { key: 'plan-a', kind: 'plan', unit: 'a', executor: 'agent', outputs: [], lineage: ['created_from'] },
+        ],
+        downstream: [
+          { key: 'report', kind: 'report', unit: '', executor: 'python', lineage: ['given_from', 'created_from'] },
+          { key: 'publish', kind: 'publish', unit: '', executor: 'agent', lineage: ['after'] },
+        ],
+      },
+    };
+    const plan = {
+      nodes: [],
+      groups: [],
+      flow_calls: [
+        {
+          id: '0.1', parent: '0', function: 'flows.review_loop', flow: [], state: 'raised', error: 'TaskFailed: count-a',
+          raised_at: { function: 'flows.review_loop', file: 'flows.py', line: 42, loops: [] }, raised_by: 'count-a', unawaited: [],
+        },
+      ],
+    } as unknown as Plan;
+    const { client } = fakeClient({ 'count-a': count });
+    const el = await view({ client, taskKey: 'count-a', plan });
+    const meta = text(root(el).querySelector('.taskmeta'));
+    expect(text(root(el).querySelector('.taskmeta .stopped'))).toBe('This failure stopped review_loop at flows.py:42');
+    expect(text(root(el).querySelector('.taskmeta .rerun'))).toBe('Ran again after a resume | divergence | Changed: params divergence');
+    expect(meta).toContain('divergence');
+
+    el.view = 'input';
+    await el.updateComplete;
+    const files = [...root(el).querySelectorAll('.pane .infile')].map(text);
+    expect(files).toEqual([
+      'same content at the startout/write/a.md Param note | sha256 abababababab | Output of write · a',
+      'changed before the startin/spec.md Param spec | sha256 abababababab input file in/spec.md changed after the task call',
+    ]);
+    const tags = [...root(el).querySelectorAll('.pane .upstream .lineage')].map((t) => [text(t), t.getAttribute('data-lineage')]);
+    expect(tags).toEqual([['given output', 'given_from'], ['runs after', 'after'], ['created after result', 'created_from']]);
+
+    el.view = 'output';
+    await el.updateComplete;
+    expect([...root(el).querySelectorAll('.pane .down')].map(text)).toEqual(['given outputreport', 'runs afterpublish']);
+    el.remove();
+  });
+
   it('loads the task and shows its header: name, verdict, a chip per attempt', async () => {
     const { client, asked } = fakeClient({ 'review-a': review });
     const el = await view({ client, taskKey: 'review-a' });
@@ -217,7 +278,7 @@ describe('ca-task-view', () => {
     el.view = 'input';
     await el.updateComplete;
     const headings = () => [...root(el).querySelectorAll('.pane h4.sect-h')].map(text);
-    expect(headings()).toEqual(['Parameters', 'Input files', 'Earlier tasks', 'Prompt']);
+    expect(headings()).toEqual(['Parameters', 'Input files', 'Checked files it reads', 'Earlier tasks', 'Prompt']);
     expect(root(el).querySelectorAll('.pane .io-card')).toHaveLength(1);
 
     el.view = 'output';

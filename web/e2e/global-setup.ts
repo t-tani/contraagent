@@ -10,6 +10,11 @@ export default function globalSetup(): void {
   rmSync(where, { recursive: true, force: true });
   mkdirSync(where, { recursive: true });
   const project = fileURLToPath(new URL('../..', import.meta.url));
+  // An earlier run of the nested flow over one more bundle: the forecast of the demo's `analyse` run.
+  execFileSync('uv', ['run', '--project', project, 'python', fileURLToPath(new URL('./earlier.py', import.meta.url))], {
+    cwd: where,
+    stdio: 'inherit',
+  });
   execFileSync('uv', ['run', '--project', project, 'python', '-m', 'contraagent.docs.examples.demo.run', '--no-serve', '--fast'], {
     cwd: where,
     stdio: 'inherit',

@@ -1,4 +1,4 @@
-import { deriveRun, type JournalRow, type LaunchEvent, type MonitorClient, type Plan, type TaskDetail, type TaskOutcome } from '@contraagent/api';
+import { deriveRun, type JournalRow, type LaunchEvent, type MonitorClient, type Plan, type TaskDetail, type TaskOutcome, type UpstreamTask } from '@contraagent/api';
 import { localized, msg } from '@lit/localize';
 import { LitElement, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
@@ -129,7 +129,9 @@ export class CaTaskView extends LitElement {
     const io = d.io;
     const py = isPy(d) && !d.stream;
     const n: Partial<Record<TaskView, number>> = {
-      input: new Set([...io.inputs.map((o) => o.path), ...io.upstream.flatMap((u) => u.outputs.map((o) => o.path))]).size + Object.keys(io.params).length,
+      input:
+        new Set([...io.inputs.map((o) => o.path), ...(io.input_files ?? []).map((f) => f.path), ...io.upstream.filter(readsFrom).flatMap((u) => u.outputs.map((o) => o.path))]).size +
+        Object.keys(io.params).length,
       output: io.outputs.length,
     };
     return html`<div class="tviews" role="tablist">
@@ -155,3 +157,6 @@ declare global {
     'ca-task-view': CaTaskView;
   }
 }
+
+/** An earlier task this one reads from or waits for (not one it was only created after); every one of an export written before lineage. */
+const readsFrom = (u: UpstreamTask): boolean => !u.lineage?.length || u.lineage.some((l) => l !== 'created_from');

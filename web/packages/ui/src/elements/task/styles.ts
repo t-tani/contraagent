@@ -56,8 +56,12 @@ export const taskViewStyles = css`
   /* A positioned box: what is placed in it (a screen reader's text) scrolls with it, not past the view's end. */
   .pane { flex: 1 1 auto; min-height: 0; overflow: auto; position: relative; }
   .upstream { margin-bottom: 12px; }
-  .up-hd { display: flex; align-items: center; gap: 10px; margin: 2px 0 6px; }
-  .down { display: flex; flex-wrap: wrap; gap: 8px; }
+  .up-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 2px 0 6px; }
+  .down { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+  /* How a task is joined to an earlier one, drawn as the graph draws its edge: given output solid, runs after dotted, created after result dashed. */
+  .lineage { font-size: 11px; color: var(--text-2); border: 1.5px solid var(--line2); border-radius: 999px; padding: 0 7px; white-space: nowrap; }
+  .lineage[data-lineage='after'] { border-style: dotted; }
+  .lineage[data-lineage='created_from'] { border-style: dashed; }
   .notrans { flex: 1 1 auto; border: 1px solid var(--line); border-radius: 14px; }
   details.upstream > summary { cursor: pointer; list-style: none; }
   details.upstream > summary::-webkit-details-marker { display: none; }

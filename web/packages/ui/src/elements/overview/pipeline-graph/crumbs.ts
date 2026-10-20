@@ -1,11 +1,17 @@
 // The line above the frame: where the layer is, the pinned unit, and a layer the run does not have.
+import type { Forecast, Plan } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
+import { forecastShown, notInPlan } from '../../../adapters/forecast.js';
+import { forecastLine, forecastTip, notInPlanLine } from '../../../words/forecast.js';
 import { html, nothing, type TemplateResult } from 'lit';
 import { shortName } from '../../../adapters/graph/flow-index.js';
 import { splitLayer } from '../../../adapters/graph/layer.js';
 import { LOOP_SEGMENT } from '../../../adapters/graph/types.js';
 import { where } from '../../../adapters/graph/words.js';
 import { emit } from '../../../core/events.js';
+import { kindUnit } from '../../../words/format.js';
+import { unawaitedCount, unawaitedTip } from '../../../words/flow-calls.js';
+import { taskChip } from '../../shared/task-chip.js';
 import { go } from './actions.js';
 import type { PipelineHost } from './host.js';
 
@@ -72,4 +78,26 @@ export function missingLine(missing: string) {
   const segs = missing.split('/');
   const name = segs[segs.length - 1] || missing;
   return html`<div class="missing" role="status" title=${missing}>${msg(html`No layer <code>${name}</code> in this run`)}</div>`;
+}
+
+/** The tasks a top flow call created that no flow awaited (`FlowCallNode.unawaited`): a count and their names, each a chip that opens it. */
+export function unawaitedLine(h: PipelineHost) {
+  const keys = [...new Set((h.plan.flow_calls ?? []).filter((f) => f.parent === null).flatMap((f) => f.unawaited ?? []))];
+  if (!keys.length) return nothing;
+  return html`<div class="unawaited" title=${unawaitedTip()}>
+    <span class="meta">${unawaitedCount(keys.length)}</span>
+    ${keys.map((k) => {
+      const n = h.links.byKey.get(k);
+      return taskChip(h.el, n ? kindUnit(n) : k, n ?? { key: k });
+    })}
+  </div>`;
+}
+
+/** The forecast, when it expects tasks this run has not created: their count, time and cost, and the kinds not in the plan yet. */
+export function forecastNote(plan: Plan, forecast: Forecast | null) {
+  if (!forecastShown(forecast)) return nothing;
+  const missing = notInPlanLine(notInPlan(forecast, plan));
+  return html`<div class="forecast" title=${forecastTip(forecast)}><span class="expected-mark" aria-hidden="true"></span>${forecastLine(forecast)}${missing
+    ? html`<span class="sep" aria-hidden="true"> | </span>${missing}`
+    : nothing}</div>`;
 }

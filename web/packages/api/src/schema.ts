@@ -162,6 +162,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run}/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Forecast
+         * @description The tasks the run is expected to create and has not yet, from the run of the same flow that finished last before it started; a display only.
+         */
+        get: operations["api_forecast_api_runs__run__forecast_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run}/definitions": {
         parameters: {
             query?: never;
@@ -609,15 +629,23 @@ export type components = {
             executor?: "agent" | "python";
             /**
              * Params
-             * @description the task's params that are strings, numbers or booleans; an earlier task's output is one of `inputs`
+             * @description the task's params that are strings, numbers or booleans
              */
             params?: {
                 [key: string]: string | number | boolean;
             };
             /** Outputs */
             outputs?: components["schemas"]["ContractSpec"][];
-            /** Inputs */
+            /**
+             * Inputs
+             * @description its input contracts (`InputContract`, from a `TaskAdapter` of the engine), checked before it starts
+             */
             inputs?: components["schemas"]["ContractSpec"][];
+            /**
+             * Input Files
+             * @description the input files among its params (`{"path", "sha256"}`), in the order of its params
+             */
+            input_files?: components["schemas"]["InputFileParam"][];
         } & {
             [key: string]: unknown;
         };
@@ -840,7 +868,10 @@ export type components = {
         } & {
             [key: string]: unknown;
         };
-        /** DownstreamTask */
+        /**
+         * DownstreamTask
+         * @description A later task: one given from this task, waiting for it, or created from it.
+         */
         DownstreamTask: {
             /** Key */
             key: string;
@@ -853,6 +884,11 @@ export type components = {
              * @enum {string}
              */
             executor: "agent" | "python";
+            /**
+             * Lineage
+             * @description how it is joined to this task, in the order `given_from`, `after`, `created_from`
+             */
+            lineage?: ("given_from" | "after" | "created_from")[];
         };
         /**
          * DroppedRoute
@@ -1034,6 +1070,115 @@ export type components = {
              * @description for a top flow call that ended: the keys of the tasks created in it or in the flow calls it started that nothing awaited, waited for with `after=` or returned; they ran all the same
              */
             unawaited?: string[];
+        };
+        /**
+         * Forecast
+         * @description The tasks the run is expected to create and has not yet, with their wall time and
+         *     cost, from the run of the same flow that finished last before it started (`run.json`
+         *     `flow`). A display only: the schedule never reads it, and a run that creates fewer or
+         *     more tasks than the earlier run is no error.
+         */
+        Forecast: {
+            /**
+             * Flow
+             * @description `module.qualname` of the run's top flow (`run.json` `flow`); empty for a run of an earlier release
+             */
+            flow: string;
+            /**
+             * Earlier Run
+             * @description the run it reads; empty when no run of the same flow finished before this one started
+             */
+            earlier_run: string;
+            /**
+             * Earlier Finished At
+             * @description when the earlier run finished, ISO 8601; empty when there is none
+             */
+            earlier_finished_at: string;
+            /**
+             * Entries
+             * @description by tail key, in the order the earlier run created the first task of each
+             */
+            entries: components["schemas"]["ForecastEntry"][];
+            /**
+             * Remaining
+             * @description the entries' `remaining`, summed
+             */
+            remaining: number;
+            /**
+             * Wall S
+             * @description the entries' `wall_s`, summed
+             */
+            wall_s: number;
+            /**
+             * Cost Usd
+             * @description the entries' `cost_usd`, summed; null when none has one
+             */
+            cost_usd: number | null;
+        };
+        /**
+         * ForecastEntry
+         * @description The tasks of one tail key in the earlier run the forecast reads, and how many of them
+         *     this run has created. A tail key is the flow path's function names, the kind, and the
+         *     passes of the loops around it, each capped at 3.
+         */
+        ForecastEntry: {
+            /**
+             * Kind
+             * @description the kind of the earlier run's first task of it
+             */
+            kind: string;
+            /**
+             * Group
+             * @description the group its kind is drawn in (`PlanGroup.id`)
+             */
+            group: string;
+            /**
+             * Flow
+             * @description the function names of its flow path, outermost first
+             */
+            flow: string[];
+            /**
+             * Passes
+             * @description the passes of the loops around it, outermost first, each capped at 3 (3: the third pass and later); null for a loop whose pass was not recorded
+             */
+            passes: (number | null)[];
+            /**
+             * Expected
+             * @description the tasks of it the earlier run created
+             */
+            expected: number;
+            /**
+             * Created
+             * @description the tasks of it this run has created
+             */
+            created: number;
+            /**
+             * Remaining
+             * @description `expected` less `created`, never below 0
+             */
+            remaining: number;
+            /**
+             * Wall S
+             * @description the wall time of the `remaining` tasks, at the earlier run's mean per task (every attempt counted)
+             */
+            wall_s: number;
+            /**
+             * Cost Usd
+             * @description the cost of the `remaining` tasks in USD, at the earlier run's mean per task; null when the earlier run reported none
+             */
+            cost_usd: number | null;
+        };
+        /**
+         * ForecastMessage
+         * @description The forecast, sent when it changed: a task the run creates takes one off it.
+         */
+        ForecastMessage: {
+            /**
+             * Event
+             * @constant
+             */
+            event: "forecast";
+            data: components["schemas"]["Forecast"];
         };
         /**
          * Frame
@@ -1294,6 +1439,25 @@ export type components = {
             hosts?: boolean;
             /** @description set only in an export: what it holds; a server never sends it */
             export?: components["schemas"]["ExportInfo"] | null;
+        };
+        /**
+         * InputFileParam
+         * @description An input file among a task's params: its place in the params, its path and the
+         *     SHA-256 of its content taken at the task call.
+         */
+        InputFileParam: {
+            /**
+             * Param
+             * @description its place in the params: the param's name, then a list's index or a field's name (`notes/0`)
+             */
+            param: string;
+            /**
+             * Path
+             * @description as the params hold it: relative to the run's working directory, or absolute for an output file outside it
+             */
+            path: string;
+            /** Sha256 */
+            sha256: string;
         };
         /**
          * JournalMessage
@@ -2296,7 +2460,7 @@ export type components = {
          * RunEvent
          * @description One message of /events?run=
          */
-        RunEvent: components["schemas"]["JournalMessage"] | components["schemas"]["ProcsMessage"] | components["schemas"]["PlanMessage"] | components["schemas"]["OutputsMessage"] | components["schemas"]["CursorMessage"] | components["schemas"]["PanelMessage"] | components["schemas"]["ReadyMessage"];
+        RunEvent: components["schemas"]["JournalMessage"] | components["schemas"]["ProcsMessage"] | components["schemas"]["PlanMessage"] | components["schemas"]["OutputsMessage"] | components["schemas"]["ForecastMessage"] | components["schemas"]["CursorMessage"] | components["schemas"]["PanelMessage"] | components["schemas"]["ReadyMessage"];
         /**
          * RunSummary
          * @description One run directory, as the run picker lists it.
@@ -2903,8 +3067,16 @@ export type components = {
             params: {
                 [key: string]: unknown;
             };
-            /** Inputs */
+            /**
+             * Inputs
+             * @description its input contracts (`ContractRecord.inputs`)
+             */
             inputs: components["schemas"]["ContractSpec"][];
+            /**
+             * Input Files
+             * @description the input files among its params
+             */
+            input_files?: components["schemas"]["TaskInputFile"][];
             /** Outputs */
             outputs: components["schemas"]["ContractSpec"][];
             /**
@@ -2916,6 +3088,40 @@ export type components = {
             upstream: components["schemas"]["UpstreamTask"][];
             /** Downstream */
             downstream: components["schemas"]["DownstreamTask"][];
+        };
+        /**
+         * TaskInputFile
+         * @description An input file of the task, with the task whose output file it is and its check.
+         */
+        TaskInputFile: {
+            /**
+             * Param
+             * @description its place in the params: the param's name, then a list's index or a field's name (`notes/0`)
+             */
+            param: string;
+            /**
+             * Path
+             * @description as the params hold it: relative to the run's working directory, or absolute for an output file outside it
+             */
+            path: string;
+            /** Sha256 */
+            sha256: string;
+            /**
+             * Writer
+             * @description the key of the task it was given from whose output file it is; null for another file
+             */
+            writer?: string | null;
+            /**
+             * Check
+             * @enum {string}
+             */
+            check: "passed" | "refused" | "not_checked";
+            /**
+             * Reason
+             * @description for one `refused`: why, as the refusal names it; else empty
+             * @default
+             */
+            reason?: string;
         };
         /**
          * TaskLaunch
@@ -3649,7 +3855,10 @@ export type components = {
             /** Inflight */
             inflight: string[];
         };
-        /** UpstreamTask */
+        /**
+         * UpstreamTask
+         * @description An earlier task: one this task was given from, waits for, or was created from.
+         */
         UpstreamTask: {
             /** Key */
             key: string;
@@ -3664,6 +3873,11 @@ export type components = {
             executor: "agent" | "python";
             /** Outputs */
             outputs: components["schemas"]["ContractSpec"][];
+            /**
+             * Lineage
+             * @description how this task is joined to it, in the order `given_from`, `after`, `created_from`
+             */
+            lineage?: ("given_from" | "after" | "created_from")[];
         };
         /** ValidationError */
         ValidationError: {
@@ -3928,6 +4142,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Outputs"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_forecast_api_runs__run__forecast_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Forecast"];
                 };
             };
             /** @description Validation Error */
