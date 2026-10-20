@@ -71,7 +71,10 @@ def main(argv: list[str] | None = None) -> int:
             if isinstance(stream, io.TextIOWrapper):
                 stream.reconfigure(encoding="utf-8", errors="replace")
     args = parser(argv[0] if argv else None).parse_args(argv)
-    if not args.serves and sys.platform != "win32":  # Windows has no SIGPIPE
+    # Windows has no SIGPIPE. The handler is put back when the command returns: a program
+    # that calls `main` keeps its own.
+    sigpipe = signal.getsignal(signal.SIGPIPE) if sys.platform != "win32" else None
+    if sigpipe is not None and not args.long_running:
         # Output piped into `head` ends quietly, as a command line tool's should.
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     try:
@@ -80,6 +83,9 @@ def main(argv: list[str] | None = None) -> int:
         args.parser.error(str(exc))
     except (CommandError, MissingExtra) as exc:
         print(f"{args.parser.prog}: {exc}", file=sys.stderr)
+    finally:
+        if sigpipe is not None:
+            signal.signal(signal.SIGPIPE, sigpipe)
     return 2
 
 
@@ -96,7 +102,7 @@ def parser(command: str | None = "") -> argparse.ArgumentParser:
     for name, (module, help) in MODULES.items():
         if command == "" or command == name:
             mod = importlib.import_module(module)
-            add_command(sub, name, help=help, add_arguments=mod.add_arguments, run=mod.run, serves=True)
+            add_command(sub, name, help=help, add_arguments=mod.add_arguments, run=mod.run, long_running=True)
         else:
             sub.add_parser(name, help=help)
 
@@ -165,6 +171,7 @@ def parser(command: str | None = "") -> argparse.ArgumentParser:
         help="run a flow, as `check` names it, and report its tasks (for more control, call Pipeline.run from Python)",
         add_arguments=_run_arguments,
         run=_flow_command,
+        long_running=True,
         epilog="exit status: 0 when the run is ok (RunReport.ok: no task and no flow call failed), 1 when it is not "
         "(in a stub run too: a task whose example fails its validators has failed), or when the run is refused "
         "before its first task (the config, the routing, a run id that holds a run, the preflight), "

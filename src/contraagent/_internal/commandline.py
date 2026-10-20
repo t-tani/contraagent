@@ -45,15 +45,17 @@ def add_command(
     help: str,
     add_arguments: Callable[[argparse.ArgumentParser], None],
     run: Callable[[argparse.Namespace], int],
-    serves: bool = False,
+    long_running: bool = False,
     epilog: str | None = None,
 ) -> argparse.ArgumentParser:
     """Add the command `name` to `subparsers`: its arguments, and `run` as what it does.
-    `serves`: it runs until stopped (a server, a relay), so its output is not cut short by a
-    closed pipe. `epilog`: printed after its options (its exit status)."""
+    `long_running`: it runs servers or agents (a server, a relay, a run), so a closed pipe,
+    to its output or to an agent's input, is an error it handles (BrokenPipeError), never
+    the end of the process by SIGPIPE. `epilog`: printed after its options (its exit
+    status)."""
     parser = subparsers.add_parser(name, help=help, epilog=epilog)
     add_arguments(parser)
-    parser.set_defaults(run=run, parser=parser, serves=serves)
+    parser.set_defaults(run=run, parser=parser, long_running=long_running)
     return parser
 
 
