@@ -38,7 +38,7 @@ import re
 import shutil
 import sys
 import time
-from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -500,25 +500,6 @@ def correction_prompt(contracts: Sequence[OutputContract], checks: Sequence[Chec
     return "\n".join(parts)
 
 
-_SHA256 = re.compile(r"[0-9a-f]{64}")
-
-
-def input_files_of(params: Any, at: str = "") -> list[dict[str, str]]:
-    """The input files among a task's params: each value, at any depth, that is an input
-    file's JSON (`{"path", "sha256"}`, the hash 64 hex digits), as `{"param", "path",
-    "sha256"}`, `param` the value's place in the params (`notes/0`: a list's first item
-    under `notes`), in the order of the params."""
-    if isinstance(params, Mapping):
-        if set(params) == {"path", "sha256"} and isinstance(params["path"], str) and _SHA256.fullmatch(str(params["sha256"])):
-            return [{"param": at, "path": params["path"], "sha256": params["sha256"]}]
-        items: Iterable[tuple[Any, Any]] = params.items()
-    elif isinstance(params, (list, tuple)):
-        items = enumerate(params)
-    else:
-        return []
-    return [f for k, v in items for f in input_files_of(v, f"{at}/{k}" if at else str(k))]
-
-
 def record_contracts(
     run_dir: Path, task, output_contracts: Sequence[OutputContract], input_contracts: Sequence[InputContract], cwd: Path
 ) -> None:
@@ -528,10 +509,10 @@ def record_contracts(
     (`AgentRunner`) and the Python-task path (`PythonTaskRunner`): the same
     declaration covers both. Best-effort: a record the monitor cannot draw must
     never fail a launch."""
-    given = getattr(task, "params", None) or {}
-    params = {k: v for k, v in given.items() if isinstance(v, (str, int, float, bool)) and k not in ("preamble",)}
-    files = input_files_of(given)
-    if not (output_contracts or input_contracts or params or files):
+    params = {
+        k: v for k, v in (getattr(task, "params", None) or {}).items() if isinstance(v, (str, int, float, bool)) and k not in ("preamble",)
+    }
+    if not (output_contracts or input_contracts or params):
         return
 
     def spec(c, role: str) -> dict:
@@ -569,7 +550,6 @@ def record_contracts(
         "params": params,
         "outputs": [spec(c, "output") for c in output_contracts],
         "inputs": [spec(c, "input") for c in input_contracts],
-        "input_files": files,
     }
     try:
         (Path(run_dir) / layout.CONTRACTS).mkdir(parents=True, exist_ok=True)

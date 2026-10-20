@@ -622,17 +622,6 @@ class ContractSpec(Open):
     errors: list[str] = Field(default_factory=list)
 
 
-class InputFileParam(Closed):
-    """An input file among a task's params: its place in the params, its path and the
-    SHA-256 of its content taken at the task call."""
-
-    param: str = Field(description="its place in the params: the param's name, then a list's index or a field's name (`notes/0`)")
-    path: str = Field(
-        description="as the params hold it: relative to the run's working directory, or absolute for an output file outside it"
-    )
-    sha256: str
-
-
 class ContractRecord(Open):
     """What one task declared it reads and leaves behind (`contracts/<key>.json`)."""
 
@@ -647,9 +636,6 @@ class ContractRecord(Open):
     inputs: list[ContractSpec] = Field(
         default_factory=list,
         description="its input contracts (`InputContract`, from a `TaskAdapter` of the engine), checked before it starts",
-    )
-    input_files: list[InputFileParam] = Field(
-        default_factory=list, description='the input files among its params (`{"path", "sha256"}`), in the order of its params'
     )
 
 
@@ -873,9 +859,16 @@ class DownstreamTask(Closed):
 InputFileCheck = Literal["passed", "refused", "not_checked"]
 
 
-class TaskInputFile(InputFileParam):
-    """An input file of the task, with the task whose output file it is and its check."""
+class TaskInputFile(Closed):
+    """An input file among the task's params (`plan.jsonl` `input_files`): its place in the
+    params, its path and the SHA-256 of its content taken at the task call, the task whose
+    output file it is, and its check as the task was about to start."""
 
+    param: str = Field(description="its place in the params: the param's name, then a list's index or a field's name (`notes/0`)")
+    path: str = Field(
+        description="as the params hold it: relative to the run's working directory, or absolute for an output file outside it"
+    )
+    sha256: str
     writer: str | None = Field(None, description="the key of the task it was given from whose output file it is; null for another file")
     check: InputFileCheck
     reason: str = Field("", description="for one `refused`: why, as the refusal names it; else empty")

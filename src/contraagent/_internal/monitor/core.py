@@ -1082,7 +1082,7 @@ class Monitor:
         return {
             "params": self._call_params(run, key, rec.get("params", {})),
             "inputs": rec.get("inputs", []),
-            "input_files": _input_files(rec, node, by_key, rows if rows is not None else self._rows(run, key)),
+            "input_files": _input_files(node, by_key, rows if rows is not None else self._rows(run, key)),
             "outputs": rec.get("outputs", []),
             "executor": rec.get("executor", node.get("executor", "agent")),
             "upstream": upstream,
@@ -1301,10 +1301,8 @@ def lineage_of(node: Mapping[str, Any]) -> dict[str, list[str]]:
     return out
 
 
-def _input_files(
-    rec: Mapping[str, Any], node: Mapping[str, Any], records: Mapping[Any, Mapping[str, Any]], rows: list[dict[str, Any]]
-) -> list[dict[str, Any]]:
-    """A task's input files (`ContractRecord.input_files`), each with `writer`, the task it
+def _input_files(node: Mapping[str, Any], records: Mapping[Any, Mapping[str, Any]], rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """A task's input files (its plan row's `input_files`), each with `writer`, the task it
     was given from whose output file it is (by the path), and `check`: `refused` when its
     last journal row is a refusal (`invalid_input`) that names its path, `passed` when a
     journal row shows the task started, else `not_checked`."""
@@ -1312,7 +1310,7 @@ def _input_files(
     started = any(r.get("stop") not in ("invalid_input", "skipped") for r in rows)
     refusal = str(last.get("reason") or "") if last is not None and last.get("stop") == "invalid_input" else ""
     out = []
-    for f in rec.get("input_files") or ():
+    for f in node.get("input_files") or ():
         if not isinstance(f, Mapping) or not isinstance(f.get("path"), str):
             continue
         path = f["path"]

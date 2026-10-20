@@ -641,11 +641,6 @@ export type components = {
              * @description its input contracts (`InputContract`, from a `TaskAdapter` of the engine), checked before it starts
              */
             inputs?: components["schemas"]["ContractSpec"][];
-            /**
-             * Input Files
-             * @description the input files among its params (`{"path", "sha256"}`), in the order of its params
-             */
-            input_files?: components["schemas"]["InputFileParam"][];
         } & {
             [key: string]: unknown;
         };
@@ -1441,25 +1436,6 @@ export type components = {
             export?: components["schemas"]["ExportInfo"] | null;
         };
         /**
-         * InputFileParam
-         * @description An input file among a task's params: its place in the params, its path and the
-         *     SHA-256 of its content taken at the task call.
-         */
-        InputFileParam: {
-            /**
-             * Param
-             * @description its place in the params: the param's name, then a list's index or a field's name (`notes/0`)
-             */
-            param: string;
-            /**
-             * Path
-             * @description as the params hold it: relative to the run's working directory, or absolute for an output file outside it
-             */
-            path: string;
-            /** Sha256 */
-            sha256: string;
-        };
-        /**
          * JournalMessage
          * @description One journal row, sent once per row: the whole journal on connect, then each new row.
          */
@@ -2173,6 +2149,13 @@ export type components = {
              * @description keys of the tasks whose outputs it was given in its params: an output, or one item of an output that is a list, whose JSON is a value of its params; shown only, never part of its fingerprint
              */
             given_from?: string[];
+            /**
+             * Input Files
+             * @description the input files among its params, as its task call hashed them: `param` (its place in the params, `notes/0`), `path` and `sha256`; absent when it has none
+             */
+            input_files?: {
+                [key: string]: string;
+            }[];
             /**
              * Base Kind
              * @description an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty
@@ -3091,7 +3074,9 @@ export type components = {
         };
         /**
          * TaskInputFile
-         * @description An input file of the task, with the task whose output file it is and its check.
+         * @description An input file among the task's params (`plan.jsonl` `input_files`): its place in the
+         *     params, its path and the SHA-256 of its content taken at the task call, the task whose
+         *     output file it is, and its check as the task was about to start.
          */
         TaskInputFile: {
             /**

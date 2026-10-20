@@ -1444,14 +1444,6 @@
             "type": "array",
             "title": "Inputs",
             "description": "its input contracts (`InputContract`, from a `TaskAdapter` of the engine), checked before it starts"
-          },
-          "input_files": {
-            "items": {
-              "$ref": "#/components/schemas/InputFileParam"
-            },
-            "type": "array",
-            "title": "Input Files",
-            "description": "the input files among its params (`{\"path\", \"sha256\"}`), in the order of its params"
           }
         },
         "additionalProperties": true,
@@ -2946,33 +2938,6 @@
         "title": "Info",
         "description": "What the UI shows before a run is picked: the title, the panel tabs to offer,\nand the version of this contract."
       },
-      "InputFileParam": {
-        "properties": {
-          "param": {
-            "type": "string",
-            "title": "Param",
-            "description": "its place in the params: the param's name, then a list's index or a field's name (`notes/0`)"
-          },
-          "path": {
-            "type": "string",
-            "title": "Path",
-            "description": "as the params hold it: relative to the run's working directory, or absolute for an output file outside it"
-          },
-          "sha256": {
-            "type": "string",
-            "title": "Sha256"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "param",
-          "path",
-          "sha256"
-        ],
-        "title": "InputFileParam",
-        "description": "An input file among a task's params: its place in the params, its path and the\nSHA-256 of its content taken at the task call."
-      },
       "JournalMessage": {
         "additionalProperties": false,
         "description": "One journal row, sent once per row: the whole journal on connect, then each new row.",
@@ -4372,6 +4337,17 @@
             "type": "array",
             "title": "Given From",
             "description": "keys of the tasks whose outputs it was given in its params: an output, or one item of an output that is a list, whose JSON is a value of its params; shown only, never part of its fingerprint"
+          },
+          "input_files": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Input Files",
+            "description": "the input files among its params, as its task call hashed them: `param` (its place in the params, `notes/0`), `path` and `sha256`; absent when it has none"
           },
           "base_kind": {
             "type": "string",
@@ -6261,7 +6237,7 @@
           "check"
         ],
         "title": "TaskInputFile",
-        "description": "An input file of the task, with the task whose output file it is and its check."
+        "description": "An input file among the task's params (`plan.jsonl` `input_files`): its place in the\nparams, its path and the SHA-256 of its content taken at the task call, the task whose\noutput file it is, and its check as the task was about to start."
       },
       "TaskLaunch": {
         "properties": {

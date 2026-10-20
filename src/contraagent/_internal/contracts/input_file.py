@@ -277,3 +277,19 @@ def _serialize(file: InputFile, info: core_schema.SerializationInfo) -> dict[str
     if digest is None:
         raise ValueError(f"input file {file.path.as_posix()} cannot be read")
     return {"path": file.path.as_posix(), "sha256": digest}
+
+
+def input_files_of(params: Any, at: str = "") -> list[dict[str, str]]:
+    """The input files among a task's params as JSON: each value, at any depth, that is an
+    input file's JSON (`{"path", "sha256"}`, the hash 64 hex digits), as `{"param", "path",
+    "sha256"}`, `param` the value's place in the params (`notes/0`: a list's first item under
+    `notes`), in the order of the params."""
+    if isinstance(params, dict):
+        if set(params) == {"path", "sha256"} and isinstance(params["path"], str) and _SHA256.fullmatch(str(params["sha256"])):
+            return [{"param": at, "path": params["path"], "sha256": params["sha256"]}]
+        items: list[tuple[Any, Any]] = list(params.items())
+    elif isinstance(params, (list, tuple)):
+        items = list(enumerate(params))
+    else:
+        return []
+    return [f for k, v in items for f in input_files_of(v, f"{at}/{k}" if at else str(k))]

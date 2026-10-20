@@ -4,7 +4,7 @@ the same flow), the lineage of a task's earlier and later tasks, and its input f
 import json
 from pathlib import Path
 
-from contraagent._internal.contracts.contract import input_files_of
+from contraagent._internal.contracts.input_file import input_files_of
 from contraagent._internal.monitor.core import lineage_of
 from contraagent.monitor import Monitor
 
@@ -149,18 +149,17 @@ def test_input_files_are_found_among_the_params_at_any_depth():
 
 def test_an_input_file_names_the_task_that_wrote_it_and_its_check(tmp_path):
     sha = "b" * 64
-    plan = [task("write-u", "write", TOP), task("count-u", "count", TOP, given_from=["write-u"]), task("lint-u", "lint", TOP)]
+    files = [{"param": "note", "path": "out/write/u.md", "sha256": sha}, {"param": "spec", "path": "in/spec.md", "sha256": sha}]
+    plan = [
+        task("write-u", "write", TOP),
+        task("count-u", "count", TOP, given_from=["write-u"], input_files=files),
+        task("lint-u", "lint", TOP, input_files=files[1:]),
+    ]
     d = write_run(tmp_path, "r", plan, [attempt("write-u", "write", 1.0, None)], started="2026-10-01T00:00:00+00:00")
     contracts = d / "contracts"
     contracts.mkdir()
     out = {"io": "output", "path": "/work/runs/r/out/write/u.md", "schema_name": "text"}
-    files = [{"param": "note", "path": "out/write/u.md", "sha256": sha}, {"param": "spec", "path": "in/spec.md", "sha256": sha}]
-    for rec in (
-        {"key": "write-u", "outputs": [out]},
-        {"key": "count-u", "input_files": files},
-        {"key": "lint-u", "input_files": files[1:]},
-    ):
-        (contracts / f"{rec['key']}.json").write_text(json.dumps({"outputs": [], "inputs": [], **rec}))
+    (contracts / "write-u.json").write_text(json.dumps({"key": "write-u", "outputs": [out], "inputs": []}))
     mon = Monitor(tmp_path)
     got = mon.task_detail("r", "count-u")["io"]["input_files"]
     assert [(f["param"], f["writer"], f["check"]) for f in got] == [("note", "write-u", "not_checked"), ("spec", None, "not_checked")]
@@ -172,3 +171,48 @@ def test_an_input_file_names_the_task_that_wrote_it_and_its_check(tmp_path):
     got = mon.task_detail("r", "count-u")["io"]["input_files"]
     assert [(f["check"], f["reason"]) for f in got] == [("not_checked", ""), ("refused", refusal)]
     assert mon.task_detail("r", "lint-u")["io"]["input_files"][0]["check"] == "passed"
+
+
+def test_a_run_s_input_files_show_their_writer_and_their_check(tmp_path):
+    """On a real run: an agent task given a text output as an input file, and a Python task
+    given a file of the working directory that a task changed after the call."""
+    from pydantic import BaseModel, Field
+
+    from contraagent import InputFile, Pipeline, agent_task, python_task
+    from contraagent.testing import StubAgent
+
+    class Verdict(BaseModel):
+        approved: bool
+
+    class ReviewParams(BaseModel):
+        note: InputFile = Field(description="the note to review")
+
+    note = agent_task("note", output=str, instructions="Write a note.", max_turns=3, timeout_s=30)
+    review = agent_task("review", params=ReviewParams, output=Verdict, instructions="Review the note.", max_turns=3, timeout_s=30)
+    spec = tmp_path / "in" / "spec.md"
+    spec.parent.mkdir()
+    spec.write_text("the spec", encoding="utf-8")
+
+    @python_task
+    def rewrite(unit: str) -> None:
+        spec.write_text("another spec", encoding="utf-8")
+
+    @python_task
+    def words(unit: str, text: InputFile) -> int:
+        return len(text.read_text().split())
+
+    async def flow():
+        written = note("a")
+        await written
+        await review("a", ReviewParams(note=written.input_file()))
+        changed = rewrite("a")
+        words.options(after=[changed])("a", text=InputFile("in/spec.md"))
+
+    agent = StubAgent({"note": "a note", "review": {"approved": True}})
+    Pipeline(None, runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path, log=lambda line: None).run(flow, run_id="r")
+    mon = Monitor(tmp_path / "runs")
+    [given] = mon.task_detail("r", "review-a")["io"]["input_files"]
+    assert (given["param"], given["path"], given["writer"], given["check"]) == ("note", "runs/r/out/note/a.md", "note-a", "passed")
+    [changed] = mon.task_detail("r", "python:words-a")["io"]["input_files"]
+    assert (changed["param"], changed["path"], changed["writer"], changed["check"]) == ("text", "in/spec.md", None, "refused")
+    assert changed["reason"].startswith("input file in/spec.md changed after the task call")
