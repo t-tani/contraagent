@@ -549,8 +549,16 @@ class Pipeline:
                     except Exception as exc:  # the monitor's record only: the flow goes on
                         run._record_failed(layout.FLOW_CALLS, exc, f"flow call {call.id}")
 
-            driver = FlowDriver(waits_for=graph.waits_for, answer=graph.answer, on_flow_call=on_flow_call)
+            # A resume gives the flow the results of the tasks it skips in the order the journal
+            # recorded them, so the flow's code takes the path it took.
+            driver = FlowDriver(
+                waits_for=graph.waits_for,
+                answer=graph.answer,
+                on_flow_call=on_flow_call,
+                replay=run.journal.places() if resume else None,
+            )
             graph.driver = driver
+            run.journal.filled_after = graph.filled_after
 
             def follow_up(result: TaskResult) -> list[Task]:
                 graph.record(result)
@@ -644,7 +652,14 @@ class Pipeline:
                         ),
                         follow_up=follow_up,
                         resume=resume,
-                        skip=resume_skip(run.journal.last_rows(), run.journal.reruns, graph.output_reads) if resume else None,
+                        skip=resume_skip(
+                            run.journal.last_rows(),
+                            run.journal.reruns,
+                            graph.output_reads,
+                            warn=lambda line: run.progress(line, warning=True),
+                        )
+                        if resume
+                        else None,
                         max_concurrent=self.max_concurrent,
                         **self.queue_options,
                     )

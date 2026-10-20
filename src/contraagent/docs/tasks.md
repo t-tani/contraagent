@@ -174,8 +174,15 @@ of:
   it, for an output the flow received and passed on (an async flow); as the file
   is when the task is about to start, for a task call passed before it finished
   (as in a flow that does not wait);
-- each other task it waits for (`after=`, and the task whose file an `output_of`
-  task fills in): that task's fingerprint.
+- each other task it waits for (`after=`): that task's fingerprint;
+- for a task that fills in another task's file (`output_of`), the content of
+  that file as it was when the task was about to start;
+- its outside state, when it declares one (below).
+
+The journal row of each attempt keeps a digest of each of these parts beside the
+fingerprint (`fingerprint_parts`): `definition`, `params`, `output:<key>` for each
+output it reads, `after:<key>` for each other task it waits for, `outside` and
+`output_of`.
 
 A changed parameter or an edited instruction, role file or function runs its task
 again. A task that reads another task's output runs again only when that output
@@ -190,6 +197,19 @@ runs nothing again.
 A resume skips a task only when its output still reads under its output schema.
 An output file that no longer does (one edited by hand into another shape) runs
 its task again, and its journal row's `rerun` says so.
+
+A task that fills in another task's file (`output_of`) left its own output in the
+file, so a resume cannot see in the file what the task found there. The journal
+row keeps both digests: the file as the task found it (`fingerprint_parts`
+`output_of`) and as the task left it (`output_of_after`). A resume skips the task
+when the file is as the task left it, or as a task after it that fills it in left
+it. A file changed by hand, or written again by a task before it that ran again,
+runs again every task after its writer that fills it in.
+
+A resume gives the flow the results of the tasks it skips one at a time, in the
+order the journal recorded them, so flow code that depends on the order in which
+its tasks finish takes the path it took. A task that runs again finishes when it
+finishes, and its result comes after them.
 
 A final step that reports or publishes the state of the work (a site, statistics,
 a commit) often takes nothing from the tasks before it: it reads the working tree.
@@ -235,6 +255,16 @@ backlog file, and the function returns the file's digest:
 When a resume runs a task again that an earlier attempt finished, its journal row
 says why in `rerun` (`its outside state changed`, `its last result was partial`,
 ...), the start line of the log says so too, and the monitor shows it on the task.
+A changed fingerprint names each part that changed: `its fingerprint changed: its
+definition`, `its fingerprint changed: the output of write-u it reads`.
+
+A task whose params changed although every task it was given an output of or was
+created from was skipped is a **divergence**: the flow gave other params for the
+same outputs. The flow's code reads a clock, randomness or outside state, or the
+code itself changed. The task runs again with `rerun` `divergence: ...`, and the
+run logs a warning, `[resume] <key>: divergence: ...`. Its fingerprint keeps a
+wrong output from being used: a divergence costs a run of the task, not a wrong
+result.
 
 A program gives the run id and the resume to `Pipeline.run`, as
 `examples/runner/run.py` does with the `--run-id` and `--resume` it takes:
@@ -294,12 +324,13 @@ on, and the report joins the units that got through (see
   `return_exceptions=True`: `gather` then waits for every item, and an item that
   failed is its exception. Inspect the items by position, as `analyse_bundle`
   does in [Flow calls, loops and layers](#flow-calls-loops-and-layers).
-- Flow code does not depend on the order in which tasks finish. A resume runs the
-  flow again, and its skipped tasks finish in another order than the first run's.
-  A branch on `asyncio.as_completed`, on `asyncio.wait(..., return_when=FIRST_COMPLETED)`
-  or on which exception `gather` raises first can create other tasks on a resume.
-  `gather(..., return_exceptions=True)`, inspected by position, gives the same
-  answer in every order.
+- Flow code does not depend on the order in which tasks finish. A resume gives
+  the flow the results of the tasks it skips in the order the first run recorded
+  them, but a task that runs again finishes in its own time. A branch on
+  `asyncio.as_completed`, on `asyncio.wait(..., return_when=FIRST_COMPLETED)` or on
+  which exception `gather` raises first can then create other tasks, and a task
+  given other params is a [divergence](#the-flow). `gather(..., return_exceptions=True)`,
+  inspected by position, gives the same answer in every order.
 - Cancelling a flow call never cancels the agent tasks it created: they run to
   their end, and their results are in the run. A flow call is cancelled when a
   sibling in its `asyncio.TaskGroup` fails, when its time box is past its grace
@@ -358,7 +389,7 @@ output, and a resume skips it. A deadline over part of a flow is a time box (see
 A flow waits for task calls and for flow calls, with `await`, `asyncio.gather` and
 `asyncio.TaskGroup`. It does not use `asyncio.wait`, `asyncio.as_completed`,
 `asyncio.shield`, `asyncio.Queue` or `asyncio.Event`. They run, but a branch on what
-finished first takes another path on a resume, and an `Event` that no flow code sets
+finished first can take another path on a resume that runs a task again, and an `Event` that no flow code sets
 waits forever. A branch that tolerates failures uses `gather(...,
 return_exceptions=True)`, or a child flow call for each item. When a flow call still
 waits while no task is queued or running and every other flow call waits too, nothing

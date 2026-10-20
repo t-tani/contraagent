@@ -484,6 +484,7 @@ class Task
         fingerprint_at_start: bool = False,
         outside: str = '',
         credential: str = '',
+        fingerprint_parts: dict[str, str] = dict(),
     ) -> None
     after: tuple[str, ...] = ()
     attempt: int = 0
@@ -495,6 +496,7 @@ class Task
     @property executor: Executor
     fingerprint: str = ''
     fingerprint_at_start: bool = False
+    fingerprint_parts: dict[str, str] = field(default_factory=dict)
     fn: Callable[[], object] | None = None
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
     key: str = ''
@@ -2066,6 +2068,7 @@ class FlowDriver
         on_flow_call: OnFlowCall | None = None,
         past_grace: Callable[[], bool] | None = None,
         slow_step_s: float = 1.0,
+        replay: Mapping[str, int] | None = None,
     ) -> None
     def add(self, task: Task) -> None
     def alive(self) -> bool
@@ -3167,6 +3170,7 @@ class JournalRow(RecordModel)
     executor: Executor = 'agent'
     exit_code: int | None = None
     fingerprint: str = ''
+    fingerprint_parts: dict[str, str] = Field(default_factory=dict)
     flow_call: str | None = None
     hook_errors: list[list[str]] = Field(default_factory=list)
     hops: list[Hop] = Field(default_factory=list)
@@ -3176,6 +3180,7 @@ class JournalRow(RecordModel)
     model: str = ''
     model_config: ConfigDict = ConfigDict(extra='allow')
     ok: bool
+    output_of_after: str = ''
     outside: str = ''
     quota: list[QuotaReading] = Field(default_factory=list)
     reason: str = ''
