@@ -237,6 +237,11 @@ class Run:
         self._teardown_callbacks: list[Callable[[], None]] = []
         self._restore_signals: Callable[[], None] | None = None
         self._writing: contextlib.AbstractContextManager | None = None
+        self._failures_lock = threading.Lock()
+        # The run's records that could not be written, counted by file name, and the first
+        # error of a journal row that could not be written (`_record_failed`).
+        self._failures: dict[str, int] = {}
+        self._journal_error: Exception | None = None
         if lock:
             self._acquire()
         if fresh:  # rows another process wrote before this one held the lock
@@ -313,7 +318,7 @@ class Run:
 
     def close(self) -> None:
         """Release the run lock (process exit releases it too), and put back the signal
-        handlers `stop_on_signals` replaced."""
+        handlers `stop_on_signals` replaced, after the teardown a signal started has ended."""
         if self._restore_signals is not None:
             self._restore_signals()
             self._restore_signals = None
@@ -368,10 +373,9 @@ class Run:
     def teardown(self) -> None:
         """Stop the live agents and every registered callback. Idempotent, never raises.
 
-        Reached from the main thread, a signal handler and atexit, possibly
-        overlapping (a SIGTERM landing mid-teardown), so the flag is claimed
-        under a lock. Non-blocking: a signal handler that finds a teardown
-        already under way on its own thread must return, not wait on itself.
+        Reached from the main thread, the thread a signal wakes (`stop_on_signals`) and
+        atexit, possibly overlapping, so the flag is claimed under a lock; a call that
+        finds a teardown already under way returns at once.
         """
         if not self._teardown_lock.acquire(blocking=False):
             return
@@ -385,8 +389,11 @@ class Run:
 
     def stop_on_signals(self) -> None:
         """Run `teardown` on SIGTERM and SIGINT until `close()`: an interrupted run stops its
-        agents, whose sessions of their own a terminal's Ctrl-C does not reach. Only on the
-        main thread (Python's signal handlers live there); elsewhere it does nothing."""
+        agents, whose sessions of their own a terminal's Ctrl-C does not reach. The teardown
+        runs on a thread of its own, never in the signal handler, so it cannot wait for a
+        lock the interrupted main thread holds; `close()` waits for it to end. SIGTERM then
+        ends the process by its default action. Only on the main thread (Python's signal
+        handlers live there); elsewhere it does nothing."""
         if threading.current_thread() is threading.main_thread() and self._restore_signals is None:
             self._restore_signals = _teardown.install_signal_handlers(self.teardown)
 
@@ -401,8 +408,18 @@ class Run:
 
     def record_attempt(self, result: TaskResult) -> None:
         """Journal one finished attempt, and say so in one progress line.
-        Pass as `RetryingRunner(on_attempt=run.record_attempt)`."""
-        row = self.journal.append(result)
+        Pass as `RetryingRunner(on_attempt=run.record_attempt)`.
+
+        A row that cannot be written does not raise: a warning line names the file and the
+        error, and `Pipeline.run` raises at the end of the run, since a resume would run the
+        task again. A `LaunchResult` that cannot be written to `launches.jsonl` gets the
+        warning line only."""
+        key = result.task.key
+        try:
+            row = self.journal.append(result, on_launch_error=lambda exc: self._record_failed(layout.LAUNCHES, exc, key))
+        except Exception as exc:  # the task's result stands; the run fails at its end
+            self._record_failed(layout.JOURNAL, exc, key)
+            return
         if self._estimates is not None:
             self._estimates.observe_attempt(row.model_dump())
         launched = result.launch_result
@@ -423,6 +440,39 @@ class Run:
 
     def rows(self) -> list[dict[str, Any]]:
         return self.journal.rows()
+
+    def _record_failed(self, name: str, error: Exception, about: str = "") -> None:
+        """A record of the run, its file `name` in the run directory, that could not be
+        written: count it, keep the first error of a journal row, and say so in a warning
+        progress line with the file, the task or flow call it is `about`, and the error.
+        Called from the queue's threads too."""
+        with self._failures_lock:
+            self._failures[name] = self._failures.get(name, 0) + 1
+            if name == layout.JOURNAL and self._journal_error is None:
+                self._journal_error = error
+        what = f" for {about}" if about else ""
+        after = "; a resume runs the task again, and the run fails at its end" if name == layout.JOURNAL else ""
+        self._log(logging.WARNING, f"[error] {(self.dir / name).as_posix()} not written{what}: {type(error).__name__}: {error}{after}")
+
+    def _record_failures(self) -> dict[str, int]:
+        """How many writes of each record file failed so far, by file name; empty: none."""
+        with self._failures_lock:
+            return dict(self._failures)
+
+    def _journal_failure(self) -> ContraagentError | None:
+        """The error that ends a run some of whose journal rows could not be written; None
+        when every row was written."""
+        with self._failures_lock:
+            error, count = self._journal_error, self._failures.get(layout.JOURNAL, 0)
+        if error is None:
+            return None
+        rows = "1 journal row" if count == 1 else f"{count} journal rows"
+        failure = ContraagentError(
+            f"{rows} of run {self.run_id} could not be written to {(self.dir / layout.JOURNAL).as_posix()} "
+            f"(first: {type(error).__name__}: {error}); those tasks finished, but a resume runs them again"
+        )
+        failure.__cause__ = error
+        return failure
 
     # --- running tasks -----------------------------------------------------
 
@@ -637,6 +687,8 @@ class Run:
             self._log(logging.INFO, f"[retry] {task.key}: {fields.get('stop') or 'no progress'}; again{wait}")
         elif event == "note" and "follow_up_failed" in fields:
             self._log(logging.WARNING, f"[error] {task.key if task is not None else '?'}: follow_up() raised {fields['follow_up_failed']}")
+        elif event == "note" and (failed := _hook_failure(fields)):
+            self._log(logging.WARNING, f"[error] {task.key if task is not None else '?'}: {failed}")
         elif event == "note" and isinstance(fields.get("context_warned"), dict) and task is not None:
             w = fields["context_warned"]
             peak, budget = w.get("peak_context") or 0, w.get("context_budget") or 0
@@ -699,7 +751,10 @@ class Run:
         """One line of `rests.jsonl` (a `RestEvent`): `event` `start` when the credential
         began resting, `end` when it was found not resting again (with the rest that ended)."""
         row = RestEvent.model_validate({"ts": now_iso(), "event": event, **rest.to_dict()})
-        self._append(layout.RESTS, row.model_dump(mode="json", exclude_unset=True))
+        try:
+            self._append(layout.RESTS, row.model_dump(mode="json", exclude_unset=True))
+        except Exception as exc:  # the monitor's record only: the rest itself holds
+            self._record_failed(layout.RESTS, exc, f"credential {rest.credential}")
         self._log(logging.INFO, f"[rest] {rest.text()}" if event == "start" else f"[rest] {rest.credential} rests no more")
 
     def record_flow_call(
@@ -763,6 +818,19 @@ class Run:
                 }
             ),
         )
+
+
+def _hook_failure(fields: Mapping[str, Any]) -> str:
+    """What a queue's note says of a callback that raised around a task (`WorkQueue`: its
+    result's recording, its deferral check, the completion of its fingerprint); "" for
+    another note."""
+    if "record_failed" in fields:
+        return f"recording its result raised {fields['record_failed']}"
+    if "deferral_failed" in fields:
+        return f"its deferral check raised {fields['deferral_failed']}; launched"
+    if "starting_failed" in fields:
+        return f"completing its fingerprint raised {fields['starting_failed']}; launched without it, so a resume runs it again"
+    return ""
 
 
 def _time_box_record(box: TimeBox, started_at: float | None) -> TimeBoxRecord:

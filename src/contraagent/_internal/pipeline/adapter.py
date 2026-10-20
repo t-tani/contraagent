@@ -8,9 +8,7 @@ and the output it must leave behind with its validators.
 
 from __future__ import annotations
 
-import atexit
 import json
-import shutil
 import string
 from collections.abc import Mapping
 from pathlib import Path
@@ -19,7 +17,7 @@ from typing import Any
 from pydantic_core import to_jsonable_python
 
 from contraagent._internal.backends import plugin_files
-from contraagent._internal.backends.base import Backend, safe_label, temp_dir
+from contraagent._internal.backends.base import Backend, exit_dir, safe_label
 from contraagent._internal.contracts.calls import CallFile, CallOutput, call_prompt, inline_prompt, schema_ref_of
 from contraagent._internal.contracts.contract import InputContract, OutputContract
 from contraagent._internal.contracts.validators import CommandValidator
@@ -150,13 +148,12 @@ class SpecAdapter(TaskAdapter):
         """The task's own plugin's `.mcp.json`, if it has one; none for a light launch. With
         `mcp_servers`, the servers it returns, written to a file of their own in an owner-only
         temporary directory (a server's arguments may hold a secret, so never in the run
-        directory), removed when the process ends."""
+        directory), removed when the process ends, however it ends (`exit_dir`)."""
         servers = self.mcp_servers_of(task)
         if servers is None:
             return self._plugin_mcp(task)
         if self._mcp_dir is None:
-            self._mcp_dir = temp_dir("mcp-")
-            atexit.register(shutil.rmtree, self._mcp_dir, True)
+            self._mcp_dir = exit_dir("mcp-")
         path = self._mcp_dir / f"{safe_label(task.key)}.mcp.json"
         plugin_files.write_mcp_servers(path, servers)
         return str(path)

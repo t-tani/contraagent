@@ -34,13 +34,14 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import time
-import traceback
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
+from contraagent._internal.backends import live_processes
 from contraagent._internal.contracts.contract import check_input, record_contracts
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope, enriched
 from contraagent._internal.dispatch.python_task import InvalidInput
@@ -64,6 +65,8 @@ from contraagent._internal.routing.config import PipelineConfig
 from contraagent._internal.routing.kind_config import KindConfig
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import write_document
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -161,8 +164,8 @@ class PythonTaskRunner:
             d = self._run_dir / layout.DEFINITIONS
             d.mkdir(parents=True, exist_ok=True)
             write_document(d / f"{layout.file_name(str(task.kind))}.json", json.dumps({"kind": task.kind, **definition}, default=str))
-        except OSError:  # a definition the monitor cannot show must not fail the task
-            pass
+        except OSError as exc:  # a definition the monitor cannot show must not fail the task
+            _logger.warning("[error] %s/%s.json not written: %r", (self._run_dir / layout.DEFINITIONS).as_posix(), task.kind, exc)
 
     def _attempts(self, task: Task, outs: list[Any], ins: list[Any]) -> TaskResult:
         """Run an attempt, and another after an exception of the task's `retry_on`, up to
@@ -179,7 +182,7 @@ class PythonTaskRunner:
                 try:
                     self._on_failed_attempt(res)
                 except Exception:  # a journal write must not fail the task
-                    traceback.print_exc()
+                    _logger.warning("[error] %s: on_failed_attempt raised; the attempt's result stands", task.key, exc_info=True)
             time.sleep(RetryingRunner.backoff(KindConfig.retry_backoff_base, attempt))
             attempt += 1
 
@@ -188,7 +191,10 @@ class PythonTaskRunner:
         snapshots, every scope is entered in order, the attempt runs, the scopes exit in
         reverse, and each enricher enriches the result. A scope that raises fails the task
         the way it fails an agent task: the exception leaves `run`. With it, whether the
-        attempt raised an exception of `retry_on`."""
+        attempt raised an exception of `retry_on`. Refused, as an agent's launch is, once a
+        signal stops the run (`live_processes.launches_refused`)."""
+        if live_processes.launches_refused():
+            return TaskResult.launch_failed(task, live_processes.REFUSED), False
         snapshots = [(e, e.snapshot(task)) for e in self._enrichers]
         with contextlib.ExitStack() as stack:
             for scope in self._scopes:

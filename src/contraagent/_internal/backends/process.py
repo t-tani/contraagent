@@ -8,6 +8,7 @@ timeout or stall. Knows nothing about claude vs omp output shapes.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import queue
 import subprocess
@@ -20,6 +21,8 @@ from contraagent._internal.backends.launch import STDIN_THRESHOLD, Launch, Stop
 from contraagent._internal.errors import ContraagentError
 from contraagent._internal.platform.commands import commands
 from contraagent._internal.platform.groups import groups
+
+_logger = logging.getLogger(__name__)
 
 # How much of a (possibly very large, stdin-fed) prompt the launch marker
 # records. The monitor renders it collapsed, so a generous cap still reads
@@ -129,8 +132,8 @@ def write_launch_marker(argv: list[str], launch: Launch) -> None:
     Best-effort: a looped task appends every round to the same
     `stream_path`, and each `run_process` call writes exactly one marker at
     its own append's head. The write never fails the launch — a stream file
-    is a convenience transcript, not load-bearing — so any error is
-    swallowed.
+    is a convenience transcript, not load-bearing — so an error is a warning
+    of this module's logger.
     """
     if launch.stream_path is None:
         return
@@ -147,8 +150,8 @@ def write_launch_marker(argv: list[str], launch: Launch) -> None:
             marker["prompt_truncated"] = len(prompt) - _MARKER_PROMPT_CAP
         with open(launch.stream_path, "ab") as f:
             f.write((json.dumps(marker, ensure_ascii=False) + "\n").encode("utf-8"))
-    except Exception:  # a failed marker must never break a launch
-        pass
+    except Exception as exc:  # a failed marker must never break a launch
+        _logger.warning("[error] %s: launch marker not written: %r", launch.stream_path, exc)
 
 
 def run_process(
@@ -170,6 +173,8 @@ def run_process(
     within a second.
     """
     started_wall = time.monotonic()
+    if live_processes.launches_refused():
+        raise LaunchError(live_processes.REFUSED)
     since = live_processes.epoch()
     try:
         proc = subprocess.Popen(
@@ -184,7 +189,12 @@ def run_process(
         )
     except OSError as exc:
         raise LaunchError(str(exc)) from exc
-    live_processes.register(proc, since=since)
+    if not live_processes.register(proc, since=since):  # stopped already; waited for here
+        _terminate(proc)
+        for pipe in (proc.stdin, proc.stdout, proc.stderr):
+            if pipe is not None:
+                pipe.close()
+        raise LaunchError(live_processes.REFUSED)
     try:
         return _supervise(proc, argv, launch, sink, started_wall, stderr_sink)
     finally:
