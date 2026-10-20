@@ -95,7 +95,7 @@ export function placeStats(ix: FlowIndex, focus: readonly string[], live = false
       const key = placeKey(layer, p.id);
       let s = out.get(key);
       if (!s) {
-        const counts: NodeCounts = { total: 0, done: 0, partial: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0 };
+        const counts: NodeCounts = { total: 0, done: 0, partial: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0, cancelled: 0 };
         const file = d > 0 ? (t.frames[d - 1]?.file ?? '') : '';
         s = { key, layer, id: p.id, name: p.name, depth: d - d0, loops: p.loops, file, counts, tasks: 0, agent: 0, failed: 0, running: 0, stuck: 0, errors: false, kids: new Set(), fns: new Set(), parent };
         out.set(key, s);

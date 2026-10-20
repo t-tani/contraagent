@@ -1,0 +1,36 @@
+{
+  "call": "examples/changes/flow.py:topics",
+  "config": false,
+  "flow": "changes.topics",
+  "kwargs": {
+    "subjects": {
+      "alpha": "caching",
+      "beta": "retries"
+    }
+  },
+  "outputs": {
+    "write/alpha.json": "0174ef702014acf4041a564342eeed9aa2114a9e8297f6038b6c549127ede5b8",
+    "write/beta.json": "0174ef702014acf4041a564342eeed9aa2114a9e8297f6038b6c549127ede5b8"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "write-alpha": {
+      "kind": "write",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "write-beta": {
+      "kind": "write",
+      "stop": "completed",
+      "unit": "beta"
+    }
+  },
+  "value": null
+}

@@ -143,7 +143,8 @@ def test_a_changed_definition_does_not_play_the_imported_recording(tmp_path):
 
 
 def test_an_imported_recording_plays_only_for_its_own_key(tmp_path):
-    live = stub_run(tmp_path, flow_=lambda units: [write(units[0]), write(units[0], key="write-alpha~5")], agent=stub(write={"title": "x"}))
+    keyed = write.options(key="write-alpha~5")
+    live = stub_run(tmp_path, flow_=lambda units: [write(units[0]), keyed(units[0])], agent=stub(write={"title": "x"}))
     assert import_recording(live.run_dir, tmp_path / "rec").ok
     played = replay(tmp_path, flow_=lambda units: [write(units[0]), write(units[0])])
     assert played.results["write-alpha"].ok

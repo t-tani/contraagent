@@ -47,14 +47,15 @@ from contraagent._internal.dispatch.records import (
     TimeBoxRecord,
     TokenUsage,
 )
-from contraagent._internal.dispatch.task import STOP_PARTIAL, STOP_SKIPPED
+from contraagent._internal.dispatch.task import STOP_CANCELLED, STOP_PARTIAL, STOP_SKIPPED
 from contraagent._internal.routing.preflight import PreflightRecord
 
 # --- journal ---------------------------------------------------------------
 
-#: The `stop` values contraagent writes: every `Stop`, `skipped`, and a Python task's `partial`.
+#: The `stop` values contraagent writes: every `Stop`, `skipped`, a Python task's `partial`, and
+#: `cancelled` (a task called with `.options(cancellable=True)` that no flow call waited for).
 #: The schema lists them as an enum; a row a domain's own code wrote with another value still validates.
-JOURNAL_STOPS: tuple[str, ...] = (*(s.value for s in Stop), STOP_SKIPPED, STOP_PARTIAL)
+JOURNAL_STOPS: tuple[str, ...] = (*(s.value for s in Stop), STOP_SKIPPED, STOP_PARTIAL, STOP_CANCELLED)
 
 
 class JournalRow(RecordModel):
@@ -248,7 +249,7 @@ class PlanRow(RecordModel):
     priority: float = Field(0.0, description="its task call's `priority`: a tie-breaker in the queue, higher first")
     credential: str = Field(
         "",
-        description="the credential its task call names (`credential=`), which every route of its kind ran it as; "
+        description="the credential its call options name (`.options(credential=)`), which every route of its kind ran it as; "
         "empty when it names none, or a run-wide override outranks it",
     )
     executor: Executor = "agent"

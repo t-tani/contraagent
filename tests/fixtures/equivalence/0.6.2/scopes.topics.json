@@ -1,0 +1,48 @@
+{
+  "call": "examples/scopes/flow.py:topics",
+  "config": false,
+  "flow": "scopes.topics",
+  "kwargs": {
+    "names": [
+      "alpha",
+      "beta"
+    ]
+  },
+  "outputs": {
+    "find_sources/alpha.json": "def6707b9bbe4ac923c33173439bb10b8e0a0f3238d4e704967a30a2cab16666",
+    "find_sources/beta.json": "def6707b9bbe4ac923c33173439bb10b8e0a0f3238d4e704967a30a2cab16666",
+    "summarize/alpha.json": "aefd190dd5cbfe036b39ddefbc318fcd7158feb4664ae87179e69bc4bea78024",
+    "summarize/beta.json": "aefd190dd5cbfe036b39ddefbc318fcd7158feb4664ae87179e69bc4bea78024"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "python:find_sources-alpha": {
+      "kind": "find_sources",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "python:find_sources-beta": {
+      "kind": "find_sources",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "summarize-alpha": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "summarize-beta": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "beta"
+    }
+  },
+  "value": null
+}

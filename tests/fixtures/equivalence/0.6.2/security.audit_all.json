@@ -1,0 +1,36 @@
+{
+  "call": "examples/security/flow.py:audit_all",
+  "config": true,
+  "flow": "security.audit_all",
+  "kwargs": {
+    "modules": [
+      "auth",
+      "upload"
+    ]
+  },
+  "outputs": {
+    "audit/auth.json": "0c54b7e283b24ef7991b013aeebef8a4d81bb93b6f4be6115a601c74ba708123",
+    "audit/upload.json": "0c54b7e283b24ef7991b013aeebef8a4d81bb93b6f4be6115a601c74ba708123"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "audit-auth": {
+      "kind": "audit",
+      "stop": "completed",
+      "unit": "auth"
+    },
+    "audit-upload": {
+      "kind": "audit",
+      "stop": "completed",
+      "unit": "upload"
+    }
+  },
+  "value": null
+}

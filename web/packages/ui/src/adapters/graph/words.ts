@@ -10,9 +10,9 @@ import { SEVERITY } from './states.js';
 import type { GraphNode, LayerGraph, LayerMark, NodeCounts } from './types.js';
 
 /** The states the legend can show, in this order; it shows the ones the view has. */
-export const LEGEND: readonly TaskState[] = ['done', 'partial', 'running', 'pending', 'failed', 'blocked', 'skipped'];
+export const LEGEND: readonly TaskState[] = ['done', 'partial', 'running', 'pending', 'failed', 'blocked', 'skipped', 'cancelled'];
 
-/** How each task state looks: done round, partly done half filled, running round and breathing, waiting a ring, failed square, not started hatched, skipped muted. */
+/** How each task state looks: done round, partly done half filled, running round and breathing, waiting a ring, failed square, not started hatched, skipped muted, cancelled a muted ring. */
 const LOOKS: Record<TaskState, Pick<StateStyle, 'tone' | 'shape'>> = {
   done: { tone: 'done', shape: 'round' },
   partial: { tone: 'attention', shape: 'half' },
@@ -21,6 +21,7 @@ const LOOKS: Record<TaskState, Pick<StateStyle, 'tone' | 'shape'>> = {
   failed: { tone: 'failed', shape: 'square' },
   blocked: { tone: 'attention', shape: 'hatched' },
   skipped: { tone: 'muted', shape: 'round' },
+  cancelled: { tone: 'muted', shape: 'ring' },
 };
 
 /** The task states as the graph draws them, in the legend's order (`live`: a pending task waits; else it did not run). */
@@ -53,7 +54,7 @@ export function doneOf(c: NodeCounts): string {
 
 /** The tasks that are not done, by state, most severe first: "1 failed", "1 not started", "1 partly done". */
 export function notDone(c: NodeCounts, live: boolean): string[] {
-  return (['failed', 'blocked', 'partial', 'running', 'pending', 'skipped'] as const).filter((s) => c[s]).map((s) => countOf(s, c[s], live));
+  return (['failed', 'blocked', 'partial', 'running', 'pending', 'cancelled', 'skipped'] as const).filter((s) => c[s]).map((s) => countOf(s, c[s], live));
 }
 
 /** A fact's class: failed, not started or partly done, running, or muted (waiting, not run, skipped). */

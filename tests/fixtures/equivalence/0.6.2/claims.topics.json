@@ -1,0 +1,66 @@
+{
+  "call": "examples/claims/flow.py:topics",
+  "config": false,
+  "flow": "claims.topics",
+  "kwargs": {
+    "names": [
+      "alpha",
+      "beta"
+    ]
+  },
+  "outputs": {
+    "merge/merge.json": "7675605850a5d63eafcc6a336796ea37a04e340be7bf388be590a6e1096b0364",
+    "style/alpha.json": "7675605850a5d63eafcc6a336796ea37a04e340be7bf388be590a6e1096b0364",
+    "style/beta.json": "7675605850a5d63eafcc6a336796ea37a04e340be7bf388be590a6e1096b0364",
+    "terms/alpha.json": "7675605850a5d63eafcc6a336796ea37a04e340be7bf388be590a6e1096b0364",
+    "terms/beta.json": "7675605850a5d63eafcc6a336796ea37a04e340be7bf388be590a6e1096b0364",
+    "triage/alpha.json": "8aa4817e2616432342a5fff0ade3d2497ba0a1b2edc2570580c461a832aaa22f",
+    "triage/beta.json": "8aa4817e2616432342a5fff0ade3d2497ba0a1b2edc2570580c461a832aaa22f"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "merge": {
+      "kind": "merge",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "style-alpha": {
+      "kind": "style",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "style-beta": {
+      "kind": "style",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "terms-alpha": {
+      "kind": "terms",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "terms-beta": {
+      "kind": "terms",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "triage-alpha": {
+      "kind": "triage",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "triage-beta": {
+      "kind": "triage",
+      "stop": "completed",
+      "unit": "beta"
+    }
+  },
+  "value": null
+}

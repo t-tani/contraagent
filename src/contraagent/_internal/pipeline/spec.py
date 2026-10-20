@@ -7,12 +7,16 @@
 Both are called like functions inside a flow run by `Pipeline.run`; a call
 queues a task and returns a `Pending` reference to its future output, which
 can be passed to another task as a parameter (that is how dependencies are
-written).
+written). A task's call options (`key`, `after`, `priority`, an agent task's
+`credential`, `cancellable`) are not keywords of the call: `task.options(...)` returns
+the same task with them, and calling that is the task call.
 """
 
 from __future__ import annotations
 
+import copy
 import dataclasses
+import enum
 import hashlib
 import inspect
 import json
@@ -24,7 +28,7 @@ import typing
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
-from typing import Any, Literal, Protocol, TypeVar, overload
+from typing import Any, Literal, Protocol, Self, TypeVar, overload
 
 from pydantic import BaseModel, ConfigDict, RootModel, TypeAdapter, ValidationError
 from pydantic.errors import PydanticSchemaGenerationError
@@ -80,6 +84,55 @@ def output_format_of(output: Any) -> str:
     return "jsonl" if rows_model(output) is not None else "json"
 
 
+class _Keep(enum.Enum):
+    """The default of each argument of `options`: an option not given keeps the value it
+    had. A one-member enum, so a type checker knows `Literal[_Keep.KEEP]` and narrows it
+    away with `is`."""
+
+    KEEP = "keep"
+
+    def __repr__(self) -> str:
+        return "KEEP"
+
+
+@dataclass(frozen=True)
+class _CallOptions:
+    """A task's call options as `options` gave them: what the graph is given beside the
+    params at each call of the task."""
+
+    key: str | None = None
+    after: tuple[Pending[Any] | str, ...] = ()
+    priority: float = 0.0
+    #: An agent task's credential; empty: its kind's.
+    credential: str = ""
+    cancellable: bool = False
+
+    def given(
+        self,
+        where: str,
+        *,
+        key: str | None | Literal[_Keep.KEEP],
+        after: Sequence[Pending[Any] | str] | Literal[_Keep.KEEP],
+        priority: float | Literal[_Keep.KEEP],
+        credential: str | None | Literal[_Keep.KEEP],
+        cancellable: bool | Literal[_Keep.KEEP],
+    ) -> _CallOptions:
+        """These options with each one given (not `_Keep.KEEP`) replaced, checked; `where` names
+        the call in an error."""
+        if cancellable is not _Keep.KEEP and not isinstance(cancellable, bool):
+            raise TypeError(f"{where}(...): cancellable must be True or False, not {cancellable!r}")
+        return _CallOptions(
+            key=self.key if key is _Keep.KEEP else _checked_key(where, key),
+            after=self.after if after is _Keep.KEEP else _checked_after(where, after),
+            priority=self.priority if priority is _Keep.KEEP else _checked_priority(where, priority),
+            credential=self.credential if credential is _Keep.KEEP else _checked_credential(where, credential),
+            cancellable=self.cancellable if cancellable is _Keep.KEEP else cancellable,
+        )
+
+
+_NO_OPTIONS = _CallOptions()
+
+
 @dataclass(frozen=True, eq=False)
 class AgentTask[Out]:
     """An agent task's interface. Build one with `agent_task`."""
@@ -114,6 +167,10 @@ class AgentTask[Out]:
     base_kind: str = ""
     #: The function that returns its outside state, which its fingerprint covers (`agent_task(outside_state=)`).
     outside_state: OutsideState | None = None
+    #: Its call options (`options`); none for a declaration.
+    _options: _CallOptions = dataclasses.field(default=_NO_OPTIONS, init=False, repr=False)
+    #: The declaration `options` made it from; None for a declaration itself.
+    _declaration: AgentTask[Any] | None = dataclasses.field(default=None, init=False, repr=False)
 
     #: Who executes it (`Task.executor`): a coding agent.
     executor = "agent"
@@ -217,32 +274,58 @@ class AgentTask[Out]:
             **({"outside_state": _function_name(self.outside_state)} if self.outside_state is not None else {}),
         }
 
-    def __call__(
-        self,
-        unit: str = "",
-        *,
-        key: str | None = None,
-        after: Sequence[Pending[Any] | str] = (),
-        priority: float = 0.0,
-        credential: str | None = None,
-        **params: Any,
-    ) -> Pending[Out]:
-        """Queue this task for `unit`. `params` may hold `Pending` outputs of other tasks.
-        `priority` breaks ties in the queue, higher first (`WorkQueue`); it is not a parameter.
-        `credential` names a `[credentials.<name>]` this task runs as on every route of its
-        kind, failover hops included, in place of the kind's; None: the kind's. It outranks
-        the kind's `[tasks.<kind>]` table and its declaration; a run-wide override
-        (`Overrides(credential=)`) outranks it. A credential that does not exist or does not
-        carry the traits the task `requires` is refused before the task launches."""
+    def __call__(self, unit: str = "", **params: Any) -> Pending[Out]:
+        """Queue this task for `unit`, with its call options (`options`). `params` may hold
+        `Pending` outputs of other tasks. A call option given as a keyword (`key=`) that is no
+        field of the params model raises TypeError: `options` gives it."""
+        _refuse_call_options(self.kind, params, set(self.params.model_fields) if self.params is not None else set(), python=False)
         if self.params is not None:
             _check_param_names(self.kind, self.params, params)
-        words = {
-            "key": _checked_key(self.kind, key),
-            "after": _checked_after(self.kind, after),
-            "priority": _checked_priority(self.kind, priority),
-            "credential": _checked_credential(self.kind, credential),
-        }
-        return current_graph().add(self, unit=unit, params=params, **words)
+        o = self._options
+        return current_graph().add(
+            declaration_of(self),
+            unit=unit,
+            params=params,
+            key=o.key,
+            after=o.after,
+            priority=o.priority,
+            credential=o.credential,
+            cancellable=o.cancellable,
+        )
+
+    def options(
+        self,
+        *,
+        key: str | None | Literal[_Keep.KEEP] = _Keep.KEEP,
+        after: Sequence[Pending[Any] | str] | Literal[_Keep.KEEP] = _Keep.KEEP,
+        priority: float | Literal[_Keep.KEEP] = _Keep.KEEP,
+        credential: str | None | Literal[_Keep.KEEP] = _Keep.KEEP,
+        cancellable: bool | Literal[_Keep.KEEP] = _Keep.KEEP,
+    ) -> Self:
+        """This task with call options: calling what it returns is a task call of this task,
+        its declaration the same (one kind, one digest), so `summarize.options(key="k")(unit)`
+        is `summarize(unit)` under key `k`. An option not given keeps the value it had
+        (none at first); the task itself is not changed.
+
+        `key`: the task's key in place of `<kind>-<unit>`; it names its output file in place of
+        the unit too (`{unit}` of `output_name`), so two keys on one unit write two files.
+        None clears it: the key is `<kind>-<unit>` again.
+        `after`: tasks this one starts after, each a task call's `Pending` or a task's key,
+        for an order with no output passed on. `priority`: breaks ties in the queue, higher
+        first (`WorkQueue`). `credential` names a `[credentials.<name>]` this task runs as on
+        every route of its kind, failover hops included, in place of the kind's; it outranks
+        the kind's `[tasks.<kind>]` table and its declaration; a run-wide override
+        (`Overrides(credential=)`) outranks it; None clears it, so the kind's credential is
+        used. A credential that does not exist or does not carry the traits the task
+        `requires` is refused before the task launches. `cancellable`: True cancels the task (stop `cancelled`) once the flow call that
+        created it and every flow call that waited for it were closed and no flow call waits
+        for it: a queued one is not launched, a running one's launch is stopped. False, the
+        default: it runs to its end whatever happens to its flow calls. None of them is part
+        of the task's fingerprint but `key`."""
+        made = self._options.given(
+            f"{self.kind}.options", key=key, after=after, priority=priority, credential=credential, cancellable=cancellable
+        )
+        return _with_options(self, made)
 
 
 @overload
@@ -614,7 +697,7 @@ def agent_task[Out](
     `instructions`: a text put before the call protocol, for a task with no plugin. Such a
     task runs with the permissions of the plugin template's `settings.json` (Claude Code).
     `output_name`: the output file's path relative to `<run>/out/`, a template:
-    `{unit}` is the unit, or the key when the task call gives `key=` (or no unit);
+    `{unit}` is the unit, or the key when the task's call options give one (or no unit);
     `{key}` and `{kind}`. Default `{kind}/{unit}.json` (`{kind}/{unit}.md` for a text
     output, `{kind}/{unit}.jsonl` for rows); `"reports/{unit}.json"` writes `out/reports/alpha.json`. An absolute path, a
     `..`, `.` or empty segment, or another field raises here. Two kinds whose templates name
@@ -757,11 +840,6 @@ def agent_task[Out](
         raise TypeError(f"agent_task({kind!r}): output must be a pydantic model, str or Rows[Model], not {output!r}")
     if params is not None and not (isinstance(params, type) and issubclass(params, BaseModel)):
         raise TypeError(f"agent_task({kind!r}): params must be a pydantic model, not {params!r}")
-    if params is not None and (taken := sorted(AGENT_CALL_WORDS & set(params.model_fields))):
-        raise TypeError(
-            f"agent_task({kind!r}): params {params.__name__} has a field named {', '.join(taken)}; "
-            f"an agent task call takes {', '.join(sorted(AGENT_CALL_WORDS))} itself: rename the field"
-        )
     if output_from not in ("file", "message"):
         raise TypeError(f'agent_task({kind!r}): output_from must be "file" or "message", not {output_from!r}')
     if output_from == "message" and output is None:
@@ -973,6 +1051,10 @@ class PythonTask[Out]:
     outside_state: OutsideState | None = None
     #: What checks and converts its arguments against the function's annotations.
     _param_types: _ParamTypes = dataclasses.field(init=False, repr=False)
+    #: Its call options (`options`); none for a declaration.
+    _options: _CallOptions = dataclasses.field(default=_NO_OPTIONS, init=False, repr=False)
+    #: The declaration `options` made it from; None for a declaration itself.
+    _declaration: PythonTask[Any] | None = dataclasses.field(default=None, init=False, repr=False)
 
     #: Who executes it (`Task.executor`): this process, in Python.
     executor = "python"
@@ -988,28 +1070,39 @@ class PythonTask[Out]:
     def kind(self) -> str:
         return self.name
 
-    def __call__(
-        self,
-        unit: str = "",
-        *,
-        key: str | None = None,
-        after: Sequence[Pending[Any] | str] = (),
-        priority: float = 0.0,
-        **kwargs: Any,
-    ) -> Pending[Out]:
-        """Queue this Python task for `unit`; the function runs with `kwargs` (Pending resolved).
-        A function with a `unit` parameter is given the unit too. `priority`, as for an
-        agent task: a tie-breaker in the queue, higher first. A call the function could not
-        take (a keyword it has no parameter for, a required parameter left out) raises
-        TypeError here, and so does `credential=`: a Python task runs no coding agent, so
-        it has no credential (unless its function has a parameter of that name)."""
+    def __call__(self, unit: str = "", **kwargs: Any) -> Pending[Out]:
+        """Queue this Python task for `unit`, with its call options (`options`); the function
+        runs with `kwargs` (Pending resolved). A function with a `unit` parameter is given the
+        unit too. A call the function could not take (a keyword it has no parameter for, a
+        required parameter left out) raises TypeError here, and so does a call option given
+        as a keyword (`key=`) that the function has no parameter for: `options` gives it."""
         self._check_call(unit, kwargs)
-        words = {
-            "key": _checked_key(self.kind, key),
-            "after": _checked_after(self.kind, after),
-            "priority": _checked_priority(self.kind, priority),
-        }
-        return current_graph().add(self, unit=unit, params=kwargs, **words)
+        o = self._options
+        return current_graph().add(
+            declaration_of(self),
+            unit=unit,
+            params=kwargs,
+            key=o.key,
+            after=o.after,
+            priority=o.priority,
+            cancellable=o.cancellable,
+        )
+
+    def options(
+        self,
+        *,
+        key: str | None | Literal[_Keep.KEEP] = _Keep.KEEP,
+        after: Sequence[Pending[Any] | str] | Literal[_Keep.KEEP] = _Keep.KEEP,
+        priority: float | Literal[_Keep.KEEP] = _Keep.KEEP,
+        cancellable: bool | Literal[_Keep.KEEP] = _Keep.KEEP,
+    ) -> Self:
+        """This task with call options, as `AgentTask.options`: `key`, `after`, `priority`
+        and `cancellable`. A Python task runs no coding agent, so it has no credential. A
+        cancelled Python task that is running runs to its end: a thread cannot be stopped."""
+        made = self._options.given(
+            f"{self.kind}.options", key=key, after=after, priority=priority, credential=_Keep.KEEP, cancellable=cancellable
+        )
+        return _with_options(self, made)
 
     def _check_call(self, unit: str, kwargs: dict[str, Any]) -> None:
         """TypeError when the function could not be called with `kwargs` (and the unit, for a
@@ -1018,15 +1111,11 @@ class PythonTask[Out]:
             signature = inspect.signature(self.fn)
         except (TypeError, ValueError):  # a callable with no signature to read
             return
+        _refuse_call_options(self.kind, kwargs, set(signature.parameters), python=True)
         given = {**kwargs, "unit": unit} if unit and "unit" not in kwargs and "unit" in signature.parameters else kwargs
         try:
             signature.bind(**given)
         except TypeError as exc:
-            if "'credential'" in str(exc):
-                raise TypeError(
-                    f"{self.kind}(...): credential= names the credential an agent task runs as, and a Python task runs no "
-                    "coding agent, so it has no credential: drop credential= (contraagent docs routing, A task call's credential)"
-                ) from None
             raise TypeError(f"{self.kind}(...): the function cannot take this call: {exc} (contraagent docs tasks, Python tasks)") from None
 
     def digest(self) -> str:
@@ -1257,15 +1346,6 @@ def python_task(
         _check_outside_state(owner, outside_state, rerun_on_resume)
         if output_name is not None:
             _check_output_name(owner, output_name)
-        try:
-            taken = sorted(RESERVED_PARAMS & set(inspect.signature(f).parameters))
-        except (TypeError, ValueError):
-            taken = []
-        if taken:
-            raise TypeError(
-                f"{owner}: the function has a parameter named {', '.join(taken)}; "
-                f"a task call takes {', '.join(sorted(RESERVED_PARAMS))} itself: rename the parameter"
-            )
         schema = _output_schema_of(f)
         return PythonTask(
             fn=f,
@@ -1350,42 +1430,79 @@ def _type_name(t: type) -> str:
 
 
 #: The keywords a task call takes itself, so never a parameter of the task.
-RESERVED_PARAMS = frozenset({"key", "after", "priority"})
-#: The keywords an agent task call takes itself: those of every task call, and `credential`.
-AGENT_CALL_WORDS = RESERVED_PARAMS | {"credential"}
+#: The call options (`options`): a task call given one of them as a keyword that is no
+#: parameter of its task raises TypeError.
+CALL_OPTIONS = ("key", "after", "priority", "credential", "cancellable")
 
 
-def _checked_key(kind: str, key: Any) -> str | None:
-    """A task call's `key`: a string, or None (or empty): the kind and unit make it."""
+def declaration_of[T: AgentTask[Any] | PythonTask[Any]](task: T) -> T:
+    """The declaration of `task`: itself, or the one `options` made it from."""
+    # `options` sets `_declaration` to a task of the same class as the copy.
+    return task._declaration if task._declaration is not None else task  # pyright: ignore[reportReturnType]
+
+
+def _with_options[T: AgentTask[Any] | PythonTask[Any]](task: T, options: _CallOptions) -> T:
+    """`task` with `options`: a shallow copy that refers to the same declaration, so nothing
+    the declaration built (a Python task's parameter types) is built again."""
+    made = copy.copy(task)
+    object.__setattr__(made, "_options", options)  # a frozen dataclass: set as its __init__ sets
+    object.__setattr__(made, "_declaration", declaration_of(task))
+    return made
+
+
+def _refuse_call_options(kind: str, given: Mapping[str, Any], params: set[str], *, python: bool) -> None:
+    """TypeError when a task call gives a call option as a keyword that is no parameter of
+    the task (`params`): `options` gives it."""
+    words = [w for w in CALL_OPTIONS if w in given and w not in params]
+    if not words:
+        return
+    if python and words == ["credential"]:
+        raise TypeError(
+            f"{kind}(...): credential= names the credential an agent task runs as, and a Python task runs no "
+            "coding agent, so it has no credential: drop credential= (contraagent docs routing, A task call's credential)"
+        )
+    shown = ", ".join(f"{w}=" for w in words)
+    example = ", ".join(f"{w}=..." for w in words)
+    one = len(words) == 1
+    raise TypeError(
+        f"{kind}(...): {shown} {'is a call option' if one else 'are call options'}, not a parameter of the task: "
+        f"give {'it' if one else 'them'} with options(): {kind}.options({example})(unit, ...) "
+        "(contraagent docs tasks, Call options)"
+    )
+
+
+def _checked_key(where: str, key: Any) -> str | None:
+    """A task's `key` option: a string; None or empty: the kind and unit make it."""
     if key is not None and not isinstance(key, str):
-        raise TypeError(f"{kind}(...): key must be a string (or None), not {key!r}")
-    return key
+        raise TypeError(f"{where}(...): key must be a string or None, not {key!r}")
+    return key or None
 
 
-def _checked_after(kind: str, after: Any) -> tuple[Pending[Any] | str, ...]:
-    """A task call's `after`: a list of tasks, each a `Pending` or a task's key."""
+def _checked_after(where: str, after: Any) -> tuple[Pending[Any] | str, ...]:
+    """A task's `after` option: a list of tasks, each a `Pending` or a task's key."""
     if isinstance(after, (str, bytes, Pending)) or not isinstance(after, Iterable):
-        raise TypeError(f"{kind}(...): after takes a list of tasks (each a task call's result or a task key), not {after!r}")
+        raise TypeError(f"{where}(...): after takes a list of tasks (each a task call's result or a task key), not {after!r}")
     items = tuple(after)
     odd = [a for a in items if not isinstance(a, Pending) and not (isinstance(a, str) and a)]
     if odd:
-        raise TypeError(f"{kind}(...): after takes a list of tasks (each a task call's result or a task key), not {odd[0]!r} in it")
+        raise TypeError(f"{where}(...): after takes a list of tasks (each a task call's result or a task key), not {odd[0]!r} in it")
     return items
 
 
-def _checked_priority(kind: str, priority: Any) -> float:
-    """A task call's `priority`: a finite number."""
+def _checked_priority(where: str, priority: Any) -> float:
+    """A task's `priority` option: a finite number."""
     if isinstance(priority, bool) or not isinstance(priority, (int, float)) or not math.isfinite(priority):
-        raise TypeError(f"{kind}(...): priority must be a finite number, not {priority!r}")
+        raise TypeError(f"{where}(...): priority must be a finite number, not {priority!r}")
     return float(priority)
 
 
-def _checked_credential(kind: str, credential: Any) -> str:
-    """An agent task call's `credential`: None, or the name of a `[credentials.<name>]`."""
+def _checked_credential(where: str, credential: Any) -> str:
+    """An agent task's `credential` option: the name of a `[credentials.<name>]`; None, its
+    kind's (empty)."""
     if credential is None:
         return ""
     if not isinstance(credential, str) or not credential.strip() or credential != credential.strip():
-        raise TypeError(f"{kind}(...): credential must name a [credentials.<name>] (or be None), not {credential!r}")
+        raise TypeError(f"{where}(...): credential must name a [credentials.<name>] or be None, not {credential!r}")
     return credential
 
 

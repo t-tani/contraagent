@@ -196,7 +196,7 @@ def test_a_task_with_no_recording_ends_on_an_error_that_names_it(tmp_path):
 
 
 def test_a_key_minted_with_a_tilde_takes_the_next_recording_of_its_base(tmp_path):
-    record(tmp_path, flow_=lambda units: [write(units[0]), write(units[0], key="write-alpha~5")])
+    record(tmp_path, flow_=lambda units: [write(units[0]), write.options(key="write-alpha~5")(units[0])])
     played = replay(tmp_path, flow_=lambda units: [write(units[0]), write(units[0])])
     assert played.ok, played.failed
     assert json.loads(outputs(played)["write/alpha~2.json"])["title"] == "write-alpha~5"

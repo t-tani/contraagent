@@ -1,0 +1,181 @@
+{
+  "call": "examples/demo/tasks.py:docs",
+  "config": true,
+  "flow": "demo.docs.demo",
+  "kwargs": {
+    "units": [
+      "alpha",
+      "beta",
+      "delta",
+      "epsilon",
+      "zeta"
+    ]
+  },
+  "outputs": {
+    "prepare/alpha.json": "eaecd34eb3febd08aa3a4f89d57770e0ca934fbe6467033ddfb5c0f307758d63",
+    "prepare/beta.json": "314685d83a7ceed4deb8691e176c60d4d7574500d8a2ffb5efc2625197da9634",
+    "prepare/delta.json": "8f47b97da5c0b77805b7ea4ed1cd69e186c35856f98f9e469541e8cc00db7652",
+    "prepare/epsilon.json": "81ca0d06152ca60c4600e3dc0c946a94f27c6d1aeddfbe799238901805908cd1",
+    "report/report.json": "4c94d4094f880dec8478091318ce0edd600fa41d29508db1ee0af126e3685f1d",
+    "review/alpha.json": "8c25ea8b001fd53a31ebfa5d1743b0bccf996a7c3ae45dafd8dabc5afe5321c2",
+    "review/alpha~2.json": "788e22c67fb08eebcdbf58087a1a11ae3406a7ede4efa3932fc5f724905e9443",
+    "review/beta.json": "788e22c67fb08eebcdbf58087a1a11ae3406a7ede4efa3932fc5f724905e9443",
+    "review/delta.json": "788e22c67fb08eebcdbf58087a1a11ae3406a7ede4efa3932fc5f724905e9443",
+    "review/epsilon.json": "788e22c67fb08eebcdbf58087a1a11ae3406a7ede4efa3932fc5f724905e9443",
+    "revise/alpha.json": "f731b7240c46370ac8a9dafe547361f31e2ef92596d743dfc8e5d894c233cfbf",
+    "score/alpha.json": "c0974bb3f58e04ceb936d85d0b01642a120aa2d4ea89c5fea013560b2bdf561e",
+    "score/alpha~2.json": "c0974bb3f58e04ceb936d85d0b01642a120aa2d4ea89c5fea013560b2bdf561e",
+    "score/beta.json": "c0974bb3f58e04ceb936d85d0b01642a120aa2d4ea89c5fea013560b2bdf561e",
+    "score/delta.json": "c0974bb3f58e04ceb936d85d0b01642a120aa2d4ea89c5fea013560b2bdf561e",
+    "score/epsilon.json": "5a47ceb569e0746dbca7cd4c832a608b6e7ab4e00d7b0f336566e982d904d2bd",
+    "summarize/alpha.json": "f731b7240c46370ac8a9dafe547361f31e2ef92596d743dfc8e5d894c233cfbf",
+    "summarize/beta.json": "4a795ea4d3db93731f5165c5036940ac64d8303ead790f8bcc736c99fdbe808f",
+    "summarize/delta.json": "8ca747681cd546e46316b61644ecbfa3c9d713e8610b9751ced694f74a599c11",
+    "summarize/epsilon.json": "0d3d0d5526ba203e4f9908ff67dbe2658937161dc86be2fca4b025eabbb0d203",
+    "write_note/alpha.md": "55e44fbd424c74355754f34f7dff71f98c0e1afbaa75091b056406f10020aa1c",
+    "write_note/beta.md": "1b2a5ee037d0a54f680cd72a575c556c1334b5c30417adca63e61c95c2ae84e6",
+    "write_note/delta.md": "57f10b412335941cfc545ddad42db13a15bb6bf30a293560273bdda4dc3ffe9e",
+    "write_note/epsilon.md": "71e4f8f964ed396eea7e07549966dfce0ceb440c708c1a09b9fc1b180eae5f51"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 2,
+    "flow_errors": [],
+    "ok": false,
+    "partial": 1
+  },
+  "scenario": "demo",
+  "tasks": {
+    "python:prepare-alpha": {
+      "kind": "prepare",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "python:prepare-beta": {
+      "kind": "prepare",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "python:prepare-delta": {
+      "kind": "prepare",
+      "stop": "completed",
+      "unit": "delta"
+    },
+    "python:prepare-epsilon": {
+      "kind": "prepare",
+      "stop": "completed",
+      "unit": "epsilon"
+    },
+    "python:prepare-zeta": {
+      "kind": "prepare",
+      "stop": "error",
+      "unit": "zeta"
+    },
+    "python:report": {
+      "kind": "report",
+      "stop": "completed",
+      "unit": "python:report"
+    },
+    "python:score-alpha": {
+      "kind": "score",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "python:score-alpha~2": {
+      "kind": "score",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "python:score-beta": {
+      "kind": "score",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "python:score-delta": {
+      "kind": "score",
+      "stop": "completed",
+      "unit": "delta"
+    },
+    "python:score-epsilon": {
+      "kind": "score",
+      "stop": "partial",
+      "unit": "epsilon"
+    },
+    "review-alpha": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-alpha~2": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-beta": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "review-delta": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "delta"
+    },
+    "review-epsilon": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "epsilon"
+    },
+    "revise-alpha": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "summarize-alpha": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "summarize-beta": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "summarize-delta": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "delta"
+    },
+    "summarize-epsilon": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "epsilon"
+    },
+    "summarize-zeta": {
+      "kind": "summarize",
+      "stop": "invalid_input",
+      "unit": "zeta"
+    },
+    "write_note-alpha": {
+      "kind": "write_note",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "write_note-beta": {
+      "kind": "write_note",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "write_note-delta": {
+      "kind": "write_note",
+      "stop": "completed",
+      "unit": "delta"
+    },
+    "write_note-epsilon": {
+      "kind": "write_note",
+      "stop": "completed",
+      "unit": "epsilon"
+    }
+  },
+  "value": "alpha: 3 points\nbeta: 3 points\ndelta: 3 points\nepsilon: 3 points"
+}

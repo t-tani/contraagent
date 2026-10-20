@@ -1,7 +1,7 @@
 """Summaries of documents, one of them under another account.
 
 `pipeline.toml` runs `summarize` as `team`. The data of a document in `RESTRICTED`
-may go only under the company's account: its task call names the credential
+may go only under the company's account: its call options name the credential
 `company`, so that task runs as `company` on every route of the kind, its failover
 hop included. Every other document runs as the kind's own credential.
 """
@@ -30,4 +30,4 @@ RESTRICTED = {"contract"}
 def summarize_all(documents: list[str]):
     """Summarize every document at once."""
     for document in documents:
-        summarize(document, credential="company" if document in RESTRICTED else None)
+        summarize.options(credential="company" if document in RESTRICTED else None)(document)

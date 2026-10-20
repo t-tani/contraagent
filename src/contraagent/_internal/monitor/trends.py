@@ -691,7 +691,7 @@ def bodies(view: dict[str, Any]) -> dict[str, dict[str, Any]]:
         "rows": [
             {"stop": s["stop"], "attempts": s["attempts"], "kinds": ", ".join(sorted(s["kinds"])), "_tone": "failed"}
             for s in view["stops"]
-            if s["stop"] not in ("completed", "skipped", "partial")
+            if s["stop"] not in ("completed", "skipped", "partial", "cancelled")
         ],
     }
     denials = {

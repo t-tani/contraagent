@@ -17,13 +17,14 @@ bool, None and a `str` the flow built are values, never a dependency.
 Every node records where it was created (`Origin`, see `origin.py`) and how it
 is numbered:
 
-* its key is `<kind>-<unit>` (`python:` first for a Python task), or `key=`;
+* its key is `<kind>-<unit>` (`python:` first for a Python task), or the `key` of
+  its call options (`.options(key=)`);
   the n-th task a flow call creates under one key is `<key>~n` (n >= 2), and
   its output file `<stem>~n<suffix>`. The output file is its kind's `output_name`
   under `<out>`, filled in (default `<out>/<kind>/<unit>.json`, `.md` for a text
-  output), `{unit}` being the key when the call gives `key=`, so tasks of one kind
+  output), `{unit}` being the key when its call options give one, so tasks of one kind
   and unit with different keys never write one file. A key used by two flow calls
-  raises `ValueError` at the second: `key=` tells them apart;
+  raises `ValueError` at the second: `.options(key=)` tells them apart;
 * one output file, one writer: two kinds whose `output_name` templates name one
   file, or a task given a file another task writes (but by `output_of`), raise
   `ValueError` when the flow reaches the second (`layout`, `add`);
@@ -225,10 +226,12 @@ class Node:
     #: The names it claims: its kind's `claims` with `{unit}`, `{key}`, `{kind}` and
     #: `{params.<name>}` filled in.
     claims: tuple[str, ...] = ()
-    #: Its task call's `priority`: a tie-breaker in the queue, not part of its fingerprint.
+    #: Its call options' `priority`: a tie-breaker in the queue, not part of its fingerprint.
     priority: float = 0.0
-    #: Its task call's `credential`; empty: its kind's. Not part of its fingerprint.
+    #: Its call options' `credential`; empty: its kind's. Not part of its fingerprint.
     credential: str = ""
+    #: Its call options' `cancellable` (`Task.cancellable`). Not part of its fingerprint.
+    cancellable: bool = False
     origin: Origin | None = None
     fingerprint: str = ""
     #: The keys of the tasks it waits for whose outputs the flow received and passed on.
@@ -397,19 +400,23 @@ class Graph:
         params: dict[str, Any],
         priority: float = 0.0,
         credential: str = "",
+        cancellable: bool = False,
     ) -> Pending[Any]:
         call = self.driver.current if self.driver is not None else None
         call_id = call.id if call is not None else "0"
         stem: str = f"{spec.kind}-{unit}" if unit else spec.kind
-        given = key  # key=, when the task call gave one
+        given = key  # the key of its call options, when they give one
         base = key or (f"{PYTHON_KEY_PREFIX}{stem}" if spec.executor == "python" else stem)
         owner, n = self._bases.get(base, (call_id, 0))
         if owner != call_id:
-            raise ValueError(f"task key {base!r} is created by flow calls {owner} and {call_id}; pass key= to tell them apart")
+            raise ValueError(
+                f"task key {base!r} is created by flow calls {owner} and {call_id}; "
+                "give one of them another key with .options(key=) to tell them apart"
+            )
         n += 1
         key = base if n == 1 else f"{base}~{n}"
         if key in self._by_key:
-            raise ValueError(f"task key {key!r} is used twice; pass key= to tell them apart")
+            raise ValueError(f"task key {key!r} is used twice; give one of them another key with .options(key=) to tell them apart")
         frames = self._prefix.get(call_id, ()) + origins.frames_here(inspect.currentframe(), self.loops.loops)
         self.check_passes(frames, base, call_id)
         self.declare(spec)
@@ -421,7 +428,7 @@ class Graph:
         claims = _expand_claims(spec, unit, key, params)  # before the key is taken: a raise leaves no gap in ~n
         out, writer = None, None
         if _writes_output(spec):
-            # A task given key= writes a file of its own: two keys on one unit never share one.
+            # A task given a key writes a file of its own: two keys on one unit never share one.
             name = (given or unit or base.removeprefix(PYTHON_KEY_PREFIX)).replace("/", "_").replace(os.sep, "_").replace(":", "_")
             other = getattr(spec, "output_of", None)
             if other is not None:
@@ -457,6 +464,7 @@ class Graph:
             claims=claims,
             priority=priority,
             credential=credential,
+            cancellable=cancellable,
             received=frozenset(received),
             writer=writer,
         )
@@ -768,6 +776,7 @@ class Graph:
             claims=node.claims,
             priority=node.priority,
             credential=self._credential_of(node),
+            cancellable=node.cancellable,
             rerun_on_resume=getattr(node.spec, "rerun_on_resume", False),
             base_kind=getattr(node.spec, "base_kind", ""),
             payload=node,
