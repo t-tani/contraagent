@@ -73,7 +73,9 @@ for another port).
   a correction round. A rule the agent should meet before it stops is a
   `CommandValidator` (given `{call}` when it needs the params).
 - A kind with no `max_turns` or `timeout_s`, in code or in the config, is refused.
-- A relative `plugin=` path is relative to the file that calls `agent_task`.
+- A relative `plugin=` path is relative to the file that calls `agent_task`. A
+  function in another directory that calls `agent_task` for its callers takes an
+  absolute path from them: `Path(__file__).parent / "plugins/review"`.
 - Task knowledge in a prompt or in Python: it belongs in the plugin's role.
   Per-task data belongs in params: the agent reads it from its call file.
   Nothing in a plugin names a run, a unit or a file path.
