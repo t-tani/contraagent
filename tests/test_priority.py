@@ -68,7 +68,7 @@ def test_a_params_field_or_a_function_parameter_named_priority_is_a_param(tmp_pa
         ranked.append(priority)
 
     def flow():
-        summarize("a", topic="t", priority=4)
+        summarize("a", Params(topic="t", priority=4))
         rank.options(priority=9)(topic="t", priority=2)
 
     report = run(tmp_path, flow, StubAgent({"summarize": written}))

@@ -81,6 +81,10 @@ class Written(BaseModel):
     note: str
 
 
+class Topic(BaseModel):
+    topic: str
+
+
 LIVE_DIR = Path(os.environ.get("CONTRAAGENT_LIVE_DIR") or Path(__file__).resolve().parents[2] / "live-demo") / "hooks"
 
 
@@ -114,10 +118,10 @@ def test_a_post_tool_hook_s_objection_is_fixed_in_the_same_session(ws, agent):
     objected = plugin / "objected.txt"
     seen.unlink(missing_ok=True)
     objected.unlink(missing_ok=True)
-    note = agent_task(f"note_{agent}", plugin=plugin, output=Written, max_turns=16, timeout_s=300, **ROUTES[agent])
+    note = agent_task(f"note_{agent}", plugin=plugin, output=Written, params=Topic, max_turns=16, timeout_s=300, **ROUTES[agent])
 
     def flow():
-        note(f"n-{agent}", topic="green tea")
+        note(f"n-{agent}", Topic(topic="green tea"))
 
     report = Pipeline(ws / "pipeline.toml", runs_dir=ws / "runs", cwd=ws, log=print).run(flow, run_id=f"hooks-{agent}")
     [row] = [json.loads(line) for line in (report.run_dir / "journal.jsonl").read_text().splitlines()]
@@ -161,10 +165,12 @@ def test_a_check_the_stop_hook_fails_is_fixed_in_the_same_session(ws, agent):
     Path(f"{check}.word").unlink(missing_ok=True)
     token = CommandValidator([sys.executable, str(check), "{path}"], name="token")
     plugin = ws / "plugins" / "noter"
-    doc = agent_task(f"doc_{agent}", plugin=plugin, output=str, validators=[token], max_turns=16, timeout_s=300, **ROUTES[agent])
+    doc = agent_task(
+        f"doc_{agent}", plugin=plugin, output=str, params=Topic, validators=[token], max_turns=16, timeout_s=300, **ROUTES[agent]
+    )
 
     def flow():
-        doc(f"d-{agent}", topic="green tea")
+        doc(f"d-{agent}", Topic(topic="green tea"))
 
     report = Pipeline(ws / "pipeline.toml", runs_dir=ws / "runs", cwd=ws, log=print).run(flow, run_id=f"stop-{agent}")
     [row] = [json.loads(line) for line in (report.run_dir / "journal.jsonl").read_text().splitlines()]

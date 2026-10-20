@@ -3,7 +3,7 @@
 ## contraagent
 
 @dataclass(frozen=True, eq=False)
-class AgentTask[Out]
+class AgentTask[ParamsT: BaseModel | None, Out]
     def __init__(
         self,
         kind: str,
@@ -24,16 +24,22 @@ class AgentTask[Out]
         tools: tuple[str, ...] | None = None,
         rerun_on_resume: bool = False,
         preserve: tuple[str, ...] = (),
-        output_of: AgentTask[Any] | PythonTask[Any] | None = None,
+        output_of: AgentTask[Any, Any] | PythonTask[..., Any] | None = None,
         base_kind: str = '',
         outside_state: OutsideState | None = None,
     ) -> None
-    def __call__(self, unit: str = '', **params: Any) -> Pending[Out]
+    @overload
+    def __call__(self: AgentTask[None, Out], unit: str = '', /) -> Pending[Out]
+    @overload
+    def __call__(self, params: ParamsT, /) -> Pending[Out]
+    @overload
+    def __call__(self, unit: str, params: ParamsT, /) -> Pending[Out]
+    def __call__(self, *args: Any, **keywords: Any) -> Pending[Out]
     base_kind: str = ''
     changes: tuple[str, ...] = ()
     claims: tuple[str, ...] = ()
     config: dict[str, Any]
-    def differences(self, other: AgentTask[Any]) -> list[str]
+    def differences(self, other: AgentTask[Any, Any]) -> list[str]
     def digest(self) -> str
     executor = 'agent'
     instructions: str | None
@@ -53,10 +59,11 @@ class AgentTask[Out]
     output_from: str = 'file'
     @property output_json_schema: dict[str, Any]
     output_name: str
-    output_of: AgentTask[Any] | PythonTask[Any] | None = None
+    output_of: AgentTask[Any, Any] | PythonTask[..., Any] | None = None
     @property output_schema: type[BaseModel] | None
     outside_state: OutsideState | None = None
     params: type[BaseModel] | None
+    @property params_json_schema: dict[str, Any]
     plugin: Plugin | None
     @property plugins: tuple[Plugin, ...]
     preserve: tuple[str, ...] = ()
@@ -162,6 +169,11 @@ class Hop(RecordModel)
     stop: str = ''
     usage: TokenUsage | None = None
     wall_s: float = 0.0
+
+class Implementations[ParamsT: BaseModel | None, Out](Mapping[str, AgentTask[ParamsT, Out]])
+    def __init__(self, kind: str, tasks: Mapping[str, AgentTask[ParamsT, Out]]) -> None
+    kind
+    @property kinds: list[str]
 
 class LaunchError(ContraagentError)
 
@@ -341,11 +353,11 @@ class PreflightStopped(ContraagentError)
     record
 
 @dataclass(frozen=True, eq=False)
-class PythonTask[Out]
+class PythonTask[**P, Out]
     def __init__(
         self,
-        fn: Callable[..., Out],
-        name: str,
+        fn: Callable[P, Any],
+        kind: str,
         output_schema: type[BaseModel] | None,
         validators: tuple[Validator, ...],
         claims: tuple[str, ...] = (),
@@ -355,16 +367,15 @@ class PythonTask[Out]
         output_name: str = DEFAULT_OUTPUT_NAME,
         outside_state: OutsideState | None = None,
     ) -> None
-    def __call__(self, unit: str = '', **kwargs: Any) -> Pending[Out]
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Pending[Out]
     def arguments(self, unit: str, kwargs: dict[str, Any]) -> dict[str, Any]
     claims: tuple[str, ...] = ()
     def definition(self, cwd: Path | None = None) -> dict[str, Any]
     def digest(self) -> str
     executor = 'python'
-    fn: Callable[..., Out]
+    fn: Callable[P, Any]
     def invoke(self, unit: str, kwargs: dict[str, Any]) -> Any
-    @property kind: str
-    name: str
+    kind: str
     def options(
         self,
         *,
@@ -620,8 +631,8 @@ class Validator(Protocol)
 def agent_task(
     kind: str,
     *,
-    output: type[Out],
-    params: type[BaseModel] | None = None,
+    output: type[OutT] | None = None,
+    params: type[ParamsT] | None = None,
     plugin: str | Path | None = None,
     skills_from: Sequence[str | Path] = (),
     role: str | None = None,
@@ -636,7 +647,7 @@ def agent_task(
     tools: Sequence[str] | None = None,
     rerun_on_resume: bool = False,
     preserve: Sequence[str] = (),
-    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
+    output_of: AgentTask[Any, Any] | PythonTask[..., Any] | None = None,
     implementations: None = None,
     outside_state: OutsideState | None = None,
     agent: str | None = None,
@@ -660,58 +671,13 @@ def agent_task(
     partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
-) -> AgentTask[Out]
-@overload
-def agent_task(
-    kind: str,
-    *,
-    output: None = None,
-    params: type[BaseModel] | None = None,
-    plugin: str | Path | None = None,
-    skills_from: Sequence[str | Path] = (),
-    role: str | None = None,
-    instructions: str | None = None,
-    validators: Sequence[Validator] = (),
-    output_name: str | None = None,
-    output_from: Literal['file', 'message'] = 'file',
-    unwrap: bool = False,
-    requires: Sequence[str] = (),
-    claims: Sequence[str] = (),
-    changes: Sequence[str] = (),
-    tools: Sequence[str] | None = None,
-    rerun_on_resume: bool = False,
-    preserve: Sequence[str] = (),
-    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
-    implementations: None = None,
-    outside_state: OutsideState | None = None,
-    agent: str | None = None,
-    model: str | None = None,
-    effort: str | None = None,
-    credential: str | None = None,
-    model_failover: bool | None = None,
-    fallbacks: Sequence[Mapping[str, Any]] | None = None,
-    safety_stop_failover: Sequence[Literal['response', 'tool']] | None = None,
-    disallowed_tools: Sequence[str] | None = None,
-    max_turns: int | None = None,
-    timeout_s: float | None = None,
-    max_budget_usd: float | None = None,
-    stall_s: float | None = None,
-    context_budget: int | None = None,
-    context_warn_pct: int | None = None,
-    max_denials: int | None = None,
-    max_concurrent: int | None = None,
-    retries: int | None = None,
-    retry_backoff_base: float | None = None,
-    partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
-    keep_failed_changes: bool | None = None,
-    max_corrections: int | None = None,
-) -> AgentTask[None]
+) -> AgentTask[ParamsT, OutT]
 @overload
 def agent_task(
     kind: str,
     *,
     output: Any,
-    params: type[BaseModel] | None = None,
+    params: type[ParamsT] | None = None,
     plugin: str | Path | None = None,
     skills_from: Sequence[str | Path] = (),
     role: str | None = None,
@@ -726,7 +692,7 @@ def agent_task(
     tools: Sequence[str] | None = None,
     rerun_on_resume: bool = False,
     preserve: Sequence[str] = (),
-    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
+    output_of: AgentTask[Any, Any] | PythonTask[..., Any] | None = None,
     implementations: None = None,
     outside_state: OutsideState | None = None,
     agent: str | None = None,
@@ -750,13 +716,13 @@ def agent_task(
     partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
-) -> AgentTask[Any]
+) -> AgentTask[ParamsT, str]
 @overload
 def agent_task(
     kind: str,
     *,
-    output: type[Out],
-    params: type[BaseModel] | None = None,
+    output: type[OutT] | None = None,
+    params: type[ParamsT] | None = None,
     plugin: str | Path | None = None,
     skills_from: Sequence[str | Path] = (),
     role: str | None = None,
@@ -771,7 +737,7 @@ def agent_task(
     tools: Sequence[str] | None = None,
     rerun_on_resume: bool = False,
     preserve: Sequence[str] = (),
-    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
+    output_of: AgentTask[Any, Any] | PythonTask[..., Any] | None = None,
     implementations: Mapping[str, str | Path],
     outside_state: OutsideState | None = None,
     agent: str | None = None,
@@ -795,58 +761,13 @@ def agent_task(
     partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
-) -> Mapping[str, AgentTask[Out]]
-@overload
-def agent_task(
-    kind: str,
-    *,
-    output: None = None,
-    params: type[BaseModel] | None = None,
-    plugin: str | Path | None = None,
-    skills_from: Sequence[str | Path] = (),
-    role: str | None = None,
-    instructions: str | None = None,
-    validators: Sequence[Validator] = (),
-    output_name: str | None = None,
-    output_from: Literal['file', 'message'] = 'file',
-    unwrap: bool = False,
-    requires: Sequence[str] = (),
-    claims: Sequence[str] = (),
-    changes: Sequence[str] = (),
-    tools: Sequence[str] | None = None,
-    rerun_on_resume: bool = False,
-    preserve: Sequence[str] = (),
-    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
-    implementations: Mapping[str, str | Path],
-    outside_state: OutsideState | None = None,
-    agent: str | None = None,
-    model: str | None = None,
-    effort: str | None = None,
-    credential: str | None = None,
-    model_failover: bool | None = None,
-    fallbacks: Sequence[Mapping[str, Any]] | None = None,
-    safety_stop_failover: Sequence[Literal['response', 'tool']] | None = None,
-    disallowed_tools: Sequence[str] | None = None,
-    max_turns: int | None = None,
-    timeout_s: float | None = None,
-    max_budget_usd: float | None = None,
-    stall_s: float | None = None,
-    context_budget: int | None = None,
-    context_warn_pct: int | None = None,
-    max_denials: int | None = None,
-    max_concurrent: int | None = None,
-    retries: int | None = None,
-    retry_backoff_base: float | None = None,
-    partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
-    keep_failed_changes: bool | None = None,
-    max_corrections: int | None = None,
-) -> Mapping[str, AgentTask[None]]
+) -> Implementations[ParamsT, OutT]
 @overload
 def agent_task(
     kind: str,
     *,
     output: Any,
-    params: type[BaseModel] | None = None,
+    params: type[ParamsT] | None = None,
     plugin: str | Path | None = None,
     skills_from: Sequence[str | Path] = (),
     role: str | None = None,
@@ -861,7 +782,7 @@ def agent_task(
     tools: Sequence[str] | None = None,
     rerun_on_resume: bool = False,
     preserve: Sequence[str] = (),
-    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
+    output_of: AgentTask[Any, Any] | PythonTask[..., Any] | None = None,
     implementations: Mapping[str, str | Path],
     outside_state: OutsideState | None = None,
     agent: str | None = None,
@@ -885,12 +806,12 @@ def agent_task(
     partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
-) -> Mapping[str, AgentTask[Any]]
+) -> Implementations[ParamsT, str]
 def agent_task(
     kind: str,
     *,
-    output: type[Out] | Any | None = None,
-    params: type[BaseModel] | None = None,
+    output: Any = None,
+    params: Any = None,
     plugin: str | Path | None = None,
     skills_from: Sequence[str | Path] = (),
     role: str | None = None,
@@ -905,7 +826,7 @@ def agent_task(
     tools: Sequence[str] | None = None,
     rerun_on_resume: bool = False,
     preserve: Sequence[str] = (),
-    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
+    output_of: AgentTask[Any, Any] | PythonTask[..., Any] | None = None,
     implementations: Mapping[str, str | Path] | None = None,
     outside_state: OutsideState | None = None,
     agent: str | None = None,
@@ -929,7 +850,7 @@ def agent_task(
     partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
-) -> AgentTask[Out] | Mapping[str, AgentTask[Out]]
+) -> AgentTask[Any, Any] | Implementations[Any, Any]
 
 def import_recording(
     run_dir: str | Path,
@@ -945,13 +866,13 @@ def max_passes(n: int, /) -> Callable[[F], F]
 def pipeline_table(name: str) -> dict[str, Any]
 
 @overload
-def python_task(fn: Callable[..., Partial[Out]], /) -> PythonTask[Out]
+def python_task(fn: Callable[P, Partial[Out]], /) -> PythonTask[P, Out]
 @overload
-def python_task(fn: Callable[..., Out | Partial[Out]], /) -> PythonTask[Out]
+def python_task(fn: Callable[P, Out | Partial[Out]], /) -> PythonTask[P, Out]
 @overload
 def python_task(
     *,
-    name: str | None = None,
+    kind: str | None = None,
     validators: Sequence[Validator] = (),
     claims: Sequence[str] = (),
     rerun_on_resume: bool = False,
@@ -959,12 +880,12 @@ def python_task(
     retry_on: tuple[type[Exception], ...] = (),
     output_name: str | None = None,
     outside_state: OutsideState | None = None,
-) -> Callable[[Callable[..., Out | Partial[Out]]], PythonTask[Out]]
+) -> Callable[[Callable[_P, _Out | Partial[_Out]]], PythonTask[_P, _Out]]
 def python_task(
     fn: Callable[..., Any] | None = None,
     /,
     *,
-    name: str | None = None,
+    kind: str | None = None,
     validators: Sequence[Validator] = (),
     claims: Sequence[str] = (),
     rerun_on_resume: bool = False,
@@ -972,7 +893,7 @@ def python_task(
     retry_on: tuple[type[Exception], ...] = (),
     output_name: str | None = None,
     outside_state: OutsideState | None = None,
-) -> PythonTask[Any] | Callable[[Callable[..., Any]], PythonTask[Any]]
+) -> PythonTask[..., Any] | Callable[[Callable[..., Any]], PythonTask[..., Any]]
 
 def save(name: str, value: Any) -> None
 
@@ -1265,6 +1186,7 @@ class CallFile(RecordModel)
     model_config: ConfigDict = ConfigDict(extra='ignore')
     output: CallOutput | None = None
     params: dict[str, Any] = Field(default_factory=dict)
+    params_json_schema: dict[str, Any] = Field(default_factory=dict)
     @staticmethod
     def path_of(launch: Launch) -> Path | None
     @classmethod

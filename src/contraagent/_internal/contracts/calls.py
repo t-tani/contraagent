@@ -6,6 +6,7 @@ skills, hooks); what changes per task is data. The runner writes that data to
 
     {"key": "summarize-alpha", "kind": "summarize", "unit": "alpha",
      "params": {"path": "in/alpha.md"},
+     "params_json_schema": {"title": "SummarizeParams", "type": "object", "properties": {...}},
      "output": {"path": ".../out/summarize/alpha.json", "format": "json", "from": "file",
                 "json_schema": {...}, "schema_ref": {...}, "commands": [...], "preserve": [...]}}
 
@@ -72,7 +73,11 @@ class CallFile(RecordModel):
     key: str
     kind: str
     unit: str = ""
+    #: The task's params as JSON: the fields of its params model's instance, by name.
     params: dict[str, Any] = Field(default_factory=dict)
+    #: The JSON Schema of its params model, each field's description and constraints in it;
+    #: an object with no properties for a task that takes no params.
+    params_json_schema: dict[str, Any] = Field(default_factory=dict)
     output: CallOutput | None = None
     #: The task's working directory: where its command validators run, in the runner and in the hook.
     cwd: str = ""
@@ -142,8 +147,8 @@ def call_prompt(call_path: Path, call: CallFile, instructions: str = "") -> str:
         f"Task call: `{call.kind}`{unit}.",
         "",
         f"The call file `{call_path.as_posix()}` holds your parameters (`params`) and the output "
-        "you must leave behind (`output`). Read it first, then carry out the task as "
-        "your instructions describe.",
+        "you must leave behind (`output`); `params_json_schema` says what each parameter is. "
+        "Read it first, then carry out the task as your instructions describe.",
     ]
     if call.output is not None:
         what = {
@@ -185,11 +190,14 @@ def call_prompt(call_path: Path, call: CallFile, instructions: str = "") -> str:
 
 def inline_prompt(call: CallFile, instructions: str = "") -> str:
     """The prompt of a light launch (`agent_task(tools=())`): the agent has no tool to read
-    a call file with, so the call is in the prompt itself: its params as JSON and, for a
-    JSON output, its JSON Schema. Its final message is the output."""
+    a call file with, so the call is in the prompt itself: its params as JSON with their
+    JSON Schema and, for a JSON output, its JSON Schema. Its final message is the output."""
     unit = f" for unit `{call.unit}`" if call.unit else ""
     params = json.dumps(call.params, ensure_ascii=False, indent=1)
     lines = [f"Task call: `{call.kind}`{unit}.", "", "Your parameters:", "```json", params, "```"]
+    if call.params_json_schema.get("properties"):
+        described = json.dumps(call.params_json_schema, ensure_ascii=False, indent=1)
+        lines += ["", "What each parameter is, as a JSON Schema:", "```json", described, "```"]
     out = call.output
     if out is not None and out.format in ("json", "jsonl"):
         schema = json.dumps(out.json_schema, ensure_ascii=False, indent=1)

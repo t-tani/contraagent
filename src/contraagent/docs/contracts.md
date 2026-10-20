@@ -13,7 +13,7 @@ Their field descriptions reach the agent in the call file's JSON Schema. Each
 model's `examples` (its **example**) is what a stub run writes in place of the
 agent; give it one that passes the validators ([Checking and testing](testing.md)).
 
-::code{file="examples/demo/tasks.py" from="class Prepared(BaseModel):" to="def three_points"}
+::code{file="examples/demo/tasks.py" from="class Prepared(BaseModel):" to="class SummarizeParams"}
 
 ## Rows
 
@@ -270,8 +270,8 @@ on (see [Tasks](tasks.md#flows-that-depend-on-results)). An output that did not 
 checks raises `TaskFailed` there, so no task is ever given it: an output its validators
 rejected (`invalid_output`) meets its schema and still raises. A `partial` result
 succeeded: the flow receives its output. The params themselves are checked at the task
-call: an agent task's under its params model, a Python task's against its parameters'
-annotations as it starts (`invalid_input`).
+call: an agent task's instance of its params model again under the model, a Python
+task's against its parameters' annotations as it starts (`invalid_input`).
 
 An **input contract** (`InputContract`) is a file a task reads, checked before launch,
 for a runner built on the engine (`TaskAdapter.input_contracts`): a file that is

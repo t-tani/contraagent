@@ -18,8 +18,13 @@ class Review(BaseModel):
     summary: str
 
 
+class ReviewParams(BaseModel):
+    path: str = Field(description="the release notes to read, relative to the working directory")
+
+
 review = agent_task(
     "review",
+    params=ReviewParams,
     instructions="Read the release notes in ${path} and say how much they can break for a user.",
     output=Review,
     max_turns=10,
@@ -29,4 +34,4 @@ review = agent_task(
 
 def reviews(units: list[str]):
     for unit in units:
-        review(unit, path=f"in/{unit}.md")
+        review(unit, ReviewParams(path=f"in/{unit}.md"))

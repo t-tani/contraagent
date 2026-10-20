@@ -40,7 +40,7 @@ from contraagent._internal.pipeline.check import CheckReport
 from contraagent._internal.pipeline.graph import Pending, TooManyPasses
 from contraagent._internal.pipeline.loops import max_passes
 from contraagent._internal.pipeline.pipeline import Pipeline, RunReport
-from contraagent._internal.pipeline.spec import AgentTask, OutsideState, PythonTask, agent_task, python_task
+from contraagent._internal.pipeline.spec import AgentTask, Implementations, OutsideState, PythonTask, agent_task, python_task
 from contraagent._internal.plugins.plugin import PluginError
 from contraagent._internal.public import publish
 from contraagent._internal.routing.config import ConfigError, PerTask, PipelineConfig
@@ -60,6 +60,7 @@ __all__ = [
     "DeferralCause",
     "Frame",
     "Hop",
+    "Implementations",
     "LaunchError",
     "Loop",
     "McpServers",

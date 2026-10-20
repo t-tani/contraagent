@@ -32,8 +32,17 @@ def short_summary(path, triage: Triage):
         return [f"summary: at most 25 words, got {words}"]
 
 
+class TriageParams(BaseModel):
+    report: str = Field(description="the bug report to triage, relative to the working directory")
+
+
+class PlanParams(TriageParams):
+    triage: Triage = Field(description="the report's triage")
+
+
 triage = agent_task(
     "triage",
+    params=TriageParams,
     plugin="plugins/triage",
     role="triager",
     output=Triage,
@@ -41,7 +50,7 @@ triage = agent_task(
     max_turns=10,
     timeout_s=300,
 )
-plan_fix = agent_task("plan_fix", plugin="plugins/triage", role="planner", output=FixPlan, max_turns=20, timeout_s=600)
+plan_fix = agent_task("plan_fix", params=PlanParams, plugin="plugins/triage", role="planner", output=FixPlan, max_turns=20, timeout_s=600)
 
 
 @python_task
@@ -60,15 +69,15 @@ def report_path(name: str) -> str:
 
 async def triage_all(reports: list[str]):
     """Triage every report at once, then write one table."""
-    found = await asyncio.gather(*[triage(name, report=report_path(name)) for name in reports])
+    found = await asyncio.gather(*[triage(name, TriageParams(report=report_path(name))) for name in reports])
     return await write_table(triaged=dict(zip(reports, found, strict=True)))
 
 
 async def triage_one(name: str):
     """One report: its triage, and a fix plan when it is high severity."""
-    found = await triage(name, report=report_path(name))
+    found = await triage(name, TriageParams(report=report_path(name)))
     if found.severity == "high":
-        await plan_fix(name, report=report_path(name), triage=found)
+        await plan_fix(name, PlanParams(report=report_path(name), triage=found))
     return found
 
 

@@ -42,7 +42,7 @@ def index_for(task: Task, params: dict[str, Any], servers: dict[str, dict[str, A
 
 async def ask_all(questions: dict[str, str]):
     """`questions` maps each collection to its question."""
-    answers = await asyncio.gather(*[answer(name, collection=f"collections/{name}", question=q) for name, q in questions.items()])
+    answers = await asyncio.gather(*[answer(name, Question(collection=f"collections/{name}", question=q)) for name, q in questions.items()])
     return {name: a.text for name, a in zip(questions, answers, strict=True)}
 
 

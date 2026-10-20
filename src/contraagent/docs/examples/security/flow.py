@@ -24,8 +24,13 @@ class Audit(BaseModel):
     findings: list[Finding]
 
 
+class AuditParams(BaseModel):
+    path: str = Field(description="the module's directory, relative to the working directory")
+
+
 audit = agent_task(
     "audit",
+    params=AuditParams,
     instructions="You review one module of this repository for security issues. Do not change its code.",
     output=Audit,
 )
@@ -34,4 +39,4 @@ audit = agent_task(
 def audit_all(modules: list[str]):
     """Audit every module at once."""
     for module in modules:
-        audit(module, path=f"src/{module}")
+        audit(module, AuditParams(path=f"src/{module}"))

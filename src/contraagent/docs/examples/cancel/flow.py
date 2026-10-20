@@ -22,8 +22,13 @@ class Finding(BaseModel):
     note: str = Field(examples=["The new endpoint reads the token from the query string."])
 
 
+class ProbeParams(BaseModel):
+    question: str = Field(description="the question to answer about the change")
+
+
 probe = agent_task(
     "probe",
+    params=ProbeParams,
     instructions="Read the change ${unit} and answer the question in params.question.",
     output=Finding,
     max_turns=10,
@@ -39,7 +44,7 @@ QUESTIONS = {
 
 
 async def ask(change: str, name: str, question: str, probes: list[asyncio.Task[Finding]]) -> Finding:
-    finding = await probe.options(key=f"probe-{change}-{name}", cancellable=True)(change, question=question)
+    finding = await probe.options(key=f"probe-{change}-{name}", cancellable=True)(change, ProbeParams(question=question))
     if finding.blocking:  # the review is settled: the other probes' answers are not needed
         for other in probes:
             if other is not asyncio.current_task():

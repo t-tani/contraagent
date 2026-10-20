@@ -19,7 +19,7 @@ from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from contraagent import Pipeline, agent_task, python_task, service_address
 
@@ -35,8 +35,16 @@ class Summary(BaseModel):
     text: str
 
 
+class SummarizeParams(BaseModel):
+    sources: Sources = Field(description="the topic and the files found on it")
+
+
 class Review(BaseModel):
     missing: list[str]
+
+
+class ReviewParams(BaseModel):
+    topics: list[str] = Field(description="the topics to look up on the index server")
 
 
 @python_task(claims=["index"])
@@ -48,6 +56,7 @@ def find_sources(unit: str) -> Sources:
 
 summarize = agent_task(
     "summarize",
+    params=SummarizeParams,
     instructions="Summarize the files in params.sources.paths in one paragraph.",
     output=Summary,
     max_turns=10,
@@ -56,6 +65,7 @@ summarize = agent_task(
 
 review = agent_task(
     "review",
+    params=ReviewParams,
     instructions=(
         "The index server is at $CONTRAAGENT_SERVICE_INDEX: GET <address>/<topic> lists the files on a topic. "
         "List the topics of params.topics that it has no files on."
@@ -98,13 +108,13 @@ CLAIM_CAPACITY = {"index": 4}
 
 async def topic(name: str) -> None:
     """One topic: its sources, then its summary."""
-    await summarize(name, sources=await find_sources(name))
+    await summarize(name, SummarizeParams(sources=await find_sources(name)))
 
 
 async def topics(names: list[str]):
     """The review of every topic, and every topic at once (a flow call each): a topic that
     fails stops only its own."""
-    await asyncio.gather(review("all", topics=names), *[topic(name) for name in names], return_exceptions=True)
+    await asyncio.gather(review("all", ReviewParams(topics=names)), *[topic(name) for name in names], return_exceptions=True)
 
 
 def pipeline(**options: Any) -> Pipeline:

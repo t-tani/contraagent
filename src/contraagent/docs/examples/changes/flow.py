@@ -21,8 +21,13 @@ class Written(BaseModel):
     topic: str = Field(description="the topic file written, relative to the working directory")
 
 
+class WriteParams(BaseModel):
+    subject: str = Field(description="what the topic is about")
+
+
 write = agent_task(
     "write",
+    params=WriteParams,
     instructions="Write or update the topic file under topics/${unit}/ for params.subject.",
     output=Written,
     changes=["topics/{unit}/**"],
@@ -46,7 +51,7 @@ class Effect:
 
 def topics(subjects: dict[str, str]):
     for unit, subject in subjects.items():
-        write(unit, subject=subject)
+        write(unit, WriteParams(subject=subject))
 
 
 study = agent_task(

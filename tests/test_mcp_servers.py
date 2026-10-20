@@ -50,7 +50,7 @@ def test_the_function_adds_a_server_built_from_the_task_s_params_to_the_plugin_s
         return {**plugin_servers, "index": {"command": "index-server", "args": ["--root", params["index"], "--unit", task.unit]}}
 
     agent = StubAgent({"write": {"title": "t"}})
-    report = run(tmp_path, agent, lambda: write("alpha", index="indexes/alpha"), mcp_servers=servers)
+    report = run(tmp_path, agent, lambda: write("alpha", Topic(index="indexes/alpha")), mcp_servers=servers)
     assert report.ok, report.failed
     assert calls == [("write-alpha", {"index": "indexes/alpha"}, {"docs": {"command": "docs-server"}})]
     [launch] = agent.launches

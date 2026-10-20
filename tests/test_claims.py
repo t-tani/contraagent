@@ -4,6 +4,7 @@ import json
 import threading
 import time
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from pydantic import BaseModel
@@ -164,6 +165,14 @@ class Written(BaseModel):
     path: str
 
 
+class Topics(BaseModel):
+    topics: list[str]
+
+
+class OneTopic(BaseModel):
+    topic: Any
+
+
 def written(launch):
     return {"path": f"topics/{launch.unit}.md"}
 
@@ -178,7 +187,13 @@ def plan_rows(report) -> dict[str, dict]:
 
 def test_claims_are_filled_in_from_the_unit_the_key_the_kind_and_the_params(tmp_path):
     merge = agent_task(
-        "merge", instructions="Merge.", output=Written, claims=["topic:{params.topics}", "kind:{kind}", "{key}"], max_turns=3, timeout_s=60
+        "merge",
+        instructions="Merge.",
+        params=Topics,
+        output=Written,
+        claims=["topic:{params.topics}", "kind:{kind}", "{key}"],
+        max_turns=3,
+        timeout_s=60,
     )
 
     @python_task(claims=["topic:{unit}", "batch:{params.batch}"])
@@ -186,7 +201,7 @@ def test_claims_are_filled_in_from_the_unit_the_key_the_kind_and_the_params(tmp_
         return 1
 
     def flow():
-        merge("a", topics=["a", "b", "a"])
+        merge("a", Topics(topics=["a", "b", "a"]))
         count("d", batch=7)
 
     report = run(tmp_path, flow, StubAgent({"merge": written}))
@@ -206,13 +221,19 @@ def test_claim_templates_are_checked_where_they_are_declared_and_called(tmp_path
     lonely = agent_task("lonely", instructions="x", output=Written, claims=["topic:{unit}"], max_turns=1, timeout_s=1)
     with pytest.raises(ValueError, match="names \\{unit\\}, and the task has no unit"):
         run(tmp_path / "1", lambda: lonely(), StubAgent({"lonely": written}))
-    by_param = agent_task("by_param", instructions="x", output=Written, claims=["topic:{params.topic}"], max_turns=1, timeout_s=1)
-    with pytest.raises(ValueError, match="the call gives no topic"):
-        run(tmp_path / "2", lambda: by_param("a"), StubAgent({"by_param": written}))
+    with pytest.raises(ValueError, match="names params.topic, and it takes no params"):
+        agent_task("by_param", instructions="x", output=Written, claims=["topic:{params.topic}"], max_turns=1, timeout_s=1)
+    with pytest.raises(ValueError, match="names params.topic, and its params are topics"):
+        agent_task("by_param", instructions="x", params=Topics, output=Written, claims=["topic:{params.topic}"], max_turns=1, timeout_s=1)
+    with pytest.raises(ValueError, match="names params.topic, and its params are batch"):
+        python_task(claims=["topic:{params.topic}"])(lambda batch: None)
+    by_param = agent_task(
+        "by_param", instructions="x", params=OneTopic, output=Written, claims=["topic:{params.topic}"], max_turns=1, timeout_s=1
+    )
     with pytest.raises(TypeError, match="a claim takes strings and numbers"):
-        run(tmp_path / "3", lambda: by_param("a", topic={"x": 1}), StubAgent({"by_param": written}))
+        run(tmp_path / "3", lambda: by_param("a", OneTopic(topic={"x": 1})), StubAgent({"by_param": written}))
     with pytest.raises(ValueError, match="an empty list; the task would claim nothing"):
-        run(tmp_path / "4", lambda: by_param("a", topic=[]), StubAgent({"by_param": written}))
+        run(tmp_path / "4", lambda: by_param("a", OneTopic(topic=[])), StubAgent({"by_param": written}))
 
 
 def test_a_claim_of_the_key_names_each_task_of_one_key_apart(tmp_path):
