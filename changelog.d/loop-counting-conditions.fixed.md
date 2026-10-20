@@ -1,0 +1,1 @@
+A debugger, profiler or other `sys.monitoring` tool that takes tool id 3 or 4 after a run ends now receives every jump again: the run turns back on the locations its loop counting disabled. The counting no longer keeps each analysed code object alive, and off CPython it counts nothing instead of failing.
