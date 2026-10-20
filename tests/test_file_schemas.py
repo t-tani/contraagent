@@ -7,14 +7,15 @@ import asyncio
 import json
 import tomllib
 from pathlib import Path
+from typing import Any, get_args, get_origin
 
 import pytest
 from pydantic import BaseModel
 
 from contraagent import Pipeline, PipelineConfig, agent_task, python_task
 from contraagent._internal import docs
+from contraagent._internal.contracts.calls import CallFile
 from contraagent._internal.execution import file_schemas
-from contraagent._internal.execution.schemas import RunInfo
 from contraagent._internal.routing import config as config_module
 from contraagent._internal.routing.config_schema import DefaultsTable, PipelineFile, TaskTable
 from contraagent._internal.runs import layout
@@ -56,8 +57,32 @@ def test_the_config_schema_refuses_what_the_loader_refuses(bad):
         PipelineFile.model_validate(bad)
 
 
+def _models_in(annotation: Any) -> list[type[BaseModel]]:
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return [annotation]
+    return [m for arg in get_args(annotation) for m in _models_in(arg)]
+
+
+def _undeclared(annotation: Any, value: Any, where: str) -> list[str]:
+    """The keys in `value` that no model in `annotation` declares, as paths. A reader ignores
+    such a key, so a writer must not write one."""
+    models = _models_in(annotation)
+    if not models:
+        return []
+    if isinstance(value, list):
+        return [u for i, v in enumerate(value) for u in _undeclared(annotation, v, f"{where}[{i}]")]
+    if not isinstance(value, dict):
+        return []
+    if get_origin(annotation) is dict or any(get_origin(a) is dict for a in get_args(annotation)):
+        return [u for k, v in value.items() for u in _undeclared(get_args(annotation)[-1], v, f"{where}.{k}")]
+    model = models[0]
+    fields = {f.serialization_alias or f.alias or name: f for name, f in model.model_fields.items()}
+    out = [f"{where}.{k}" for k in value if k not in fields]
+    return out + [u for k, v in value.items() if k in fields for u in _undeclared(fields[k].annotation, v, f"{where}.{k}")]
+
+
 def _check_run(run_dir: Path) -> None:
-    """Every record of `run_dir` holds to its model; run.json names only fields it knows."""
+    """Every record of `run_dir` holds to its model and writes only the fields it declares."""
     for name, model in file_schemas.RECORDS.items():
         path = run_dir / name
         if not path.exists():
@@ -65,8 +90,9 @@ def _check_run(run_dir: Path) -> None:
         rows = [json.loads(line) for line in path.read_text().splitlines()] if name.endswith(".jsonl") else [json.loads(path.read_text())]
         for row in rows:
             model.model_validate(row)
-    info = json.loads((run_dir / layout.RUN_INFO).read_text())
-    assert set(info) <= _aliases(RunInfo)
+            assert not _undeclared(model, row, name), _undeclared(model, row, name)
+    for path in sorted((run_dir / layout.CALLS).glob("*.json")):
+        assert not _undeclared(CallFile, json.loads(path.read_text()), path.name)
 
 
 def test_the_format_fixture_holds_to_the_schemas():

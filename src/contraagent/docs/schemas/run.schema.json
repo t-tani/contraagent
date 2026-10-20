@@ -3,7 +3,6 @@
   "$comment": "`run.json` in a run directory of run format 1.",
   "$defs": {
     "DroppedRoute": {
-      "additionalProperties": false,
       "description": "A route the preflight dropped: not in its agent's model list, or its probe did not\ncomplete. `kinds`: the kinds whose chain held it.",
       "properties": {
         "agent": {
@@ -44,7 +43,6 @@
       "type": "object"
     },
     "KeptKind": {
-      "additionalProperties": false,
       "description": "A kind with no route left, run as configured all the same (`substitute`), and why.",
       "properties": {
         "kind": {
@@ -74,7 +72,6 @@
       "type": "object"
     },
     "PreflightRecord": {
-      "additionalProperties": false,
       "description": "What a preflight did, as `run.json` records it (`preflight`): its policy, the routes\nit dropped, and, for each kind left with no route, its substitution, the kind kept\nas configured, or the kind that stopped the run (`stopped`).",
       "properties": {
         "policy": {
@@ -124,7 +121,6 @@
       "type": "object"
     },
     "Substitution": {
-      "additionalProperties": false,
       "description": "A kind with no route left, run on the first route that answered (`substitute`).",
       "properties": {
         "kind": {

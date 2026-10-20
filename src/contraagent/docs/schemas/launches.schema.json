@@ -3,7 +3,6 @@
   "$comment": "One line of `launches.jsonl` in a run directory of run format 1.",
   "$defs": {
     "DeniedCall": {
-      "additionalProperties": false,
       "description": "A tool call the coding agent refused (`denied`): the tool and the head of its input.",
       "properties": {
         "tool": {
@@ -171,7 +170,6 @@
       "type": "object"
     },
     "LaunchUsage": {
-      "additionalProperties": false,
       "description": "A launch's tokens as `launches.jsonl` records them (`Usage.as_dict`).",
       "properties": {
         "n_calls": {
@@ -333,7 +331,6 @@
       "type": "string"
     }
   },
-  "additionalProperties": false,
   "description": "One line of `runs/<run>/launches.jsonl`: one launch of a coding agent\n(`LaunchResult.as_dict`).",
   "properties": {
     "ts": {
