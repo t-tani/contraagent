@@ -188,7 +188,17 @@ def normalize(flow: Flow, report: RunReport, work: Path) -> dict[str, Any]:
     run = report.run_dir.resolve()
 
     def text(s: str) -> str:
-        return s.replace(str(run), "<run>").replace(str(work), "<work>").replace(report.run_id, "<run-id>")
+        for path, name in ((run, "<run>"), (work, "<work>")):
+            for form in (str(path), json.dumps(str(path))[1:-1], path.as_posix()):
+                s = s.replace(form, name)
+        return s.replace(report.run_id, "<run-id>")
+
+    def canonical(s: str) -> str:
+        """An output file's content without the platform: its run and working directories
+        named, its line endings LF, and in JSON a path's separators `/` (a Windows path's
+        backslash is written as two there)."""
+        s = text(s).replace("\r\n", "\n")
+        return s.replace("\\\\", "/") if s.lstrip().startswith(("{", "[")) else s
 
     def value(v: Any) -> Any:
         if isinstance(v, Pending):
@@ -214,7 +224,7 @@ def normalize(flow: Flow, report: RunReport, work: Path) -> dict[str, Any]:
     outputs = {}
     out = run / "out"
     for path in sorted(p for p in out.rglob("*") if p.is_file()):
-        content = text(path.read_text(encoding="utf-8", errors="surrogateescape"))
+        content = canonical(path.read_bytes().decode("utf-8", errors="surrogateescape"))
         outputs[path.relative_to(out).as_posix()] = hashlib.sha256(content.encode("utf-8", errors="surrogateescape")).hexdigest()
     return {
         "flow": flow.id,
