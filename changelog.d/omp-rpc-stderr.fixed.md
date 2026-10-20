@@ -1,1 +1,0 @@
-The `omp-rpc` backend reads the whole stderr of the coding agent before it takes the tail, so a quota refusal printed last is always seen, and a coding agent that exits before it answers `get_state` no longer adds a 10-second wait to the launch.
