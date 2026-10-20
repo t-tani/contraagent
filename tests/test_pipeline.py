@@ -3,7 +3,9 @@
 import json
 import logging
 import os
+import sys
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -11,6 +13,8 @@ from pydantic import BaseModel
 
 from contraagent import PipelineConfig, RunLocked, Task
 from contraagent._internal.backends.omp import wire as omp_trace
+from contraagent._internal.platform import processes
+from contraagent._internal.runs import layout
 from contraagent.backends import Backend, Launch, LaunchResult, QuotaRefusal, Stop, register_normalizer
 from contraagent.config import Route
 from contraagent.engine import CursorStore, RetryingRunner, Router, RoutingPlan, Run, TaskAdapter
@@ -275,6 +279,54 @@ def test_an_output_rewritten_at_the_same_size_within_one_mtime_tick_counts_as_re
     # A file last written long before the launch keeps no digest: its stamp alone tells.
     os.utime(out, ns=(tick - 3_600_000_000_000, tick - 3_600_000_000_000))
     assert contract.before(tmp_path).digest is None
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the stamp is the mtime and the size alone on Windows")
+def test_an_output_rewritten_with_its_old_mtime_and_size_put_back_counts_as_rewritten(tmp_path):
+    from contraagent.engine import OutputContract
+
+    out = tmp_path / "out.json"
+    out.write_text('{"n": 1}')
+    long_ago = out.stat().st_mtime_ns - 3_600_000_000_000
+    os.utime(out, ns=(long_ago, long_ago))
+    contract = OutputContract(out, Doc)
+    before = contract.before(tmp_path)
+    assert before.digest is None  # written long before: the stamp alone tells
+    time.sleep(0.05)  # past the tick of the status change time
+    out.write_text('{"n": 2}')
+    os.utime(out, ns=(long_ago, long_ago))  # as `cp -p` or `touch -r` would leave it
+    assert contract.check(tmp_path, before).ok
+
+
+def inflight_marker(run: Run, key: str, **fields) -> None:
+    marker = {"key": key, "kind": "prepare", "unit": "", "claims": [], "executor": "python", "started_at": "2026-10-13T00:00:00Z"}
+    (run.dir / layout.INFLIGHT).mkdir(exist_ok=True)
+    (run.dir / layout.task_entry(layout.INFLIGHT, key)).write_text(json.dumps(marker | fields))
+
+
+def test_an_in_flight_marker_whose_pid_another_process_now_has_is_not_running(tmp_path):
+    run = Run("r1", tmp_path / "runs", log=lambda line: None)
+    pid, ticks = os.getpid(), processes.start_ticks(os.getpid())
+    assert ticks is not None
+    inflight_marker(run, "python:mine", pid=pid, start_ticks=ticks)
+    inflight_marker(run, "python:recycled", pid=pid, start_ticks=ticks - 1)  # an earlier process had this pid
+    inflight_marker(run, "python:older", pid=pid)  # written before markers held a start: the run's own
+    inflight_marker(run, "python:unknown", pid=pid, start_ticks=None)
+    snap = Monitor(run.runs_dir).procs("r1")
+    assert snap["alive"] and sorted(t["key"] for t in snap["python_tasks"]) == ["python:mine", "python:older"]
+    run.close()
+
+
+def test_a_resumed_run_removes_the_in_flight_markers_an_earlier_attempt_left(tmp_path):
+    run = Run("r1", tmp_path / "runs", log=lambda line: None)
+    inflight_marker(run, "python:crashed", pid=os.getpid(), start_ticks=processes.start_ticks(os.getpid()))
+    run.close()
+    unlocked = Run("r1", tmp_path / "runs", lock=False, log=lambda line: None)  # holds no lock: leaves them
+    assert [p.name for p in (unlocked.dir / layout.INFLIGHT).iterdir()] == ["python_crashed.json"]
+    resumed = Run("r1", tmp_path / "runs", log=lambda line: None)
+    assert list((resumed.dir / layout.INFLIGHT).iterdir()) == []
+    assert Monitor(resumed.runs_dir).procs("r1")["python_tasks"] == []
+    resumed.close()
 
 
 def test_python_tasks_are_checked_by_contracts(tmp_path):

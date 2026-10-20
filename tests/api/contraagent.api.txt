@@ -1893,7 +1893,7 @@ class Answer(Protocol)
 class Before
     def __init__(
         self,
-        stamp: tuple[int, int] | None,
+        stamp: tuple[int, ...] | None,
         preserved: Mapping[str, Any] = dict(),
         text: str | None = None,
         digest: str | None = None,
@@ -1901,7 +1901,7 @@ class Before
     digest: str | None = None
     preserved: Mapping[str, Any] = field(default_factory=dict)
     def restore(self, path: Path) -> None
-    stamp: tuple[int, int] | None
+    stamp: tuple[int, ...] | None
     text: str | None = None
     def value(self, schema: type[BaseModel] | None) -> Any
 

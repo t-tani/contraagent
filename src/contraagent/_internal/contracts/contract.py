@@ -36,6 +36,7 @@ import logging
 import os
 import re
 import shutil
+import sys
 import time
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -169,7 +170,7 @@ class Before:
     (`OutputContract.compares`), and the digest of its content when its stamp was recent
     (`recent_digest`): a rewrite at the same size and mtime differs from it there."""
 
-    stamp: tuple[int, int] | None
+    stamp: tuple[int, ...] | None
     preserved: Mapping[str, Any] = field(default_factory=dict)
     text: str | None = None
     digest: str | None = None
@@ -293,13 +294,29 @@ class Check:
 RECENT_NS = 2_000_000_000
 
 
-def file_stamp(path: Path) -> tuple[int, int] | None:
-    """(mtime_ns, size) of `path`, or None when it does not exist."""
+#: A file's stamp (`stamp_of`): its mtime in nanoseconds first, its size second, then, on
+#: POSIX, its ctime in nanoseconds and its inode.
+Stamp = tuple[int, ...]
+
+
+def stamp_of(st: os.stat_result) -> Stamp:
+    """The stamp of a file whose status is `st`: `(mtime_ns, size)`, and on POSIX also
+    `(ctime_ns, inode)`. A program can set a file's mtime back (`os.utime`, `cp -p`,
+    `touch -r`) but not its ctime, which every write and every change of the mtime moves; a
+    replace gives the file a new inode too. On Windows the ctime is the creation time, which a
+    write leaves as it was, so the stamp there is the mtime and the size alone."""
+    if sys.platform == "win32":
+        return (st.st_mtime_ns, st.st_size)
+    return (st.st_mtime_ns, st.st_size, st.st_ctime_ns, st.st_ino)
+
+
+def file_stamp(path: Path) -> Stamp | None:
+    """The stamp of `path` (`stamp_of`), or None when it does not exist."""
     try:
         st = os.stat(path)
     except OSError:
         return None
-    return (st.st_mtime_ns, st.st_size)
+    return stamp_of(st)
 
 
 def file_digest(path: Path) -> str | None:
@@ -311,7 +328,7 @@ def file_digest(path: Path) -> str | None:
         return None
 
 
-def recent_digest(path: Path, stamp: tuple[int, int] | None, since_ns: int) -> str | None:
+def recent_digest(path: Path, stamp: Stamp | None, since_ns: int) -> str | None:
     """`file_digest(path)` when `stamp` (`path`'s, taken at or after `since_ns`, wall clock)
     has an mtime within `RECENT_NS` of `since_ns` or later: a rewrite in the same timestamp
     tick leaves such a stamp as it was, and only the content tells it. None otherwise."""
@@ -320,7 +337,7 @@ def recent_digest(path: Path, stamp: tuple[int, int] | None, since_ns: int) -> s
     return file_digest(path)
 
 
-def unwritten(path: Path, stamp: tuple[int, int] | None, before: tuple[int, int] | None, digest: str | None = None) -> bool:
+def unwritten(path: Path, stamp: Stamp | None, before: Stamp | None, digest: str | None = None) -> bool:
     """Whether the file at `path`, whose stamp is now `stamp`, is as it was before a launch:
     its stamp then was `before` and, when `digest` (`recent_digest`) was taken, its content
     still has that digest."""
@@ -330,7 +347,7 @@ def unwritten(path: Path, stamp: tuple[int, int] | None, before: tuple[int, int]
 def check_file(
     path: Path,
     schema: type[BaseModel] | None,
-    before: tuple[int, int] | None = None,
+    before: Stamp | None = None,
     fresh: bool = False,
     validators: Sequence[Validator] = (),
     *,

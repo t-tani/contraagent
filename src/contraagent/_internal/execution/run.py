@@ -246,6 +246,8 @@ class Run:
                 self.close()
                 raise
         self._check_format()
+        if lock:
+            self._clear_inflight()
         write_document(
             self.dir / layout.RUN_INFO,
             json.dumps(
@@ -278,6 +280,12 @@ class Run:
             f"{self.dir} is of run format {info.get('format')!r}; this contraagent reads run format "
             f"{', '.join(map(str, layout.FORMATS))}: resume it with the contraagent that wrote it, or start a new run id"
         )
+
+    def _clear_inflight(self) -> None:
+        """Remove the in-flight markers an earlier attempt of this run left: with the run
+        lock held, no other process runs a task of it."""
+        for path in (self.dir / layout.INFLIGHT).glob("*.json"):
+            path.unlink(missing_ok=True)
 
     def _refuse_existing(self) -> None:
         rows = len(read_rows(self.dir / layout.JOURNAL))
@@ -731,8 +739,10 @@ class Run:
     def _mark_inflight(self, task: Task, *, running: bool) -> None:
         """One marker per running task, so the monitor can show it even when
         nothing is a child process (a Python task, a backend that is a
-        library call). A marker whose process is gone is ignored by the monitor,
-        so a crash leaves nothing that looks live."""
+        library call). It holds the process's pid and start (`processes.start_ticks`):
+        a marker whose process is gone, or whose pid another process now has, is ignored
+        by the monitor, so a crash leaves nothing that looks live, and a resume removes
+        the markers an earlier attempt left (`_clear_inflight`)."""
         (self.dir / layout.INFLIGHT).mkdir(exist_ok=True)
         path = self.dir / layout.task_entry(layout.INFLIGHT, task.key)
         if not running:
@@ -749,6 +759,7 @@ class Run:
                     "executor": task.executor,
                     "started_at": now_iso(),
                     "pid": os.getpid(),
+                    "start_ticks": processes.start_ticks(os.getpid()),
                 }
             ),
         )

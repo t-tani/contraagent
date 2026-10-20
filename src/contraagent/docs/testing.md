@@ -208,9 +208,10 @@ declares: its outputs and its `changes=` files. A file the recorded run wrote an
 else (a cache a Python task fills, a report the flow's own body writes, a file an agent
 edited outside its patterns) is not there in a replay, and a later task that reads it
 finds it missing, or finds what the CI checkout holds. So a recording run compares the
-working directory at its start and its end (by each file's modification time and size;
-`.git`, `__pycache__`, the recordings and the run's own files are left out, but its `out/`
-is compared like any other folder). Each path created, modified or deleted that no task's
+working directory at its start and its end (by each file's modification time and size,
+and outside Windows also its status change time and inode; `.git`, `__pycache__`, the
+recordings and the run's own files are left out, but its `out/` is compared like any other
+folder). Each path created, modified or deleted that no task's
 outputs or `changes=` cover is an **undeclared change**: the run warns once per path
 
 ```
