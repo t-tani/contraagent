@@ -35,22 +35,22 @@ const python: TaskDetail = {
   io: { ...emptyDetail('x').io, executor: 'python' },
 };
 
-/** A client whose `task` answers from `details` after `delay` ms; the keys asked for, and the keys answered, in order. */
-function fakeClient(details: Record<string, TaskDetail>, delay: Record<string, number> = {}) {
+/**
+ * A client whose `task` answers from `details` on a later task, or once the key's
+ * promise in `held` settles; the keys asked for, and the keys answered, in order.
+ */
+function fakeClient(details: Record<string, TaskDetail>, held: Record<string, Promise<void>> = {}) {
   const asked: string[] = [];
   const answered: string[] = [];
   const client = {
     baseUrl: '',
-    task: (_run: string, key: string) => {
+    task: async (_run: string, key: string) => {
       asked.push(key);
       const d = details[key];
-      return new Promise<TaskDetail>((ok, fail) =>
-        setTimeout(() => {
-          answered.push(key);
-          if (d) ok(d);
-          else fail(new Error('404'));
-        }, delay[key] ?? 0),
-      );
+      await (held[key] ?? new Promise((done) => setTimeout(done, 0)));
+      answered.push(key);
+      if (!d) throw new Error('404');
+      return d;
     },
   } as unknown as MonitorClient;
   return { client, asked, answered };
@@ -316,14 +316,18 @@ describe('ca-task-view', () => {
   });
 
   it('shows only the task asked for last, and an empty detail when the request fails', async () => {
-    const { client, asked, answered } = fakeClient({ 'review-a': review, 'python:score-a': python }, { 'review-a': 30 });
+    // review · a is still being fetched when python:score-a is asked for; it answers last.
+    let answerReview!: () => void;
+    const reviewHeld = new Promise<void>((done) => (answerReview = done));
+    const { client, asked, answered } = fakeClient({ 'review-a': review, 'python:score-a': python }, { 'review-a': reviewHeld });
     const el = document.createElement('ca-task-view');
     Object.assign(el, { run: 'r', client, taskKey: 'review-a' });
     document.body.append(el);
     await el.updateComplete;
-    // review · a is still being fetched when python:score-a is asked for; it answers last.
     el.taskKey = 'python:score-a';
     await el.updateComplete;
+    await vi.waitFor(() => expect(answered).toEqual(['python:score-a']));
+    answerReview();
     await vi.waitFor(() => expect(answered).toEqual(['python:score-a', 'review-a']));
     await el.updateComplete;
     expect(asked).toEqual(['review-a', 'python:score-a']);
