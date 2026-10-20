@@ -1,0 +1,51 @@
+{
+  "call": "examples/time_box/flow.py:cycle",
+  "config": false,
+  "flow": "time_box.cycle",
+  "kwargs": {
+    "topics": [
+      "alpha",
+      "beta"
+    ]
+  },
+  "outputs": {
+    "publish/publish.json": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+    "summarize/summarize.json": "aefd190dd5cbfe036b39ddefbc318fcd7158feb4664ae87179e69bc4bea78024",
+    "write/alpha.json": "3327764969995043cde0ac06aa4bbf8f9aa23818d8144f6774f455a474915af6",
+    "write/beta.json": "3327764969995043cde0ac06aa4bbf8f9aa23818d8144f6774f455a474915af6"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "python:publish": {
+      "kind": "publish",
+      "stop": "completed",
+      "unit": "python:publish"
+    },
+    "summarize": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "summarize"
+    },
+    "write-alpha": {
+      "kind": "write",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "write-beta": {
+      "kind": "write",
+      "stop": "completed",
+      "unit": "beta"
+    }
+  },
+  "value": [
+    "",
+    ""
+  ]
+}

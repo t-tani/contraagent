@@ -1,0 +1,278 @@
+{
+  "call": "examples/review/flow.py:docs",
+  "config": false,
+  "flow": "review.docs",
+  "kwargs": {
+    "units": [
+      "alpha",
+      "beta"
+    ]
+  },
+  "outputs": {
+    "review/alpha.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/alpha~10.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/alpha~2.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/alpha~3.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/alpha~4.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/alpha~5.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/alpha~6.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/alpha~7.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/alpha~8.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/alpha~9.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/beta.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/beta~10.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/beta~2.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/beta~3.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/beta~4.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/beta~5.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/beta~6.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/beta~7.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/beta~8.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/beta~9.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "revise/alpha.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/alpha~10.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/alpha~2.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/alpha~3.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/alpha~4.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/alpha~5.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/alpha~6.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/alpha~7.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/alpha~8.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/alpha~9.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/beta.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/beta~10.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/beta~2.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/beta~3.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/beta~4.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/beta~5.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/beta~6.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/beta~7.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/beta~8.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "revise/beta~9.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "summarize/alpha.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "summarize/beta.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [
+      "TooManyPasses"
+    ],
+    "ok": false,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "review-alpha": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-alpha~10": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-alpha~2": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-alpha~3": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-alpha~4": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-alpha~5": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-alpha~6": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-alpha~7": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-alpha~8": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-alpha~9": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-beta": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "review-beta~10": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "review-beta~2": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "review-beta~3": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "review-beta~4": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "review-beta~5": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "review-beta~6": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "review-beta~7": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "review-beta~8": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "review-beta~9": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "revise-alpha": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "revise-alpha~10": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "revise-alpha~2": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "revise-alpha~3": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "revise-alpha~4": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "revise-alpha~5": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "revise-alpha~6": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "revise-alpha~7": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "revise-alpha~8": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "revise-alpha~9": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "revise-beta": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "revise-beta~10": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "revise-beta~2": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "revise-beta~3": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "revise-beta~4": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "revise-beta~5": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "revise-beta~6": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "revise-beta~7": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "revise-beta~8": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "revise-beta~9": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "summarize-alpha": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "summarize-beta": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "beta"
+    }
+  },
+  "value": null
+}

@@ -1,0 +1,48 @@
+{
+  "call": "examples/skills/tasks.py:notes",
+  "config": false,
+  "flow": "skills.notes",
+  "kwargs": {
+    "units": [
+      "alpha",
+      "beta"
+    ]
+  },
+  "outputs": {
+    "summarize/alpha.json": "09f89db57845dd0730117ee569bff3ec965025c044ffb2307f49f2e2b9f9514f",
+    "summarize/beta.json": "09f89db57845dd0730117ee569bff3ec965025c044ffb2307f49f2e2b9f9514f",
+    "write_note/alpha.md": "725c546b990dd1b41f3d5791b37c3c0edcb1f08cf150bdae32a73dfd166e02d7",
+    "write_note/beta.md": "725c546b990dd1b41f3d5791b37c3c0edcb1f08cf150bdae32a73dfd166e02d7"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "summarize-alpha": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "summarize-beta": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "write_note-alpha": {
+      "kind": "write_note",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "write_note-beta": {
+      "kind": "write_note",
+      "stop": "completed",
+      "unit": "beta"
+    }
+  },
+  "value": null
+}
