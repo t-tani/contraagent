@@ -28,9 +28,9 @@ to 0.1 seconds (half a minute at the default scale). The figures carry the noise
 real sleeps and threads: a few percent between two runs of the same seed.
 
 The scenarios are listed in `SCENARIOS`: the demo's flows (`docs`, an async flow with
-a review loop per unit, and `docs_one_review`, which does not wait, so the queue knows
-each task's successors early, and which a version with value dependencies (0.7.0 and
-later) refuses, so its scenarios are not run there; copied here without the demo's command validators,
+a review loop per unit, and `docs_one_review`, one review per unit; up to 0.6.2
+`docs_one_review` did not wait, so the queue knew each task's successors early, and
+`results/0.6.2.json` measured it so; copied here without the demo's command validators,
 which start a Python process each and would hold a slot for minutes at this scale),
 the analysis example as it is (nested flows, the `heavy` claim), and synthetic flows:
 chains of different lengths on two slots, fan-out and join, a claim every second unit
@@ -239,14 +239,16 @@ def report(summaries: list[Summary]) -> str:
     return "\n".join(f"{s.unit}: {len(s.points)} points" for s in summaries)
 
 
-def docs_one_review(units: list[str]):
-    summaries = []
-    for u in units:
-        summary = summarize(u, prepared=prepare(u))
-        review(u, summary=summary, score=score(u, summary=summary))
-        write_note(u, summary=summary)
-        summaries.append(summary)
-    return report(summaries=summaries)
+async def one_review(unit: str) -> Summary:
+    summary = await summarize(unit, prepared=await prepare(unit))
+    figures = await score(unit, summary=summary)
+    await asyncio.gather(review(unit, summary=summary, score=figures), write_note(unit, summary=summary))
+    return summary
+
+
+async def docs_one_review(units: list[str]):
+    done = await asyncio.gather(*[one_review(u) for u in units], return_exceptions=True)
+    return await report(summaries=[s for s in done if isinstance(s, Summary)])
 
 
 async def review_loop(unit: str):
@@ -454,9 +456,6 @@ class Scenario:
     deadline_min: float | None = None
     finishing_kinds: tuple[str, ...] = ()
     boxed_min: float | None = None
-    #: The flow passes a task call's `Pending` to another task call, which a version with
-    #: value dependencies refuses (`TypeError`): the scenario is then not run.
-    pendings: bool = False
 
     @property
     def deadline(self) -> float | None:
@@ -479,12 +478,11 @@ SCENARIOS: list[Scenario] = [
     ),
     Scenario(
         "demo-one-review",
-        "`docs_one_review`: the same tasks as `demo`, created without waiting, so each task's successors are known early; "
+        "`docs_one_review`: the same tasks as `demo`, one review per unit (up to 0.6.2 created without waiting); "
         "the note does not wait for the review",
         lambda: (docs_one_review, {"units": DEMO_UNITS}),
         3,
         demo_script,
-        pendings=True,
     ),
     Scenario(
         "demo-loop",
@@ -510,7 +508,6 @@ SCENARIOS: list[Scenario] = [
         demo_script,
         deadline_min=15.0,
         finishing_kinds=("write_note", "report"),
-        pendings=True,
     ),
     Scenario(
         "analysis",
@@ -592,13 +589,7 @@ def run_seed(scenario_name: str, seed: int, scale: float) -> dict[str, Any]:
                 finishing_kinds=scenario.finishing_kinds,
                 overdue_s=OVERDUE_MIN * scale,
             )
-            try:
-                report = pipeline.run(flow, run_id=run, **kwargs)
-            except TypeError as exc:
-                if not scenario.pendings or "Pending" not in str(exc):
-                    raise
-                os.chdir(tempfile.gettempdir())
-                return {"not_run": "this version refuses a task call's `Pending` among the params of another task call"}
+            report = pipeline.run(flow, run_id=run, **kwargs)
             figures[run] = _figures(scenario, stub, report, scale)
         os.chdir(tempfile.gettempdir())
         return figures
@@ -647,8 +638,6 @@ def markdown(result: dict[str, Any]) -> str:
                 s.get("deferred_would_fit", "-"),
             ]
             lines.append(f"| {name} | {run} | " + " | ".join(str(c) for c in cells) + " |")
-    for name, why in result.get("not_run", {}).items():
-        lines += ["", f"`{name}` was not run: {why}."]
     lines += ["", "## Scenarios", ""]
     lines += [f"- `{s.name}`: {s.description}." for s in SCENARIOS if s.name in result["scenarios"]]
     return "\n".join(lines) + "\n"
@@ -663,11 +652,7 @@ def run(args: argparse.Namespace) -> None:
     with ProcessPoolExecutor(max_workers=args.jobs) as pool:
         done = list(pool.map(run_seed, [n for n, _ in jobs], [s for _, s in jobs], [args.scale] * len(jobs)))
     scenarios: dict[str, Any] = {}
-    not_run: dict[str, str] = {}
     for (name, _), figures in zip(jobs, done, strict=True):
-        if "not_run" in figures:
-            not_run[name] = figures["not_run"]
-            continue
         entry = scenarios.setdefault(name, {"runs": {r: [] for r in RUNS}})
         for r in RUNS:
             entry["runs"][r].append(figures[r])
@@ -680,7 +665,6 @@ def run(args: argparse.Namespace) -> None:
         "seeds": args.seeds,
         "scale_s": args.scale,
         "scenarios": scenarios,
-        "not_run": not_run,
     }
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)

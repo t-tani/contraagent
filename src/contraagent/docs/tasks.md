@@ -473,7 +473,8 @@ will answer it. The run then closes it at once: `flow_calls.jsonl` records it
 way is in `RunReport.flow_errors`.
 
 A step of flow code between two `await`s that takes more than a second is logged:
-heavy work belongs in a Python task. Flow code does not start another run or event
+heavy work belongs in a Python task. The second counts flow code only, not what
+contraagent does for a task call. Flow code does not start another run or event
 loop: `Pipeline.run` and `asyncio.run` raise inside a flow. A resumed run runs the flow again from the
 start and answers each skipped task with its output, so the flow must create the
 same tasks for the same outputs: a random choice or the clock belongs in a Python
