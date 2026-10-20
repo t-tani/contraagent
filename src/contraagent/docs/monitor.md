@@ -66,7 +66,7 @@ shows who runs its tasks: ✦ and a violet edge for an agent task, ⚙ for a Pyt
 task. A breadcrumb names the layer
 (Pipeline › function › loop at flow.py:122), each loop by the file and first line
 it is at, so a loop and the loop inside it are told apart. A solid edge is a dependency (`after`); a dashed
-one joins a task to a result its flow call had received when it created the task
+one joins a task to a result that reached its flow call just before it created the task
 (`created_from`), drawn only where the task does not also wait for that output.
 A flow that does not wait is one layer: its kinds.
 

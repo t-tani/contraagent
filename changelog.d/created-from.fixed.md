@@ -1,0 +1,5 @@
+A task's created from (`plan.jsonl` `created_from`, `Origin.created_from`, the monitor's dashed edges) now follows what caused the step of flow code that created the task. The run gives the results to the flow code one at a time, in the order they came, and lets the flow calls run until each waits again after each one. A result reaches a flow call when the step that it resumes runs in that flow call: a task it awaits, an item of a `gather` or `TaskGroup` it awaits, or a flow call it awaits, which brings that flow call's own created from. What changes (old → new):
+
+- A flow call took the created from of every child flow call that ended, awaited or not → only the results that reached it count: a flow call or a task that nothing awaits reaches no one.
+- The keys followed the places of the waits that gave them (a `gather`'s by position) → they are listed by the flow call that queued each, then in the order that flow call queued them.
+- Two results that came between two passes of the queue reached the flow code together → one at a time: a `TaskGroup` whose child fails cancels its other children before a later result reaches them.

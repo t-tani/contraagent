@@ -67,8 +67,9 @@ class Origin:
     first, across flow calls (a child flow call's frames follow the frames of
     the parent where it created that flow call). Their loops' passes say in which
     iteration of each loop around it the task was created.
-    `created_from`: the keys whose results its flow call had received when it
-    was created (the flow call's frontier).
+    `created_from`: the keys of the results that reached its flow call between
+    that flow call's previous resume and the resume in which it created the task
+    (the flow call's frontier: see `FlowDriver`).
     `flow_call`: the id of the flow call that created it.
     """
 

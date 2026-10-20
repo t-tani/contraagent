@@ -155,7 +155,9 @@ def test_a_failure_in_a_task_group_cancels_its_siblings_and_the_parent_goes_on()
         return await d.wait("after")
 
     driver, passes = run(top)
-    assert passes == [["x", "y1"], ["after", "y2"]]
+    # Results reach the flows one at a time: x fails bad, and its TaskGroup cancels slow
+    # before y1 comes, so slow never waits for y2.
+    assert passes == [["x", "y1"], ["after"]]
     assert rec == {"slow": "cancelled", "group": ["bad"]}
     assert {c.id: c.state for c in driver.calls.values()} == {"0": "returned", "0.1": "raised", "0.2": "closed"}
 
@@ -672,3 +674,21 @@ def test_a_flow_loop_runs_on_a_thread_of_its_own_too():
     thread.start()
     thread.join()
     assert found == ["checker", ["x"]]
+
+
+def test_a_callback_carries_the_cause_of_what_scheduled_it():
+    seen: list[tuple[str, tuple[str, ...]]] = []
+
+    def on_run(context, cause):
+        seen.append(("run", cause))
+        return (*cause, "+") if cause else cause
+
+    loop = FlowLoop(on_run=on_run)
+    fut = loop.create_future()
+    fut.add_done_callback(lambda f: loop.call_soon(lambda: None))
+    with loop.caused_by(("k",)):
+        fut.set_result(1)  # schedules its done callback, caused by k
+    loop.call_soon(lambda: None)  # outside caused_by: no cause
+    loop.drain()
+    # the done callback ran with k; what it scheduled carries what on_run returned for it
+    assert seen == [("run", ("k",)), ("run", ()), ("run", ("k", "+"))]

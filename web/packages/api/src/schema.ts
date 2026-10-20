@@ -1977,7 +1977,7 @@ export type components = {
             flow?: components["schemas"]["Frame"][];
             /**
              * Created From
-             * @description keys whose results its flow call had received when it created it
+             * @description keys of the results that reached its flow call between that flow call's previous resume and the one in which it created the task
              */
             created_from?: string[];
             /**

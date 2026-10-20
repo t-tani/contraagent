@@ -3319,7 +3319,7 @@ class PlanNode(PlanRow)
     attempts: int = 1
     base_kind: str = Field('', description="an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty")
     claims: list[str] = Field(default_factory=list, description="the names it holds while it runs, its kind's `claims` filled in")
-    created_from: list[str] = Field(default_factory=list, description='keys whose results its flow call had received when it created it')
+    created_from: list[str] = Field(default_factory=list, description="keys of the results that reached its flow call between that flow call's previous resume and the one in which it created the task")
     credential: str = Field('', description='the credential its task call names (`credential=`), which every route of its kind ran it as; empty when it names none, or a run-wide override outranks it')
     deferred: str = Field('', description='why the queue deferred it, never launched (`deferred.jsonl`): a deadline, a resting credential; empty when it was not')
     deferred_cause: DeferralCause | None = Field(None, description='the same as data; null when it was not deferred, or the run recorded no cause')

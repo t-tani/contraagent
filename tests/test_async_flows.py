@@ -125,7 +125,7 @@ def test_the_review_loop_converges_at_pass_2_and_the_report_joins_every_unit(tmp
     assert plan["python:report"]["after"] == ["summarize-a", "revise-b"]  # through each child's return value
     # the loop's review is in its pass 1, then 2; revise in pass 1
     assert (passes(plan["review-b"]), passes(plan["review-b~2"]), passes(plan["revise-b"])) == ([1], [2], [1])
-    # created from: the keys the flow call had received
+    # created from: the keys of the results that reached the flow call before it created the task
     assert plan["review-b~2"]["created_from"] == ["revise-b"]
     assert plan["python:report"]["created_from"] == ["review-a", "review-b~2"]
     # each unit's loop is its own flow call; the report is the top's

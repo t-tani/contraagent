@@ -1,6 +1,6 @@
 // Synthetic plans for the graph's tests, as a run writes them: a task's flow path
-// (outermost first) with the loops around each call site, what its flow call had
-// received when it was created, and its flow call. Test code only: the build leaves
+// (outermost first) with the loops around each call site, the results that reached
+// its flow call just before it was created, and its flow call. Test code only: the build leaves
 // `*.fixture.ts` out.
 import type { FlowCallNode, Frame, Plan, PlanNode } from '@contraagent/api';
 
