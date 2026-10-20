@@ -433,10 +433,10 @@ def chance_run(chance: float | None) -> tuple[list[str], dict[str, str]]:
 
 
 def test_a_task_whose_finish_chance_is_below_the_threshold_gives_its_slot_to_other_work():
-    assert FINISH_CHANCE == 0.5
-    assert chance_run(0.6) == (["maybe", "other"], {"maybe": "completed", "other": "completed"})
-    assert chance_run(0.5) == (["maybe", "other"], {"maybe": "completed", "other": "completed"})
-    assert chance_run(0.4) == (["other"], {"maybe": "deferred", "other": "completed"})
+    above, below = FINISH_CHANCE + 0.1, FINISH_CHANCE - 0.1
+    assert chance_run(above) == (["maybe", "other"], {"maybe": "completed", "other": "completed"})
+    assert chance_run(FINISH_CHANCE) == (["maybe", "other"], {"maybe": "completed", "other": "completed"})
+    assert chance_run(below) == (["other"], {"maybe": "deferred", "other": "completed"})
     assert chance_run(None) == (["maybe", "other"], {"maybe": "completed", "other": "completed"})  # no samples
 
 

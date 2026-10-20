@@ -163,9 +163,10 @@ OVERDUE_S = 600.0
 #: deadline, when `slack_s` is not given.
 SLACK_SHARE = 0.25
 
-#: Below this finish chance a task is late (the module docstring): 0.5 asks for the
-#: median of its samples to fit, the point the queue compared before it kept samples.
-FINISH_CHANCE = 0.5
+#: Below this finish chance a task is late (the module docstring). Of 0.5 (the median of
+#: its samples fits), 0.35 and 0.2, 0.35 finished the most work by the deadline in the
+#: scheduling benchmark without more cost after it (`benchmarks/results/0.7.0.md`).
+FINISH_CHANCE = 0.35
 
 #: How long `finishing_kinds` still launch past the deadline, when `grace_s` is not given.
 GRACE_S = 900.0

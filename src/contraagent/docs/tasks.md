@@ -686,7 +686,7 @@ outside it is held to it.
 Inside, the rules are the run's deadline's: from `deadline_s - slack_s` (default a
 quarter of `deadline_s`) its tasks go before the others, its `finishing_kinds`
 first, then the shortest remaining work. A task that is not of a finishing kind is
-late when its finish chance is below one half: the share of the past tasks with
+late when its finish chance is below 0.35: the share of the past tasks with
 the same kind, flow path and loop passes whose own time and the work after them
 fit in the time left (`JournalEstimates.finish_chance`), asked again as tasks
 finish. A late task goes last. It still starts when a slot is free, since an idle
