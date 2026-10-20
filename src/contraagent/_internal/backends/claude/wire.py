@@ -26,12 +26,27 @@ from contraagent._internal.runs.times import iso_of, now_iso
 
 #: A safety refusal in an error result's text (a result that is no error may say it in passing).
 REFUSAL_RE = re.compile(r"safeguard|refus", re.I)
-#: How Claude Code words a refusal, read only in an error result's text: usage-limit copy
-#: (40 live sightings, 2026-09), a refused credential's `Failed to authenticate`, a safety
-#: refusal's `REFUSAL_RE`. A process that printed nothing failed to start when it exited
-#: nonzero; one that printed something but no result had no output.
+#: A quota refusal as Claude Code 2.1 words it, at the start of a line: the messages its own
+#: check for a usage limit starts with (`You've hit your session limit · resets 5pm`, `You've
+#: hit your limit`, `... Opus limit`, `... fast limit`, `You're out of extra usage`, ...), and
+#: its message for a 429 (`API Error: Request rejected (429) · ...`, `API Error: Server is
+#: temporarily limiting requests ...`) or for a model under load. Read in an error result's
+#: text and on a failed launch's stderr, where a hook or an MCP server may print a path or
+#: a traceback: no single word decides.
+QUOTA_RE = re.compile(
+    r"^(?:Error: )?(?:You've hit your |You've reached your |You're out of (?:usage credits|extra usage)"
+    r"|Your org is out of usage|Your seat type doesn't include (?:extra )?usage|Your usage allocation has been disabled"
+    r"|Your group's usage limit is set to \$0|(?:Fable|Haiku|Mythos|Opus|Sonnet)(?: [^\u00b7\n]{1,40})? requires usage credits\."
+    r"|API Error: (?:Request rejected \(429\)|Server is temporarily limiting requests|Usage credits required)"
+    r"|(?:Fable|Haiku|Mythos|Opus|Sonnet) is experiencing high load)",
+    re.MULTILINE,
+)
+#: How Claude Code words a refusal, read only in an error result's text: a quota refusal
+#: (`QUOTA_RE`), a refused credential's `Failed to authenticate`, a safety refusal's
+#: `REFUSAL_RE`. A process that printed nothing failed to start when it exited nonzero; one
+#: that printed something but no result had no output.
 SIGNALS = Signals(
-    quota=re.compile(r"hit your (weekly|usage|session) limit|rate.?limit", re.I),
+    quota=QUOTA_RE,
     auth=re.compile(r"^Failed to authenticate"),
     silence_is_startup=True,
     nonzero_exit_is_error=False,

@@ -24,9 +24,18 @@ from dataclasses import dataclass, field
 
 from contraagent._internal.backends.launch import QuotaRefusal, Stop
 
-#: A quota refusal in a provider's words, as omp, pi and opencode pass them on.
+#: A quota refusal in a provider's words, as omp, pi and opencode pass them on: a sentence
+#: or an error code that states the refusal (`Go usage limit exceeded`, `Rate limit reached
+#: for ...`, `This request would exceed the rate limit ...`, `rate_limit_error`,
+#: `GoUsageLimitError`), or a line that starts with the status (`429 {...}`, as omp and pi
+#: put it at the head of `errorMessage`). A word alone is no refusal: a failed launch's
+#: stderr may hold a path (`rate_limit.py`), a traceback (`line 429`) or the system's
+#: `Disk quota exceeded`.
 QUOTA_RE = re.compile(
-    r"usage limit exceeded|rate[_ -]?limit|too many requests|quota (?:exceeded|exhausted)|insufficient_quota",
+    r"usage ?limit (?:exceeded|reached)|UsageLimitError|usage_limit_reached"
+    r"|rate[_ ]limit(?:_error|[_ ](?:exceeded|reached))|exceed\w* (?:the |your )?(?:[\w-]+ )?rate limit"
+    r"|too many requests|(?<!disk )quota (?:exceeded|exhausted)|exceeded your current quota|insufficient_quota"
+    r"|(?m:^429 )",
     re.IGNORECASE,
 )
 _RETRY_AFTER_RE = re.compile(r"retry-after-ms=(\d+)|retry[_ -]?after[\"':= ]+(\d+(?:\.\d+)?)", re.IGNORECASE)
