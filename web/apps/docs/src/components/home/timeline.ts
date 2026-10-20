@@ -54,9 +54,9 @@ export function code(): CodeLine[] {
   const parts = [
     lines(file, 'summarize = agent_task(', ')'),
     lines(file, 'def review_loop(', 'def review_loop('),
-    lines(file, '    try:', 'return summary'),
+    lines(file, '    summary = await summarize(', 'return summary'),
     lines(file, 'def docs(', 'def docs('),
-    lines(file, 'summaries = await asyncio.gather(', 'return await report('),
+    lines(file, 'done = await asyncio.gather(', 'return await report('),
   ];
   const out: CodeLine[] = [];
   for (const p of parts) {

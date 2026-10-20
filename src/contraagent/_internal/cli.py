@@ -411,7 +411,8 @@ def _flow_command(args) -> int:
     for deferred in result.deferred:
         print(f"  {deferred.task.key}: deferred {deferred.reason[:300]}")
     for call in result.flow_errors:
-        print(f"  flow call {call.id} ({call.function}): {type(call.error).__name__}: {str(call.error)[:300]}")
+        at = f" at {_shown(Path(call.raised_at.file))}:{call.raised_at.line}" if call.raised_at is not None else ""
+        print(f"  flow call {call.id} ({call.function}){at}: {type(call.error).__name__}: {str(call.error)[:300]}")
     if stub is not None and (note := _examples_refused(result, stub)):
         print(note)
     return 0 if result.ok else 1

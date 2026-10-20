@@ -391,7 +391,8 @@ def test_a_key_created_by_two_flow_calls_needs_key(tmp_path):
         return await asyncio.gather(part("a"), part("b"))
 
     rep = pipeline(tmp_path, stub(write_doc="# d\n")).run(flow)
-    [call] = rep.flow_errors
+    [call] = rep.flow_errors  # the flow call that raised it, not the top flow call it reached
+    assert call.parent is not None and call.parent.id == "0" and call.error is call.parent.error
     assert isinstance(call.error, ValueError) and "options(key=)" in str(call.error) and "write_doc" in str(call.error)
 
 
@@ -489,7 +490,7 @@ def test_contraagent_run_exits_1_on_a_flow_error(tmp_path, capsys, monkeypatch):
     finally:
         sys.modules.pop("steps", None)
     out = capsys.readouterr().out
-    assert "1/1 tasks done" in out and "flow call 0 (steps.flow): ValueError: got 4" in out
+    assert "1/1 tasks done" in out and "flow call 0 (steps.flow) at steps.py:7: ValueError: got 4" in out
 
 
 # --- resume -----------------------------------------------------------------------

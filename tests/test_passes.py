@@ -546,7 +546,10 @@ def test_a_function_bound_takes_the_place_of_the_runs_for_its_own_while_loops(tm
                 await step.options(key=f"failed-{name}")(f"failed-{name}", n=len(str(exc)))
 
     rep = pipeline(tmp_path, max_passes=3).run(flow)
-    assert rep.ok, rep.flow_errors
+    # A broken bound is a flow error even where the flow catches it: the run is not ok.
+    assert not rep.ok and not rep.failed
+    assert [c.function.rpartition(".")[2] for c in rep.flow_errors] == ["short", "unbounded"]
+    assert all(isinstance(c.error, TooManyPasses) for c in rep.flow_errors)
     assert sorted(k for k in rep.results if k.startswith("long")) == [f"long-{r}" for r in range(5)]  # 5 passes, under 6
     assert sorted(k for k in rep.results if k.startswith("short")) == ["short-0", "short-1"]
     assert sorted(k for k in rep.results if k.startswith("plain")) == ["plain-0", "plain-1", "plain-2"]  # the run's 3

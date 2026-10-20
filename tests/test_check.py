@@ -278,6 +278,28 @@ def test_the_report_shows_each_kinds_route_and_a_flow_error_at_the_flows_line(pl
     assert f"{__file__}:" in errors[0] and "FileNotFoundError" in errors[0]
 
 
+@pytest.mark.parametrize(
+    ("refused", "words"),
+    [(lambda: asyncio.sleep(5), "needs a clock"), (lambda: asyncio.to_thread(len, "x"), "needs a thread")],
+    ids=["sleep", "to_thread"],
+)
+def test_a_flow_call_that_awaits_a_clock_or_a_thread_is_reported_at_its_line(plugin_dir, refused, words):
+    summarize = agent_task("summarize", plugin=plugin_dir, output=Summary, max_turns=5, timeout_s=60)
+
+    async def per_unit(u):
+        await refused()
+        return await summarize(u)
+
+    async def flow():
+        return await asyncio.gather(per_unit("a"), summarize("b"))
+
+    line = per_unit.__code__.co_firstlineno + 1
+    report = pipeline().check(flow)
+    [error] = report.errors
+    assert error.startswith("flow call 0.1 ") and f"{__file__}:{line}: TypeError: " in error and words in error
+    assert report.kinds == {"summarize": 1}  # the other item of the gather went on to its task
+
+
 def test_run_takes_what_check_takes_and_exits_by_the_outcome(tmp_path, capsys, monkeypatch, flow_module):
     flow_module("steps")
     (tmp_path / "steps.py").write_text(

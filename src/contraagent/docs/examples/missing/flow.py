@@ -79,8 +79,10 @@ async def review_unit(unit: str, documents: list[str]):
 
 
 async def reviews(units: dict[str, list[str]]):
-    """Every unit at once, a flow call each."""
-    return await asyncio.gather(*[review_unit(unit, documents) for unit, documents in units.items()])
+    """Every unit at once, a flow call each; the reviews of the units that got through. A
+    unit whose task failed is its exception in `done`, and the other units go on."""
+    done = await asyncio.gather(*[review_unit(unit, documents) for unit, documents in units.items()], return_exceptions=True)
+    return [result for result in done if isinstance(result, Review)]
 
 
 def missing(run: RunRecords) -> TableBody:

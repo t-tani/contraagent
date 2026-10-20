@@ -266,7 +266,8 @@ class FlowCallRow(RecordModel):
     """One line of `runs/<run>/flow_calls.jsonl`. `event` `start`: `parent`, `function`,
     `flow` (the flow path where the parent created it; empty for a top flow call) and, for a
     flow call started through `time_box`, `time_box`; `end`: `state` (`returned`, `raised`,
-    `closed`) and `error` (`"<type>: <message>"` or null). A row holds only its event's fields."""
+    `closed`) and `error` (`"<type>: <message>"` or null), and for one that `raised`,
+    `raised_at` and `raised_by` when known. A row holds only its event's fields."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(serialize_by_alias=True)
 
@@ -279,6 +280,16 @@ class FlowCallRow(RecordModel):
     time_box: TimeBoxRecord | None = None
     state: FlowState | None = None
     error: str | None = None
+    raised_at: Frame | None = Field(
+        None,
+        description="where the exception left the flow call's own code (mostly the `await` that failed); "
+        "absent when no frame of flow code is in it",
+    )
+    raised_by: str | None = Field(
+        None,
+        description="the key of the failed task the exception is (`TaskFailed.key`, the first one in an exception group), "
+        "the same in every flow call it passes through; absent for an exception of flow code's own",
+    )
 
     def to_dict(self) -> dict[str, Any]:
         """The row as `flow_calls.jsonl` records it: the fields set."""

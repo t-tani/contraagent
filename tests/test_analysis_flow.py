@@ -109,8 +109,10 @@ def test_a_reading_verify_never_accepts_stops_at_the_file_flow_s_own_bound(tmp_p
     agent = StubAgent({"classify": classify, "parse_csv": table, "parse_json": table, "propose": short, "refine": short})
     report = pipeline(tmp_path / "runs", agent).run(example.analyse, bundles=["west"], run_id="analyse")
     assert not report.ok
-    [call] = report.flow_errors
+    [call] = report.flow_errors  # the file's flow call, although its bundle gathered it with return_exceptions=True
     assert isinstance(call.error, TooManyPasses), call.error
+    assert call.function.endswith(".analyse_file") and not report.failed
+    assert report.value == "west: 0 columns"  # the run went on: the bundle reported without the file, and the summary ran
     assert "max_passes=4 of " in str(call.error) and "analyse_file" in str(call.error)
     refines = [launch.key for launch in agent.launches if launch.kind == "refine" and launch.unit == "west-0-id"]
     assert refines == ["refine-west-0-id", "refine-west-0-id~2", "refine-west-0-id~3", "refine-west-0-id~4"]  # then pass 5 raises

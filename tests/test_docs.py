@@ -437,7 +437,7 @@ def test_the_implementations_example_launches_each_unit_s_kind_with_its_plugin(t
     assert [Plugin.load(plugins / name).lint() for name in ("review-python", "review-go")] == [[], []]
     units = {"parser": "python", "server": "go", "lexer": "python"}
     check = Pipeline(runs_dir=tmp_path / "runs", backends=StubAgent().backends(), cwd=tmp_path).check(flow.review_all, units=units)
-    assert check.ok and check.later_kinds == ["review-go"]
+    assert check.ok and check.kinds == {"review-python": 2, "review-go": 1} and check.later_kinds == []
     agent = StubAgent(default=lambda launch: {"unit": launch.unit, "findings": [launch.kind]})
     report = Pipeline(runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path).run(flow.review_all, units=units)
     assert report.ok and report.value == {"parser": 1, "server": 1, "lexer": 1}

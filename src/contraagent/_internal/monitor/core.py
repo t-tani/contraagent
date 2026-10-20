@@ -734,10 +734,19 @@ class Monitor:
                     "flow": _shown_flow(flow, cwd) if isinstance(flow, list) else [],
                     "state": "running",
                     "error": None,
+                    "raised_at": None,
+                    "raised_by": None,
                     "time_box": _time_box(row.get("time_box")),
                 }
             elif row.get("event") == "end" and cid in calls:
-                calls[cid].update(state=row.get("state") or "closed", error=row.get("error"))
+                at = row.get("raised_at")
+                by = row.get("raised_by")
+                calls[cid].update(
+                    state=row.get("state") or "closed",
+                    error=row.get("error"),
+                    raised_at=_shown_flow([at], cwd)[0] if isinstance(at, dict) else None,
+                    raised_by=by if isinstance(by, str) else None,
+                )
         return list(calls.values())
 
     def _group_name(self, n: dict[str, Any]) -> str:
