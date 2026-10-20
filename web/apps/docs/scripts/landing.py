@@ -92,8 +92,12 @@ def broken_check() -> str:
 
 def tests() -> list[str]:
     """The demo's tests on a stub agent: one line per test, then pytest's summary without its duration."""
-    # pytest as a project without the repository's own pytest options runs it.
-    out = run(["pytest", "test_demo.py", "-v", "-o", "addopts=", "-p", "no:cacheprovider"])
+    # pytest as a project without the repository's own pytest options runs it. Its temporary
+    # directories are its own: in pytest's shared one, two sessions that end at once can
+    # remove the same old directory, and the one that loses warns (an error here) after every
+    # test passed.
+    with tempfile.TemporaryDirectory() as tmp:
+        out = run(["pytest", "test_demo.py", "-v", "-o", "addopts=", "-p", "no:cacheprovider", "--basetemp", str(Path(tmp) / "basetemp")])
     kept = re.compile(r"^test_demo\.py::\S+ (PASSED|FAILED)|^=+ \d+ (passed|failed)")
     lines = [line for line in out.splitlines() if kept.match(line)]
     lines = [re.sub(r"\s+\[\s*\d+%\]$", "", line) for line in lines]

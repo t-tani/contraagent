@@ -340,15 +340,20 @@ def test_where_the_callback_cannot_find_the_jumping_frame_nothing_is_counted(tmp
 
 @pytest.mark.skipif(sys.implementation.name != "cpython", reason="a code object is freed when its last reference goes")
 def test_the_analysis_of_a_code_object_goes_with_it():
-    """Code made anew at each call (`exec`) does not make the analyses grow."""
-    before = len(loops._codes)
+    """Code made anew at each call (`exec`) does not make the analyses grow. Only this test's
+    own entries are counted: at any allocation, the garbage collector may free code that
+    other tests analysed (a flow file loaded again, code made by `exec`)."""
+
+    def made() -> list[str]:
+        return [c.co_name for c in list(loops._codes) if c.co_name.startswith("made_anew_")]
+
     for i in range(20):
-        module = compile(f"async def made_{i}(n):\n    while n:\n        n -= 1\n", f"<made_{i}>", "exec")
+        module = compile(f"async def made_anew_{i}(n):\n    while n:\n        n -= 1\n", f"<made_anew_{i}>", "exec")
         code = next(c for c in module.co_consts if isinstance(c, type(module)))
         assert loops.loops_of(code).loops  # analysed: one `while`
-        assert len(loops._codes) == before + 1
+        assert made() == [f"made_anew_{i}"]
         del module, code
-        assert len(loops._codes) == before
+        assert made() == []
 
 
 # --- in a pipeline ----------------------------------------------------------------------

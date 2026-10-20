@@ -77,6 +77,7 @@ from types import CodeType, FrameType
 from typing import Any
 
 from contraagent._internal.dispatch.code import flow_code
+from contraagent._internal.dispatch.flowloop import not_flow_code
 from contraagent._internal.dispatch.records import Loop
 
 #: The tool ids tried, in order: 0, 1, 2 and 5 are the debugger's, coverage's, the profiler's and the optimizer's.
@@ -160,8 +161,9 @@ def loops_of(code: CodeType) -> _Code:
     """The loops of an `async def` function's code in flow code; none for any other code."""
     info = _codes.get(code)
     if info is None:
-        info = _codes[code] = _analyse(code) if code.co_flags & inspect.CO_COROUTINE and flow_code(code.co_filename) else _NONE
-        _whiles.update((code.co_filename, loop.line) for loop in info.loops.values() if loop.while_)
+        with not_flow_code():  # contraagent's own work, not the flow step's (`FlowLoop.slow_s`)
+            info = _codes[code] = _analyse(code) if code.co_flags & inspect.CO_COROUTINE and flow_code(code.co_filename) else _NONE
+            _whiles.update((code.co_filename, loop.line) for loop in info.loops.values() if loop.while_)
     return info
 
 
