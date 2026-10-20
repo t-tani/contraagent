@@ -187,9 +187,12 @@ and adds what a pipeline of them needs.
   (`claims`) so that they run one at a time. A claim name can also stand for a
   service, such as a local server, that the first task to claim it starts and the
   run's end stops. Each kind also has its own limit of tasks that run at once.
-- A task whose input is missing does not start, and its recorded cause names the
-  earlier task. On resume, a task's `fingerprint`, a digest of its parameters, its
-  definition and the content of the outputs it reads, decides whether it runs again.
+- A failed task stops only the work that needs its output. The other units go on,
+  the run finishes all it can, and it records where each flow call stopped and
+  because of which task. A task whose input is missing does not start, and its
+  recorded cause names the earlier task. On resume, a task's `fingerprint`, a digest
+  of its parameters, its definition and the content of the outputs it reads, decides
+  whether it runs again.
 - The documentation, the docstrings of the typed public API and the messages of
   `contraagent check` are written for the coding agent that writes the pipeline, so
   it needs no source code of contraagent. `contraagent check` reports every problem

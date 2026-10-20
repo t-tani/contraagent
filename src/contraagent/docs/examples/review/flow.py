@@ -3,7 +3,8 @@ until the review approves it, every unit at once, then one report over them all.
 
 The flows are `async def` functions: `await` a task call, and the checked output
 comes back at the `await`. Passing it on to another task is the dependency, as
-passing the task call itself is in a flow that does not wait.
+passing the task call itself is in a flow that does not wait. `docs` reports on the
+units that got through; `publish` reports only when every unit got through.
 """
 
 from __future__ import annotations
@@ -58,6 +59,17 @@ async def review_loop(unit: str):
 
 
 async def docs(units: list[str]):
-    """Every unit's loop at once (one flow call each), then one report joining them."""
-    summaries = await asyncio.gather(*[review_loop(u) for u in units])
-    return await report(summaries=summaries)
+    """Every unit's loop at once (one flow call each), then one report joining the units
+    that got through: a unit whose task failed is its exception in `done`, and the other
+    units go on."""
+    done = await asyncio.gather(*[review_loop(u) for u in units], return_exceptions=True)
+    return await report(summaries=[s for s in done if isinstance(s, Summary)])
+
+
+async def publish(units: list[str]):
+    """All or nothing: one report only when every unit's loop got through. At the first
+    failure the task group closes the other loops (the tasks they started still run to
+    their end), and the exception group ends this flow call."""
+    async with asyncio.TaskGroup() as tg:
+        loops = [tg.create_task(review_loop(u)) for u in units]
+    return await report(summaries=[loop.result() for loop in loops])

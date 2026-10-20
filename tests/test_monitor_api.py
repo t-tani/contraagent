@@ -540,6 +540,22 @@ def test_a_file_outside_the_runs_working_directory_is_served_as_recorded(review_
     assert len(files) == 1 and Path(files.pop()).is_absolute()
 
 
+def test_a_flow_call_that_raised_says_where_and_because_of_which_task(tmp_path):
+    run = tmp_path / "stopped"
+    run.mkdir()
+    at = {"function": "flows.per_unit", "file": str(tmp_path / "flows.py"), "line": 12}
+    rows = [
+        {"ts": "2026-10-20T10:00:00+00:00", "id": "0", "event": "start", "parent": None, "function": "flows.top", "flow": []},
+        {"ts": "2026-10-20T10:00:01+00:00", "id": "0", "event": "end", "state": "raised", "error": "TaskFailed: task step-a error"}
+        | {"raised_at": at, "raised_by": "step-a"},
+    ]
+    (run / "flow_calls.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8", newline="\n")
+    (run / "run.json").write_text(json.dumps({"run_id": "stopped", "cwd": str(tmp_path)}), encoding="utf-8", newline="\n")
+    [call] = client_for(Monitor(tmp_path)).get("/api/runs/stopped/plan").json()["flow_calls"]
+    assert call["state"] == "raised" and call["raised_by"] == "step-a"
+    assert call["raised_at"] == {"function": "flows.per_unit", "file": "flows.py", "line": 12}
+
+
 def test_a_run_whose_tasks_no_flow_created_has_no_flow_call(tmp_path):
     run = tmp_path / "byhand"
     run.mkdir()

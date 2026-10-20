@@ -1020,6 +1020,13 @@ export type components = {
              * @description `<type>: <message>` of what it raised (or what cancelling it raised); else null
              */
             error?: string | null;
+            /** @description for one that raised: where the exception left its own code (mostly the `await` that failed), its file as `flow` gives it; else null */
+            raised_at?: components["schemas"]["Frame"] | null;
+            /**
+             * Raised By
+             * @description for one that raised: the key of the failed task the exception is, the same in every flow call it passes through; null for an exception of flow code's own
+             */
+            raised_by?: string | null;
             /** @description its own deadline, for a flow call started through `time_box`; else null */
             time_box?: components["schemas"]["TimeBoxRecord"] | null;
         };
