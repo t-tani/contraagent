@@ -150,8 +150,8 @@ def test_the_function_is_called_when_the_task_starts_with_its_params_resolved(tm
 
 
 def test_a_task_that_waits_for_one_that_ran_again_runs_again_too(tmp_path):
-    """In a flow that does not receive the output, the later task's fingerprint is that of the
-    task it waits for as it started: a changed state reaches it."""
+    """In a flow that does not receive the output, the later task's fingerprint takes the
+    output file as it is when the later task starts: a changed state that changes it reaches it."""
     calls: list[str] = []
     state, tally = counting(tmp_path, calls)
 

@@ -169,16 +169,26 @@ of:
   the skills of its plugin and of each plugin of its `skills_from`, its output
   schema, its validators and its params schema; for a Python task, its function's
   source, its output schema and its validators;
-- each task it waits for: the content of that task's output file when the flow
-  received the output and passed it on (an async flow), else that task's
-  fingerprint (a task call passed before it finished, as in a flow that does not
-  wait).
+- each output it reads, by the content of that output file: as the flow received
+  it, for an output the flow received and passed on (an async flow); as the file
+  is when the task is about to start, for a task call passed before it finished
+  (as in a flow that does not wait);
+- each other task it waits for (`after=`, and the task whose file an `output_of`
+  task fills in): that task's fingerprint.
 
 A changed parameter or an edited instruction, role file or function runs its task
-again. A task after it runs again when the output it received changed: one that
-wrote the same output leaves it skipped. In a flow that does not wait, every task
-after it runs again. The functions that call the tasks, their names and lines are
-not part of it: renaming a function of the flow runs nothing again.
+again. A task that reads another task's output runs again only when that output
+changed: a task that ran again and wrote the same output leaves the tasks that
+read it skipped, in a flow that waits and in one that does not. An output file
+changed under a skipped task (by hand, or by another program) runs again the tasks
+that read it. A task that only waits for another (`after=`) runs again whenever
+the other does. The functions that call the
+tasks, their names and lines are not part of it: renaming a function of the flow
+runs nothing again.
+
+A resume skips a task only when its output still reads under its output schema.
+An output file that no longer does (one edited by hand into another shape) runs
+its task again, and its journal row's `rerun` says so.
 
 A final step that reports or publishes the state of the work (a site, statistics,
 a commit) often takes nothing from the tasks before it: it reads the working tree.
@@ -211,8 +221,9 @@ backlog file, and the function returns the file's digest:
   (`invalid_input`, its reason the exception), and the tasks that wait for it do not
   start. `contraagent check` calls it for every task whose params are known before the
   run and reports the same.
-- A task that waits for one with outside state, without receiving its output, runs
-  again when that task runs again, as for any change of its fingerprint.
+- A task that reads the output of one with outside state runs again when that
+  output changed, as for any output it reads. A task that only waits for it
+  (`after=`) runs again when it runs again.
 - A file the task itself writes is no outside state: its digest changes with every
   run, so the task would run again on every resume. `rerun_on_resume` and
   `outside_state` do not go together.
