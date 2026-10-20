@@ -96,6 +96,17 @@ Rules:
   with its parent's.
 * The queue does not end while a flow call runs (`settle`, its `between_passes`): it
   waits for the tasks the flow calls create, within the run's deadline.
+* A failure stops only the code that needed it (keep going). A task that did not
+  succeed raises at the `await` of each flow call that waits for it; the exception
+  ends that flow call unless its code catches it, and is raised again where a parent
+  awaits the flow call (`asyncio.gather` without `return_exceptions`, `await task`),
+  and so on up. Nothing else is cancelled: `gather` leaves its other items running,
+  and the tasks already queued or running finish. A parent that ends, returned or
+  raised, does not close its children: they go on, and the run waits for every flow
+  call. Only an `asyncio.TaskGroup` cancels its other flow calls at a failure (they
+  end `closed`); the tasks they created still run to their end. A flow call that
+  `raised` records where (`FlowCall.raised_at`) and because of which failed task
+  (`FlowCall.raised_by`).
 * A flow call that still waits once the flows are quiescent, while no task the driver
   queued is still to give its result, waits for what nothing will answer (an
   `asyncio.Event` nobody sets, a `Queue` nobody fills): `settle` closes it, its `error`
@@ -123,13 +134,14 @@ import time
 import warnings
 from collections.abc import Awaitable, Callable, Coroutine, Generator, Iterable, Iterator
 from dataclasses import dataclass, field, replace
-from types import CodeType, FrameType, GeneratorType
+from types import CodeType, FrameType, GeneratorType, TracebackType
 from typing import Any, Literal, NoReturn, Protocol
 
-from contraagent._internal.dispatch.code import flow_code
+from contraagent._internal.dispatch.code import contraagent_file, flow_code
 from contraagent._internal.dispatch.entry import run_sync
 from contraagent._internal.dispatch.flowloop import DRAIN_CODE, FlowLoop
 from contraagent._internal.dispatch.queue import GRACE_S, SLACK_SHARE, WorkQueue
+from contraagent._internal.dispatch.records import Frame
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, Task, TaskResult, TimeBox
 
 _logger = logging.getLogger(__name__)
@@ -269,7 +281,12 @@ class FlowCall:
     `frontier`: the keys whose results it received when it was last resumed.
     `value`: what it returned; `error`: what it raised (or what cancelling it
     raised, or, for one closed because it waited for what nothing would answer,
-    the RuntimeError that says where it waited). `time_box`: its own deadline,
+    the RuntimeError that says where it waited). For one that `raised`, `raised_at` is
+    where the exception left its own code (the innermost frame of flow code of its own
+    coroutine and the functions it awaited in it: mostly the line of the `await` that
+    failed), and `raised_by` the key of the failed task the exception is (`TaskFailed.key`,
+    the first one in an exception group), the same key in every flow call it passes
+    through; None for an exception of flow code's own. `time_box`: its own deadline,
     when it was started through `time_box`; `started_at` (`time.time()`): when it
     started. `recorded`: whether it is on record (`on_flow_call("start")` came:
     see the module docstring). `task`: its asyncio Task."""
@@ -282,6 +299,8 @@ class FlowCall:
     frontier: tuple[str, ...] = ()
     value: Any = field(default=None, repr=False)
     error: BaseException | None = None
+    raised_at: Frame | None = None
+    raised_by: str | None = None
     time_box: TimeBox | None = None
     started_at: float = field(default_factory=time.time)
     recorded: bool = False
@@ -358,6 +377,9 @@ class FlowDriver:
         self._open: set[str] = set()  # keys queued whose result has not come
         # What `answer` raised at an await, by id (kept alive): a task's outcome, not a flow call's own.
         self._outcomes: dict[int, BaseException] = {}
+        # Each exception a flow call ended with, by id (kept alive), with the length of its
+        # traceback then: a parent that ends with it too has its own frames before those.
+        self._raised: dict[int, tuple[BaseException, int]] = {}
         self._outbox: list[Task] = []
         self._queue: WorkQueue | None = None
         self._main: asyncio.AbstractEventLoop | None = None
@@ -727,6 +749,35 @@ class FlowDriver:
         passed through unchanged is not: the task's own record says it."""
         return error is not None and self._outcomes.get(id(error)) is not error
 
+    def _raised_at(self, error: BaseException) -> Frame | None:
+        """Where `error` left the code of the flow call that ends with it: the innermost
+        frame of flow code in its traceback, above contraagent's own code (a task call's
+        `await`, the driver) and before the frames of the flow call it came from.
+        An exception that passes from a child flow call to its parent keeps the child's
+        traceback after the parent's own frames (a Task's exception is raised again at its
+        `await` with the traceback it ended with), so the frames the child ended with are
+        left out."""
+        entries: list[TracebackType] = []
+        tb = error.__traceback__
+        while tb is not None:
+            entries.append(tb)
+            tb = tb.tb_next
+        before = self._raised.get(id(error))
+        own = entries
+        if before is not None and before[0] is error and before[1] < len(entries):
+            own = entries[: len(entries) - before[1]]
+        self._raised[id(error)] = (error, len(entries))
+        found = None
+        for tb in own:
+            code = tb.tb_frame.f_code
+            if contraagent_file(code.co_filename):  # a task call's await, the driver: below flow code
+                break
+            if flow_code(code.co_filename):
+                module = tb.tb_frame.f_globals.get("__name__", "")
+                function = f"{module}.{code.co_qualname}" if module else code.co_qualname
+                found = Frame(function=function, file=code.co_filename, line=tb.tb_lineno or code.co_firstlineno)
+        return found
+
     def _record(self, call: FlowCall) -> None:
         """Put `call` on record (`on_flow_call("start", call)`), once: at the first thing it
         does that a run shows. Its parent is on record already: creating it put it there."""
@@ -754,6 +805,9 @@ class FlowDriver:
         call.state = state
         call.value = value
         call.error = error
+        if state == "raised" and error is not None:
+            call.raised_at = self._raised_at(error)
+            call.raised_by = failed_key(error)
         self._running -= 1
         if self._shows(call, state, error):
             self._record(call)
@@ -793,6 +847,20 @@ class _Wait(collections.abc.Coroutine[Any, Any, Any]):
 
     def close(self) -> None:
         self._steps.close()
+
+
+def failed_key(error: BaseException) -> str | None:
+    """The key of the failed task `error` is: a `TaskFailed`'s (a `TaskDeferred`'s too), or
+    the first one's in an exception group (an `asyncio.TaskGroup`'s), depth first; None for
+    any other exception."""
+    if isinstance(error, TaskFailed):
+        return error.key
+    if isinstance(error, BaseExceptionGroup):
+        for inner in error.exceptions:
+            key = failed_key(inner)
+            if key is not None:
+                return key
+    return None
 
 
 async def _raise(error: BaseException) -> NoReturn:

@@ -348,7 +348,9 @@ Then the flow:
 `triage_and_plan` gives one `triage_one` call per report to `asyncio.gather`:
 each runs as its own **flow call**, at the same time as the others, and `gather`
 returns what each one returned, in the order of the reports. A report that is not
-high severity does not wait for another report's plan.
+high severity does not wait for another report's plan. With
+`return_exceptions=True`, a report whose task failed is its exception in that list:
+its own flow call stops there, the other reports go on, and the table leaves it out.
 
 Planning a fix is harder than triage, so give `plan_fix` a stronger model in
 `pipeline.toml`:

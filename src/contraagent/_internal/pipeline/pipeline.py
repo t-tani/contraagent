@@ -65,7 +65,14 @@ class RunReport:
     flow's return value, or, for a flow that does not wait, its return value, a task
     call's `Pending` included (its output is `value.output`); None when the flow raised.
     `flow_errors`: the top flow calls that raised after their first task was queued, or
-    that were closed because they waited for what nothing would answer.
+    that were closed because they waited for what nothing would answer; `.raised_at` says
+    where one stopped and `.raised_by` which failed task stopped it.
+
+    The run keeps going past a failure: a failed task stops only the code that awaits its
+    output, and the flow calls that await that code, from their `await` on. Every other
+    flow call goes on, the tasks queued and running finish, and the run ends when no task
+    is left and every flow call has ended. A resume then runs the failed tasks and what
+    waits for them again.
 
     `summary` is the queue's (`wall_s`, `finished`, `ok`, `by_stop`, `by_kind`,
     `deferred`) plus the attempts this call journaled (`attempt_totals`), and
@@ -87,8 +94,9 @@ class RunReport:
     #: output (`.output`).
     value: Any = None
     #: The top flow calls that raised after their first task was queued, or that were closed
-    #: because they waited for what nothing would answer; `.error` is the exception (recorded
-    #: in `flow_calls.jsonl` too).
+    #: because they waited for what nothing would answer; `.error` is the exception,
+    #: `.raised_at` and `.raised_by` where and why it stopped (recorded in `flow_calls.jsonl`
+    #: too).
     flow_errors: list[FlowCall] = field(default_factory=list)
 
     @property
@@ -530,7 +538,9 @@ class Pipeline:
                     if not call.recorded:
                         return
                     try:
-                        run.record_flow_call("end", call.id, state=call.state, error=call.error)
+                        run.record_flow_call(
+                            "end", call.id, state=call.state, error=call.error, raised_at=call.raised_at, raised_by=call.raised_by
+                        )
                     except Exception as exc:  # the monitor's record only: the flow goes on
                         run._record_failed(layout.FLOW_CALLS, exc, f"flow call {call.id}")
 

@@ -10,6 +10,7 @@ again.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -59,7 +60,12 @@ def tally(unit: str, findings: list[Finding]) -> Tally:
     return Tally(findings=len(findings), documents=len({f.document for f in findings}))
 
 
+async def review_unit(unit: str):
+    """One unit: its findings, then their tally."""
+    findings = await review(unit)
+    tally(unit, findings=findings)
+
+
 async def reviews(units: list[str]):
-    for unit in units:
-        findings = await review(unit)
-        tally(unit, findings=findings)
+    """Every unit at once, a flow call each: a unit whose review failed stops only its own."""
+    await asyncio.gather(*[review_unit(unit) for unit in units], return_exceptions=True)

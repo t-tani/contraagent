@@ -242,7 +242,9 @@ A flow that waits for outputs is an `async def` function. It awaits a task call 
 receives the task's checked output at the `await`, so what it creates next can
 depend on it. The demo's `docs` reviews each unit's summary and revises it until the
 review approves it, every unit at once, then one report joins them. A unit whose
-summary could not be made (`zeta`) ends its loop there.
+summary could not be made (`zeta`) stops its own flow call there; the other units go
+on, and the report joins the units that got through (see
+[Failures](#failures-the-run-keeps-going)).
 
 ::code{file="examples/demo/tasks.py" from="def review_loop("}
 
@@ -272,7 +274,8 @@ summary could not be made (`zeta`) ends its loop there.
   (`invalid_output`). A task not launched by the deadline, or whose remaining
   work cannot finish before it, raises `TaskDeferred`, which a flow may answer
   with a task of a `finishing_kinds` kind. An exception that ends a child flow
-  call is raised again at its parent's `await`.
+  call is raised again at its parent's `await`. What a failure stops, and what
+  goes on, is in [Failures](#failures-the-run-keeps-going).
 - One failure is tolerated with `try`/`except` around its `await`. Without more
   arguments, `gather` raises the first failure as soon as it comes, and the other
   items go on running. To tolerate failures in a group, give
@@ -469,6 +472,56 @@ the top columns and, inside that, revises each until `verify` accepts it.
 
 The parsers claim `heavy` (`claims=["heavy"]`), so one runs at a time. The monitor draws each flow call as a node that opens its own
 layer, and the nodes a loop created in a box (a nested loop is a box inside it).
+
+## Failures: the run keeps going
+
+A run does not stop at a failure. A task that did not succeed, after its retries,
+failover hops, correction rounds and `partial_on`, raises `TaskFailed` at each
+`await` of it, and that stops only the code that needs its output:
+
+- the flow call that awaits it, from that `await` on, unless its code catches the
+  exception;
+- each parent that awaits that flow call, with `await`, with `asyncio.gather`
+  without `return_exceptions`, or through `asyncio.TaskGroup`, from that `await` on,
+  and the parents above it by the same rule.
+
+Nothing else stops. Every other flow call goes on and creates its tasks; `gather`
+does not cancel its other items when it raises. A task already queued or running
+runs to its end, and its result is in the run. A flow call goes on when its parent
+ends, whether the parent returned or raised, and the run waits for every flow call.
+The run ends when no task is queued or running and every flow call has ended. Its
+`RunReport.ok` is False when a task failed or a top flow call raised. A resume then
+skips every task that succeeded and runs the failed tasks again, and the code that
+waited for them goes on from there.
+
+A failure stops the rest of its own flow call, also the work that does not need the
+failed output. So a flow gives each unit a flow call of its own, an `async def`
+function for one unit, and gathers them with `return_exceptions=True`: a unit that
+failed stops there, and its item is the exception. The demo's `docs` above does this,
+and so does the review example:
+
+::code{file="examples/review/flow.py" from="def docs(" to="def publish("}
+
+`return_exceptions=True` makes every exception an item, an error of flow code's
+own too (`TooManyPasses`, a bug). Its flow call is recorded `raised` all the same,
+but only a top flow call's exception makes the run not ok, so a flow that tolerates
+only failed tasks raises the other exceptions again.
+
+When the work is all or nothing, the flow says so with `asyncio.TaskGroup`. The first
+failure in the group cancels its other flow calls (recorded `closed`), and the group
+raises an `ExceptionGroup` at the end of its `async with`. The tasks those flow calls
+created still run to their end, and a resume skips them.
+
+::code{file="examples/review/flow.py" from="def publish("}
+
+A flow call that raised records where and why it stopped, in `FlowCall.raised_at` and
+`FlowCall.raised_by`, at the end of its `flow_calls.jsonl` record and in the monitor.
+`raised_at` is the frame where the exception left the flow call's own code: mostly
+the line of the `await` that failed, or for a parent, the line where it awaits the
+child. `raised_by` is the key of the failed task the exception is (`TaskFailed.key`,
+the first one in an exception group), the same in every flow call it passes through;
+it is null for an exception of flow code's own. `contraagent run` prints the place of
+each flow error.
 
 ## A task that finds something missing
 

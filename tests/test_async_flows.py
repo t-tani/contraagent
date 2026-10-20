@@ -489,7 +489,7 @@ def test_contraagent_run_exits_1_on_a_flow_error(tmp_path, capsys, monkeypatch):
     finally:
         sys.modules.pop("steps", None)
     out = capsys.readouterr().out
-    assert "1/1 tasks done" in out and "flow call 0 (steps.flow): ValueError: got 4" in out
+    assert "1/1 tasks done" in out and "flow call 0 (steps.flow) at steps.py:7: ValueError: got 4" in out
 
 
 # --- resume -----------------------------------------------------------------------

@@ -470,10 +470,11 @@ def test_flow_code_may_set_an_event_of_the_main_loop():
         (lambda: asyncio.sleep(0.05), TypeError, "needs a clock"),
         (lambda: asyncio.wait_for(asyncio.get_running_loop().create_future(), timeout=1), TypeError, "needs a clock"),
         (lambda: asyncio.to_thread(time.sleep, 0), TypeError, "needs a thread"),
+        (lambda: asyncio.get_running_loop().run_in_executor(None, time.sleep, 0), TypeError, "needs a thread"),
         (lambda: asyncio.open_connection("localhost", 9), TypeError, "needs I/O"),
         (lambda: asyncio.create_subprocess_exec("true"), TypeError, "needs I/O"),
     ],
-    ids=["sleep", "wait_for", "to_thread", "open_connection", "subprocess"],
+    ids=["sleep", "wait_for", "to_thread", "run_in_executor", "open_connection", "subprocess"],
 )
 def test_a_clock_a_thread_or_io_raises_at_the_await(awaited, error, words):
     caught: list[BaseException] = []
@@ -507,6 +508,34 @@ def test_an_asyncio_timeout_raises_at_the_async_with():
     driver, passes = run(top)
     assert len(caught) == 1 and "needs a clock" in str(caught[0])
     assert passes == [["after"]] and driver.calls["0"].value == "v:after"
+
+
+def test_the_waits_a_flow_does_not_use_still_work():
+    """`asyncio.wait`, `as_completed`, `shield`, `Queue` and `Event` are not refused: they
+    run on the flow loop's futures and callbacks alone."""
+    got: dict[str, Any] = {}
+
+    async def top(d):
+        done, _ = await asyncio.wait([asyncio.ensure_future(d.wait("w1")), asyncio.ensure_future(d.wait("w2"))])
+        got["wait"] = sorted(t.result() for t in done)
+        got["as_completed"] = sorted([await f for f in asyncio.as_completed([d.wait("c1"), d.wait("c2")])])
+        got["shield"] = await asyncio.shield(d.wait("s"))
+        queue: asyncio.Queue[str] = asyncio.Queue()
+        event = asyncio.Event()
+
+        async def producer():
+            await queue.put(await d.wait("q"))
+            event.set()
+
+        child = asyncio.create_task(producer())
+        await event.wait()
+        got["queue"] = await queue.get()
+        await child
+        return await d.wait("after")
+
+    driver, passes = run(top)
+    assert got == {"wait": ["v:w1", "v:w2"], "as_completed": ["v:c1", "v:c2"], "shield": "v:s", "queue": "v:q"}
+    assert driver.calls["0"].value == "v:after"
 
 
 def test_a_future_of_another_event_loop_raises_at_the_await():

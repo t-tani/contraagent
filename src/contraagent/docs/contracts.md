@@ -65,7 +65,7 @@ With rows, the rows written so far are the output. A last line with no newline
 after it that is not valid JSON was being written when the launch was stopped:
 the runner removes that line before the check.
 
-::code{file="examples/rows/flow.py" from="review = agent_task(" to="def reviews("}
+::code{file="examples/rows/flow.py" from="review = agent_task(" to="def review_unit("}
 
 Only these two stops are kept. Both are the runner's own: it ended the launch for
 time, and the agent said nothing about its work. A turn cap (`max_turns`), a cost

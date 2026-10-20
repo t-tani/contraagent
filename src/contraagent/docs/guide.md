@@ -91,9 +91,15 @@ for another port).
   threads and no I/O, so `asyncio.sleep(5)`, `asyncio.timeout(5)`,
   `asyncio.to_thread` and an async client raise `TypeError` at their `await`.
 - A flow awaits task calls and flow calls, with `await`, `asyncio.gather` and
-  `asyncio.TaskGroup`; not `asyncio.Event`, `Queue`, `wait` or `as_completed`. A
-  flow call that waits for what nothing will answer is closed once no task is
-  left to run, with an error that names the line where it waits.
+  `asyncio.TaskGroup`; not `asyncio.wait`, `as_completed`, `shield`, `Queue` or
+  `Event`. They are not refused, but a branch on what finished first takes another
+  path on a resume. A flow call that waits for what nothing will answer is closed
+  once no task is left to run, with an error that names the line where it waits.
+- A failed task stops the rest of the flow call that awaits it, also work that does
+  not need its output. One flow call per unit, gathered with
+  `asyncio.gather(..., return_exceptions=True)`, keeps a failure to its unit; every
+  other unit, and every task already queued or running, goes on. `asyncio.TaskGroup`
+  is the choice when the work is all or nothing.
 - Flow code does not call `Pipeline.run` or `asyncio.run`: both raise inside a
   flow. Async code outside a flow runs a pipeline with
   `await Pipeline(config).run_async(flow, ...)`.
