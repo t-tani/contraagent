@@ -38,6 +38,7 @@ from contraagent._internal.dispatch.flow import SECOND_RUN, FlowCall, FlowDriver
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent._internal.dispatch.queue import GRACE_S, OVERDUE_S, RETRY_WAIT_S, THROTTLE_S
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_INVALID_INPUT, STOP_PARTIAL, Deferral, Task, TaskResult
+from contraagent._internal.execution import teardown as _teardown
 from contraagent._internal.execution.adapter import McpServers
 from contraagent._internal.execution.python_tasks import recording
 from contraagent._internal.execution.recording import MAX_FILE_MB, Recorder, Replay
@@ -628,6 +629,7 @@ class Pipeline:
                     summary = await queue.run_async()
                 finally:
                     try:
+                        _teardown.settle()  # a signal's teardown stops the services first, as `interrupted`
                         services.close()
                     finally:
                         await driver.finish()

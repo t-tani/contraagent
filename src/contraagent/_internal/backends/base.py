@@ -102,6 +102,36 @@ def temp_dir(prefix: str) -> Path:
     return Path(tempfile.mkdtemp(prefix=prefix, dir=temp_root()))
 
 
+#: The directories `exit_dir` made, with the pid that made them: a forked child removes none of its parent's.
+_exit_dirs: list[tuple[int, Path]] = []
+_exit_dirs_lock = threading.Lock()
+_exit_registered = False
+
+
+def exit_dir(prefix: str, parent: Path | None = None) -> Path:
+    """A new owner-only directory named `<prefix><random>`, in `parent` (default `temp_root()`),
+    that this process removes as it ends (`remove_exit_dirs`): at the interpreter's exit, and
+    before a SIGTERM ends it by its default action, where no `atexit` runs. For what a secret
+    may be written to: it outlives no process that can remove it."""
+    global _exit_registered
+    path = Path(tempfile.mkdtemp(prefix=prefix, dir=parent or temp_root()))
+    with _exit_dirs_lock:
+        if not _exit_registered:
+            atexit.register(remove_exit_dirs)
+            _exit_registered = True
+        _exit_dirs.append((os.getpid(), path))
+    return path
+
+
+def remove_exit_dirs() -> None:
+    """Remove every directory `exit_dir` made in this process. Never raises."""
+    with _exit_dirs_lock:
+        ours = [path for pid, path in _exit_dirs if pid == os.getpid()]
+        _exit_dirs.clear()
+    for path in ours:
+        shutil.rmtree(path, ignore_errors=True)
+
+
 def safe_label(label: str) -> str:
     """A launch label as one path component: anything but letters, digits and `-_.` replaced by `_`."""
     return "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in label) or "launch"
@@ -352,16 +382,15 @@ class Backend(abc.ABC):
 
     def scratch(self, label: str, which: str, create: bool = True) -> Path:
         """A directory per launch label and purpose (a resumed launch keeps its label, and so
-        its directory), under one root this process removes at exit."""
+        its directory), under one root this process removes as it ends (`exit_dir`)."""
         own: dict = vars(self)
         if own.get("_scratch_root") is None:
             parent = self.scratch_parent()
             if parent is not None:
                 parent.mkdir(parents=True, exist_ok=True)
-                own["_scratch_root"] = Path(tempfile.mkdtemp(prefix=f"contraagent-{self.name}-", dir=parent))
+                own["_scratch_root"] = exit_dir(f"contraagent-{self.name}-", parent)
             else:
-                own["_scratch_root"] = temp_dir(f"{self.name}-")
-            atexit.register(shutil.rmtree, own["_scratch_root"], True)
+                own["_scratch_root"] = exit_dir(f"{self.name}-")
         d = own["_scratch_root"] / safe_label(label) / which
         if create:
             d.mkdir(parents=True, exist_ok=True)
@@ -481,9 +510,10 @@ class Backend(abc.ABC):
     def reclassify(self, launch_result: LaunchResult, stderr: str) -> None:
         """Second look at a launch's result, now that its stderr is whole.
 
-        CLIs do not agree on where they report a refusal: omp prints `429 Go usage limit
-        exceeded` on stderr while stdout holds a spinner line, and a CLI that dies at start
-        prints only there. A failed launch (`signals.stderr_stops`) whose stderr words a quota
+        CLIs do not agree on where they report a refusal: omp's text mode prints `429 Go
+        usage limit exceeded` only on stderr and exits 1, and a CLI that dies at start prints
+        only there. `signals.quota` matches the forms a refusal takes, never a single word, as
+        stderr may also hold a traceback or a path. A failed launch (`signals.stderr_stops`) whose stderr words a quota
         refusal (`signals.quota`) is `rate_limited`, which is in the failover path; read from
         stdout alone it is an ordinary error, and a run keeps launching into a blown quota.
         """

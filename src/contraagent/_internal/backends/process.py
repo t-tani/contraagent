@@ -173,6 +173,8 @@ def run_process(
     within a second.
     """
     started_wall = time.monotonic()
+    if live_processes.launches_refused():
+        raise LaunchError(live_processes.REFUSED)
     since = live_processes.epoch()
     try:
         proc = subprocess.Popen(
@@ -187,7 +189,12 @@ def run_process(
         )
     except OSError as exc:
         raise LaunchError(str(exc)) from exc
-    live_processes.register(proc, since=since)
+    if not live_processes.register(proc, since=since):  # stopped already; waited for here
+        _terminate(proc)
+        for pipe in (proc.stdin, proc.stdout, proc.stderr):
+            if pipe is not None:
+                pipe.close()
+        raise LaunchError(live_processes.REFUSED)
     try:
         return _supervise(proc, argv, launch, sink, started_wall, stderr_sink)
     finally:

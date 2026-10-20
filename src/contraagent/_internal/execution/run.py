@@ -310,7 +310,7 @@ class Run:
 
     def close(self) -> None:
         """Release the run lock (process exit releases it too), and put back the signal
-        handlers `stop_on_signals` replaced."""
+        handlers `stop_on_signals` replaced, after the teardown a signal started has ended."""
         if self._restore_signals is not None:
             self._restore_signals()
             self._restore_signals = None
@@ -365,10 +365,9 @@ class Run:
     def teardown(self) -> None:
         """Stop the live agents and every registered callback. Idempotent, never raises.
 
-        Reached from the main thread, a signal handler and atexit, possibly
-        overlapping (a SIGTERM landing mid-teardown), so the flag is claimed
-        under a lock. Non-blocking: a signal handler that finds a teardown
-        already under way on its own thread must return, not wait on itself.
+        Reached from the main thread, the thread a signal wakes (`stop_on_signals`) and
+        atexit, possibly overlapping, so the flag is claimed under a lock; a call that
+        finds a teardown already under way returns at once.
         """
         if not self._teardown_lock.acquire(blocking=False):
             return
@@ -382,8 +381,11 @@ class Run:
 
     def stop_on_signals(self) -> None:
         """Run `teardown` on SIGTERM and SIGINT until `close()`: an interrupted run stops its
-        agents, whose sessions of their own a terminal's Ctrl-C does not reach. Only on the
-        main thread (Python's signal handlers live there); elsewhere it does nothing."""
+        agents, whose sessions of their own a terminal's Ctrl-C does not reach. The teardown
+        runs on a thread of its own, never in the signal handler, so it cannot wait for a
+        lock the interrupted main thread holds; `close()` waits for it to end. SIGTERM then
+        ends the process by its default action. Only on the main thread (Python's signal
+        handlers live there); elsewhere it does nothing."""
         if threading.current_thread() is threading.main_thread() and self._restore_signals is None:
             self._restore_signals = _teardown.install_signal_handlers(self.teardown)
 

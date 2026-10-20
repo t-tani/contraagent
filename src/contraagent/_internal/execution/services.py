@@ -46,6 +46,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
+from contraagent._internal.backends import live_processes
 from contraagent._internal.dispatch.queue import RunnerConfig, TaskRunner, claim_entry
 from contraagent._internal.dispatch.records import ServiceEvent, ServiceStopCause
 from contraagent._internal.dispatch.task import Deferral, Task, TaskResult
@@ -233,7 +234,7 @@ class Services:
                 if self._cooloff_s is None or time.monotonic() - state.failed_at < self._cooloff_s:
                     raise ServiceFailed(state.failed)
                 state.failed = ""
-            if self._closed:
+            if self._closed or live_processes.launches_refused():
                 raise ServiceFailed(f"service {name!r} did not start: the run is ending")
             if state.context is None:
                 self._start(name, state, task)

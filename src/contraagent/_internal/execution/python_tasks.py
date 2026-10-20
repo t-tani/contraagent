@@ -41,6 +41,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
+from contraagent._internal.backends import live_processes
 from contraagent._internal.contracts.contract import check_input, record_contracts
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope, enriched
 from contraagent._internal.dispatch.python_task import InvalidInput
@@ -190,7 +191,10 @@ class PythonTaskRunner:
         snapshots, every scope is entered in order, the attempt runs, the scopes exit in
         reverse, and each enricher enriches the result. A scope that raises fails the task
         the way it fails an agent task: the exception leaves `run`. With it, whether the
-        attempt raised an exception of `retry_on`."""
+        attempt raised an exception of `retry_on`. Refused, as an agent's launch is, once a
+        signal stops the run (`live_processes.launches_refused`)."""
+        if live_processes.launches_refused():
+            return TaskResult.launch_failed(task, live_processes.REFUSED), False
         snapshots = [(e, e.snapshot(task)) for e in self._enrichers]
         with contextlib.ExitStack() as stack:
             for scope in self._scopes:

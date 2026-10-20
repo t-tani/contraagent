@@ -37,7 +37,9 @@ A pipeline can give a session more than its plugin holds:
   plugin's. The coding agent starts them as it starts a plugin's, and they see what
   the function gives them from the task's params. contraagent writes them to a file in an owner-only
   temporary directory, not to the run directory, because a server's arguments or
-  environment may hold a secret, and removes the file when the process ends.
+  environment may hold a secret, and removes the file when the process ends: at its
+  normal end, after an exception or Ctrl-C, and on SIGTERM. A process killed outright
+  (SIGKILL) removes nothing.
 - [Services](tasks.md#services-a-server-that-the-tasks-of-a-claim-share): a task
   that claims a service's name gets its address in `CONTRAAGENT_SERVICE_<NAME>`, and
   a task that claims no service gets no such variable. The pipeline's own process
