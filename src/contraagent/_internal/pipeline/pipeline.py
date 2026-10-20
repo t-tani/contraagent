@@ -41,7 +41,7 @@ from contraagent._internal.execution import teardown as _teardown
 from contraagent._internal.execution.adapter import McpServers
 from contraagent._internal.execution.python_tasks import recording
 from contraagent._internal.execution.recording import MAX_FILE_MB, Recorder, Replay
-from contraagent._internal.execution.run import Run
+from contraagent._internal.execution.run import Run, resume_skip
 from contraagent._internal.execution.runner import AgentRunner, RetryingRunner
 from contraagent._internal.execution.services import Service, Services
 from contraagent._internal.pipeline.adapter import SpecAdapter
@@ -443,7 +443,8 @@ class Pipeline:
         start and skips every task whose key's last journal row is ok with the same
         fingerprint, reading its output from the run directory (a task declared
         `rerun_on_resume` runs again, and so does a task whose last result was `partial`,
-        with the tasks that wait for it).
+        with the tasks that wait for it, and a task whose output no longer reads under its
+        output schema).
 
         A run record that cannot be written is said in a warning line of the run's log and
         counted in `RunReport.summary["record_failures"]`; the run goes on. A journal row
@@ -639,6 +640,7 @@ class Pipeline:
                         ),
                         follow_up=follow_up,
                         resume=resume,
+                        skip=resume_skip(run.journal.last_rows(), run.journal.reruns, graph.output_reads) if resume else None,
                         max_concurrent=self.max_concurrent,
                         **self.queue_options,
                     )

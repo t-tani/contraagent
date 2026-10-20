@@ -190,8 +190,9 @@ and adds what a pipeline of them needs.
 - A failed task stops only the work that needs its output. The other units go on,
   the run finishes all it can, and it records where each flow call stopped and
   because of which task. A task whose input is missing does not start, and its
-  recorded cause names the earlier task. On resume, a task's `fingerprint`, a digest of its parameters, its
-  definition and the outputs it received, decides whether it runs again.
+  recorded cause names the earlier task. On resume, a task's `fingerprint`, a digest
+  of its parameters, its definition and the content of the outputs it reads, decides
+  whether it runs again.
 - The documentation, the docstrings of the typed public API and the messages of
   `contraagent check` are written for the coding agent that writes the pipeline, so
   it needs no source code of contraagent. `contraagent check` reports every problem

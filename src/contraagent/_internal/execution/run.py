@@ -71,6 +71,10 @@ RETRY_ON = frozenset({Stop.API_ERROR.value, Stop.NO_OUTPUT.value, Stop.LAUNCH_FA
 THROTTLE_ON = frozenset({Stop.RATE_LIMITED.value})
 
 
+#: Why a resume runs a task again whose journal row matches it (`resume_skip`).
+UNREAD = "its output no longer reads under its output schema"
+
+
 def finished_before(row: dict[str, Any] | None, task: Task) -> bool:
     """Whether `row`, its key's last journal row, shows `task` finished: ok and not
     `partial`, with the task's fingerprint. What a resume skips; never a task that reruns
@@ -80,14 +84,18 @@ def finished_before(row: dict[str, Any] | None, task: Task) -> bool:
     return bool(row.get("ok")) and row.get("fingerprint", "") == task.fingerprint
 
 
-def resume_skip(last: Mapping[str, dict[str, Any]], reruns: dict[str, str] | None = None) -> Callable[[Task], bool]:
+def resume_skip(
+    last: Mapping[str, dict[str, Any]], reruns: dict[str, str] | None = None, reads: Callable[[Task], bool] | None = None
+) -> Callable[[Task], bool]:
     """What a resume skips, given each key's last journal row: a task `finished_before`,
     unless it waits for a task that runs again because its last result was `partial`, or
     for one that runs again for that reason in turn. Its output was made from a
     placeholder, which a fingerprint does not show when the flow passed the output on
-    without receiving it. Asked once per task, as it is queued (a task whose fingerprint is
-    complete only when it starts, then). A task an earlier attempt finished (its last row
-    ok) that is not skipped goes into `reruns`, with why it runs again (`rerun_reason`)."""
+    without receiving it. `reads(task)`: whether the task's output still reads under its
+    output schema; one that does not runs again. Asked once per task, as it is queued (a
+    task whose fingerprint is complete only when it starts, then). A task an earlier
+    attempt finished (its last row ok) that is not skipped goes into `reruns`, with why it
+    runs again (`rerun_reason`)."""
     again: set[str] = set()
 
     def skip(task: Task) -> bool:
@@ -95,9 +103,11 @@ def resume_skip(last: Mapping[str, dict[str, Any]], reruns: dict[str, str] | Non
         waits = [k for k in task.after if k in again]
         if waits or (row is not None and row.get("stop") == STOP_PARTIAL):
             again.add(task.key)
-        skipped = not waits and finished_before(row, task)
+        finished = not waits and finished_before(row, task)
+        unread = finished and reads is not None and not reads(task)
+        skipped = finished and not unread
         if not skipped and row is not None and row.get("ok") and reruns is not None:
-            reruns[task.key] = rerun_reason(row, task, waits[0] if waits else "")
+            reruns[task.key] = UNREAD if unread else rerun_reason(row, task, waits[0] if waits else "")
         return skipped
 
     return skip

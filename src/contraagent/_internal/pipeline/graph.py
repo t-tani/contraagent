@@ -34,15 +34,24 @@ is numbered:
   `for` loop ends with its iterable and has no limit);
 * its fingerprint is a digest of its kind, unit, key and params (a `Pending`
   among them standing for its key), of its definition (`AgentTask.digest`,
-  `PythonTask.digest`), and of each task it waits for: the content of its
-  output file when the flow received that output and passed it on, else its
-  fingerprint;
-* a task whose declaration gives `outside_state`, or that waits for such a task without
-  having received its output, has a fingerprint that is complete only when it is about to
-  start (`Task.fingerprint_at_start`): `starting` calls the function then, with the task's
-  params resolved, and works out its fingerprint again, with the fingerprints the tasks it
-  waits for started with; the SHA-256 of the JSON of what the function returned is part of
-  it. A task whose function raised or returned what is not JSON is refused (`refusal`).
+  `PythonTask.digest`), and of each task it waits for. An output it reads (a
+  `Pending` among its params, or an output the flow received and passed on) stands
+  for the content of its output file: when the flow received it, as received; else
+  as the task is about to start. Another task it waits for (`after=`, or the latest
+  writer of the file an `output_of` task fills in) stands for that task's
+  fingerprint. So an upstream task that runs again and writes the same output leaves
+  the fingerprint as it was, and one that writes another output changes it;
+* a task that reads an output the flow did not receive, whose declaration gives
+  `outside_state`, or that waits, other than for an output it reads, for a task of such a
+  fingerprint, has a
+  fingerprint that is complete only when it is about to start
+  (`Task.fingerprint_at_start`): `starting` works it out again then, with the content of
+  the output files it reads and the fingerprints the tasks it waits for started with.
+  For `outside_state`, `starting` calls the function with the task's params resolved;
+  the SHA-256 of the JSON of what it returned is part of the fingerprint. A task whose
+  function raised or returned what is not JSON is refused (`refusal`);
+* a resume skips a task whose journal row matches its fingerprint only when its output
+  file still reads under its output schema (`output_reads`); else the task runs again.
 """
 
 from __future__ import annotations
@@ -221,6 +230,9 @@ class Node:
     fingerprint: str = ""
     #: The keys of the tasks it waits for whose outputs the flow received and passed on.
     received: frozenset[str] = frozenset()
+    #: The digest of each output file it reads, by its task's key: of a received output, its
+    #: file's content when the flow passed it on; of another, when the task last started.
+    reads: dict[str, str] = field(default_factory=dict)
     #: Its fingerprint is complete only when it is about to start (`Task.fingerprint_at_start`).
     at_start: bool = False
     #: The SHA-256 of its outside state when it last started; empty before, or when it declares none.
@@ -437,8 +449,11 @@ class Graph:
             credential=credential,
             received=frozenset(received),
         )
-        node.at_start = getattr(spec, "outside_state", None) is not None or any(
-            (up := self._by_key.get(k)) is not None and up.at_start and k not in received for k in node.after
+        reads = _reads(node)
+        node.at_start = (
+            getattr(spec, "outside_state", None) is not None
+            or any(k not in received for k in reads)
+            or any((up := self._by_key.get(k)) is not None and up.at_start for k in node.after if k not in reads)
         )
         node.fingerprint = self._fingerprint(node)
         self.nodes.append(node)
@@ -460,8 +475,9 @@ class Graph:
     def starting(self, task: Task) -> Task:
         """`task` as it is about to start, the tasks it waits for finished: for one whose
         fingerprint is complete only then (`Task.fingerprint_at_start`), its outside state
-        worked out now and its fingerprint again, with the fingerprints the tasks it waits for
-        started with. Any other task as it is."""
+        worked out now and its fingerprint again, with the content of the output files it
+        reads now and the fingerprints the tasks it waits for started with. Any other task
+        as it is."""
         node = self._by_key.get(task.key)
         if node is None or not node.at_start:
             return task
@@ -474,7 +490,7 @@ class Graph:
                 params = None
             if params is not None:
                 node.outside, node.outside_error = _outside_digest(node.spec.kind, fn, node.unit, params)
-        node.fingerprint = self._fingerprint(node)
+        node.fingerprint = self._fingerprint(node, started=True)
         new = replace(task, fingerprint=node.fingerprint, outside=node.outside)
         node.task = new
         return new
@@ -484,6 +500,15 @@ class Graph:
         to start (`starting`); empty when it could."""
         node = self._by_key.get(task.key)
         return node.outside_error if node is not None else ""
+
+    def output_reads(self, task: Task) -> bool:
+        """Whether `task`'s output file reads under its current output schema, as the flow
+        would receive it (`Pending.output`): what a resume asks before it skips the task. A
+        task with no output file reads."""
+        node = self._by_key.get(task.key)
+        if node is None or node.output_path is None:
+            return True
+        return check_file(node.output_path, node.output_schema).ok
 
     def input_deferral(self, task: Task) -> Deferral | None:
         """Why `task` is not launched: an earlier task whose output it reads was deferred
@@ -652,23 +677,27 @@ class Graph:
             return pairs if any(pairs[k] is not value[k] for k in value) else value
         return value
 
-    def _fingerprint(self, node: Node) -> str:
-        """See the module docstring. A received output stands for itself (its file's
-        content), so an upstream task that ran again and wrote the same output leaves this
-        fingerprint as it was. A task that declares outside state has it in its fingerprint
-        once it is worked out (`starting`): before, and when it could not be, the fingerprint
-        matches no journal row."""
-        received = node.received
+    def _fingerprint(self, node: Node, *, started: bool = False) -> str:
+        """See the module docstring. An output it reads stands for its file's content
+        (`Node.reads`): one the flow received, as it was when the flow passed it on; one it
+        did not, as the task is about to start (`started`; before, empty). A task it only
+        waits for stands for its fingerprint. A task that declares outside state has it in
+        its fingerprint once it is worked out (`starting`): before, and when it could not
+        be, the fingerprint matches no journal row."""
         spec = node.spec
         if id(spec) not in self._digests:
             self._digests[id(spec)] = spec.digest()
+        for p in node.upstream:
+            if p.path is None:
+                continue
+            if p.key in node.received:
+                node.reads.setdefault(p.key, _file_digest(p.path))
+            else:
+                node.reads[p.key] = _file_digest(p.path) if started else ""
         after = {}
         for k in node.after:
             up = self._by_key.get(k)
-            if up is not None and k in received and up.output_path is not None:
-                after[k] = _file_digest(up.output_path)
-            else:
-                after[k] = up.fingerprint if up is not None else ""
+            after[k] = node.reads[k] if k in node.reads else up.fingerprint if up is not None else ""
         body = {
             "kind": spec.kind,
             "unit": node.unit,
@@ -850,6 +879,12 @@ def _file_digest(path: Path) -> str:
         return "file:" + hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError:
         return ""
+
+
+def _reads(node: Node) -> set[str]:
+    """The keys of the tasks whose output files `node` reads: each `Pending` among its params
+    (an output received and passed on included) of a task with an output file."""
+    return {p.key for p in node.upstream if p.path is not None}
 
 
 def _tracked(value: Any) -> bool:
