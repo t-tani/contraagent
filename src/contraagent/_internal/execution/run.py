@@ -34,6 +34,7 @@ from contraagent._internal.dispatch.queue import (
     OVERDUE_S,
     RETRY_WAIT_S,
     THROTTLE_S,
+    FinishChance,
     FollowUp,
     TaskRunner,
     WorkQueue,
@@ -708,6 +709,7 @@ class Run:
         estimate: Callable[[Task], float | None] | None = None,
         overdue_s: float = OVERDUE_S,
         slack_s: float | None = None,
+        finish_chance: FinishChance | None = None,
     ) -> WorkQueue:
         """A `WorkQueue` over `runner` that records the plan and journals Python tasks; every
         other argument is the `WorkQueue`'s.
@@ -718,7 +720,8 @@ class Run:
         task an earlier attempt finished, unless `skip` is given. `retry_on` and `throttle_on`
         default to the stops of a coding agent's failure (`api_error`, `no_output`,
         `launch_failed`) and of its rate limit (`rate_limited`); `estimate`, to what the
-        recent runs' journals say (`Run.estimator`). A `PerTask` entry of `claim_capacity`
+        recent runs' journals say (`Run.estimator`), and then `finish_chance` to the same
+        estimates' (`JournalEstimates.finish_chance`). A `PerTask` entry of `claim_capacity`
         is sized by this host.
         """
         if skip is None and resume:
@@ -741,6 +744,7 @@ class Run:
             estimate=estimate if estimate is not None else self.estimator().estimate,
             overdue_s=overdue_s,
             slack_s=slack_s,
+            finish_chance=finish_chance if finish_chance is not None or estimate is not None else self.estimator().finish_chance,
         )
         self.update_info(max_workers=q.max_concurrent)
         return q

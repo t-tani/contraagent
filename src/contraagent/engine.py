@@ -10,6 +10,7 @@ from contraagent._internal.dispatch.flow import Answer, FlowCall, FlowDriver, Ho
 from contraagent._internal.dispatch.queue import (
     BetweenPasses,
     ClaimCapacity,
+    FinishChance,
     FollowUp,
     OnEvent,
     OnResult,
@@ -42,6 +43,7 @@ __all__ = [
     "Cursor",
     "CursorStore",
     "Deferral",
+    "FinishChance",
     "FlowCall",
     "FlowDriver",
     "FollowUp",

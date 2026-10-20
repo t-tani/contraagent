@@ -24,9 +24,9 @@ passes.
 Around each launch, a task moves to another model, coding agent or credential (the
 account that the agent's API calls are billed to) after a rate limit, a failed launch
 or a safeguard refusal. Caps on a subscription's 5-hour and weekly usage pause a
-credential. Work that cannot finish before the run's deadline, or before the
-deadline of a [time box](tasks.md#a-deadline-over-part-of-a-flow-time-boxes) over
-part of the flow, is deferred. A resumed run repeats only the tasks whose inputs or
+credential. Near the run's deadline, or the deadline of a
+[time box](tasks.md#a-deadline-over-part-of-a-flow-time-boxes) over part of the
+flow, work unlikely to finish in time gives its slot to other work and is deferred. A resumed run repeats only the tasks whose inputs or
 definition changed.
 
 One TOML file chooses the coding agent, model, budget and credential for each kind

@@ -1,6 +1,7 @@
 """Time boxes: a flow call with a deadline of its own (`time_box`), over the tasks it and
 its child flow calls create, beside the run's own deadline."""
 
+import asyncio
 import json
 import threading
 import time
@@ -178,21 +179,28 @@ async def t_gen(key):
     await w(t(key.replace("-1", "-2")))
 
 
-def test_in_a_box_s_endgame_a_task_that_cannot_finish_is_deferred_at_once(clock):
+def test_in_a_box_s_endgame_a_task_that_cannot_finish_gives_its_slot_to_other_work(clock):
     async def inner():
         await w(Task("long", key="long-1", estimate_s=1000))
 
-    async def flow():
+    async def boxed():
         try:
             await time_box(inner(), deadline_s=5, slack_s=5)
         except TaskDeferred:
             pass
+
+    async def flow(others: int):
+        await asyncio.gather(boxed(), *[w(t(f"other-{i}")) for i in range(others)])
         await w(t("publish-1"))
 
-    runner, _, deferred = drive(clock, flow())
-    assert runner.launched == ["publish-1"]
+    # Four other tasks take the four slots: the long one is deferred.
+    runner, _, deferred = drive(clock, flow(4))
+    assert sorted(runner.launched) == ["other-0", "other-1", "other-2", "other-3", "publish-1"]
     cause = deferred["long-1"]["cause"]
-    assert cause["cause"] == "cannot_finish" and cause["flow_call"] == "0.1" and cause["need_s"] == 1000
+    assert cause["cause"] == "cannot_finish" and cause["flow_call"] == "0.1.1" and cause["need_s"] == 1000
+    # With a slot left over, it starts: a slot never idles while a task can start.
+    runner, _, deferred = drive(clock, flow(3))
+    assert "long-1" in runner.launched and deferred == {}
 
 
 def test_the_run_s_own_deadline_is_unchanged_and_names_no_flow_call(clock):
