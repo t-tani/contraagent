@@ -429,12 +429,17 @@ export class CaPipelineGraph extends LitElement {
     if (!this.plan.nodes.length) {
       return html`<div class="blank" style="padding:24px">${this.live ? msg('No tasks scheduled yet') : msg('No tasks scheduled')}</div>`;
     }
-    const graph = this.renderGraph();
-    if (!this.tree.length) return graph;
     // The outline: a column beside the graph, or, on a narrow frame, a part above it that opens.
-    return this.wide
-      ? html`<div class="whole">${outline(this.oh, this.tree)}<div class="g">${graph}</div></div>`
-      : html`<details class="odet"><summary>${msg('Outline of the flow')}</summary>${outline(this.oh, this.tree)}</details>${graph}`;
+    // The graph keeps its place in one template whichever it is, and whether there is an
+    // outline: a change between them (the first size report, a resize, a plan that gains a
+    // function) keeps the graph's element, and with it the focus, the zoom and the pan.
+    const side = this.wide && this.tree.length > 0;
+    const part = !this.tree.length
+      ? nothing
+      : side
+        ? outline(this.oh, this.tree)
+        : html`<details class="odet"><summary>${msg('Outline of the flow')}</summary>${outline(this.oh, this.tree)}</details>`;
+    return html`<div class="whole ${side ? 'side' : ''}">${part}<div class="g">${this.renderGraph()}</div></div>`;
   }
 
   private renderGraph() {
