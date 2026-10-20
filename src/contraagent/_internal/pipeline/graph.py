@@ -87,6 +87,7 @@ from pydantic_core import PydanticSerializationError, to_jsonable_python
 from contraagent._internal.contracts.contract import OutputContract, check_file
 from contraagent._internal.contracts.rows import is_rows, row_of, rows_text
 from contraagent._internal.dispatch.flow import TaskFailed, result_or_raise
+from contraagent._internal.dispatch.flowloop import not_flow_code
 from contraagent._internal.dispatch.python_task import PythonTaskPayload
 from contraagent._internal.dispatch.records import Frame
 from contraagent._internal.dispatch.task import (
@@ -386,82 +387,83 @@ class Graph:
         credential: str = "",
         cancellable: bool = False,
     ) -> Pending[Any]:
-        call = self.driver.current if self.driver is not None else None
-        call_id = call.id if call is not None else "0"
-        stem: str = f"{spec.kind}-{unit}" if unit else spec.kind
-        given = key  # the key of its call options, when they give one
-        base = key or (f"{PYTHON_KEY_PREFIX}{stem}" if spec.executor == "python" else stem)
-        owner, n = self._bases.get(base, (call_id, 0))
-        if owner != call_id:
-            raise ValueError(
-                f"task key {base!r} is created by flow calls {owner} and {call_id}; "
-                "give one of them another key with .options(key=) to tell them apart"
+        with not_flow_code():  # contraagent's own work, not the flow step's (`FlowLoop.slow_s`)
+            call = self.driver.current if self.driver is not None else None
+            call_id = call.id if call is not None else "0"
+            stem: str = f"{spec.kind}-{unit}" if unit else spec.kind
+            given = key  # the key of its call options, when they give one
+            base = key or (f"{PYTHON_KEY_PREFIX}{stem}" if spec.executor == "python" else stem)
+            owner, n = self._bases.get(base, (call_id, 0))
+            if owner != call_id:
+                raise ValueError(
+                    f"task key {base!r} is created by flow calls {owner} and {call_id}; "
+                    "give one of them another key with .options(key=) to tell them apart"
+                )
+            n += 1
+            key = base if n == 1 else f"{base}~{n}"
+            if key in self._by_key:
+                raise ValueError(f"task key {key!r} is used twice; give one of them another key with .options(key=) to tell them apart")
+            frames = self._prefix.get(call_id, ()) + origins.frames_here(inspect.currentframe(), self.loops.loops)
+            self.check_passes(frames, base, call_id)
+            self.declare(spec)
+            self.layout(spec)
+            if credential and self.check_credential is not None:
+                problems = self.check_credential(spec.kind, credential)
+                if problems:
+                    raise ValueError(f"{key}: credential={credential!r}: {'; '.join(problems)}")
+            params, fingerprinted = _params_json(spec, unit, params)
+            claims = _expand_claims(spec, unit, key, params)  # before the key is taken: a raise leaves no gap in ~n
+            out, writer = None, None
+            if _writes_output(spec):
+                # A task given a key writes a file of its own: two keys on one unit never share one.
+                name = (given or unit or base.removeprefix(PYTHON_KEY_PREFIX)).replace("/", "_").replace(os.sep, "_").replace(":", "_")
+                other = getattr(spec, "output_of", None)
+                if other is not None:
+                    out, writer = self._output_of(other, name, base)
+                else:
+                    out = self._filled(spec, name, base)
+                    if n > 1:
+                        out = out.with_name(f"{out.stem}~{n}{out.suffix}")
+                    if (taken := self._writers.get(out)) is not None:
+                        raise ValueError(
+                            f"tasks {taken!r} and {key!r} would both write {out.relative_to(self.out_dir.parent).as_posix()}: "
+                            "put {unit} or {key} in output_name, or give one of them output_of="
+                        )
+            self._bases[base] = (call_id, n)
+            deps = [(a.key if isinstance(a, Pending) else str(a)) for a in after]
+            if writer is not None and writer not in deps:
+                deps.append(writer)
+            origin = Origin(
+                flow=frames,
+                created_from=call.frontier if call is not None else (),
+                flow_call=call_id,
+                given_from=self._given_from(params),
             )
-        n += 1
-        key = base if n == 1 else f"{base}~{n}"
-        if key in self._by_key:
-            raise ValueError(f"task key {key!r} is used twice; give one of them another key with .options(key=) to tell them apart")
-        frames = self._prefix.get(call_id, ()) + origins.frames_here(inspect.currentframe(), self.loops.loops)
-        self.check_passes(frames, base, call_id)
-        self.declare(spec)
-        self.layout(spec)
-        if credential and self.check_credential is not None:
-            problems = self.check_credential(spec.kind, credential)
-            if problems:
-                raise ValueError(f"{key}: credential={credential!r}: {'; '.join(problems)}")
-        params, fingerprinted = _params_json(spec, unit, params)
-        claims = _expand_claims(spec, unit, key, params)  # before the key is taken: a raise leaves no gap in ~n
-        out, writer = None, None
-        if _writes_output(spec):
-            # A task given a key writes a file of its own: two keys on one unit never share one.
-            name = (given or unit or base.removeprefix(PYTHON_KEY_PREFIX)).replace("/", "_").replace(os.sep, "_").replace(":", "_")
-            other = getattr(spec, "output_of", None)
-            if other is not None:
-                out, writer = self._output_of(other, name, base)
-            else:
-                out = self._filled(spec, name, base)
-                if n > 1:
-                    out = out.with_name(f"{out.stem}~{n}{out.suffix}")
-                if (taken := self._writers.get(out)) is not None:
-                    raise ValueError(
-                        f"tasks {taken!r} and {key!r} would both write {out.relative_to(self.out_dir.parent).as_posix()}: "
-                        "put {unit} or {key} in output_name, or give one of them output_of="
-                    )
-        self._bases[base] = (call_id, n)
-        deps = [(a.key if isinstance(a, Pending) else str(a)) for a in after]
-        if writer is not None and writer not in deps:
-            deps.append(writer)
-        origin = Origin(
-            flow=frames,
-            created_from=call.frontier if call is not None else (),
-            flow_call=call_id,
-            given_from=self._given_from(params),
-        )
-        filled = {"unit": glob.escape(unit or base), "key": glob.escape(base), "kind": spec.kind}
-        node = Node(
-            spec=spec,
-            key=key,
-            unit=unit,
-            params=params,
-            after=tuple(dict.fromkeys(deps)),
-            output_path=out,
-            origin=origin,
-            changes=tuple(p.format(**filled) for p in getattr(spec, "changes", ())),
-            claims=claims,
-            priority=priority,
-            credential=credential,
-            cancellable=cancellable,
-            fingerprinted=fingerprinted,
-        )
-        node.at_start = getattr(spec, "outside_state", None) is not None or getattr(spec, "output_of", None) is not None
-        node.fingerprint = self._fingerprint(node)
-        self.nodes.append(node)
-        self._by_key[key] = node
-        if out is not None and getattr(spec, "output_of", None) is None:
-            self._writers[out] = key
-        if self.driver is not None:
-            self.driver.add(self.task_of(node))
-        return Pending._of(node, self)
+            filled = {"unit": glob.escape(unit or base), "key": glob.escape(base), "kind": spec.kind}
+            node = Node(
+                spec=spec,
+                key=key,
+                unit=unit,
+                params=params,
+                after=tuple(dict.fromkeys(deps)),
+                output_path=out,
+                origin=origin,
+                changes=tuple(p.format(**filled) for p in getattr(spec, "changes", ())),
+                claims=claims,
+                priority=priority,
+                credential=credential,
+                cancellable=cancellable,
+                fingerprinted=fingerprinted,
+            )
+            node.at_start = getattr(spec, "outside_state", None) is not None or getattr(spec, "output_of", None) is not None
+            node.fingerprint = self._fingerprint(node)
+            self.nodes.append(node)
+            self._by_key[key] = node
+            if out is not None and getattr(spec, "output_of", None) is None:
+                self._writers[out] = key
+            if self.driver is not None:
+                self.driver.add(self.task_of(node))
+            return Pending._of(node, self)
 
     def agent_specs(self) -> dict[str, Any]:
         """kind -> AgentTask, for every agent kind created or reached so far: the declaration
