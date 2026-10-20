@@ -61,6 +61,40 @@ def test_claude_reads_a_quota_refusal_on_stderr(tmp_path):
     assert result.started_at and result.cli_version == "2.1.296"
 
 
+def claude_one_turn(answer: str) -> LaunchResult:
+    reader = StreamReader(Limits())
+    reader.feed({"type": "system", "subtype": "init", "session_id": "s-1"})
+    reader.feed({"type": "result", "subtype": "success", "is_error": False, "result": answer, "num_turns": 1})
+    return reader.result(Launch(prompt="x", label="t"), "claude", exit_code=0, killed=None)
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "Bash(pytest -q)",
+        "I will run the tests.\nBash(pytest -q)\nRead(report.txt)\nWrite(out.json)",
+        "- `Read(src/app.py)`\n- `Edit(src/app.py)`",
+        "```\nWrite(out.json)\n```",
+    ],
+)
+def test_claude_s_one_turn_answer_of_written_tool_calls_is_hollow(answer):
+    result = claude_one_turn(answer)
+    assert result.stop is Stop.COMPLETED and result.hollow and not result.ok
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "The function opens the file with `Read(path)` and returns its lines.",
+        "To check it, I would use Bash(pytest -q) after the change.\nThe change itself is small.",
+        "The hook is named so:\n\n```\nBash(rm:*)\n```\n\nIt matches every rm, so the rule denies it.\nNothing else changes.",
+    ],
+)
+def test_claude_s_one_turn_answer_that_quotes_a_tool_call_is_not_hollow(answer):
+    result = claude_one_turn(answer)
+    assert result.stop is Stop.COMPLETED and not result.hollow and result.ok
+
+
 def claude_stop(**result) -> Stop:
     reader = StreamReader(Limits())
     reader.feed({"type": "system", "subtype": "init", "session_id": "s-1"})
