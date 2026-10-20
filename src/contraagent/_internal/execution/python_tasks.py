@@ -262,7 +262,7 @@ class PythonTaskRunner:
             stop = STOP_COMPLETED
             if isinstance(returned, Partial):
                 stop, reason = STOP_PARTIAL, " ".join(returned.reason.split())[:300]
-        except InvalidInput as exc:  # refused before the function ran: no retry
+        except InvalidInput as exc:  # an argument off its annotation, or an input file changed: no retry
             stop, reason = STOP_INVALID_INPUT, f"invalid input: {exc}"[:300]
         except Exception as exc:  # a Python task's failure is its result
             stop, error = STOP_ERROR, exc

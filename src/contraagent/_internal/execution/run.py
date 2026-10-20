@@ -182,7 +182,8 @@ def rerun_reason(row: Mapping[str, Any], task: Task, skipped: Iterable[str] | No
 
     A divergence: its params changed although every task it was given from
     (`Origin.given_from`) or created from (`Origin.created_from`) is in `skipped`, the keys
-    this resume skipped. The flow gave other params for the same outputs: its code takes
+    this resume skipped, and its input files did not: a file on disk with other content is
+    no divergence. The flow gave other params for the same outputs: its code takes
     another path on a clock, randomness or outside state, or the code itself changed."""
     if task.rerun_on_resume:
         return "its kind is declared rerun_on_resume"
@@ -202,7 +203,7 @@ def rerun_reason(row: Mapping[str, Any], task: Task, skipped: Iterable[str] | No
         done = set(skipped)
         given = task.origin.given_from if task.origin is not None else ()
         created = task.origin.created_from if task.origin is not None else ()
-        if all(k in done for k in (*given, *created)):
+        if "input_files" not in changed and all(k in done for k in (*given, *created)):
             return (
                 f"{DIVERGENCE}: the flow gave it other params for the same outputs, every task it was given "
                 f"or created from skipped (a clock, randomness, outside state or changed flow code); changed: {named}"
@@ -215,7 +216,7 @@ def _changed(row: Mapping[str, Any], task: Task) -> list[str]:
     part either of them lacks included, in a stable order."""
     before: Mapping[str, Any] = row.get("fingerprint_parts") or {}
     now = task.fingerprint_parts
-    order = {"definition": 0, "params": 1, "outside": 2, "output_of": 3}
+    order = {"definition": 0, "params": 1, "input_files": 2, "outside": 3, "output_of": 4}
     names = [n for n in {**before, **now} if before.get(n) != now.get(n)]
     return sorted(names, key=lambda n: (order.get(n, len(order)), n))
 
@@ -226,6 +227,7 @@ def _part_name(part: str) -> str:
     return {
         "definition": "its definition",
         "params": "its params",
+        "input_files": "its input files",
         "outside": "its outside state",
         "output_of": "the file it fills in (output_of)",
     }.get(part, part)

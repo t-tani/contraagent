@@ -7,11 +7,12 @@ report an ignore comment that silences nothing (mypy's `--warn-unused-ignores`, 
 error under both, and under mypy the error of that code."""
 
 import asyncio
+from pathlib import Path
 from typing import Annotated, assert_type
 
 from pydantic import BaseModel, Field
 
-from contraagent import AgentTask, Implementations, Partial, Pending, PythonTask, Rows, agent_task, python_task
+from contraagent import AgentTask, Implementations, InputFile, Partial, Pending, PythonTask, Rows, agent_task, python_task
 
 
 class Triage(BaseModel):
@@ -29,6 +30,10 @@ class TriageParams(BaseModel):
 
 class LaneParams(TriageParams):
     lane: str = Field(description="the lane the finding belongs to")
+
+
+class NoteParams(BaseModel):
+    note: InputFile = Field(description="the note to review")
 
 
 Note = Annotated[str, Field(examples=["One paragraph."])]
@@ -63,6 +68,9 @@ assert_type(review_note, Implementations[TriageParams, str])
 
 check = agent_task("check", implementations={"fast": "fast.md"})
 assert_type(check, Implementations[None, None])
+
+read_note = agent_task("read_note", params=NoteParams, output=Triage)
+assert_type(read_note, AgentTask[NoteParams, Triage])
 
 
 def output_of[**P, Out](task: PythonTask[P, Out]) -> Out:
@@ -112,6 +120,17 @@ def placeholder(topic: str) -> Partial[list[str]]:
 assert_type(output_of(placeholder), list[str])
 
 
+@python_task
+def measure(unit: str, *, note: InputFile) -> int:
+    assert_type(note.path, Path)
+    assert_type(note.sha256, str | None)
+    assert_type(note.read_bytes(), bytes)
+    return len(note.read_text())
+
+
+assert_type(output_of(measure), int)
+
+
 def flow() -> None:
     params = TriageParams(text="...")
     triaged = triage("a", params)
@@ -127,6 +146,8 @@ def flow() -> None:
     assert_type(publish(), Pending[None])
     assert_type(survey("a"), Pending[Triage])
     assert_type(review["fast"]("a", params), Pending[Triage])
+    assert_type(read_note("a", NoteParams(note=InputFile("in/a.md"))), Pending[Triage])
+    assert_type(measure("a", note=InputFile(Path("in/a.md"))), Pending[int])
 
 
 async def waits() -> None:
@@ -182,6 +203,9 @@ def refused() -> None:
     count("a", text="...", key="k")  # type: ignore[call-arg]  # a call option on a Python task's call
     count.options(credential="team")  # type: ignore[call-arg]  # a Python task has no credential
     triage.options(priorty=2)  # type: ignore[call-arg]  # a misspelled call option
+    NoteParams(note="in/a.md")  # type: ignore[arg-type]  # a path where an input file goes
+    measure("a", note="in/a.md")  # type: ignore[arg-type]  # a path where a Python task takes an input file
+    InputFile(3)  # type: ignore[arg-type]  # an input file is made from a path
 
 
 async def refused_helper() -> None:
