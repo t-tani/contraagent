@@ -89,6 +89,22 @@ def test_a_text_output_passed_on_by_its_path_is_given_from_its_writer(tmp_path):
     assert next(row for row in plan if row["key"] == "review-a")["given_from"] == ["note-a"]
 
 
+def test_an_output_file_whose_task_never_reached_the_flow_call_gives_no_edge(tmp_path):
+    note = agent_task("note", output=str, instructions="Write a note.", max_turns=3, timeout_s=30)
+    mark = agent_task("mark", output=str, instructions="Mark.", max_turns=3, timeout_s=30)
+    agent = StubAgent({"note": "line\n", "mark": "marked\n", "review": {"approved": True}})
+
+    async def flow():
+        written = note("a")  # never awaited: its result does not reach the flow call
+        await mark.options(after=[written])("a")  # the note's file is there once this returns
+        return await review("a", ReviewParams(note=written.input_file()))
+
+    report = pipeline(tmp_path, agent).run(flow, run_id="r")
+    assert report.ok
+    plan = [json.loads(line) for line in (report.run_dir / "plan.jsonl").read_text().splitlines()]
+    assert next(row for row in plan if row["key"] == "review-a")["given_from"] == []  # created from mark only
+
+
 def test_a_python_task_is_given_the_file_with_an_absolute_path_and_reads_it(tmp_path, monkeypatch):
     write(tmp_path, "in/spec.md", "four words in it")
     monkeypatch.chdir(tmp_path.parent)  # a relative path would not resolve here

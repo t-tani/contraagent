@@ -308,3 +308,104 @@ def test_a_flow_that_does_not_wait_lists_its_unawaited_tasks(tmp_path):
 
     rep = pipeline(tmp_path, Agent()).run(flow)
     assert flow_call_ends(rep)["0"]["unawaited"] == ["check-u"]
+
+
+# --- given from: the causal past of the creating flow call ----------------------------------
+
+
+def test_equal_outputs_of_sibling_flow_calls_do_not_cross(tmp_path):
+    async def unit(u):
+        doc = await write.options(key=f"write-{u}")("same")  # each unit's output is equal
+        await check_any.options(key=f"before-{u}")("same", Loose())
+        await check_any.options(key=f"check-{u}")("same", Loose(doc=doc))
+
+    async def flow():
+        await asyncio.gather(unit("a"), unit("b"))
+
+    rep = pipeline(tmp_path, Agent()).run(flow)
+    assert rep.ok
+    given = {k: r["given_from"] for k, r in plan(rep).items()}
+    assert given["check-a"] == ["write-a"] and given["check-b"] == ["write-b"]
+
+
+def test_a_value_passed_to_a_child_and_one_returned_by_a_child_count(tmp_path):
+    async def child(u, doc):
+        await check_any.options(key=f"check-{u}")("same", Loose(doc=doc))  # given as an argument
+        return await write.options(key=f"again-{u}")("same")
+
+    async def flow():
+        docs = await asyncio.gather(*[write.options(key=f"write-{u}")("same") for u in ("a", "b")])
+        returned = await asyncio.gather(*[child(u, d) for u, d in zip(("a", "b"), docs, strict=True)])
+        await check_any.options(key="all")("same", Loose(docs=list(returned)))  # returned by the children
+
+    rep = pipeline(tmp_path, Agent()).run(flow)
+    assert rep.ok
+    given = {k: r["given_from"] for k, r in plan(rep).items()}
+    # Both writes reached the parent before it created the children, and their outputs are equal: both named.
+    assert given["check-a"] == given["check-b"] == ["write-a", "write-b"]
+    assert given["all"][:2] == ["write-a", "write-b"] and sorted(given["all"][2:]) == ["again-a", "again-b"]  # in creation order
+
+
+@pytest.mark.parametrize("awaits", [False, True])
+def test_a_childs_results_reach_its_parent_only_when_the_parent_awaits_it(tmp_path, awaits):
+    async def child():
+        return await write.options(key="write-child")("same")
+
+    async def flow():
+        started = asyncio.get_running_loop().create_task(child())
+        if awaits:
+            await started  # resumed by the child's end
+        else:
+            await check_any.options(after=["write-child"], key="later")("same", Loose())  # the child's result is given before
+        await check_any.options(key="final")("same", Loose(doc={"unit": "same", "text": "first"}))  # equal to the child's output
+
+    rep = pipeline(tmp_path, Agent()).run(flow)
+    assert rep.ok
+    assert plan(rep)["final"]["given_from"] == (["write-child"] if awaits else [])
+
+
+async def _child():
+    return await write.options(key="write-child")("same")
+
+
+async def _child_ended():
+    """A child flow call, started and left to end: a task ordered after its write is awaited."""
+    started = asyncio.get_running_loop().create_task(_child())
+    await check_any.options(after=["write-child"], key="later")("same", Loose())
+    assert started.done()
+    return started
+
+
+@pytest.mark.parametrize("how", ["await", "gather", "taskgroup"])
+def test_a_child_that_ended_before_it_is_awaited_reaches_its_parent(tmp_path, how):
+    async def flow():
+        if how == "taskgroup":
+            async with asyncio.TaskGroup() as group:
+                started = group.create_task(_child())
+                await check_any.options(after=["write-child"], key="later")("same", Loose())
+            doc = await started  # ended within the group
+        else:
+            started = await _child_ended()
+            doc = await started if how == "await" else (await asyncio.gather(started))[0]
+        await check_any.options(key="final")("same", Loose(doc=doc))
+
+    rep = pipeline(tmp_path, Agent()).run(flow)
+    assert rep.ok
+    final = plan(rep)["final"]
+    assert final["given_from"] == ["write-child"]
+    assert "write-child" in final["created_from"]
+    if how == "await":  # the await resumes the flow call at once, by the child's frontier
+        assert final["created_from"] == ["write-child"]
+
+
+def test_a_childs_end_seen_without_its_value_reaches_no_one(tmp_path):
+    async def flow():
+        started = await _child_ended()
+        assert started.done() and started.exception() is None  # neither gives its value
+        await check_any.options(key="final")("same", Loose(doc={"unit": "same", "text": "first"}))
+        await started
+
+    rep = pipeline(tmp_path, Agent()).run(flow)
+    assert rep.ok
+    final = plan(rep)["final"]
+    assert final["given_from"] == [] and final["created_from"] == ["later"]
