@@ -655,14 +655,18 @@ def summary_of(launch):
     return {"unit": launch.unit, "text": "same"}
 
 
+class CheckParams(BaseModel):
+    doc: Doc
+
+
 def test_an_edited_instruction_reruns_and_what_received_the_same_output_does_not(tmp_path):
     def build(instructions):
         write = agent_task("write", instructions=instructions, output=Doc, max_turns=3, timeout_s=30)
-        check = agent_task("check", instructions="c", output=Doc, max_turns=3, timeout_s=30)
+        check = agent_task("check", instructions="c", params=CheckParams, output=Doc, max_turns=3, timeout_s=30)
 
         async def flow():
             doc = await write("u")
-            return await check("u", doc=doc)
+            return await check("u", CheckParams(doc=doc))
 
         return flow
 

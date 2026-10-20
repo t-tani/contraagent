@@ -1,7 +1,7 @@
 # docs
 
 The implementation of agent tasks, one role per kind of work: a plugin that the coding agents load (`claude`, `omp`, `opencode`, `pi`, `codex`).
-Each task's interface (parameters, output schema, budget) is the `agent_task(..., plugin=..., role=...)` that names it.
+Each task's interface (its params model, its output schema, its budget) is the `agent_task(..., plugin=..., role=...)` that names it.
 
 | File | What it decides |
 |---|---|

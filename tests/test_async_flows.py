@@ -42,15 +42,28 @@ def budget(**kw):
     return {"max_turns": 5, "timeout_s": 60, **kw}
 
 
-summarize = agent_task("summarize", instructions="s", output=Summary, **budget())
-review = agent_task("review", instructions="r", output=Verdict, **budget())
-revise = agent_task("revise", instructions="v", output=Summary, **budget())
+class PathParams(BaseModel):
+    path: str
+
+
+class SummaryParams(BaseModel):
+    summary: Summary
+
+
+summarize = agent_task("summarize", instructions="s", params=PathParams, output=Summary, **budget())
+review = agent_task("review", instructions="r", params=SummaryParams, output=Verdict, **budget())
+revise = agent_task("revise", instructions="v", params=SummaryParams, output=Summary, **budget())
 write_doc = agent_task("write_doc", instructions="w", output=str, **budget())
 nothing = agent_task("nothing", instructions="n", **budget())
 
 
+def write_doc_of(params: type[BaseModel]):
+    """A write_doc that takes `params`: one declaration of the kind per test."""
+    return agent_task("write_doc", instructions="w", params=params, output=str, **budget())
+
+
 @python_task
-def count(summary: Summary) -> int:
+def count(unit: str, summary: Summary) -> int:
     return len(summary.points)
 
 
@@ -167,7 +180,7 @@ def test_two_runs_of_the_same_flow_record_the_same_structure_and_fingerprints(tm
 def test_a_static_flow_keeps_its_keys_and_files_and_is_flow_call_0(tmp_path):
     def flow(units):
         for u in units:
-            review.options(after=[summarize(u, path=u)])(u, summary={"unit": u, "points": ["p"]})
+            review.options(after=[summarize(u, PathParams(path=u))])(u, SummaryParams(summary=Summary(unit=u, points=["p"])))
 
     rep = pipeline(tmp_path, stub()).run(flow, units=["a", "b"])
     assert rep.ok and sorted(rep.results) == ["review-a", "review-b", "summarize-a", "summarize-b"]
@@ -186,8 +199,8 @@ def test_a_static_flow_keeps_its_keys_and_files_and_is_flow_call_0(tmp_path):
 
 def test_the_same_task_twice_in_one_flow_call_is_numbered(tmp_path):
     def flow():
-        first = summarize("u", path="x")
-        return summarize("u", path="y"), first
+        first = summarize("u", PathParams(path="x"))
+        return summarize("u", PathParams(path="y")), first
 
     rep = pipeline(tmp_path, stub()).run(flow)
     second, first = rep.value
@@ -209,14 +222,14 @@ def test_flow_calls_record_parent_flow_path_and_end(tmp_path):
 
 def test_nesting_at_any_depth_records_the_whole_flow_path(tmp_path):
     async def leaf(u):
-        return await summarize(u, path=u)
+        return await summarize(u, PathParams(path=u))
 
     async def middle(u):
         first = await leaf(u)  # the same flow call
         return await asyncio.gather(leaf_review(u, first))
 
     async def leaf_review(u, s):
-        return await review(u, summary=s)
+        return await review(u, SummaryParams(summary=s))
 
     async def top():
         return await asyncio.gather(middle("a"))
@@ -234,12 +247,18 @@ def test_nesting_at_any_depth_records_the_whole_flow_path(tmp_path):
 # --- shapes ---------------------------------------------------------------------
 
 
+class SummariesParams(BaseModel):
+    summaries: list[Summary]
+
+
 def test_a_branch_and_a_fan_out_sized_by_a_result(tmp_path):
+    write_doc = write_doc_of(SummariesParams)
+
     async def per_unit(u):
         parts = await sections(u)
-        summaries = await asyncio.gather(*[summarize.options(key=f"summarize-{p}")(u, path=p) for p in parts])
+        summaries = await asyncio.gather(*[summarize.options(key=f"summarize-{p}")(u, PathParams(path=p)) for p in parts])
         if len(summaries) > 1:  # a branch on a result
-            return await write_doc(u, summaries=summaries)
+            return await write_doc(u, SummariesParams(summaries=summaries))
         return None
 
     async def flow(units):
@@ -268,7 +287,7 @@ def test_a_branch_and_a_fan_out_sized_by_a_result(tmp_path):
 
 def test_keyed_tasks_on_one_unit_each_keep_their_own_output(tmp_path):
     async def flow():
-        return await asyncio.gather(*[summarize.options(key=f"part-{i}")("u", path=f"p{i}") for i in range(3)])
+        return await asyncio.gather(*[summarize.options(key=f"part-{i}")("u", PathParams(path=f"p{i}")) for i in range(3)])
 
     agent = stub(summarize=lambda launch: {"unit": launch.unit, "points": [launch.params["path"]]})
     rep = pipeline(tmp_path, agent).run(flow)
@@ -278,14 +297,22 @@ def test_keyed_tasks_on_one_unit_each_keep_their_own_output(tmp_path):
     assert [json.loads((out / f"part-{i}.json").read_text())["points"] for i in range(3)] == [["p0"], ["p1"], ["p2"]]
 
 
+class DocParams(BaseModel):
+    summary: Summary | None = None
+    doc: str | None = None
+    title: str | None = None
+
+
 def test_a_python_task_in_the_loop_and_text_outputs_passed_on(tmp_path):
+    write_doc = write_doc_of(DocParams)
+
     async def flow():
-        summary = await summarize("u", path="x")
+        summary = await summarize("u", PathParams(path="x"))
         while (await count("u", summary=summary)) < 3:
-            summary = await revise("u", summary=summary)
-        doc = await write_doc("u", summary=summary)
+            summary = await revise("u", SummaryParams(summary=summary))
+        doc = await write_doc("u", DocParams(summary=summary))
         built = "# built here\n"  # a str the flow built is a value
-        await write_doc("v", doc=doc, title=built)
+        await write_doc("v", DocParams(doc=doc, title=built))
 
     agent = stub(write_doc=lambda launch: "# doc\n")
     rep = pipeline(tmp_path, agent).run(flow)
@@ -296,7 +323,7 @@ def test_a_python_task_in_the_loop_and_text_outputs_passed_on(tmp_path):
     assert (rep.run_dir / "out/count/u~3.json").read_text() == "3"
     assert plan["write_doc-v"]["given_from"] == ["write_doc-u"]  # the text output, recognized
     [launch] = agent.launches_of("write_doc-v")
-    assert launch.params == {"doc": "# doc\n", "title": "# built here\n"}
+    assert launch.params == {"summary": None, "doc": "# doc\n", "title": "# built here\n"}
 
 
 def test_a_task_with_no_output_answers_none(tmp_path):
@@ -315,7 +342,7 @@ def test_a_failed_task_raises_task_failed_at_the_await(tmp_path):
 
     async def flow():
         try:
-            await summarize("a", path="x")
+            await summarize("a", PathParams(path="x"))
         except TaskFailed as exc:
             seen["failed"] = (exc.stop, exc.key, exc.item.key)
         return "went on"
@@ -326,12 +353,18 @@ def test_a_failed_task_raises_task_failed_at_the_await(tmp_path):
     assert rep.value == "went on" and not rep.flow_errors and not rep.ok  # failed tasks still fail the run
 
 
+class NoteParams(BaseModel):
+    note: str
+
+
 def test_a_deferred_task_raises_task_deferred_and_a_finishing_task_still_runs(tmp_path):
+    write_doc = write_doc_of(NoteParams)
+
     async def flow():
         try:
-            await summarize("u", path="x")
+            await summarize("u", PathParams(path="x"))
         except TaskDeferred as exc:
-            return await write_doc("u", note=exc.stop)
+            return await write_doc("u", NoteParams(note=exc.stop))
 
     agent = stub(write_doc=lambda launch: f"# {launch.params['note']}\n")
     rep = pipeline(tmp_path, agent, deadline_s=1e-6, finishing_kinds=("write_doc",)).run(flow)
@@ -341,7 +374,7 @@ def test_a_deferred_task_raises_task_deferred_and_a_finishing_task_still_runs(tm
 
 def test_an_uncaught_exception_after_work_started_is_a_flow_error(tmp_path):
     async def flow():
-        s = await summarize("u", path="x")
+        s = await summarize("u", PathParams(path="x"))
         raise RuntimeError(f"stop after {s.unit}")
 
     rep = pipeline(tmp_path, stub()).run(flow)
@@ -354,7 +387,7 @@ def test_an_uncaught_exception_after_work_started_is_a_flow_error(tmp_path):
 def test_a_flow_raising_before_its_first_task_raises(tmp_path):
     async def flow():
         raise ValueError("bad arguments")
-        await summarize("u", path="x")
+        await summarize("u", PathParams(path="x"))
 
     with pytest.raises(ValueError, match="bad arguments"):
         pipeline(tmp_path, stub()).run(flow)
@@ -379,7 +412,7 @@ def test_max_passes_comes_from_the_config_defaults(tmp_path):
 
 def test_a_key_created_by_two_flow_calls_needs_key(tmp_path):
     async def part(u):
-        await summarize(u, path=u)
+        await summarize(u, PathParams(path=u))
         return await write_doc()  # no unit: the same key in both flow calls
 
     async def flow():
@@ -392,11 +425,11 @@ def test_a_key_created_by_two_flow_calls_needs_key(tmp_path):
 
 
 def test_a_reachable_kind_is_routed_before_the_first_launch(tmp_path):
-    late = agent_task("late", instructions="l", output=Summary)  # no budget, here or in the config
+    late = agent_task("late", instructions="l", params=SummaryParams, output=Summary)  # no budget, here or in the config
 
     async def flow():
-        s = await summarize("u", path="x")
-        return await late("u", summary=s)
+        s = await summarize("u", PathParams(path="x"))
+        return await late("u", SummaryParams(summary=s))
 
     agent = stub()
     with pytest.raises(RoutingError, match="kind late has no budget"):
@@ -406,9 +439,9 @@ def test_a_reachable_kind_is_routed_before_the_first_launch(tmp_path):
 
 def test_a_kind_declared_while_the_flow_runs_is_routed_when_created(tmp_path):
     async def flow():
-        s = await summarize("u", path="x")
-        late = agent_task("late", instructions="l", output=Summary)  # unreachable from the code: routed now
-        return await late("u", summary=s)
+        s = await summarize("u", PathParams(path="x"))
+        late = agent_task("late", instructions="l", params=SummaryParams, output=Summary)  # unreachable from the code: routed now
+        return await late("u", SummaryParams(summary=s))
 
     rep = pipeline(tmp_path, stub()).run(flow)
     [call] = rep.flow_errors
@@ -420,13 +453,15 @@ def test_a_kind_declared_while_the_flow_runs_is_routed_when_created(tmp_path):
     assert rep.ok and agent.launches_of("late-u")[0].model == "m-late"
 
 
-revise_v2 = agent_task("revise", instructions="v2", output=Summary, **budget(model="m-v2"))  # revise, declared otherwise
+revise_v2 = agent_task(
+    "revise", instructions="v2", params=SummaryParams, output=Summary, **budget(model="m-v2")
+)  # revise, declared otherwise
 
 
 async def revise_loop(unit, revise=revise):  # the default: a declaration the caller may replace
-    summary = await summarize(unit, path="x")
-    while not (await review(unit, summary=summary)).approved:
-        summary = await revise(unit, summary=summary)
+    summary = await summarize(unit, PathParams(path="x"))
+    while not (await review(unit, SummaryParams(summary=summary))).approved:
+        summary = await revise(unit, SummaryParams(summary=summary))
     return summary
 
 
@@ -444,12 +479,12 @@ def test_a_default_argument_the_caller_replaces_is_a_candidate_not_a_conflict(tm
 
 
 def test_two_different_declarations_of_one_kind_both_created_raise_at_the_second(tmp_path):
-    again = agent_task("revise", instructions="v", output=Summary, **budget())  # declared the same way: one kind
+    again = agent_task("revise", instructions="v", params=SummaryParams, output=Summary, **budget())  # declared the same way: one kind
 
     async def flow():
-        s = await summarize("u", path="x")
-        s = await asyncio.gather(revise("u", summary=s), again("w", summary=s))
-        return await revise_v2("z", summary=s[0])
+        s = await summarize("u", PathParams(path="x"))
+        s = await asyncio.gather(revise("u", SummaryParams(summary=s)), again("w", SummaryParams(summary=s)))
+        return await revise_v2("z", SummaryParams(summary=s[0]))
 
     rep = pipeline(tmp_path, stub()).run(flow)
     [call] = rep.flow_errors
@@ -464,7 +499,7 @@ def test_two_different_declarations_of_one_kind_both_created_raise_at_the_second
 
 def test_a_slow_step_is_logged(tmp_path, caplog):
     async def flow():
-        await summarize("u", path="x")
+        await summarize("u", PathParams(path="x"))
         time.sleep(1.1)
 
     with caplog.at_level("WARNING", logger="contraagent"):
@@ -512,12 +547,12 @@ def test_resume_after_pass_1_launches_only_pass_2_onward_and_a_changed_param_rer
     summarize_, review_, revise_ = example.summarize, example.review, example.revise
 
     async def changed(unit):  # the same tasks, another path param for summarize
-        summary = await summarize_(unit, path=f"elsewhere/{unit}.md")
+        summary = await summarize_(unit, example.SummarizeParams(path=f"elsewhere/{unit}.md"))
         while True:
-            verdict = await review_(unit, summary=summary)
+            verdict = await review_(unit, example.ReviewParams(summary=summary))
             if verdict.approved:
                 return summary
-            summary = await revise_(unit, summary=summary, verdict=verdict)
+            summary = await revise_(unit, example.ReviseParams(summary=summary, verdict=verdict))
 
     pipeline(tmp_path, agent).run(changed, "u", run_id="r", resume=True)
     # summarize's params changed: it runs again, and writes the same output, so what received it does not
@@ -588,9 +623,11 @@ def test_a_claiming_kind_runs_within_its_claim_capacity(tmp_path):
 
 
 def test_awaits_deliver_typed_answers_and_gather_keeps_their_order(tmp_path):
+    write_doc = write_doc_of(SummaryParams)
+
     async def flow():
-        summary = await summarize("u", path="x")
-        n, doc = await asyncio.gather(count("u", summary=summary), write_doc("u", summary=summary))
+        summary = await summarize("u", PathParams(path="x"))
+        n, doc = await asyncio.gather(count("u", summary=summary), write_doc("u", SummaryParams(summary=summary)))
         return summary, n, doc
 
     rep = pipeline(tmp_path, stub(write_doc="# d\n")).run(flow)
@@ -601,10 +638,10 @@ def test_awaits_deliver_typed_answers_and_gather_keeps_their_order(tmp_path):
 
 def test_the_frontier_is_the_union_a_gather_received_whatever_order_its_tasks_end_in(tmp_path):
     async def flow():
-        await asyncio.gather(summarize("a", path="a"), summarize("b", path="b"), summarize("c", path="c"))
-        review("u")  # created from all three
-        await summarize("d", path="d")
-        review("v")  # created from the last await only
+        await asyncio.gather(*[summarize(u, PathParams(path=u)) for u in "abc"])
+        review("u", SummaryParams(summary=Summary(unit="u", points=[])))  # created from all three
+        await summarize("d", PathParams(path="d"))
+        review("v", SummaryParams(summary=Summary(unit="v", points=[])))  # created from the last await only
 
     for order in ("abc", "cba"):
         ended = {u: threading.Event() for u in "abc"}
@@ -628,7 +665,7 @@ def test_the_frontier_is_the_union_a_gather_received_whatever_order_its_tasks_en
 
 def test_a_generator_flow_is_refused_with_its_rewrite(tmp_path):
     def flow():
-        yield summarize("u", path="x")
+        yield summarize("u", PathParams(path="x"))
 
     for given in (flow, lambda: flow()):
         with pytest.raises(TypeError) as caught:
@@ -646,11 +683,11 @@ def test_a_generator_flow_is_refused_with_its_rewrite(tmp_path):
 
 def test_a_coroutine_never_awaited_is_a_warning_line(tmp_path):
     async def sub(u):
-        return await summarize(u, path=u)
+        return await summarize(u, PathParams(path=u))
 
     async def flow():
         sub("a")  # pyright: ignore[reportUnusedCoroutine]  # the await forgotten: it never runs
-        return await summarize("b", path="b")
+        return await summarize("b", PathParams(path="b"))
 
     lines: list[str] = []
     agent = stub()
@@ -686,7 +723,7 @@ def test_one_run_per_event_loop_at_a_time(tmp_path):
 
 def test_a_flow_that_awaits_a_clock_or_a_thread_fails_at_that_await(tmp_path):
     async def flow():
-        first = await summarize("a", path="a")
+        first = await summarize("a", PathParams(path="a"))
         try:
             await asyncio.to_thread(len, "x")
         except TypeError as exc:
@@ -706,7 +743,7 @@ def test_a_flow_that_waits_for_what_nothing_answers_ends_the_run_with_the_place(
     never = asyncio.Event()
 
     async def flow():
-        await summarize("a", path="a")
+        await summarize("a", PathParams(path="a"))
         await never.wait()
 
     started = time.monotonic()
@@ -722,7 +759,7 @@ def test_a_flow_that_waits_for_what_nothing_answers_ends_the_run_with_the_place(
 
 def test_run_async_drives_the_flows_from_a_loop_of_the_callers_own(tmp_path):
     async def flow():
-        a, b = await asyncio.gather(summarize("a", path="a"), summarize("b", path="b"))
+        a, b = await asyncio.gather(summarize("a", PathParams(path="a")), summarize("b", PathParams(path="b")))
         return a.unit + b.unit
 
     async def main():
@@ -736,18 +773,20 @@ def test_run_async_drives_the_flows_from_a_loop_of_the_callers_own(tmp_path):
 
 
 def test_a_flow_call_is_on_record_once_it_creates_something(tmp_path):
+    write_doc = write_doc_of(PathParams)
+
     async def helper(pending):
         return await pending  # waits for its parent's task call: no record
 
     async def sub(u):
-        return await summarize(u, path=u)  # creates a task: on record
+        return await summarize(u, PathParams(path=u))  # creates a task: on record
 
     async def flow():
-        first = summarize("a", path="a")
-        await asyncio.gather(first, summarize("b", path="b"))  # 0.1 and 0.2 wait only
+        first = summarize("a", PathParams(path="a"))
+        await asyncio.gather(first, summarize("b", PathParams(path="b")))  # 0.1 and 0.2 wait only
         await asyncio.create_task(helper(first))  # 0.3
         done = await asyncio.gather(sub("c"))  # 0.4
-        follow = await write_doc("d", path="d")
+        follow = await write_doc("d", PathParams(path="d"))
         return done, follow
 
     rep = pipeline(tmp_path, stub(write_doc=lambda launch: "text")).run(flow)
@@ -777,7 +816,7 @@ def test_a_task_failure_passing_through_a_flow_call_puts_it_on_no_record(tmp_pat
             raise ValueError(f"no summary: {exc.key}") from exc
 
     async def flow():
-        bad = summarize("a", path="a")
+        bad = summarize("a", PathParams(path="a"))
         caught = []
         for awaited in (asyncio.gather(bad), asyncio.create_task(passes(bad)), asyncio.create_task(own(bad))):
             try:

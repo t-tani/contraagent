@@ -29,7 +29,7 @@ class Note(BaseModel):
 calls: list[str] = []
 
 
-@python_task(name="count")
+@python_task(kind="count")
 def count(unit: str) -> Count:
     calls.append(unit)
     return Count(n=len(calls))

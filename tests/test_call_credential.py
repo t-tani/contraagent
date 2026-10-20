@@ -294,12 +294,12 @@ def test_a_params_field_named_credential_is_a_param_and_the_option_is_given_by_o
         credential: str
 
     holder = agent_task("holder", instructions="x", params=Params, output=Note, max_turns=1, timeout_s=1)
-    report = pipeline(tmp_path, StubAgent({"holder": written})).run(lambda: holder("a", credential="vault"))
+    report = pipeline(tmp_path, StubAgent({"holder": written})).run(lambda: holder("a", Params(credential="vault")))
     assert report.ok, report.failed
     assert report.results["holder-a"].task.params == {"credential": "vault"}
     assert report.results["holder-a"].task.credential == ""  # a param, not the call option
     with pytest.raises(TypeError, match=r"credential= is a call option.*note\.options\(credential=\.\.\.\)"):
-        note("a", credential="company")  # refused at the call, before it reaches a run
+        note("a", credential="company")  # pyright: ignore[reportCallIssue]  # refused at the call, before it reaches a run
 
 
 def test_a_router_on_a_credential_is_its_chain_each_route_on_it_and_no_hop_twice():

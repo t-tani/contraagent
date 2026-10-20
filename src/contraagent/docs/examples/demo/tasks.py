@@ -1,7 +1,8 @@
 """The demo pipeline's tasks and flows: the part of a pipeline that is its own.
 
-Each agent task is an interface (parameters, output, budget) whose
-implementation is a role of the `plugins/docs` plugin. A flow that gives one task
+Each agent task is an interface (a params model, an output, a budget) whose
+implementation is a role of the `plugins/docs` plugin; a task call passes an instance
+of its params model. A flow that gives one task
 another's output is an `async def` function: it awaits the output and passes the
 value on. `docs_one_review` reviews each unit once; `docs` decides on the results
 (a review loop per unit). Each runs a flow call per unit, so a unit that fails stops
@@ -62,6 +63,24 @@ class Verdict(BaseModel):
 Note = Annotated[str, Field(examples=["# alpha\n\nThe alpha component parses a config file.\n"])]
 
 
+class SummarizeParams(BaseModel):
+    prepared: Prepared = Field(description="the unit's input, prepared: the document to summarize and its size")
+
+
+class ReviewParams(BaseModel):
+    summary: Summary = Field(description="the summary to review")
+    score: Score = Field(description="figures about the summary, worked out beside it")
+
+
+class ReviseParams(BaseModel):
+    summary: Summary = Field(description="the summary to revise")
+    verdict: Verdict = Field(description="the review that did not approve it")
+
+
+class NoteParams(BaseModel):
+    summary: Summary = Field(description="the summary to write the note from")
+
+
 def three_points(path: Path, summary: Summary):
     """A structural check the schema cannot express."""
     if len(summary.points) != 3:
@@ -94,6 +113,7 @@ names_its_unit = CommandValidator(
 
 summarize = agent_task(
     "summarize",
+    params=SummarizeParams,
     plugin="plugins/docs",
     role="summarizer",
     output=Summary,
@@ -103,11 +123,35 @@ summarize = agent_task(
     retry_backoff_base=0.5,
 )
 review = agent_task(
-    "review", plugin="plugins/docs", role="reviewer", output=Verdict, max_turns=10, timeout_s=300, retries=2, retry_backoff_base=0.5
+    "review",
+    params=ReviewParams,
+    plugin="plugins/docs",
+    role="reviewer",
+    output=Verdict,
+    max_turns=10,
+    timeout_s=300,
+    retries=2,
+    retry_backoff_base=0.5,
 )
-revise = agent_task("revise", plugin="plugins/docs", role="reviser", output=Summary, validators=[three_points], max_turns=10, timeout_s=300)
+revise = agent_task(
+    "revise",
+    params=ReviseParams,
+    plugin="plugins/docs",
+    role="reviser",
+    output=Summary,
+    validators=[three_points],
+    max_turns=10,
+    timeout_s=300,
+)
 write_note = agent_task(
-    "write_note", plugin="plugins/docs", role="writer", output=Note, validators=[has_heading, names_its_unit], max_turns=10, timeout_s=300
+    "write_note",
+    params=NoteParams,
+    plugin="plugins/docs",
+    role="writer",
+    output=Note,
+    validators=[has_heading, names_its_unit],
+    max_turns=10,
+    timeout_s=300,
 )
 
 
@@ -137,9 +181,9 @@ def report(summaries: list[Summary]) -> str:
 
 async def one_review(unit: str) -> Summary:
     """One unit: prepare -> summarize -> score -> review, and a note beside the review."""
-    summary = await summarize(unit, prepared=await prepare(unit))
+    summary = await summarize(unit, SummarizeParams(prepared=await prepare(unit)))
     figures = await score(unit, summary=summary)
-    await asyncio.gather(review(unit, summary=summary, score=figures), write_note(unit, summary=summary))
+    await asyncio.gather(review(unit, ReviewParams(summary=summary, score=figures)), write_note(unit, NoteParams(summary=summary)))
     return summary
 
 
@@ -153,14 +197,14 @@ async def docs_one_review(units: list[str]):
 async def review_loop(unit: str):
     """One unit: its summary, revised until the review approves it, then its note. A task
     that fails ends this flow call, and only this one."""
-    summary = await summarize(unit, prepared=await prepare(unit))
+    summary = await summarize(unit, SummarizeParams(prepared=await prepare(unit)))
     while True:
         figures = await score(unit, summary=summary)
-        verdict = await review(unit, summary=summary, score=figures)
+        verdict = await review(unit, ReviewParams(summary=summary, score=figures))
         if verdict.approved:
             break
-        summary = await revise(unit, summary=summary, verdict=verdict)
-    await write_note(unit, summary=summary)
+        summary = await revise(unit, ReviseParams(summary=summary, verdict=verdict))
+    await write_note(unit, NoteParams(summary=summary))
     return summary
 
 

@@ -11,7 +11,8 @@ for an order with no output passed on. The task reaches the queue when it is
 called, whether or not anything awaits it.
 
 The params of a task call are copied as JSON at the call (`Node.params`): an agent
-task's through its params model, defaults filled in, a Python task's as given. A value
+task's instance of its params model as the JSON of its fields, checked again under the
+model, a Python task's arguments as given. A value
 that is not JSON (one pydantic cannot turn into JSON, a NaN) raises `TypeError` at the
 call. What the flow does with a value afterwards does not reach the task: the call file
 of an agent task holds the copy, and a Python task's function is given it, each
@@ -72,6 +73,7 @@ import hashlib
 import inspect
 import json
 import logging
+import math
 import os
 import re
 import string
@@ -381,7 +383,7 @@ class Graph:
         unit: str,
         key: str | None,
         after: Sequence[Pending[Any] | str],
-        params: dict[str, Any],
+        params: dict[str, Any] | BaseModel,
         priority: float = 0.0,
         credential: str = "",
         cancellable: bool = False,
@@ -929,6 +931,23 @@ def _pendings(value: Any, where: str = "", seen: set[int] | None = None) -> Iter
         yield from _pendings(inner, where + step, seen)
 
 
+def _non_finite(value: Any, where: str, seen: set[int] | None = None) -> str | None:
+    """Where in `value` (appended to `where`) a float is a NaN or an infinity, at any depth
+    (`_inside`); None when no float is."""
+    if isinstance(value, float):
+        return None if math.isfinite(value) else where
+    if isinstance(value, (str, bytes, int, type(None))):
+        return None
+    seen = set() if seen is None else seen
+    if id(value) in seen:
+        return None
+    seen.add(id(value))
+    for step, inner in _inside(value):
+        if (found := _non_finite(inner, where + step, seen)) is not None:
+            return found
+    return None
+
+
 def _refuse_pendings(kind: str, params: dict[str, Any]) -> None:
     """TypeError when a `Pending` is among `params`, at any depth: a task is given values.
     It says where, and how to write the call."""
@@ -942,25 +961,30 @@ def _refuse_pendings(kind: str, params: dict[str, Any]) -> None:
             )
 
 
-def _params_json(spec: Any, unit: str, params: dict[str, Any]) -> tuple[dict[str, Any], str]:
+def _params_json(spec: Any, unit: str, params: dict[str, Any] | BaseModel) -> tuple[dict[str, Any], str]:
     """The params of a task call as JSON, and the text of the JSON its fingerprint holds:
-    an agent task's through its params model (its defaults filled in); a Python task's as
-    given, and for its fingerprint with the defaults of the function's parameters filled in.
-    TypeError for a `Pending` among them, a value that is not JSON, or params that do not
-    validate under the agent task's params model."""
+    an agent task's instance of its params model as the JSON of its fields, checked again
+    under the model, so a value set on the instance after it was made is checked too; a
+    Python task's arguments as given, and for its fingerprint with the defaults of the
+    function's parameters filled in. TypeError for a `Pending` among them, a value that is
+    not JSON, or an instance whose JSON does not validate under its model."""
     kind = spec.kind
-    _refuse_pendings(kind, params)
-    model = getattr(spec, "params", None) if spec.executor == "agent" else None
-    if model is not None:
+    if isinstance(params, BaseModel):
+        model = type(params)
+        _refuse_pendings(kind, dict(params))
+        for name, value in dict(params).items():  # JSON mode would write a NaN or an infinity as null
+            if (where := _non_finite(value, name)) is not None:
+                raise TypeError(f"{kind}(): params hold a value that is not JSON: {where} is not a finite number")
         try:
-            validated = model.model_validate(params)
+            dumped = params.model_dump(mode="json", by_alias=False, warnings="error")
+        except PydanticSerializationError as exc:
+            raise TypeError(f"{kind}(): params hold a value that is not JSON or not of its field's type: {exc}") from None
+        try:
+            given = model.model_validate(dumped, by_alias=False, by_name=True).model_dump(mode="json")
         except ValidationError as exc:
             raise TypeError(f"{kind}(): params do not validate under {model.__name__}: {_errors(exc)}") from None
-        try:
-            given = validated.model_dump(mode="json")
-        except PydanticSerializationError as exc:
-            raise TypeError(f"{kind}(): params hold a value that is not JSON: {exc}") from None
     else:
+        _refuse_pendings(kind, params)
         given = {}
         for name, value in params.items():
             try:
@@ -975,7 +999,7 @@ def _params_json(spec: Any, unit: str, params: dict[str, Any]) -> tuple[dict[str
     except ValueError as exc:  # NaN, infinity
         raise TypeError(f"{kind}(): params hold a value that is not JSON: {exc}") from None
     if spec.executor == "python":
-        defaults = _defaults(spec, params)
+        defaults = _defaults(spec, params if isinstance(params, dict) else {})
         if defaults:
             text = _canonical({**defaults, **given})
     return given, text

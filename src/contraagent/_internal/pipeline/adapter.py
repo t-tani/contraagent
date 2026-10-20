@@ -1,7 +1,7 @@
 """`SpecAdapter`: the `TaskAdapter` a pipeline hands its runner, built from `agent_task` declarations.
 
 For each agent task it writes the call file (its params, copied as JSON at the task
-call, and its output contract) just before launch, points the CLI at the task's plugin
+call, their JSON Schema, and its output contract) just before launch, points the CLI at the task's plugin
 and role, and declares the contract the runner checks after the turn: the output it
 must leave behind with its validators.
 """
@@ -82,7 +82,14 @@ class SpecAdapter(TaskAdapter):
                 preserve=list(spec.preserve),
             )
         return CallFile(
-            run=self.run_id, key=task.key, kind=spec.kind, unit=node.unit, params=params, output=output, cwd=str(self.cwd.resolve())
+            run=self.run_id,
+            key=task.key,
+            kind=spec.kind,
+            unit=node.unit,
+            params=params,
+            params_json_schema=spec.params_json_schema,
+            output=output,
+            cwd=str(self.cwd.resolve()),
         )
 
     # --- TaskAdapter -------------------------------------------------------

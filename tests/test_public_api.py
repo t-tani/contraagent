@@ -351,11 +351,12 @@ def test_help_of_a_public_function_or_method_shows_public_paths_only():
     assert found == []
 
 
-#: The `**` parameters a public signature keeps: a task's own parameters, the flow's
-#: arguments, the fields of a record merged in, the arguments of a class picked by name.
-#: Any other argument is a named, typed parameter.
+#: The `**` parameters a public signature keeps: a Python task's own parameters, the
+#: keywords an agent task call refuses with what to write instead, the flow's arguments,
+#: the fields of a record merged in, the arguments of a class picked by name. Any other
+#: argument is a named, typed parameter.
 VAR_KEYWORD_KEPT = {
-    "contraagent.AgentTask.__call__": "params",
+    "contraagent.AgentTask.__call__": "keywords",
     "contraagent.PythonTask.__call__": "kwargs",
     "contraagent.Pipeline.check": "kwargs",
     "contraagent.Pipeline.run": "kwargs",
@@ -551,7 +552,6 @@ def test_serve_and_create_app_are_published_when_first_named():
         "account_digest",
         "write_launch_marker",
         "lint_plugin",
-        "Implementations",
         "TimeBoxed",
         "CredentialBase",
         "MemorySource",

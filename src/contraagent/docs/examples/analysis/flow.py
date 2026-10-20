@@ -63,6 +63,23 @@ class Report(BaseModel):
     columns: int
 
 
+class ClassifyParams(BaseModel):
+    file: DataFile = Field(description="the file to classify")
+
+
+class ParseParams(BaseModel):
+    file: Class = Field(description="the data file to parse, as classify found it")
+
+
+class ProposeParams(BaseModel):
+    column: Column = Field(description="the column whose meaning to propose")
+
+
+class RefineParams(BaseModel):
+    meaning: Meaning = Field(description="the meaning proposed so far")
+    check: Check = Field(description="why verify did not accept it")
+
+
 @python_task
 def unpack(unit: str) -> Layout:
     """List a bundle's files. A Python task: no agent needed to read a manifest."""
@@ -71,10 +88,16 @@ def unpack(unit: str) -> Layout:
 
 
 classify = agent_task(
-    "classify", instructions="Classify params.file: its format and whether it holds table data.", output=Class, max_turns=6, timeout_s=120
+    "classify",
+    params=ClassifyParams,
+    instructions="Classify params.file: its format and whether it holds table data.",
+    output=Class,
+    max_turns=6,
+    timeout_s=120,
 )
 parse_csv = agent_task(
     "parse_csv",
+    params=ParseParams,
     instructions="Parse the CSV named by params.file into columns.",
     output=Table,
     max_turns=10,
@@ -83,25 +106,35 @@ parse_csv = agent_task(
 )
 parse_json = agent_task(
     "parse_json",
+    params=ParseParams,
     instructions="Parse the JSON named by params.file into columns.",
     output=Table,
     max_turns=10,
     timeout_s=300,
     claims=["heavy"],
 )
-propose = agent_task("propose", instructions="Propose what params.column means.", output=Meaning, max_turns=6, timeout_s=120)
-refine = agent_task("refine", instructions="Revise params.meaning as params.check.note says.", output=Meaning, max_turns=6, timeout_s=120)
+propose = agent_task(
+    "propose", params=ProposeParams, instructions="Propose what params.column means.", output=Meaning, max_turns=6, timeout_s=120
+)
+refine = agent_task(
+    "refine",
+    params=RefineParams,
+    instructions="Revise params.meaning as params.check.note says.",
+    output=Meaning,
+    max_turns=6,
+    timeout_s=120,
+)
 
 
 @python_task
-def rank_columns(table: Table) -> Ranked:
+def rank_columns(unit: str, table: Table) -> Ranked:
     """Rank a table's columns by how many values they have. A Python task."""
     top = sorted(table.columns, key=lambda c: c.nulls)[:2]
     return Ranked(top=top)
 
 
 @python_task
-def verify(meaning: Meaning) -> Check:
+def verify(unit: str, meaning: Meaning) -> Check:
     """Accept a proposed meaning when it reads as a full sentence. A Python task."""
     ok = meaning.reads.strip().endswith(".") and len(meaning.reads.split()) >= 3
     return Check(ok=ok, note="Write one full sentence." if not ok else "ok")
@@ -123,17 +156,17 @@ async def analyse_file(cls: Class):
     meaning for each top column and refine it until `verify` accepts it. The `while`
     loop makes at most 4 passes: the `verify` of a fifth raises `TooManyPasses`."""
     parse = parse_csv if cls.format == "csv" else parse_json  # a kind chosen at run time; both reachable
-    table = await parse(cls.name, file=cls)
+    table = await parse(cls.name, ParseParams(file=cls))
     ranked = await rank_columns(cls.name, table=table)
     meanings = []
     for column in ranked.top:
         where = f"{cls.name}-{column.name}"
-        meaning = await propose(where, column=column)
+        meaning = await propose(where, ProposeParams(column=column))
         while True:
             check = await verify(where, meaning=meaning)
             if check.ok:
                 break
-            meaning = await refine(where, meaning=meaning, check=check)
+            meaning = await refine(where, RefineParams(meaning=meaning, check=check))
         meanings.append(meaning)
     return meanings
 
@@ -142,7 +175,7 @@ async def analyse_bundle(bundle: str):
     """One bundle: unpack it, classify every file, analyse each data file (a flow
     call each), then report. A file whose `classify` or analysis failed is left out."""
     layout = await unpack(bundle)
-    tasks = [classify(f.name, file=f) for f in layout.files]  # fan-out sized by the layout
+    tasks = [classify(f.name, ClassifyParams(file=f)) for f in layout.files]  # fan-out sized by the layout
     classes = await asyncio.gather(*tasks, return_exceptions=True)  # a failure is its item
     data = [c for c in classes if isinstance(c, Class) and c.data]
     found = await asyncio.gather(*[analyse_file(c) for c in data], return_exceptions=True)
