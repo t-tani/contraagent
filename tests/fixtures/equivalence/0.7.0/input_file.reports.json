@@ -1,0 +1,75 @@
+{
+  "call": "examples/input_file/flow.py:reports",
+  "config": false,
+  "flow": "input_file.reports",
+  "kwargs": {
+    "topics": [
+      "alpha",
+      "beta"
+    ]
+  },
+  "outputs": {
+    "count_words/alpha.json": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+    "count_words/beta.json": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+    "draft/alpha.md": "725c546b990dd1b41f3d5791b37c3c0edcb1f08cf150bdae32a73dfd166e02d7",
+    "draft/beta.md": "725c546b990dd1b41f3d5791b37c3c0edcb1f08cf150bdae32a73dfd166e02d7",
+    "review/alpha.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f",
+    "review/beta.json": "78ba4c3b2167ef1185c0a4a487db0b2f2702491c77925674446bbaef93e6624f"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "draft-alpha": {
+      "kind": "draft",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "draft-beta": {
+      "kind": "draft",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "python:count_words-alpha": {
+      "kind": "count_words",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "python:count_words-beta": {
+      "kind": "count_words",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "review-alpha": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-beta": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "beta"
+    }
+  },
+  "value": [
+    [
+      {
+        "approved": false,
+        "note": ""
+      },
+      0
+    ],
+    [
+      {
+        "approved": false,
+        "note": ""
+      },
+      0
+    ]
+  ]
+}

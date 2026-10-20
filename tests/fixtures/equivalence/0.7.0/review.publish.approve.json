@@ -1,0 +1,66 @@
+{
+  "call": "examples/review/flow.py:publish",
+  "config": false,
+  "flow": "review.publish.approve",
+  "kwargs": {
+    "units": [
+      "alpha",
+      "beta"
+    ]
+  },
+  "outputs": {
+    "report/report.json": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+    "review/alpha.json": "8c25ea8b001fd53a31ebfa5d1743b0bccf996a7c3ae45dafd8dabc5afe5321c2",
+    "review/alpha~2.json": "cb33df7022a080daae8bdc67515d69b0c3fe72d7c75706347b4aa8603b94ce13",
+    "review/beta.json": "cb33df7022a080daae8bdc67515d69b0c3fe72d7c75706347b4aa8603b94ce13",
+    "revise/alpha.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "summarize/alpha.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5",
+    "summarize/beta.json": "a30c935b78df401928bb80636cdd0f2783732590ea1d8b7ff3598522b51843d5"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "approve",
+  "tasks": {
+    "python:report": {
+      "kind": "report",
+      "stop": "completed",
+      "unit": "python:report"
+    },
+    "review-alpha": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-alpha~2": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-beta": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "revise-alpha": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "summarize-alpha": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "summarize-beta": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "beta"
+    }
+  },
+  "value": ""
+}

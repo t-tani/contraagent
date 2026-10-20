@@ -1,0 +1,1 @@
+`contraagent check` reports a task call that the run refuses at the flow's line, with the form to write: a `Pending` among the params, params given to a task without a params model or as keywords, an instance of another model, a call option given to the call, a Python task called with an argument its function does not take, or flow code that needs a clock, a thread or I/O.

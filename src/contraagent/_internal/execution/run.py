@@ -224,8 +224,8 @@ def _changed(row: Mapping[str, Any], task: Task) -> list[str]:
 
 
 def _part_name(part: str) -> str:
-    """A part of a fingerprint (`Task.fingerprint_parts`) as a rerun reason names it: a part
-    a run of an earlier release recorded (`output:<key>`, `after:<key>`) by its name."""
+    """A part of a fingerprint (`Task.fingerprint_parts`) as a rerun reason names it; a part
+    of another name, as a journal row of another writer may hold, by its name."""
     return {
         "definition": "its definition",
         "params": "its params",

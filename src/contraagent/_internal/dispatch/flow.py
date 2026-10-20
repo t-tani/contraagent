@@ -350,16 +350,16 @@ class FlowCall:
     frontier: tuple[str, ...] = ()
     value: Any = field(default=None, repr=False)
     error: BaseException | None = None
-    raised_at: Frame | None = None
-    raised_by: str | None = None
     time_box: TimeBox | None = None
     started_at: float = field(default_factory=time.time)
-    ended_at: float | None = None
-    unawaited: tuple[str, ...] = ()
-    recorded: bool = False
     task: asyncio.Task[Any] | None = field(default=None, repr=False)
     #: Its coroutine (the flow code the Task runs).
     coro: Any = field(default=None, repr=False)
+    raised_at: Frame | None = None
+    raised_by: str | None = None
+    ended_at: float | None = None
+    unawaited: tuple[str, ...] = ()
+    recorded: bool = False
     _children: itertools.count = field(default_factory=lambda: itertools.count(1), init=False, repr=False)
     # Its children that ended `raised`, in the order they ended: where an exception it ends
     # with came from (`FlowDriver._raised_at`).

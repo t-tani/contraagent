@@ -1,0 +1,39 @@
+{
+  "call": "examples/cancel/flow.py:review",
+  "config": false,
+  "flow": "cancel.review",
+  "kwargs": {
+    "change": "c1"
+  },
+  "outputs": {
+    "probe/probe-c1-data.json": "ff07e301d279bfc84e82f31312e3c38a34bc4ee6ae7eecbb8dd2631b60757ef0",
+    "probe/probe-c1-license.json": "ff07e301d279bfc84e82f31312e3c38a34bc4ee6ae7eecbb8dd2631b60757ef0",
+    "probe/probe-c1-security.json": "ff07e301d279bfc84e82f31312e3c38a34bc4ee6ae7eecbb8dd2631b60757ef0"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "probe-c1-data": {
+      "kind": "probe",
+      "stop": "completed",
+      "unit": "c1"
+    },
+    "probe-c1-license": {
+      "kind": "probe",
+      "stop": "completed",
+      "unit": "c1"
+    },
+    "probe-c1-security": {
+      "kind": "probe",
+      "stop": "completed",
+      "unit": "c1"
+    }
+  },
+  "value": "clear"
+}
