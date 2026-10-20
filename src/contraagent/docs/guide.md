@@ -99,7 +99,8 @@ for another port).
   not need its output. One flow call per unit, gathered with
   `asyncio.gather(..., return_exceptions=True)`, keeps a failure to its unit; every
   other unit, and every task already queued or running, goes on. `asyncio.TaskGroup`
-  is the choice when the work is all or nothing.
+  is the choice when the work is all or nothing. An exception of flow code's own (a
+  bug, `TooManyPasses`) caught this way still makes the run not ok.
 - Flow code does not call `Pipeline.run` or `asyncio.run`: both raise inside a
   flow. Async code outside a flow runs a pipeline with
   `await Pipeline(config).run_async(flow, ...)`.

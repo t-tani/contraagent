@@ -144,7 +144,8 @@ raises `RuntimeError` there. One event loop runs one run at a time: a second
 `flow_errors`, and `value`, whatever the flow returned (a `Pending` in it reads its
 task's output); its docstring lists every field. A deferred task (not launched: past
 a deadline, or on a resting credential) is in `deferred`, with its cause, and is no
-failure: `ok` holds when no task failed and the flow returned. A `TaskDeferred` the
+failure: `ok` holds when no task failed and there is no flow error (see
+[Failures](#failures-the-run-keeps-going)). A `TaskDeferred` the
 flow does not catch ends the flow without its value, so it is a flow error and `ok`
 is False.
 
@@ -339,7 +340,8 @@ on, and the report joins the units that got through (see
   `Pipeline.run`. After it, the tasks already queued still run, and the
   exception is in `RunReport.flow_errors`: `ok` is False and `contraagent run`
   exits 1. A top flow call closed because it waited for what nothing would
-  answer is there too.
+  answer is there too, and so is any flow call that raised an exception of its
+  own, even one that its parent caught.
 
 Flow code runs on an event loop of contraagent's own, on the thread of the event loop
 that schedules every task. This loop has no clock, no threads and no I/O, so an
@@ -501,7 +503,7 @@ does not cancel its other items when it raises. A task already queued or running
 runs to its end, and its result is in the run. A flow call goes on when its parent
 ends, whether the parent returned or raised, and the run waits for every flow call.
 The run ends when no task is queued or running and every flow call has ended. Its
-`RunReport.ok` is False when a task failed or a top flow call raised. A resume then
+`RunReport.ok` is False when a task failed or there is a flow error. A resume then
 skips every task that succeeded and runs the failed tasks again, and the code that
 waited for them goes on from there.
 
@@ -513,10 +515,11 @@ and so does the review example:
 
 ::code{file="examples/review/flow.py" from="def docs(" to="def publish("}
 
-`return_exceptions=True` makes every exception an item, an error of flow code's
-own too (`TooManyPasses`, a bug). Its flow call is recorded `raised` all the same,
-but only a top flow call's exception makes the run not ok, so a flow that tolerates
-only failed tasks raises the other exceptions again.
+`return_exceptions=True` makes every exception an item, an exception of flow
+code's own too (`TooManyPasses`, a bug). A task's failure is an outcome to tolerate:
+the run is not ok only because the task failed. An exception of flow code's own is
+not: it is a flow error wherever it is caught, listed in `RunReport.flow_errors` for
+the flow call it started in, and the run is not ok. The other units still go on.
 
 When the work is all or nothing, the flow says so with `asyncio.TaskGroup`. The first
 failure in the group cancels its other flow calls (recorded `closed`), and the group

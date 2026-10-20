@@ -205,6 +205,33 @@ def test_an_exception_of_flow_code_has_its_line_and_no_task(tmp_path):
     assert "raised_by" not in ends(rep)["0"]
 
 
+def test_an_exception_of_flow_code_a_parent_tolerates_is_still_a_flow_error(tmp_path):
+    async def broken(u: str):
+        await step(u)
+        raise ValueError(f"bug in {u}")  # BUG
+
+    async def flow():
+        done = await asyncio.gather(broken("a"), unit("b"), return_exceptions=True)
+        return [d for d in done if isinstance(d, str)]
+
+    rep = pipeline(tmp_path, stub(threading.Event())).run(flow)
+    assert rep.value == ["step-b~3"] and not rep.failed  # every task succeeded, and the flow returned
+    assert not rep.ok
+    [call] = rep.flow_errors
+    assert call.id == "0.1" and isinstance(call.error, ValueError) and call.raised_by is None
+    assert call.raised_at is not None and call.raised_at.line == line_of(broken, "# BUG")
+
+
+def test_a_task_failure_a_parent_tolerates_fails_the_run_only_as_a_failed_task(tmp_path):
+    async def flow():
+        done = await asyncio.gather(unit("bad"), unit("good"), return_exceptions=True)
+        return [d for d in done if isinstance(d, str)]
+
+    rep = pipeline(tmp_path, stub(threading.Event(), **{"step-bad": fails()})).run(flow)
+    assert rep.value == ["step-good~3"] and not rep.flow_errors
+    assert not rep.ok and [r.task.key for r in rep.failed] == ["step-bad"]
+
+
 # --- the driver alone ----------------------------------------------------------
 
 

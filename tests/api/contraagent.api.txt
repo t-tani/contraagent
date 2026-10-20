@@ -2076,6 +2076,7 @@ class FlowDriver
     def driving(self) -> Iterator[FlowDriver]
     async def finish(self) -> None
     def finish_here(self) -> None
+    def flow_errors(self) -> list[FlowCall]
     def follow_up(self, result: TaskResult) -> list[Task]
     past_grace: Callable[[], bool] | None
     def run(self, queue: WorkQueue, *flows: Coroutine[Any, Any, Any]) -> dict[str, Any]

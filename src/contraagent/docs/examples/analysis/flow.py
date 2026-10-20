@@ -140,16 +140,16 @@ async def analyse_file(cls: Class):
 
 async def analyse_bundle(bundle: str):
     """One bundle: unpack it, classify every file, analyse each data file (a flow
-    call each), then report. A file whose `classify` failed is left out."""
+    call each), then report. A file whose `classify` or analysis failed is left out."""
     layout = await unpack(bundle)
     tasks = [classify(f.name, file=f) for f in layout.files]  # fan-out sized by the layout
     classes = await asyncio.gather(*tasks, return_exceptions=True)  # a failure is its item
     data = [c for c in classes if isinstance(c, Class) and c.data]
-    found = await asyncio.gather(*[analyse_file(c) for c in data])
-    return await report(bundle, meanings=[m for file in found for m in file])
+    found = await asyncio.gather(*[analyse_file(c) for c in data], return_exceptions=True)
+    return await report(bundle, meanings=[m for file in found if isinstance(file, list) for m in file])
 
 
 async def analyse(bundles: list[str]):
-    """Every bundle at once (a flow call each), then one summary."""
-    reports = await asyncio.gather(*[analyse_bundle(b) for b in bundles])
-    return await summary(reports=reports)
+    """Every bundle at once (a flow call each), then one summary of the bundles that got through."""
+    done = await asyncio.gather(*[analyse_bundle(b) for b in bundles], return_exceptions=True)
+    return await summary(reports=[r for r in done if isinstance(r, Report)])

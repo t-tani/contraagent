@@ -106,7 +106,8 @@ Rules:
   call. Only an `asyncio.TaskGroup` cancels its other flow calls at a failure (they
   end `closed`); the tasks they created still run to their end. A flow call that
   `raised` records where (`FlowCall.raised_at`) and because of which failed task
-  (`FlowCall.raised_by`).
+  (`FlowCall.raised_by`). An exception of flow code's own (not a task's outcome) is a
+  flow error wherever a parent catches it (`flow_errors()`).
 * A flow call that still waits once the flows are quiescent, while no task the driver
   queued is still to give its result, waits for what nothing will answer (an
   `asyncio.Event` nobody sets, a `Queue` nobody fills): `settle` closes it, its `error`
@@ -308,6 +309,14 @@ class FlowCall:
     #: Its coroutine (the flow code the Task runs).
     coro: Any = field(default=None, repr=False)
     _children: itertools.count = field(default_factory=lambda: itertools.count(1), init=False, repr=False)
+    # Its children that ended `raised`, in the order they ended: where an exception it ends
+    # with came from (`FlowDriver._raised_at`).
+    _raised_children: list[FlowCall] = field(default_factory=list, init=False, repr=False)
+    # The length of the traceback of the exception it ended `raised` with, then.
+    _traceback_len: int = field(default=0, init=False, repr=False)
+    # It ended `raised` with an exception of flow code's own, the first flow call to end with
+    # it: a flow error (`FlowDriver.flow_errors`).
+    _own_error: bool = field(default=False, init=False, repr=False)
     # Its own code ran since it last received a result: the next result starts a new frontier.
     _ran: bool = field(default=False, init=False, repr=False)
     # The results its frontier holds: (order, n, key), the order that of the wait or the
@@ -377,9 +386,9 @@ class FlowDriver:
         self._open: set[str] = set()  # keys queued whose result has not come
         # What `answer` raised at an await, by id (kept alive): a task's outcome, not a flow call's own.
         self._outcomes: dict[int, BaseException] = {}
-        # Each exception a flow call ended with, by id (kept alive), with the length of its
-        # traceback then: a parent that ends with it too has its own frames before those.
-        self._raised: dict[int, tuple[BaseException, int]] = {}
+        # The flow calls that ended `raised` with an exception of flow code's own, the first
+        # to end with it, in the order they ended.
+        self._own_errors: list[FlowCall] = []
         self._outbox: list[Task] = []
         self._queue: WorkQueue | None = None
         self._main: asyncio.AbstractEventLoop | None = None
@@ -749,24 +758,30 @@ class FlowDriver:
         passed through unchanged is not: the task's own record says it."""
         return error is not None and self._outcomes.get(id(error)) is not error
 
-    def _raised_at(self, error: BaseException) -> Frame | None:
-        """Where `error` left the code of the flow call that ends with it: the innermost
-        frame of flow code in its traceback, above contraagent's own code (a task call's
-        `await`, the driver) and before the frames of the flow call it came from.
+    def _raised_at(self, call: FlowCall, error: BaseException) -> Frame | None:
+        """Where `error` left the code of `call`, which ends with it: the innermost frame
+        of flow code in its traceback, above contraagent's own code (a task call's `await`,
+        the driver) and before the frames of the child flow call it came from.
+
         An exception that passes from a child flow call to its parent keeps the child's
         traceback after the parent's own frames (a Task's exception is raised again at its
-        `await` with the traceback it ended with), so the frames the child ended with are
-        left out."""
+        `await` with the traceback it ended with). So each flow call that ends `raised`
+        keeps the length of that traceback on its own record (`_traceback_len`), and its
+        parent, which ends with the same exception object, leaves out that many frames from
+        the end. The child is found among the parent's own children that ended `raised`
+        (`_raised_children`), not through a map from exceptions: the records hold what they
+        are about, and nothing is keyed by an object's identity. An exception that came from
+        a flow call that is not a child (a Task its sibling created) is read whole."""
         entries: list[TracebackType] = []
         tb = error.__traceback__
         while tb is not None:
             entries.append(tb)
             tb = tb.tb_next
-        before = self._raised.get(id(error))
+        call._traceback_len = len(entries)
         own = entries
-        if before is not None and before[0] is error and before[1] < len(entries):
-            own = entries[: len(entries) - before[1]]
-        self._raised[id(error)] = (error, len(entries))
+        child = next((c for c in reversed(call._raised_children) if c.error is error), None)
+        if child is not None and child._traceback_len < len(entries):
+            own = entries[: len(entries) - child._traceback_len]
         found = None
         for tb in own:
             code = tb.tb_frame.f_code
@@ -777,6 +792,35 @@ class FlowDriver:
                 function = f"{module}.{code.co_qualname}" if module else code.co_qualname
                 found = Frame(function=function, file=code.co_filename, line=tb.tb_lineno or code.co_firstlineno)
         return found
+
+    def _own(self, error: BaseException) -> bool:
+        """Whether `error` is an exception of flow code's own: not what `answer` raised at an
+        await of a task (a `TaskFailed`, a `TaskDeferred`); an exception group is when any
+        exception in it is."""
+        if isinstance(error, BaseExceptionGroup):
+            return any(self._own(inner) for inner in error.exceptions)
+        return self._outcomes.get(id(error)) is not error
+
+    def flow_errors(self) -> list[FlowCall]:
+        """The flow errors, one per exception, in creation order: each flow call that raised
+        an exception of flow code's own (not a task's `TaskFailed` or `TaskDeferred` passing
+        through), the first to end with it, whether or not a parent caught it
+        (`asyncio.gather(..., return_exceptions=True)`); and each top flow call that raised
+        any other exception, or was closed with an error (it waited for what nothing would
+        answer). An exception of flow code's own is a bug or a broken rule
+        (`TooManyPasses`), never an outcome to tolerate. One that reached a top flow call is
+        listed once, for the flow call it started in, whose `raised_at` is where."""
+        return [
+            c
+            for c in self.calls.values()
+            if c._own_error
+            or (
+                c.parent is None
+                and c.error is not None
+                and c.state != "returned"
+                and not any(own.error is c.error for own in self._own_errors)
+            )
+        ]
 
     def _record(self, call: FlowCall) -> None:
         """Put `call` on record (`on_flow_call("start", call)`), once: at the first thing it
@@ -806,8 +850,13 @@ class FlowDriver:
         call.value = value
         call.error = error
         if state == "raised" and error is not None:
-            call.raised_at = self._raised_at(error)
+            call.raised_at = self._raised_at(call, error)
             call.raised_by = failed_key(error)
+            if call.parent is not None:
+                call.parent._raised_children.append(call)
+            if self._own(error) and not any(c.error is error for c in self._own_errors):
+                call._own_error = True
+                self._own_errors.append(call)
         self._running -= 1
         if self._shows(call, state, error):
             self._record(call)
