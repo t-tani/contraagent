@@ -14,10 +14,10 @@ it is.
 
 ::code{file="examples/demo/tasks.py" from="summarize = agent_task(" to="@python_task"}
 
-`agent_task`'s options, and the topic that explains each (the docstring states
+`agent_task`'s arguments, and the topic that explains each (the docstring states
 them all):
 
-| Options | For | Topic |
+| Arguments | For | Topic |
 |---|---|---|
 | `output`, `params`, `validators` | what it takes and leaves behind (a model, `str`, or `Rows[Row]`), and the checks its output must pass | [Contracts](contracts.md) |
 | `partial_on` | keeping what a launch wrote when the runner stopped it for its time | [Contracts](contracts.md#a-launch-stopped-for-its-time) |
@@ -30,7 +30,7 @@ them all):
 | `claims` | one task at a time on a name, and the service a name stands for | "Claims" and "Services", below |
 | `changes`, `keep_failed_changes` | the files it changes beside its output, and whether the files of a failed attempt stay | "Files a task changes", below |
 | `requires` | what its data may be sent under | [Routing](routing.md#credentials) |
-| `agent`, `model`, `effort`, `credential`, `model_failover`, `fallbacks`, `safety_stop_failover` | where it runs, which the config outranks; one task's credential, which its call names (`credential=`), outranks the config | [Routing](routing.md) |
+| `agent`, `model`, `effort`, `credential`, `model_failover`, `fallbacks`, `safety_stop_failover` | where it runs, which the config outranks; one task's credential, which its call options give (`.options(credential=)`), outranks the config | [Routing](routing.md) |
 | `max_turns`, `timeout_s`, `max_budget_usd`, `stall_s`, `context_budget`, `context_warn_pct`, `max_denials`, `disallowed_tools`, `max_concurrent`, `retries`, `retry_backoff_base` | its budget, and how its attempts run | [Routing](routing.md#budgets), and each coding agent's in [Coding agents](agents.md) |
 
 ## Python tasks
@@ -119,19 +119,71 @@ reference to the task's future output:
   on nothing. In `docs_one_review` `prepare` raises for `zeta`, so `zeta`'s
   summary, score, review and note are refused, and so is the report, which
   needs every summary.
-- `after=` orders tasks without passing data.
-- `priority=` breaks ties in the queue, higher first (see below).
-- `credential=` (an agent task's) names the `[credentials.<name>]` that task runs
-  as on every route of its kind, in place of the kind's own; how it ranks, fails
-  over and rests is in [Routing](routing.md#a-task-calls-credential). A Python task
-  runs no coding agent, so it has no credential: its call refuses `credential=`
-  unless its function has a parameter of that name.
+- A task's key, an order without data, a priority, a credential and cancellation
+  are its call options, given by `task.options(...)` (see below).
 - A call that the run could not make raises `TypeError` at the call, and
-  `contraagent check` reports it at the flow's line: a `key` that is not a
-  string, an `after` that is not a list of tasks, a `priority` that is not a
-  number, and for a Python task a keyword its function has no parameter for, or a
-  required parameter left out.
+  `contraagent check` reports it at the flow's line: for a Python task a keyword
+  its function has no parameter for, or a required parameter left out, and for
+  any task a call option given as a keyword of the call.
 - After the run, `pending.output` is the checked value.
+
+### Call options
+
+A task call takes the task's params, and nothing else. The words that say how the
+task is run are its call options: `task.options(...)` returns the same task with
+them, and calling what it returns is the task call, as in
+`summarize.options(key="summary-short", priority=2)("alpha", length="short")`.
+
+`options` takes each option as a keyword, and an option it is not given keeps the
+value it had, so `summarize.options(priority=2).options(key="k")` has both. None
+given as `key` or `credential` clears it: the key is `<kind>-<unit>` again, and the
+credential is the kind's. The task
+it returns has the same declaration: one kind, one digest, one `[tasks.<kind>]`
+table. Its type is the task's own (`AgentTask[Summary]` stays `AgentTask[Summary]`),
+so a function that takes a task and calls it with a key keeps the output type too.
+Each option is checked where `options` is given; one that is wrong raises
+`TypeError` there.
+
+- `key` names the task in place of `<kind>-<unit>`, and its output file in place of
+  the unit (see below). Two tasks of one kind on one unit with different keys are
+  two tasks with two files.
+- `after` is a list of tasks, each a task call's `Pending` or a task's key: the task
+  starts after them, with no output passed on.
+- `priority` breaks ties in the queue, higher first (see below).
+- `credential` (an agent task's) names the `[credentials.<name>]` that task runs as
+  on every route of its kind, in place of the kind's own; how it ranks, fails over
+  and rests is in [Routing](routing.md#a-task-calls-credential). A Python task runs
+  no coding agent, so it has no credential, and its `options` does not take one.
+- `cancellable=True` lets the task be cancelled when no flow call waits for it any
+  longer (see below).
+
+A params field or a Python task's parameter may have the name of an option
+(`key`, `priority`): the call gives it as a param. A call option given as a keyword
+of the call to a task without such a param raises `TypeError` that names
+`options`. Only `key` is part of the fingerprint.
+
+By default a task runs to its end whatever happens to the flow call that created
+it, as a task nothing awaits does: its result is in the run and in the journal, and a
+resume uses its output. A flow call is closed when a sibling in its
+`asyncio.TaskGroup` fails, when its time box is past its grace window, when it
+waits for what nothing will answer, when flow code cancels its asyncio Task, or when
+the run ends before it returns. A task called with `.options(cancellable=True)` is cancelled once the flow call that
+created it and every flow call that waited for it were closed and no flow call
+waits for it. A queued one is not launched. A running agent task has its launch
+stopped within a second, and no other hop, correction round or attempt of it
+launches; a backend that does not run its process through contraagent's
+`run_process` cannot be stopped, and its result is kept when it returns. A running
+Python task runs to its end and keeps its result: its function runs on a thread,
+which cannot be stopped. A cancelled task ends with stop `cancelled`: not ok, not
+retried, and not a failure (`RunReport.cancelled`, never `RunReport.failed`). The
+files it created under its `changes` patterns are removed as those of a failed
+attempt are, and a resume runs it again when the flow creates it.
+
+Cancellation is for work whose answer is no longer needed when nobody waits for
+it: several probes of one change, of which the first blocking finding settles the
+review.
+
+::code{file="examples/cancel/flow.py" from="async def ask("}
 
 `contraagent run <file.py>:<flow> --config ... --kwargs '{...}'` runs a flow from
 the command line, with the arguments `contraagent check` takes, and exits 1 when a
@@ -174,8 +226,15 @@ of:
   it, for an output the flow received and passed on (an async flow); as the file
   is when the task is about to start, for a task call passed before it finished
   (as in a flow that does not wait);
-- each other task it waits for (`after=`, and the task whose file an `output_of`
-  task fills in): that task's fingerprint.
+- each other task it waits for (`after=`): that task's fingerprint;
+- for a task that fills in another task's file (`output_of`), the content of
+  that file as it was when the task was about to start;
+- its outside state, when it declares one (below).
+
+The journal row of each attempt keeps a digest of each of these parts beside the
+fingerprint (`fingerprint_parts`): `definition`, `params`, `output:<key>` for each
+output it reads, `after:<key>` for each other task it waits for, `outside` and
+`output_of`.
 
 A changed parameter or an edited instruction, role file or function runs its task
 again. A task that reads another task's output runs again only when that output
@@ -190,6 +249,19 @@ runs nothing again.
 A resume skips a task only when its output still reads under its output schema.
 An output file that no longer does (one edited by hand into another shape) runs
 its task again, and its journal row's `rerun` says so.
+
+A task that fills in another task's file (`output_of`) left its own output in the
+file, so a resume cannot see in the file what the task found there. The journal
+row keeps both digests: the file as the task found it (`fingerprint_parts`
+`output_of`) and as the task left it (`output_of_after`). A resume skips the task
+when the file is as the task left it, or as a task after it that fills it in left
+it. A file changed by hand, or written again by a task before it that ran again,
+runs again every task after its writer that fills it in.
+
+A resume gives the flow the results of the tasks it skips one at a time, in the
+order the journal recorded them, so flow code that depends on the order in which
+its tasks finish takes the path it took. A task that runs again finishes when it
+finishes, and its result comes after them.
 
 A final step that reports or publishes the state of the work (a site, statistics,
 a commit) often takes nothing from the tasks before it: it reads the working tree.
@@ -235,6 +307,16 @@ backlog file, and the function returns the file's digest:
 When a resume runs a task again that an earlier attempt finished, its journal row
 says why in `rerun` (`its outside state changed`, `its last result was partial`,
 ...), the start line of the log says so too, and the monitor shows it on the task.
+A changed fingerprint names each part that changed: `its fingerprint changed: its
+definition`, `its fingerprint changed: the output of write-u it reads`.
+
+A task whose params changed although every task it was given an output of or was
+created from was skipped is a **divergence**: the flow gave other params for the
+same outputs. The flow's code reads a clock, randomness or outside state, or the
+code itself changed. The task runs again with `rerun` `divergence: ...`, and the
+run logs a warning, `[resume] <key>: divergence: ...`. Its fingerprint keeps a
+wrong output from being used: a divergence costs a run of the task, not a wrong
+result.
 
 A program gives the run id and the resume to `Pipeline.run`, as
 `examples/runner/run.py` does with the `--run-id` and `--resume` it takes:
@@ -294,20 +376,22 @@ on, and the report joins the units that got through (see
   `return_exceptions=True`: `gather` then waits for every item, and an item that
   failed is its exception. Inspect the items by position, as `analyse_bundle`
   does in [Flow calls, loops and layers](#flow-calls-loops-and-layers).
-- Flow code does not depend on the order in which tasks finish. A resume runs the
-  flow again, and its skipped tasks finish in another order than the first run's.
-  A branch on `asyncio.as_completed`, on `asyncio.wait(..., return_when=FIRST_COMPLETED)`
-  or on which exception `gather` raises first can create other tasks on a resume.
-  `gather(..., return_exceptions=True)`, inspected by position, gives the same
-  answer in every order.
-- Cancelling a flow call never cancels the agent tasks it created: they run to
-  their end, and their results are in the run. A flow call is cancelled when a
+- Flow code does not depend on the order in which tasks finish. A resume gives
+  the flow the results of the tasks it skips in the order the first run recorded
+  them, but a task that runs again finishes in its own time. A branch on
+  `asyncio.as_completed`, on `asyncio.wait(..., return_when=FIRST_COMPLETED)` or on
+  which exception `gather` raises first can then create other tasks, and a task
+  given other params is a [divergence](#the-flow). `gather(..., return_exceptions=True)`,
+  inspected by position, gives the same answer in every order.
+- Cancelling a flow call does not cancel the tasks it created: they run to
+  their end, and their results are in the run, unless their call options give
+  `cancellable=True` ([Call options](#call-options)). A flow call is cancelled when a
   sibling in its `asyncio.TaskGroup` fails, when its time box is past its grace
   window, when it waits for what nothing will answer (see below), or when the run
   ends before it returns; `flow_calls.jsonl` records it `closed`.
 - A task's output file is its kind's `output_name` under the run's `out/`: a
   path template with `{kind}`, `{unit}` and `{key}`, `{unit}` being the key for a
-  task call given `key=`, so tasks of one kind and one unit with different keys
+  task whose call options give one, so tasks of one kind and one unit with different keys
   write different files. The default is `{kind}/{unit}.json` (`.md` for a text
   output): `out/summarize/alpha.json`. `agent_task(output_name="reports/{unit}.json")`
   writes `out/reports/alpha.json`; `@python_task(output_name=...)` takes the same.
@@ -321,8 +405,8 @@ on, and the report joins the units that got through (see
   `output_of` (see [Contracts](contracts.md)).
 - The same task created again in one flow call is numbered: `review-beta`,
   `review-beta~2`, ..., with its output file (`out/review/beta~2.json`). One key
-  created by two flow calls raises `ValueError` at the second: `key=` tells
-  them apart.
+  created by two flow calls raises `ValueError` at the second:
+  `.options(key=...)` tells them apart.
 - A `while` loop of flow code is bounded by `max_passes`, or by its function's
   `@max_passes(n)` (see below).
 - Every kind the flow's code reaches (see [Checking and testing](testing.md)) is
@@ -358,7 +442,7 @@ output, and a resume skips it. A deadline over part of a flow is a time box (see
 A flow waits for task calls and for flow calls, with `await`, `asyncio.gather` and
 `asyncio.TaskGroup`. It does not use `asyncio.wait`, `asyncio.as_completed`,
 `asyncio.shield`, `asyncio.Queue` or `asyncio.Event`. They run, but a branch on what
-finished first takes another path on a resume, and an `Event` that no flow code sets
+finished first can take another path on a resume that runs a task again, and an `Event` that no flow code sets
 waits forever. A branch that tolerates failures uses `gather(...,
 return_exceptions=True)`, or a child flow call for each item. When a flow call still
 waits while no task is queued or running and every other flow call waits too, nothing
@@ -385,7 +469,7 @@ a flow error would be too short. A task's own duration is the median of its
 kind's completed attempts, in this run once one has finished, else in the
 recent runs.
 
-A task call's `priority` (`summarize("alpha", priority=2)`, a number, default 0)
+A task's `priority` (`summarize.options(priority=2)("alpha")`, a number, default 0)
 orders tasks the queue would otherwise start in the order they were queued:
 among ready tasks with equal work after them, the highest priority starts
 first. It is a tie-breaker only. A task with longer work after it still starts
@@ -393,10 +477,7 @@ first, whatever the priorities; so does a task that has waited past
 `overdue_s`, and near a deadline the time box's order (its finishing kinds,
 then the shortest remaining work) comes before it too. A priority is not part
 of the fingerprint: a resumed run that changes one skips the same tasks.
-`plan.jsonl` records it. A params model with a field named `priority` (or
-`key`, `after`, and for an agent task `credential`), or a Python task's function
-with such a parameter, is refused where the task is declared: the task call takes
-these words itself.
+`plan.jsonl` records it.
 
 Each task records where the flow created it (`plan.jsonl`: `flow`,
 `created_from`, `flow_call`), and each flow call its start, with the frames of
@@ -882,8 +963,10 @@ A result's `stop` says why: `completed`, `partial` (ok, part of the work: a Pyth
 task's placeholder output, or what an agent task wrote before its launch was
 stopped, its reason the launch's stop; a resume runs it again), `invalid_output` (still off-contract
 after every correction round), `invalid_input` (nothing launched), a budget
-(`timeout`, `max_turns`, `budget`), `rate_limited` with no hop left, and the
-rest of `contraagent.backends.Stop`, each with its meaning in its docstring.
+(`timeout`, `max_turns`, `budget`), `rate_limited` with no hop left,
+`cancelled` (called with `.options(cancellable=True)` and waited for by no flow call
+any longer; see [Call options](#call-options)), and the rest of
+`contraagent.backends.Stop`, each with its meaning in its docstring.
 
 A run that is stopped stops its agents. Each agent runs in a session of its own, so
 a terminal's Ctrl-C does not reach it: `Pipeline.run` (on the main thread) stops the

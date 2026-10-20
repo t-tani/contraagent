@@ -1,7 +1,7 @@
 // A task's states by severity: the one a mark of several tasks shows.
 import type { PlanNode, TaskState } from '@contraagent/api';
 
-export const SEVERITY: Record<TaskState, number> = { failed: 6, running: 5, blocked: 4, partial: 3, pending: 2, skipped: 1, done: 0 };
+export const SEVERITY: Record<TaskState, number> = { failed: 7, running: 6, blocked: 5, partial: 4, pending: 3, cancelled: 2, skipped: 1, done: 0 };
 
 /** The state a mark of several tasks shows: the most severe of them. */
 export const worstState = (nodes: readonly PlanNode[]): TaskState =>

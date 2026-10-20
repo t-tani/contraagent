@@ -17,13 +17,14 @@ bool, None and a `str` the flow built are values, never a dependency.
 Every node records where it was created (`Origin`, see `origin.py`) and how it
 is numbered:
 
-* its key is `<kind>-<unit>` (`python:` first for a Python task), or `key=`;
+* its key is `<kind>-<unit>` (`python:` first for a Python task), or the `key` of
+  its call options (`.options(key=)`);
   the n-th task a flow call creates under one key is `<key>~n` (n >= 2), and
   its output file `<stem>~n<suffix>`. The output file is its kind's `output_name`
   under `<out>`, filled in (default `<out>/<kind>/<unit>.json`, `.md` for a text
-  output), `{unit}` being the key when the call gives `key=`, so tasks of one kind
+  output), `{unit}` being the key when its call options give one, so tasks of one kind
   and unit with different keys never write one file. A key used by two flow calls
-  raises `ValueError` at the second: `key=` tells them apart;
+  raises `ValueError` at the second: `.options(key=)` tells them apart;
 * one output file, one writer: two kinds whose `output_name` templates name one
   file, or a task given a file another task writes (but by `output_of`), raise
   `ValueError` when the flow reaches the second (`layout`, `add`);
@@ -37,13 +38,15 @@ is numbered:
   `PythonTask.digest`), and of each task it waits for. An output it reads (a
   `Pending` among its params, or an output the flow received and passed on) stands
   for the content of its output file: when the flow received it, as received; else
-  as the task is about to start. Another task it waits for (`after=`, or the latest
-  writer of the file an `output_of` task fills in) stands for that task's
-  fingerprint. So an upstream task that runs again and writes the same output leaves
-  the fingerprint as it was, and one that writes another output changes it;
+  as the task is about to start. Another task it waits for (`after=`) stands for that
+  task's fingerprint. The file an `output_of` task fills in stands for its content as
+  the task is about to start, not for the task that wrote it last. So an upstream task
+  that runs again and writes the same output leaves the fingerprint as it was, and one
+  that writes another output changes it. The digest of each part is kept beside the
+  fingerprint (`Task.fingerprint_parts`), so a resume names the parts that changed;
 * a task that reads an output the flow did not receive, whose declaration gives
-  `outside_state`, or that waits, other than for an output it reads, for a task of such a
-  fingerprint, has a
+  `outside_state` or `output_of`, or that waits, other than for an output it reads, for
+  a task of such a fingerprint, has a
   fingerprint that is complete only when it is about to start
   (`Task.fingerprint_at_start`): `starting` works it out again then, with the content of
   the output files it reads and the fingerprints the tasks it waits for started with.
@@ -91,6 +94,7 @@ from contraagent._internal.dispatch.task import (
     Partial,
     Task,
     TaskResult,
+    fingerprint_of,
 )
 from contraagent._internal.dispatch.templates import PARAM_FIELD
 from contraagent._internal.errors import ContraagentError
@@ -222,10 +226,12 @@ class Node:
     #: The names it claims: its kind's `claims` with `{unit}`, `{key}`, `{kind}` and
     #: `{params.<name>}` filled in.
     claims: tuple[str, ...] = ()
-    #: Its task call's `priority`: a tie-breaker in the queue, not part of its fingerprint.
+    #: Its call options' `priority`: a tie-breaker in the queue, not part of its fingerprint.
     priority: float = 0.0
-    #: Its task call's `credential`; empty: its kind's. Not part of its fingerprint.
+    #: Its call options' `credential`; empty: its kind's. Not part of its fingerprint.
     credential: str = ""
+    #: Its call options' `cancellable` (`Task.cancellable`). Not part of its fingerprint.
+    cancellable: bool = False
     origin: Origin | None = None
     fingerprint: str = ""
     #: The keys of the tasks it waits for whose outputs the flow received and passed on.
@@ -237,6 +243,13 @@ class Node:
     at_start: bool = False
     #: The SHA-256 of its outside state when it last started; empty before, or when it declares none.
     outside: str = ""
+    #: For a task that fills in another task's file (`output_of`): the key of the task it waits
+    #: for that wrote the file last (None when none did), and the digest of the file as it was
+    #: when the task last started (empty before, or when the file was missing).
+    writer: str | None = None
+    filled: str = ""
+    #: The digest of each part of its fingerprint (`Task.fingerprint_parts`).
+    parts: dict[str, str] = field(default_factory=dict)
     #: Why its outside state could not be worked out when it last started; empty when it could.
     outside_error: str = ""
     task: Task | None = field(default=None, repr=False)
@@ -387,19 +400,23 @@ class Graph:
         params: dict[str, Any],
         priority: float = 0.0,
         credential: str = "",
+        cancellable: bool = False,
     ) -> Pending[Any]:
         call = self.driver.current if self.driver is not None else None
         call_id = call.id if call is not None else "0"
         stem: str = f"{spec.kind}-{unit}" if unit else spec.kind
-        given = key  # key=, when the task call gave one
+        given = key  # the key of its call options, when they give one
         base = key or (f"{PYTHON_KEY_PREFIX}{stem}" if spec.executor == "python" else stem)
         owner, n = self._bases.get(base, (call_id, 0))
         if owner != call_id:
-            raise ValueError(f"task key {base!r} is created by flow calls {owner} and {call_id}; pass key= to tell them apart")
+            raise ValueError(
+                f"task key {base!r} is created by flow calls {owner} and {call_id}; "
+                "give one of them another key with .options(key=) to tell them apart"
+            )
         n += 1
         key = base if n == 1 else f"{base}~{n}"
         if key in self._by_key:
-            raise ValueError(f"task key {key!r} is used twice; pass key= to tell them apart")
+            raise ValueError(f"task key {key!r} is used twice; give one of them another key with .options(key=) to tell them apart")
         frames = self._prefix.get(call_id, ()) + origins.frames_here(inspect.currentframe(), self.loops.loops)
         self.check_passes(frames, base, call_id)
         self.declare(spec)
@@ -411,7 +428,7 @@ class Graph:
         claims = _expand_claims(spec, unit, key, params)  # before the key is taken: a raise leaves no gap in ~n
         out, writer = None, None
         if _writes_output(spec):
-            # A task given key= writes a file of its own: two keys on one unit never share one.
+            # A task given a key writes a file of its own: two keys on one unit never share one.
             name = (given or unit or base.removeprefix(PYTHON_KEY_PREFIX)).replace("/", "_").replace(os.sep, "_").replace(":", "_")
             other = getattr(spec, "output_of", None)
             if other is not None:
@@ -447,11 +464,14 @@ class Graph:
             claims=claims,
             priority=priority,
             credential=credential,
+            cancellable=cancellable,
             received=frozenset(received),
+            writer=writer,
         )
         reads = _reads(node)
         node.at_start = (
             getattr(spec, "outside_state", None) is not None
+            or getattr(spec, "output_of", None) is not None
             or any(k not in received for k in reads)
             or any((up := self._by_key.get(k)) is not None and up.at_start for k in node.after if k not in reads)
         )
@@ -490,10 +510,20 @@ class Graph:
                 params = None
             if params is not None:
                 node.outside, node.outside_error = _outside_digest(node.spec.kind, fn, node.unit, params)
+        if getattr(node.spec, "output_of", None) is not None and node.output_path is not None:
+            node.filled = _file_digest(node.output_path)
         node.fingerprint = self._fingerprint(node, started=True)
-        new = replace(task, fingerprint=node.fingerprint, outside=node.outside)
+        new = replace(task, fingerprint=node.fingerprint, outside=node.outside, fingerprint_parts=dict(node.parts))
         node.task = new
         return new
+
+    def filled_after(self, task: Task) -> str:
+        """For a task that fills in another task's file (`output_of`): the digest of the file
+        as it is now, after an attempt (journal `output_of_after`); empty for any other task."""
+        node = self._by_key.get(task.key)
+        if node is None or node.output_path is None or getattr(node.spec, "output_of", None) is None:
+            return ""
+        return _file_digest(node.output_path)
 
     def refusal(self, task: Task) -> str:
         """Why `task` cannot run: its outside state could not be worked out when it was about
@@ -678,12 +708,16 @@ class Graph:
         return value
 
     def _fingerprint(self, node: Node, *, started: bool = False) -> str:
-        """See the module docstring. An output it reads stands for its file's content
-        (`Node.reads`): one the flow received, as it was when the flow passed it on; one it
-        did not, as the task is about to start (`started`; before, empty). A task it only
-        waits for stands for its fingerprint. A task that declares outside state has it in
-        its fingerprint once it is worked out (`starting`): before, and when it could not
-        be, the fingerprint matches no journal row."""
+        """See the module docstring: the digest of each part of the task's work (`Node.parts`,
+        named as `Task.fingerprint_parts`), and the fingerprint of them. `definition`: its
+        declaration's digest; `params`: its params, a `Pending` among them standing for its
+        key; `output:<key>`: each output it reads, by its file's content (one the flow
+        received, as it was when the flow passed it on; one it did not, as the task is about
+        to start, `started`; before, empty); `after:<key>`: the fingerprint of each other task
+        it waits for; `outside`: its outside state, for a task that declares one, once it is
+        worked out (`starting`; before, and when it could not be, empty); `output_of`: the
+        file it fills in, for an `output_of` task, as it was when the task was about to start
+        (before, empty), which stands for the task that wrote it last."""
         spec = node.spec
         if id(spec) not in self._digests:
             self._digests[id(spec)] = spec.digest()
@@ -694,22 +728,26 @@ class Graph:
                 node.reads.setdefault(p.key, _file_digest(p.path))
             else:
                 node.reads[p.key] = _file_digest(p.path) if started else ""
-        after = {}
+        params = json.dumps(
+            to_jsonable_python(_keys_for_pendings(node.params), fallback=repr),
+            sort_keys=True,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            default=repr,
+        )
+        parts = {"definition": self._digests[id(spec)], "params": hashlib.sha256(params.encode()).hexdigest()}
         for k in node.after:
-            up = self._by_key.get(k)
-            after[k] = node.reads[k] if k in node.reads else up.fingerprint if up is not None else ""
-        body = {
-            "kind": spec.kind,
-            "unit": node.unit,
-            "key": node.key,
-            "definition": self._digests[id(spec)],
-            "params": to_jsonable_python(_keys_for_pendings(node.params), fallback=repr),
-            "after": after,
-        }
+            if k in node.reads:
+                parts[f"output:{k}"] = node.reads[k]
+            elif k != node.writer:
+                up = self._by_key.get(k)
+                parts[f"after:{k}"] = up.fingerprint if up is not None else ""
         if getattr(spec, "outside_state", None) is not None:
-            body["outside"] = node.outside
-        text = json.dumps(body, sort_keys=True, ensure_ascii=False, default=repr)
-        return hashlib.sha256(text.encode()).hexdigest()
+            parts["outside"] = node.outside
+        if getattr(spec, "output_of", None) is not None:
+            parts["output_of"] = node.filled
+        node.parts = parts
+        return fingerprint_of(spec.kind, node.unit or node.key, node.key, parts)
 
     def _credential_of(self, node: Node) -> str:
         """The credential the task call's tasks run as: its own, unless the run-wide override
@@ -734,9 +772,11 @@ class Graph:
             fingerprint=node.fingerprint,
             fingerprint_at_start=node.at_start,
             outside=node.outside,
+            fingerprint_parts=dict(node.parts),
             claims=node.claims,
             priority=node.priority,
             credential=self._credential_of(node),
+            cancellable=node.cancellable,
             rerun_on_resume=getattr(node.spec, "rerun_on_resume", False),
             base_kind=getattr(node.spec, "base_kind", ""),
             payload=node,

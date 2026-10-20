@@ -58,7 +58,7 @@ def test_a_template_places_the_file_anywhere_under_out(tmp_path):
     def flow():
         reports("alpha")
         reports("alpha")  # reports-alpha~2
-        reports("beta", key="beta-long")
+        reports.options(key="beta-long")("beta")
         count("alpha")
 
     report, stub = run(tmp_path, flow)
@@ -149,7 +149,7 @@ def test_two_tasks_given_one_file_raise_at_the_second(tmp_path):
         run(tmp_path, once)
 
     def outside():
-        nested("x", key="..")
+        nested.options(key="..")("x")
 
     with pytest.raises(ValueError, match="not a path inside out/"):
         run(tmp_path, outside)

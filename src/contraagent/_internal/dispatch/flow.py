@@ -53,7 +53,12 @@ turn. That is the flows' quiescence, exact by construction. `follow_up` only kee
 result. The drain gives the kept results to the flow code one at a time, in the order
 they came, and after each one lets the flow calls run until every one waits again. So
 the steps of the flow calls run in the order the results are given, whatever thread or
-callback of the event loop ran meanwhile, and every step follows from one result. A
+callback of the event loop ran meanwhile, and every step follows from one result. On
+a resume (`replay`), the results of skipped tasks are given before the results of tasks
+that ran, and of those that have come, the one the journal of the run's earlier attempts
+recorded first is given first. So a flow whose code depends on the order its tasks
+finish in (`as_completed`, a list it appends to as each await returns) takes on a
+resume the path it took. A
 clock, a thread or I/O that flow code asks the flow loop for raises TypeError at its
 `await`; a future of another event loop raises asyncio's RuntimeError there.
 
@@ -83,8 +88,13 @@ Rules:
   waits for a key leaves the others waiting for it.
 * A deferred task (`TaskResult.stop == "deferred"`) is answered like any other result
   before `past_grace()`; after it, the waiting flow call is cancelled (closed), and so
-  is a parent that awaits it. The tasks a cancelled flow call created are not
-  cancelled: they run, as a task nothing awaits does.
+  is a parent that awaits it.
+* The tasks a closed flow call created run to their end, as a task nothing awaits does,
+  but a `Task.cancellable` one: once the flow call that created it and every flow call
+  that waited for it are closed, and no flow call waits for it (each `await` waits on a
+  future of its own, which closing its flow call cancels), the driver cancels it
+  (`WorkQueue.cancel`; before `attach`, as it attaches). A flow call that returns or
+  raises does not cancel what it created.
 * A **time box** (`time_box(coroutine, deadline_s=, ...)`) runs the coroutine as a
   flow call with a deadline of its own, counted from its creation: every task created
   in it, or in a flow call it starts, carries its `TimeBox` (`Task.time_boxes`,
@@ -141,6 +151,7 @@ import collections
 import collections.abc
 import contextlib
 import contextvars
+import heapq
 import inspect
 import itertools
 import logging
@@ -148,7 +159,7 @@ import re
 import sys
 import time
 import warnings
-from collections.abc import Awaitable, Callable, Coroutine, Generator, Iterable, Iterator
+from collections.abc import Awaitable, Callable, Coroutine, Generator, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from types import CodeType, FrameType, GeneratorType, TracebackType
 from typing import Any, Literal, NoReturn, Protocol
@@ -158,7 +169,7 @@ from contraagent._internal.dispatch.entry import run_sync
 from contraagent._internal.dispatch.flowloop import DRAIN_CODE, Cause, FlowLoop
 from contraagent._internal.dispatch.queue import GRACE_S, SLACK_SHARE, WorkQueue
 from contraagent._internal.dispatch.records import Frame
-from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, Task, TaskResult, TimeBox
+from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, STOP_SKIPPED, Task, TaskResult, TimeBox
 
 _logger = logging.getLogger(__name__)
 
@@ -342,6 +353,8 @@ class FlowCall:
     _closing: bool = field(default=False, init=False, repr=False)
     # Why the driver closes it, when it waits for what nothing answers: its `error` then.
     _stopped: BaseException | None = field(default=None, init=False, repr=False)
+    # The keys of the cancellable tasks it created or waited for (`Task.cancellable`).
+    _cancellable: set[str] = field(default_factory=set, init=False, repr=False)
 
 
 #: The flow call whose code runs.
@@ -367,6 +380,10 @@ class FlowDriver:
     top flow (a coroutine), `driver.attach(queue)` with `follow_up=driver.follow_up` on
     the queue, `await queue.run_async()`, then `await driver.finish()`. Where no event
     loop runs, `settle_here()` and `finish_here()` drive the flows on the calling thread.
+
+    `replay`, on a resume: each task key's place in the journal of the run's earlier
+    attempts (the index of its last journal row); the results of skipped tasks are given
+    to the flow code in that order (see the module docstring).
     """
 
     def __init__(
@@ -377,6 +394,7 @@ class FlowDriver:
         on_flow_call: OnFlowCall | None = None,
         past_grace: Callable[[], bool] | None = None,
         slow_step_s: float = 1.0,
+        replay: Mapping[str, int] | None = None,
     ) -> None:
         self._waits_for = waits_for or _task_itself
         self._answer = answer or (lambda item, result: result)
@@ -385,6 +403,9 @@ class FlowDriver:
         #: `past_hard_stop` when none is given.
         self.past_grace: Callable[[], bool] | None = past_grace
         self.slow_step_s = slow_step_s
+        # Each key's place in the journal of the run's earlier attempts: the order in which the
+        # results of skipped tasks are given (see the module docstring).
+        self._replay: Mapping[str, int] = replay or {}
         #: Every flow call, by id, in start order.
         self.calls: dict[str, FlowCall] = {}
         #: Every result seen, by task key.
@@ -398,6 +419,10 @@ class FlowDriver:
         # numbers) and how many that flow call had queued before, the same in every run.
         self._queued_keys: dict[str, tuple[tuple[int, ...], int]] = {}
         self._open: set[str] = set()  # keys queued whose result has not come
+        # The cancellable tasks whose result has not come, by key: the flow call that created each.
+        self._creators: dict[str, FlowCall] = {}
+        # The keys to cancel as the queue is attached: closed before it was.
+        self._to_cancel: list[str] = []
         # What `answer` raised at an await, by id (kept alive): a task's outcome, not a flow call's own.
         self._outcomes: dict[int, BaseException] = {}
         # The flow calls that ended `raised` with an exception of flow code's own, the first
@@ -406,6 +431,9 @@ class FlowDriver:
         self._outbox: list[Task] = []
         # The results not yet given to the flow code, in the order they came.
         self._results: collections.deque[TaskResult] = collections.deque()
+        # The results of skipped tasks not yet given, by their key's place in `replay`.
+        self._replayed: list[tuple[int, int, TaskResult]] = []
+        self._arrived = itertools.count()
         self._queue: WorkQueue | None = None
         self._main: asyncio.AbstractEventLoop | None = None
         self._driving = False
@@ -483,12 +511,20 @@ class FlowDriver:
             self.past_grace = queue.past_hard_stop
         out, self._outbox = self._outbox, []
         queue.extend(out)
+        doomed, self._to_cancel = self._to_cancel, []
+        for key in doomed:
+            queue.cancel(key)
 
     def follow_up(self, result: TaskResult) -> list[Task]:
         """`WorkQueue`'s `follow_up`: keep the result for the flow code, which receives it at
         the next drain, when the queue next settles (one result at a time, in the order they
-        came). Queues nothing itself: an empty list."""
-        self._results.append(result)
+        came; a skipped task's on a resume, in the order of `replay`). Queues nothing itself:
+        an empty list."""
+        place = self._replay.get(result.task.key) if result.stop == STOP_SKIPPED else None
+        if place is not None:
+            heapq.heappush(self._replayed, (place, next(self._arrived), result))
+        else:
+            self._results.append(result)
         if self._waiters.get(result.task.key) and self._queue is not None and self._main is not None and not self._wake_due:
             # A wait of the queue that has begun ends, so that the next pass settles.
             self._wake_due = True
@@ -502,6 +538,7 @@ class FlowDriver:
         if result.stop != STOP_DUPLICATE_KEY:  # the key's own result is still to come
             self.done[key] = result
             self._open.discard(key)
+            self._creators.pop(key, None)
         with self._loop.caused_by((key,)):
             for fut in self._waiters.pop(key, ()):
                 if not fut.done():  # one whose flow call was cancelled is done
@@ -511,8 +548,8 @@ class FlowDriver:
         """Let the flow code run until it waits, then give it the results that came, one at a
         time, letting it run until it waits again after each."""
         self._loop.drain()
-        while self._results:
-            self._give(self._results.popleft())
+        while self._replayed or self._results:
+            self._give(heapq.heappop(self._replayed)[2] if self._replayed else self._results.popleft())
             self._loop.drain()
 
     async def settle(self) -> bool:
@@ -568,7 +605,7 @@ class FlowDriver:
     async def _drained(self) -> None:
         """Run the flows (`_run_flows`) from a plain callback of the running event loop (from
         Python 3.14 a drain inside a Task step raises), and wait for it to end."""
-        if not self._loop.ready() and not self._results:
+        if not self._loop.ready() and not self._results and not self._replayed:
             return
         main = asyncio.get_running_loop()
         ended: asyncio.Future[None] = main.create_future()
@@ -598,7 +635,7 @@ class FlowDriver:
     def _close_stuck(self) -> bool:
         """When the flows are quiescent and no task queued here is still to give its result,
         close every flow call still running: nothing will answer any of them. Whether it did."""
-        if not self._running or self._loop.ready() or self._results or self._open:
+        if not self._running or self._loop.ready() or self._results or self._replayed or self._open:
             return False
         for call in self.calls.values():
             if call.state == "running" and call.task is not None and not call.task.done():
@@ -628,6 +665,9 @@ class FlowDriver:
         call = _call.get()
         if call is not None:
             self._record(call)
+            if task.cancellable and task.key not in self.done and task.key not in self._creators:
+                self._creators[task.key] = call
+                call._cancellable.add(task.key)
         self._enqueue(task, call)
 
     def wait(self, item: Any) -> Coroutine[Any, Any, Any]:
@@ -644,6 +684,8 @@ class FlowDriver:
         own = call is not None and here is call.task
         key = task.key
         result = self.done.get(key)
+        if call is not None and key in self._creators:
+            call._cancellable.add(key)
         if result is not None and call is not None:  # given before: a resume by its key, at once
             call.frontier, call._reached = (key,), {}
             self._loop.set_cause(call.frontier)
@@ -884,6 +926,23 @@ class FlowDriver:
             self._on_flow_call("end", call)
         except Exception:
             _logger.exception("on_flow_call('end') of flow call %s raised", call.id)
+        if state == "closed":
+            for key in sorted(call._cancellable):
+                self._cancel_unwaited(key)
+
+    def _cancel_unwaited(self, key: str) -> None:
+        """Cancel the cancellable task of `key` when the flow call that created it is closed
+        and no flow call waits for it: every flow call that waited for it was closed too."""
+        creator = self._creators.get(key)
+        if creator is None or creator.state != "closed" or key in self.done:
+            return
+        if any(not fut.done() for fut in self._waiters.get(key, ())):
+            return  # a flow call still waits for it
+        del self._creators[key]
+        if self._queue is not None:
+            self._queue.cancel(key)
+        else:
+            self._to_cancel.append(key)
 
 
 class _Wait(collections.abc.Coroutine[Any, Any, Any]):

@@ -367,7 +367,7 @@ def test_a_task_that_reads_a_deferred_output_is_deferred_too(tmp_path, clock):
     async def flow(unit):
         text = await time_box(hands_on(unit), deadline_s=0.15)
         echo(unit, text=text)  # outside the box; its input never comes
-        publish(unit, after=[text])  # only ordered after it: it launches
+        publish.options(after=[text])(unit)  # only ordered after it: it launches
 
     report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, log=lambda line: None).run(flow, unit="a")
     assert report.ok and not report.failed

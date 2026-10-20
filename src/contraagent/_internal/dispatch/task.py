@@ -27,8 +27,10 @@ live in `contraagent._internal.dispatch.interceptors`.
 from __future__ import annotations
 
 import fnmatch
+import hashlib
+import json
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -46,6 +48,14 @@ def kind_name(kind) -> str:
     compare equal to their values.
     """
     return str(getattr(kind, "value", kind))
+
+
+def fingerprint_of(kind: str, unit: str, key: str, parts: Mapping[str, str]) -> str:
+    """A task's fingerprint from its kind, unit and key and the digest of each part of its
+    work (`Task.fingerprint_parts`): the SHA-256 of their canonical JSON."""
+    body = {"kind": kind_name(kind), "unit": unit, "key": key, "parts": dict(parts)}
+    text = json.dumps(body, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(text.encode()).hexdigest()
 
 
 #: The characters of an `fnmatch` pattern, which a kind name does not hold.
@@ -145,12 +155,19 @@ class Task:
     then, not when it is queued.
     `outside`: the SHA-256 of its outside state, once it is about to start; empty for a
     task that declares none, or before.
+    `fingerprint_parts`: a digest of each part of what its fingerprint covers, by the
+    part's name (`fingerprint_of`), so a resume can say which part changed; empty for a
+    task whose builder gives none.
     `base_kind`: for a kind that is one of several implementations of one step, the
     step's kind (`agent_task(implementations=)`); empty for any other. Recorded in
     `plan.jsonl`; nothing here reads it.
-    `credential`: the credential its task call names (a `[credentials.<name>]`), which
+    `credential`: the credential its call options name (a `[credentials.<name>]`), which
     every route of its kind runs it as; empty: its kind's own. Routing, not work: no part
     of the fingerprint.
+    `cancellable`: its task call's options gave `cancellable=True`: once the flow call that
+    created it and every flow call that waited for it were closed, and no flow call waits for
+    it, the flow driver cancels it (`WorkQueue.cancel`). False: it runs to its end whatever
+    happens to its flow calls.
     """
 
     kind: str
@@ -175,6 +192,8 @@ class Task:
     fingerprint_at_start: bool = False
     outside: str = ""
     credential: str = ""
+    fingerprint_parts: dict[str, str] = field(default_factory=dict)
+    cancellable: bool = False
 
     def __post_init__(self) -> None:
         # Generic, collision-safe fallbacks -- a domain that always assigns
@@ -211,6 +230,13 @@ STOP_DEFERRED = "deferred"
 STOP_DUPLICATE_KEY = "duplicate_key"
 # A Python task that returned a `Partial`: ok, its output a placeholder; a resume runs it again.
 STOP_PARTIAL = "partial"
+# A task called with `cancellable=True` that no flow call waits for any longer (`WorkQueue.cancel`):
+# not launched, or its launch stopped; not ok, not retried, run again by a resume.
+STOP_CANCELLED = "cancelled"
+
+
+#: Why a task ends `cancelled`, in one line.
+CANCELLED_REASON = "cancelled: no flow call waits for it any longer"
 
 
 @dataclass(frozen=True)
@@ -297,6 +323,11 @@ class TaskResult:
     @classmethod
     def deferred(cls, task: Task, deferral: Deferral) -> TaskResult:
         return cls(task=task, ok=False, stop=STOP_DEFERRED, reason=deferral.reason, cause=deferral.cause)
+
+    @classmethod
+    def cancelled(cls, task: Task, reason: str = "") -> TaskResult:
+        """The result of a task cancelled before it launched (`WorkQueue.cancel`)."""
+        return cls(task=task, ok=False, stop=STOP_CANCELLED, reason=reason or CANCELLED_REASON)
 
     @classmethod
     def duplicate_key(cls, task: Task) -> TaskResult:

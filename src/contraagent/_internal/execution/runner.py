@@ -9,6 +9,10 @@ runner owns only the generic loop:
 
 `RetryingRunner` wraps it with progress-aware retry, so the queue always
 sees one terminal `TaskResult` per `Task`.
+
+Both take `cancel(task)` (`WorkQueue.cancel`): the task's launch stops (`stopped_by`), no
+later hop, round or attempt of it launches, and its attempt ends `cancelled` unless it
+had already succeeded.
 """
 
 from __future__ import annotations
@@ -29,11 +33,20 @@ from typing import Any
 from contraagent._internal.backends.base import Backend
 from contraagent._internal.backends.credentials import AMBIENT, Credential, Pool
 from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
-from contraagent._internal.backends.process import signal_of
+from contraagent._internal.backends.process import signal_of, stop_requested, stopped_by
 from contraagent._internal.contracts.contract import check_input, fold_spend, record_contracts, run_checked
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope, enriched
 from contraagent._internal.dispatch.records import DeferralCause, Hop, Rest, SafetyStop, SkippedHop, TokenUsage
-from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_PARTIAL, Deferral, Task, TaskResult, kind_name
+from contraagent._internal.dispatch.task import (
+    CANCELLED_REASON,
+    STOP_CANCELLED,
+    STOP_DEFERRED,
+    STOP_PARTIAL,
+    Deferral,
+    Task,
+    TaskResult,
+    kind_name,
+)
 from contraagent._internal.execution.adapter import TaskAdapter
 from contraagent._internal.execution.changes import ChangesEnricher
 from contraagent._internal.execution.services import service_environment
@@ -207,6 +220,10 @@ class AgentRunner:
         # (kind, a task call's credential) -> (the kind's router it was made from, its own router).
         self._call_routers: dict[tuple[str, str], tuple[Router | None, Router | None]] = {}
         self._call_routers_lock = threading.Lock()
+        # The stop mark of each task running or cancelled, by `Task.id` (`cancel`). A mark that
+        # is set stays: a later attempt of the same task is refused too.
+        self._stops: dict[str, threading.Event] = {}
+        self._stops_lock = threading.Lock()
 
     # --- configuration -----------------------------------------------------
 
@@ -423,10 +440,19 @@ class AgentRunner:
         built-in one that records the task's changes first.
         """
         snapshots = [(e, e.snapshot(task)) for e in (self._changes, *self.enrichers)]
-        with contextlib.ExitStack() as stack:
-            for scope in self.scopes:
-                stack.enter_context(scope(task))
-            result = self._run(task)
+        mark = self._stop_mark(task)
+        try:
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(stopped_by(mark))
+                for scope in self.scopes:
+                    stack.enter_context(scope(task))
+                result = self._run(task)
+            if mark.is_set() and not result.ok:  # its launch was stopped, or never started
+                result = replace(result, stop=STOP_CANCELLED, reason=CANCELLED_REASON, retryable=False)
+        finally:
+            if not mark.is_set():
+                with self._stops_lock:
+                    self._stops.pop(task.id, None)
         result = enriched(snapshots, task, result)
         o = result.launch_result
         if o is not None and o.context_warned:
@@ -437,6 +463,17 @@ class AgentRunner:
             }
             result = replace(result, notes={**result.notes, "context_warned": warned})
         return result
+
+    def cancel(self, task: Task) -> None:
+        """Stop `task` (`WorkQueue.cancel`): the launch it runs stops within a second, through
+        `run_process` (a backend that runs its process otherwise may run to its end), and none
+        of it launches after; its attempt ends `cancelled`, unless it had already succeeded.
+        From any thread."""
+        self._stop_mark(task).set()
+
+    def _stop_mark(self, task: Task) -> threading.Event:
+        with self._stops_lock:
+            return self._stops.setdefault(task.id, threading.Event())
 
     def _record_contracts(self, task: Task) -> None:
         record_contracts(self.run_dir, task, list(self.adapter.output_contracts(task)), list(self.adapter.input_contracts(task)), self.cwd)
@@ -509,6 +546,8 @@ class AgentRunner:
         last: TaskResult | None = None
         ran: tuple[TaskResult, str] | None = None  # the last hop not refused for its credential, and its label
         while True:
+            if last is not None and stop_requested():  # cancelled: no later hop launches
+                return self._own(last, ran)
             route = pinned if pinned is not None else router.pick()
             if route is not None and self.rests is not None:
                 seen = len(skipped)
@@ -800,6 +839,10 @@ class RetryingRunner:
     def deferral(self, task: Task) -> Deferral | None:
         return self._runner.deferral(task)
 
+    def cancel(self, task: Task) -> None:
+        """Stop `task` (`AgentRunner.cancel`): no fresh attempt follows."""
+        self._runner.cancel(task)
+
     def run(self, task: Task) -> TaskResult:
         rc = self._runner.config(task)
         attempts = 1 + max(0, rc.retries)
@@ -822,11 +865,11 @@ class RetryingRunner:
             # A refusal was already tried on every route; an off-contract input is the same
             # file on the next attempt; a refused credential rests for the run. None is worth
             # another launch.
-            if last.ok or last.stop in (Stop.REFUSED, Stop.INVALID_INPUT, Stop.AUTH_FAILED) or not last.retryable:
+            if last.ok or last.stop in (Stop.REFUSED, Stop.INVALID_INPUT, Stop.AUTH_FAILED, STOP_CANCELLED) or not last.retryable:
                 break
             if attempt + 1 < attempts:
                 time.sleep(self.backoff(rc.retry_backoff_base, attempt))
         assert last is not None
-        if not last.ok and self._on_exhausted is not None:
+        if not last.ok and last.stop != STOP_CANCELLED and self._on_exhausted is not None:
             self._on_exhausted(task, last)
         return last

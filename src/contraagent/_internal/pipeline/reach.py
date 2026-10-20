@@ -37,7 +37,7 @@ from types import BuiltinFunctionType, CodeType, FunctionType, MethodType, Modul
 from typing import Any
 
 from contraagent._internal.dispatch.code import flow_code
-from contraagent._internal.pipeline.spec import AgentTask, Implementations, PythonTask
+from contraagent._internal.pipeline.spec import AgentTask, Implementations, PythonTask, declaration_of
 
 
 def reachable(*roots: Any) -> list[AgentTask | PythonTask]:
@@ -53,7 +53,11 @@ def reachable(*roots: Any) -> list[AgentTask | PythonTask]:
         seen.add(id(obj))
         keep.append(obj)
         if isinstance(obj, (AgentTask, PythonTask)):
-            found.append(obj)
+            declared = declaration_of(obj)  # a task with call options is its declaration's
+            if declared is obj:
+                found.append(obj)
+            else:
+                work.append(declared)
         elif isinstance(obj, Implementations):
             work.extend(obj.values())
         elif isinstance(obj, FunctionType):

@@ -303,7 +303,7 @@ def test_claims_keep_writes_to_one_topic_apart_and_leave_the_rest_parallel(ws, a
         terms("alpha", path=f"{d}/alpha.md", rule="says 'green tea' for every tea")
         style("beta", path=f"{d}/beta.md", rule="uses short sentences")
         triage("alpha", path=f"{d}/alpha.md")
-        merge("alpha", key=f"merge-{agent}", topics=["alpha", "beta"], first=f"{d}/alpha.md", second=f"{d}/beta.md")
+        merge.options(key=f"merge-{agent}")("alpha", topics=["alpha", "beta"], first=f"{d}/alpha.md", second=f"{d}/beta.md")
 
     (ws / d).mkdir(exist_ok=True)
     for name in ("alpha", "beta"):

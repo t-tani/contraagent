@@ -37,6 +37,7 @@ const STOP_TONE: Readonly<Record<Stop, Tone>> = {
   partial: 'attention',
   invalid_input: 'attention',
   skipped: 'muted',
+  cancelled: 'muted',
   timeout: 'failed',
   max_turns: 'failed',
   budget: 'failed',
@@ -81,6 +82,7 @@ export function outcomeTone(o: Outcome): Tone {
       return 'running';
     case 'waiting':
     case 'skipped':
+    case 'cancelled':
       return 'muted';
   }
 }

@@ -13,6 +13,7 @@ written are in `web/AGENTS.md`.
 |---|---|---|
 | a task's outcome (`Outcome`: done, recovered, partial, failed, not_started, running, waiting, skipped; plan state `partial`, stop `partial`, `TaskCounts.partial`) | status: done, done after retrying, partly done, failed, not started, running, waiting, skipped; a partial task's reason after `Partly done:` (an agent task's, the stop its launch ended on, in words: `Partly done: timed out`); trends columns: Done, Tasks done, Partly done; Done 97%; Attempts not done | 状態: 完了, リトライ後に完了, 一部のみ完了, 失敗, 未実行, 実行中, 待機中, スキップ |
 | stop (`completed`, `invalid_input`, `timeout`, ...) | outcome; each value in words (`stopLabel`) | 結果 |
+| a cancelled task (stop `cancelled`, plan state `cancelled`, `TaskCounts.cancelled`, `PlanGroup.cancelled`: called with `.options(cancellable=True)`, and no flow call waited for it any longer) | cancelled; N cancelled | 取り消し; 取り消し N 件 |
 | plan state `blocked` | not started | 未実行 |
 | plan state `pending` after the run ended | not run | 実行されず |
 | a deferred task (`PlanNode.deferred`, from `deferred.jsonl`), in a live run too | not run, with its cause in words (`deferredText`, from `deferred_cause`; the recorded reason only for a cause it does not know) | 実行されず |

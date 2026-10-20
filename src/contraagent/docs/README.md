@@ -123,7 +123,7 @@ and the [documentation site](https://t-tani.github.io/contraagent/) print the qu
 - [Tutorial: your first pipeline](tutorial.md): a pipeline from an empty directory, step by step: models, an agent task and its plugin, a flow, a stub run, a run on a coding agent, a test.
 - [Guide](guide.md): building a pipeline: the steps, the decisions, the pitfalls.
 - [Concepts](concepts.md): the words contraagent uses, each with one meaning.
-- [Tasks and flows](tasks.md): agent tasks and a map of their options, Python tasks and partial results, the flow and a task call's options, flows that depend on results, loops and their passes, time boxes, claims, services, files a task changes (those of a failed attempt kept, paths left out), scopes and enrichers around each attempt, a pipeline's own records, and the engine underneath.
+- [Tasks and flows](tasks.md): agent tasks and a map of their options, Python tasks and partial results, the flow and call options, flows that depend on results, loops and their passes, time boxes, claims, services, files a task changes (those of a failed attempt kept, paths left out), scopes and enrichers around each attempt, a pipeline's own records, and the engine underneath.
 - [Plugins](plugins.md): an agent task's implementation: roles, skills, hooks, and the MCP servers a pipeline builds for each task.
 - [Contracts and validators](contracts.md): how outputs are checked and sent back: models, text and rows (JSON Lines), a launch stopped for its time, correction rounds and their number, validators, the parts to keep.
 - [Routing and credentials](routing.md): the config file: coding agent, model, budget, failover, identity and a task call's own credential, quota caps.

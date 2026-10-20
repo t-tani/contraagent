@@ -401,7 +401,7 @@ def test_nested_loops_record_the_outer_and_inner_pass_and_4_by_3_is_not_too_many
     async def flow():
         for c in range(4):
             for r in range(3):
-                await step("u", key=f"cell-{c}-{r}", n=c)
+                await step.options(key=f"cell-{c}-{r}")("u", n=c)
 
     rep = pipeline(tmp_path).run(flow)
     assert rep.ok and not rep.flow_errors
@@ -512,7 +512,7 @@ def test_max_passes_bounds_each_while_loop_and_names_it(tmp_path):
         for c in range(5):
             r = 0
             while r < 5:
-                await step(f"u{c}", key=f"cell-{c}-{r}")
+                await step.options(key=f"cell-{c}-{r}")(f"u{c}")
                 r += 1
 
     rep = pipeline(tmp_path, max_passes=4).run(flow)
@@ -527,20 +527,20 @@ def test_a_function_bound_takes_the_place_of_the_runs_for_its_own_while_loops(tm
     async def converge(u):
         r = 0
         while r < 5:
-            await step(u, key=f"{u}-{r}")
+            await step.options(key=f"{u}-{r}")(u)
             r += 1
 
     @max_passes(2)
     async def short(u):
         r = 0
         while r < 5:
-            await step(u, key=f"{u}-{r}")
+            await step.options(key=f"{u}-{r}")(u)
             r += 1
 
     async def unbounded(u):
         r = 0
         while r < 5:
-            await step(u, key=f"{u}-{r}")
+            await step.options(key=f"{u}-{r}")(u)
             r += 1
 
     async def flow():
@@ -548,7 +548,7 @@ def test_a_function_bound_takes_the_place_of_the_runs_for_its_own_while_loops(tm
             try:
                 await asyncio.gather(child(name))
             except TooManyPasses as exc:
-                await step(f"failed-{name}", key=f"failed-{name}", n=len(str(exc)))
+                await step.options(key=f"failed-{name}")(f"failed-{name}", n=len(str(exc)))
 
     rep = pipeline(tmp_path, max_passes=3).run(flow)
     # A broken bound is a flow error even where the flow catches it: the run is not ok.
@@ -566,7 +566,7 @@ def test_a_function_bound_names_itself_and_holds_in_an_awaited_helper(tmp_path):
     async def inner(u):
         r = 0
         while r < 5:
-            await step(u, key=f"{u}-{r}")
+            await step.options(key=f"{u}-{r}")(u)
             r += 1
 
     async def flow():

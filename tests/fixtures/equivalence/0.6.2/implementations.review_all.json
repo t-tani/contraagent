@@ -1,0 +1,39 @@
+{
+  "call": "examples/implementations/flow.py:review_all",
+  "config": false,
+  "flow": "implementations.review_all",
+  "kwargs": {
+    "units": {
+      "api": "python",
+      "worker": "go"
+    }
+  },
+  "outputs": {
+    "review-go/worker.json": "7a82acb9c4c518dd871306c3e0faf60cd56893f66f741d75897f02dea1c1cfc3",
+    "review-python/api.json": "7a82acb9c4c518dd871306c3e0faf60cd56893f66f741d75897f02dea1c1cfc3"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "review-go-worker": {
+      "kind": "review-go",
+      "stop": "completed",
+      "unit": "worker"
+    },
+    "review-python-api": {
+      "kind": "review-python",
+      "stop": "completed",
+      "unit": "api"
+    }
+  },
+  "value": {
+    "api": 0,
+    "worker": 0
+  }
+}

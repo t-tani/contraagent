@@ -36,11 +36,11 @@ def passing_on(instructions: str = "Write."):
 
 
 def ordering(instructions: str = "Write."):
-    """`check` only waits for `write` (`after=`): it reads nothing of it."""
+    """`check` only waits for `write` (`.options(after=)`): it reads nothing of it."""
     write, check = tasks(instructions)
 
     def flow():
-        check("u", after=[write("u")])
+        check.options(after=[write("u")])("u")
 
     return flow
 
@@ -121,4 +121,4 @@ def test_a_task_that_only_waits_takes_the_fingerprint_of_the_task_it_waits_for(t
     assert pipeline(tmp_path, agent).run(ordering(), run_id="r").ok
     agent.launches.clear()
     rep = pipeline(tmp_path, agent).run(ordering("Write more."), run_id="r", resume=True)
-    assert rep.ok and keys(agent) == ["write-u", "check-u"]  # the same output, but after= reads none
+    assert rep.ok and keys(agent) == ["write-u", "check-u"]  # the same output, but after reads none

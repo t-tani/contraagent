@@ -3248,6 +3248,20 @@
   <source>The tokens of an agent session that ran are not known (usage_unknown)</source>
   <target>実行したエージェントのセッションのトークンは不明（usage_unknown）</target>
 </trans-unit>
+<trans-unit id="s5013070506ff1eda">
+  <source><x id="0" equiv-text="${n}"/> cancelled</source>
+  <target>取り消し <x id="0" equiv-text="${n}"/> 件</target>
+</trans-unit>
+<trans-unit id="stop-cancelled">
+  <source>cancelled</source>
+  <note from="lit-localize">How an attempt ended: cancelled, because no part of the pipeline waited for its result any longer</note>
+  <target>取り消し</target>
+</trans-unit>
+<trans-unit id="outcome-cancelled">
+  <source>cancelled</source>
+  <note from="lit-localize">The status of a task that was stopped, or never started, because no part of the pipeline waited for its result any longer (cancelled)</note>
+  <target>取り消し</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

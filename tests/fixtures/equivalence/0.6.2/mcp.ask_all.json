@@ -1,0 +1,31 @@
+{
+  "call": "examples/mcp/flow.py:ask_all",
+  "config": false,
+  "flow": "mcp.ask_all",
+  "kwargs": {
+    "questions": {
+      "papers": "Which paper measures the cache?"
+    }
+  },
+  "outputs": {
+    "answer/papers.json": "224c51a60806f361137a3f16a0e63fcdd611a89971df06f7607f0d453a4ac824"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "answer-papers": {
+      "kind": "answer",
+      "stop": "completed",
+      "unit": "papers"
+    }
+  },
+  "value": {
+    "papers": ""
+  }
+}
