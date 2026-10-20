@@ -3,6 +3,7 @@ imported only when the command line names it."""
 
 import argparse
 import importlib.util
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -64,6 +65,32 @@ def test_a_usage_error_exits_2_with_the_command_s_usage(capsys, monkeypatch):
         main(["relay", "--hub", "http://hub:8790", "--interval", "0"])
     assert exc.value.code == 2
     assert "usage: contraagent relay" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows has no SIGPIPE")
+def test_a_command_puts_back_the_sigpipe_handler_it_found(capsys):
+    """A short command ends quietly on a closed pipe while it runs; the program that called
+    `main` keeps its own handler after (a test process killed later by a closed pipe)."""
+    before = signal.getsignal(signal.SIGPIPE)
+    assert main(["docs"]) == 0
+    assert signal.getsignal(signal.SIGPIPE) == before
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows has no SIGPIPE")
+def test_a_run_keeps_python_s_sigpipe_handling_for_its_agents_pipes(tmp_path, capsys, monkeypatch):
+    """A write to an agent that has exited raises BrokenPipeError, which the launch handles:
+    with SIGPIPE's default it would end the run, with no teardown."""
+    (tmp_path / "steps.py").write_text(
+        "import signal\nfrom contraagent import python_task\n"
+        "@python_task\ndef handler() -> bool:\n    return signal.getsignal(signal.SIGPIPE) == signal.SIG_IGN\n"
+        "async def flow():\n    assert await handler()\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    try:
+        assert main(["run", "steps.py:flow"]) == 0, capsys.readouterr().out
+    finally:
+        sys.modules.pop("steps", None)
 
 
 def _help_snapshot():

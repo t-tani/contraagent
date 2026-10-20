@@ -103,8 +103,8 @@ def double(n: int) -> int:
     return 2 * n
 
 
-def flow(n: int):
-    doubled = yield double(n=n)
+async def flow(n: int):
+    doubled = await double(n=n)
     return doubled
 
 

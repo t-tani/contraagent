@@ -146,9 +146,9 @@ def test_a_flow_and_its_python_tasks_read_their_pipeline_table(tmp_path):
     def heading(unit: str) -> str:
         return f"{contraagent.pipeline_table('report')['title']}: {unit}"
 
-    def flow():
+    async def flow():
         assert contraagent.pipeline_table("absent") == {}
-        text = yield heading(unit=contraagent.pipeline_table("report")["title"].lower())
+        text = await heading(unit=contraagent.pipeline_table("report")["title"].lower())
         contraagent.save("heading", text)
 
     Pipeline(config, runs_dir=tmp_path / "runs", cwd=tmp_path, log=lambda line: None).run(flow)
@@ -173,7 +173,7 @@ def test_a_cli_run_reads_the_pipeline_table_of_its_config(tmp_path, monkeypatch)
     (tmp_path / "steps.py").write_text(
         "import contraagent\n"
         "@contraagent.python_task\ndef port() -> int:\n    return contraagent.pipeline_table('index')['port']\n"
-        "def flow():\n    contraagent.save('port', (yield port()))\n"
+        "async def flow():\n    contraagent.save('port', await port())\n"
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "path", list(sys.path))
@@ -197,11 +197,9 @@ def test_a_flow_reads_its_pipeline_table_in_a_check_as_in_a_run(tmp_path):
 
     seen: list[dict] = []
 
-    def flow():
+    async def flow():
         seen.append(contraagent.pipeline_table("tally"))
         contraagent.log("seen", {"n": len(seen)})  # into the check's own directory, removed with it
-        return
-        yield
 
     assert Pipeline(None, runs_dir=tmp_path / "runs2", cwd=tmp_path).check(flow).built
     assert pipeline.check(flow).built
@@ -218,9 +216,9 @@ def test_contraagent_check_reads_the_pipeline_table_of_its_config(tmp_path, monk
 
     (tmp_path / "pipeline.toml").write_text("[pipeline.steps]\nunits = ['a', 'b', 'c']\n")
     (tmp_path / "steps.py").write_text(
-        "import contraagent\n"
+        "import asyncio\nimport contraagent\n"
         "@contraagent.python_task\ndef step(unit: str) -> int:\n    return len(unit)\n"
-        "def flow():\n    yield [step(u) for u in contraagent.pipeline_table('steps')['units']]\n"
+        "async def flow():\n    await asyncio.gather(*[step(u) for u in contraagent.pipeline_table('steps')['units']])\n"
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "path", list(sys.path))

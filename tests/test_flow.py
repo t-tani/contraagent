@@ -179,11 +179,11 @@ def test_an_output_its_validators_rejected_refuses_every_task_that_reads_it(tmp_
 
     agent = StubAgent({"summarize": {"unit": "u", "summary": "s", "points": ["a"]}, "review": good_answer})
 
-    def flow():
+    async def flow():
         s = summarize("u", path="x")
         if yields:
             try:
-                yield s
+                await s
             except Exception:
                 pass
         review("u", summary=s)

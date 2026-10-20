@@ -708,9 +708,9 @@ class Run:
         started_at: float | None = None,
     ) -> None:
         """One line of `flow_calls.jsonl` (a `FlowCallRow`). `event` "start": its `parent`,
-        `function` and `flow`, the flow path where the parent yielded it (the parent's frames,
+        `function` and `flow`, the flow path where the parent created it (the parent's frames,
         with their loops' passes, as in `plan.jsonl`; empty for a top flow call), and for a
-        flow call yielded through `time_box`, its `time_box` (a `TimeBoxRecord`; `started_at`:
+        flow call started through `time_box`, its `time_box` (a `TimeBoxRecord`; `started_at`:
         when the flow call started, where its deadline counts from); "end": its `state` and
         `error`."""
         ts = now_iso()

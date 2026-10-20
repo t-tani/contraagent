@@ -1,67 +1,62 @@
 """Where flow code created a task: its frames, and the loops around each call site.
 
-`frames_here(start, loops)` walks the stack from a task call outward and keeps
-the frames of flow code, outermost first. The walk starts at the first frame
-outside `contraagent/pipeline/` (the task call itself) and ends at the first
-frame of contraagent's own code below it (`Pipeline.run` for a flow that does
-not yield, `FlowDriver` for a step of a flow call). Frames of the standard
-library and comprehension frames between the two are skipped: they hold no flow
-code. Installed packages are kept, so a pipeline installed as a package, and the
-examples shipped with contraagent, are recorded like any other.
+`frames_here(start, loops)` walks the stack from `start` outward and keeps the frames
+of flow code, outermost first. The walk starts at the first frame of flow code (past
+the task call itself, or past the event loop's task factory) and ends at the first
+frame of contraagent's own code below it (`Pipeline.run_async` for a flow that does not
+wait), or at the bottom of an asyncio Task's stack (the event loop's callback runner)
+for the code of a flow call. Within one Task, the coroutines of an `await` chain are
+all on the stack, the awaiting ones below. Frames of the standard library and
+comprehension frames between the two ends are skipped: they hold no flow code.
+Installed packages are kept, so a pipeline installed as a package, and the examples
+shipped with contraagent, are recorded like any other.
 
-`generator_frames(gen, loops)` are the frames of a suspended generator and its
-`yield from` chain: where a parent flow call yielded a child.
+`suspended_frames(coro, loops)` are the frames of flow code of a suspended coroutine and
+of each coroutine it awaits (its `cr_await` chain): where a flow call waits.
 
 `loops(frame)` gives a frame's loops with their passes (`LoopCounter.loops`,
 `loops.py`); without it, frames have no loops.
 
-`flow_code(filename)` is that rule for one file: neither contraagent's own
-code (its examples excepted) nor the standard library.
+`flow_code(filename)` is that rule for one file: neither contraagent's own code (its
+examples excepted) nor the standard library (`dispatch/code.py`).
 """
 
 from __future__ import annotations
 
-import sysconfig
-from collections.abc import Callable, Generator
-from pathlib import Path
-from types import FrameType, GeneratorType
+from collections.abc import Callable
+from types import FrameType
 from typing import Any
 
+from contraagent._internal.dispatch import flow
+from contraagent._internal.dispatch.code import contraagent_file, flow_code, loop_runner, stdlib_file
 from contraagent._internal.dispatch.records import Frame, Loop
 
-_PACKAGE = Path(__file__).resolve().parents[2]
-_PIPELINE = Path(__file__).resolve().parent
-_EXAMPLES = _PACKAGE / "docs" / "examples"
-_STDLIB = tuple({Path(p).resolve() for name in ("stdlib", "platstdlib") if (p := sysconfig.get_paths().get(name))})
-_COMPREHENSIONS = frozenset({"<listcomp>", "<dictcomp>", "<setcomp>", "<genexpr>"})
+__all__ = ["LoopsOf", "flow_code", "frame_of", "frames_here", "suspended_frames"]
 
-_paths: dict[str, Path | None] = {}
+_COMPREHENSIONS = frozenset({"<listcomp>", "<dictcomp>", "<setcomp>", "<genexpr>"})
 
 
 LoopsOf = Callable[[FrameType], tuple[Loop, ...]]
 
 
 def frames_here(start: FrameType | None, loops: LoopsOf | None = None) -> tuple[Frame, ...]:
-    """The frames of flow code from `start` (a frame in the task call) outward, outermost first."""
+    """The frames of flow code from `start` (a frame in the task call, or in the code that
+    creates a Task) outward, outermost first."""
     f = start
-    while f is not None and _within(f, _PIPELINE):
+    while f is not None and not loop_runner(f) and (_contraagent(f) or _stdlib(f)):
         f = f.f_back
     out: list[Frame] = []
-    while f is not None and not _contraagent(f):
+    while f is not None and not _contraagent(f) and not loop_runner(f):
         if f.f_code.co_name not in _COMPREHENSIONS and not _stdlib(f):
             out.append(frame_of(f, loops))
         f = f.f_back
     return tuple(reversed(out))
 
 
-def generator_frames(gen: Generator[Any, Any, Any], loops: LoopsOf | None = None) -> tuple[Frame, ...]:
-    """Where `gen` is suspended: its frame, then each generator of its `yield from` chain."""
-    out: list[Frame] = []
-    g: object = gen
-    while isinstance(g, GeneratorType) and g.gi_frame is not None:
-        out.append(frame_of(g.gi_frame, loops))
-        g = g.gi_yieldfrom
-    return tuple(out)
+def suspended_frames(coro: Any, loops: LoopsOf | None = None) -> tuple[Frame, ...]:
+    """Where `coro` waits: the frames of flow code of it and of each coroutine of its
+    `cr_await` chain, outermost first."""
+    return tuple(frame_of(f, loops) for f in flow.suspended_frames(coro) if flow_code(f.f_code.co_filename))
 
 
 def frame_of(f: FrameType, loops: LoopsOf | None = None) -> Frame:
@@ -72,37 +67,9 @@ def frame_of(f: FrameType, loops: LoopsOf | None = None) -> Frame:
     return Frame(function=function, file=code.co_filename, line=line, loops=loops(f) if loops is not None else ())
 
 
-def _path(filename: str) -> Path | None:
-    if filename not in _paths:
-        _paths[filename] = None if filename.startswith("<") else Path(filename).resolve()
-    return _paths[filename]
-
-
-def _within(f: FrameType, root: Path) -> bool:
-    path = _path(f.f_code.co_filename)
-    return path is not None and path.is_relative_to(root)
-
-
 def _contraagent(f: FrameType) -> bool:
-    return _contraagent_file(f.f_code.co_filename)
+    return contraagent_file(f.f_code.co_filename)
 
 
 def _stdlib(f: FrameType) -> bool:
-    return _stdlib_file(f.f_code.co_filename)
-
-
-def flow_code(filename: str) -> bool:
-    """Whether code from `filename` is flow code: neither contraagent's own (its shipped
-    examples excepted) nor the standard library. Code with no file (`<string>`) is."""
-    return not _contraagent_file(filename) and not _stdlib_file(filename)
-
-
-def _contraagent_file(filename: str) -> bool:
-    """contraagent's own code, its shipped examples excepted."""
-    path = _path(filename)
-    return path is not None and path.is_relative_to(_PACKAGE) and not path.is_relative_to(_EXAMPLES)
-
-
-def _stdlib_file(filename: str) -> bool:
-    path = _path(filename)
-    return path is not None and any(path.is_relative_to(p) for p in _STDLIB) and "site-packages" not in path.parts
+    return stdlib_file(f.f_code.co_filename)

@@ -6,6 +6,7 @@ for each triage and plans a fix for the reports it finds high severity.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -63,15 +64,15 @@ def triage_all(reports: list[str]):
     return write_table(triaged=triaged)
 
 
-def triage_one(name: str):
+async def triage_one(name: str):
     """One report: its triage, and a fix plan when it is high severity."""
-    found = yield triage(name, report=report_path(name))
+    found = await triage(name, report=report_path(name))
     if found.severity == "high":
-        yield plan_fix(name, report=report_path(name), triage=found)
+        await plan_fix(name, report=report_path(name), triage=found)
     return found
 
 
-def triage_and_plan(reports: list[str]):
+async def triage_and_plan(reports: list[str]):
     """Every report's triage_one at once, then one table."""
-    triaged = yield [triage_one(name) for name in reports]
-    return (yield write_table(triaged=dict(zip(reports, triaged, strict=True))))
+    triaged = await asyncio.gather(*[triage_one(name) for name in reports])
+    return await write_table(triaged=dict(zip(reports, triaged, strict=True)))

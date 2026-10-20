@@ -1,5 +1,6 @@
 """A claim capacity sized by the host (`PerTask`): free memory and usable cores."""
 
+import asyncio
 import threading
 import time
 from types import SimpleNamespace
@@ -192,8 +193,8 @@ def serve(unit: str) -> int:
 
 
 def test_a_run_sizes_a_per_task_capacity_by_the_host(tmp_path):
-    def flow():
-        return (yield [serve(u) for u in "abcd"])
+    async def flow():
+        return await asyncio.gather(*[serve(u) for u in "abcd"])
 
     _running[:] = [0, 0]
     whole = PerTask(cores=processes.usable_cores())  # one task takes every core

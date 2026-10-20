@@ -5,9 +5,10 @@ Calling a task inside a flow does not run it; it adds a node and returns a
 dependency: the consumer waits for it, its output file becomes the consumer's
 checked input, and its value is what the consumer receives.
 
-A flow that is a generator yields a `Pending` (or a list or tuple of them) and
-receives the checked output at the `yield` (`FlowDriver`, with this graph's
-`waits_for`, `answer` and `created` as its callbacks). Passing a received
+An async flow awaits a `Pending` (`await triage(...)`, or several at once with
+`asyncio.gather`) and receives the checked output at the `await` (`FlowDriver.wait`,
+with this graph's `waits_for` and `answer` as its callbacks). The task reaches the
+queue when it is called, whether or not anything awaits it. Passing a received
 output on to another task is the same dependency as passing its `Pending`: the
 graph remembers which `Pending` produced each output it answered (a model
 instance, a list, a dict, a text) and puts the `Pending` back. A number, a
@@ -29,7 +30,7 @@ is numbered:
 * each frame of its flow path carries the loops around its call site with
   their passes (`loops.py`); a pass of a `while` loop past its bound (its
   function's `@max_passes(n)`, else the run's `max_passes`) raises
-  `TooManyPasses` at the task call, and at the `yield` of a child flow call (a
+  `TooManyPasses` at the task call, and at the creation of a child flow call (a
   `for` loop ends with its iterable and has no limit);
 * its fingerprint is a digest of its kind, unit, key and params (a `Pending`
   among them standing for its key), of its definition (`AgentTask.digest`,
@@ -46,6 +47,7 @@ is numbered:
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import dataclasses
 import glob
@@ -56,7 +58,7 @@ import logging
 import os
 import re
 import string
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Generator, Iterator, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -101,7 +103,7 @@ _current: ContextVar[Graph | None] = ContextVar("contraagent_graph", default=Non
 
 class TooManyPasses(ContraagentError):
     """A `while` loop of flow code went past its bound (its function's `@max_passes(n)`, else the
-    run's `max_passes`): it created a task, or yielded a child flow call, in a later pass."""
+    run's `max_passes`): it created a task, or a child flow call, in a later pass."""
 
 
 class TextOutput(str):
@@ -119,8 +121,8 @@ def current_graph() -> Graph:
 
 
 class Pending[Out]:
-    """A task's future output. Pass it to another task, yield it in a generator flow, or
-    read `.output` after the run."""
+    """A task's future output. Pass it to another task, await it in an async flow (its
+    checked output, or `TaskFailed` / `TaskDeferred`), or read `.output` after the run."""
 
     _node: Node
     _graph: Graph
@@ -181,6 +183,13 @@ class Pending[Out]:
             value = chk.value.root if isinstance(chk.value, RootModel) else chk.value
             self._value = TextOutput(value) if isinstance(value, str) else value
         return self._value
+
+    def __await__(self) -> Generator[Any, None, Out]:
+        """Wait for the task in an async flow: its checked output (`Graph.answer`)."""
+        driver = self._graph.driver
+        if driver is None:
+            raise RuntimeError(f"{self.key}: a Pending is awaited in an async flow that Pipeline.run runs")
+        return driver.wait(self).__await__()
 
     def __repr__(self) -> str:
         state = "pending" if self.result is None else self.result.stop
@@ -268,8 +277,8 @@ def _writes_output(spec: Any) -> bool:
 class Graph:
     """The nodes a flow added, in call order, and their results.
 
-    `driver`: the `FlowDriver` running the flow, when it is a generator; its
-    current flow call is what creates a node (none: flow call "0", the flow
+    `driver`: the `FlowDriver` of the run: each task created goes to it to be queued,
+    and its current flow call is what creates a node (none: flow call "0", the flow
     itself). `new_kind(spec)`: called to route an agent task's kind, when it is
     reached (`reached`) or first created (`declare`), before its node is added;
     what it raises, the task call raises.
@@ -307,7 +316,6 @@ class Graph:
         self._produced: dict[int, tuple[Any, Pending[Any]]] = {}  # id(output) -> (output, its Pending)
         self._layouts: dict[str, str] = {}  # output_name with its kind filled in -> the kind
         self._writers: dict[Path, str] = {}  # output file -> the key of the task it is given to
-        self._taken = 0
 
     @contextlib.contextmanager
     def building(self) -> Iterator[Graph]:
@@ -437,6 +445,8 @@ class Graph:
         self._by_key[key] = node
         if out is not None and getattr(spec, "output_of", None) is None:
             self._writers[out] = key
+        if self.driver is not None:
+            self.driver.add(self.task_of(node))
         return Pending._of(node, self)
 
     def agent_specs(self) -> dict[str, Any]:
@@ -446,11 +456,6 @@ class Graph:
 
     def tasks(self) -> list[Task]:
         return [self.task_of(n) for n in self.nodes]
-
-    def take_new(self) -> list[Task]:
-        """The tasks of the nodes added since the last call: what is to be queued."""
-        new, self._taken = self.nodes[self._taken :], len(self.nodes)
-        return [self.task_of(n) for n in new]
 
     def starting(self, task: Task) -> Task:
         """`task` as it is about to start, the tasks it waits for finished: for one whose
@@ -502,12 +507,12 @@ class Graph:
     # --- FlowDriver callbacks --------------------------------------------------
 
     def waits_for(self, item: Any) -> Task:
-        """What a yielded `Pending` waits for: its task."""
+        """What an awaited `Pending` waits for: its task."""
         if isinstance(item, Pending) and item._graph is self:
             return self.task_of(item._node)
         if isinstance(item, Pending):
             raise TypeError(f"{item.key} was created by another run")
-        raise TypeError(f"a flow yields what a task call returns, a generator, or a list or tuple of them, not {type(item).__name__}")
+        raise TypeError(f"a flow awaits what a task call returns, not {type(item).__name__}")
 
     def answer(self, item: Pending[Any], result: TaskResult) -> Any:
         """What a flow receives for a finished task: its checked output (None for a task
@@ -525,12 +530,17 @@ class Graph:
         return value
 
     def flow_call_started(self, call: FlowCall) -> tuple[Frame, ...]:
-        """The flow path where a child flow call was yielded: its parent's frames at the
-        `yield`, with their loops' passes (empty for a top flow call). The child's tasks'
-        flow paths start with it."""
-        if call.parent is None:
+        """The flow path where a child flow call was created: its parent's frames where its
+        code created the Task, with their loops' passes (empty for a top flow call). The
+        child's tasks' flow paths start with it."""
+        parent = call.parent
+        if parent is None:
             return ()
-        frames = self._prefix.get(call.parent.id, ()) + origins.generator_frames(call.parent.gen, self.loops.loops)
+        if parent.task is not None and asyncio.current_task() is parent.task:  # the parent's code runs
+            here = origins.frames_here(inspect.currentframe(), self.loops.loops)
+        else:
+            here = origins.suspended_frames(parent.coro, self.loops.loops)
+        frames = self._prefix.get(parent.id, ()) + here
         self._prefix[call.id] = frames
         return frames
 
@@ -540,8 +550,8 @@ class Graph:
 
     def on_flow_call(self, event: str, call: FlowCall) -> None:
         """A `FlowDriver` `on_flow_call`: the flow path of a child flow call, checked
-        against `max_passes` (`TooManyPasses` fails the child, and its parent receives it at
-        the `yield`)."""
+        against `max_passes` (`TooManyPasses` fails the child, and its parent receives it
+        where it awaits the child)."""
         if event == "start":
             self.check_passes(self.flow_call_started(call), f"flow call {call.id} ({call.function})", call.id)
         else:
@@ -808,7 +818,7 @@ def _claim_values(kind: str, template: str, field_name: str, unit: str, key: str
         raise ValueError(f"{kind}(): claim {template!r} names params.{name}, an empty list; the task would claim nothing")
     for v in items:
         if isinstance(v, Pending):
-            raise TypeError(f"{kind}(): claim {template!r} names params.{name}, an output not received yet; yield it first")
+            raise TypeError(f"{kind}(): claim {template!r} names params.{name}, an output not received yet; await it first")
         if isinstance(v, bool) or not isinstance(v, (str, int, float)):
             raise TypeError(f"{kind}(): claim {template!r} names params.{name}, which holds {v!r}; a claim takes strings and numbers")
     return [str(v) for v in items]

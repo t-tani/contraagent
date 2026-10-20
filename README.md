@@ -89,11 +89,11 @@ triage = agent_task(
 )
 
 
-def triage_one(name: str):
+async def triage_one(name: str):
     """One report: its triage, and a fix plan when it is high severity."""
-    found = yield triage(name, report=report_path(name))
+    found = await triage(name, report=report_path(name))
     if found.severity == "high":
-        yield plan_fix(name, report=report_path(name), triage=found)
+        await plan_fix(name, report=report_path(name), triage=found)
     return found
 ```
 
@@ -101,8 +101,9 @@ def triage_one(name: str):
 [`examples/tutorial/tasks.py`](src/contraagent/docs/examples/tutorial/tasks.py), and
 a test checks that the two are identical.</sub>
 
-The flow around the tasks is plain Python. Each `yield` waits for a checked output,
-so loops, branches and parallel tasks are ordinary code.
+The flow around the tasks is plain Python. Each `await` waits for a checked output,
+so loops and branches are ordinary code, and `asyncio.gather` runs flows at the same
+time.
 
 `contraagent check` reports every problem in the pipeline and launches nothing. With
 `--stub`, `contraagent run` runs the whole flow on a stub agent, which writes each

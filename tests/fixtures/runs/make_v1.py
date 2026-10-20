@@ -10,6 +10,7 @@ flow's code is) `/work/flow`, and its host `host-1`.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import shutil
 import tempfile
@@ -49,15 +50,15 @@ def summary(reviews: list[Review]) -> int:
     return sum(len(r.findings) for r in reviews)
 
 
-def flow(units: list[str]):
-    paths = yield [fetch(u) for u in units]
+async def flow(units: list[str]):
+    paths = await asyncio.gather(*[fetch(u) for u in units])
     reviews = []
     for unit, path in zip(units, paths, strict=True):
         try:
-            reviews.append((yield review(unit, path=path)))
+            reviews.append(await review(unit, path=path))
         except Exception:
             continue
-    return (yield summary(reviews=reviews))
+    return await summary(reviews=reviews)
 
 
 def main() -> None:

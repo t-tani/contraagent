@@ -138,7 +138,7 @@ def _tell_watchdog(line: str) -> None:
                     atexit.register(_release_watchdog)
                 _watch, _watch_pid = ours, os.getpid()
             # MSG_NOSIGNAL: a watchdog that is gone is an error here, never a SIGPIPE
-            # (the command line restores SIGPIPE's default, which would end the run).
+            # (a short command of the command line restores SIGPIPE's default, which ends the process).
             _watch.sendall(f"{line}\n".encode(), getattr(socket, "MSG_NOSIGNAL", 0))
         except OSError:
             pass

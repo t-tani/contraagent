@@ -100,8 +100,8 @@ def test_a_function_that_raises_refuses_the_task(tmp_path):
     def after(n: int) -> Count:
         return Count(n=n)
 
-    def flow():
-        c = yield tally("a")
+    async def flow():
+        c = await tally("a")
         after(n=c.n)
 
     report = pipeline(tmp_path).run(flow)

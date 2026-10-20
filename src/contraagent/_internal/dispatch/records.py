@@ -36,7 +36,7 @@ Executor = Literal["agent", "python"]
 
 
 class Loop(BaseModel):
-    """A `for` or `while` loop of a generator around a call site, and the pass the call
+    """A `for` or `while` loop of an async flow around a call site, and the pass the call
     site was in."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True, serialize_by_alias=True)
@@ -60,7 +60,7 @@ class Frame(BaseModel):
     line: int
     loops: tuple[Loop, ...] = Field(
         default=(),
-        description="the loops of a generator whose pass `line` was in, outermost first; empty outside a loop and for any other frame",
+        description="the loops of an async flow whose pass `line` was in, outermost first; empty outside a loop and for any other frame",
     )
 
 

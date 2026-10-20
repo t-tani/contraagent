@@ -65,7 +65,7 @@ class Origin:
 
     `flow`: the flow path, the frames of flow code that created it, outermost
     first, across flow calls (a child flow call's frames follow the frames of
-    the parent's yield that started it). Their loops' passes say in which
+    the parent where it created that flow call). Their loops' passes say in which
     iteration of each loop around it the task was created.
     `created_from`: the keys whose results its flow call had received when it
     was created (the flow call's frontier).

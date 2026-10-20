@@ -125,8 +125,8 @@ def test_a_python_task_returns_rows(tmp_path):
     def collect(unit: str) -> Rows[Finding]:
         return Rows([Finding(document="docs/a.md", line=n, note="n") for n in (1, 2)])
 
-    def flow():
-        found = yield collect("a")
+    async def flow():
+        found = await collect("a")
         return [f.line for f in found]
 
     report = pipeline(tmp_path, StubAgent()).run(flow)
@@ -160,8 +160,8 @@ def test_a_stopped_launch_with_three_valid_rows_is_a_partial_result_with_those_r
     rows = [finding(n) for n in (1, 2, 3)]
     agent = StubAgent({"review": writes(rows, stop=Stop.TIMEOUT)})
 
-    def flow():
-        found = yield example.review("a")
+    async def flow():
+        found = await example.review("a")
         return found
 
     report = pipeline(tmp_path, agent).run(flow)

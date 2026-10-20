@@ -135,7 +135,9 @@ testpaths = ["tests"]
 # Tests run against the installed (editable) package, as the subprocesses they spawn do.
 # In parallel (pytest-xdist), at most 6 processes: past that the suite waits on CPU, not tests.
 # `--dist loadgroup` keeps the tests of one `xdist_group` on one worker. `-n0` runs it in one process.
-addopts = "-m 'not live and not e2e and not perf' -n auto --maxprocesses=6 --dist loadgroup"
+# A worker that dies ends the session, naming the test it ran: under `loadgroup` the worker
+# started in its place is given no test, and the session would wait for it forever.
+addopts = "-m 'not live and not e2e and not perf' -n auto --maxprocesses=6 --dist loadgroup --max-worker-restart=0"
 # Every warning fails the tests: a deprecated name contraagent itself still uses, a new
 # deprecation in a dependency, a connection or file left open. An exception names the
 # warning's source and why it stays; each one is raised only by the oldest versions that

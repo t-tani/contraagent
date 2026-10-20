@@ -57,7 +57,7 @@ checked JSON file behind, for example:
 | 6 | connect the tasks | a flow, `Pending` |
 | 7 | find mistakes before you spend anything | `contraagent check`, a stub run, the monitor |
 | 8 | choose the coding agent and model, run, resume | `pipeline.toml`, `contraagent run` |
-| 9 | decide what runs next from a result | a generator flow, `yield` |
+| 9 | decide what runs next from a result | an `async def` flow, `await`, `asyncio.gather` |
 | 10 | test the pipeline without a model | `StubAgent`, pytest |
 
 ## The architecture
@@ -239,10 +239,10 @@ uv run contraagent run tasks.py:triage_all --stub --kwargs '{"reports": ["login-
 
 ```
 4 tasks created:
-  triage · login-timeout | completed | triage_all (line 62)
-  triage · csv-export | completed | triage_all (line 62)
-  triage · dark-mode | completed | triage_all (line 62)
-  write_table | completed | triage_all (line 63)
+  triage · login-timeout | completed | triage_all (line 63)
+  triage · csv-export | completed | triage_all (line 63)
+  triage · dark-mode | completed | triage_all (line 63)
+  write_table | completed | triage_all (line 64)
 ✓ 4/4 tasks done in 1.3s; run in runs/triage_all-stub
 ```
 
@@ -327,8 +327,9 @@ triages run again, then the table that reads them. Or give a new run id with
 ## 9. Decide on results
 
 `triage_all` creates every task at the start. A flow that decides what to do
-from an output is a **generator**: it `yield`s a task call and receives the
-task's checked output there. Plain Python then decides what runs next.
+from an output is an `async def` function: it awaits a task call and receives the
+task's checked output there. Plain Python then decides what runs next. A task
+call does not wait by itself: `await` waits.
 
 Add a model and a task for the fix plan, and a role `agents/planner.md` in the
 same plugin:
@@ -344,10 +345,10 @@ Then the flow:
 ::code{file="examples/tutorial/tasks.py" from="def triage_one("}
 
 `triage_one` waits for one triage and plans a fix only when it is high.
-`triage_and_plan` yields a list of `triage_one` calls: each runs as its own
-**flow call**, at the same time as the others, and the list receives what each
-one returned. A report that is not high severity does not wait for another
-report's plan.
+`triage_and_plan` gives one `triage_one` call per report to `asyncio.gather`:
+each runs as its own **flow call**, at the same time as the others, and `gather`
+returns what each one returned, in the order of the reports. A report that is not
+high severity does not wait for another report's plan.
 
 Planning a fix is harder than triage, so give `plan_fix` a stronger model in
 `pipeline.toml`:

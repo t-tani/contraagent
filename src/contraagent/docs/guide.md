@@ -34,8 +34,8 @@ for another port).
    `agents/<role>.md`, then `contraagent plugin lint`. → [Plugins](plugins.md)
 4. **Python tasks.** `@python_task` for anything code does deterministically. → [Tasks](tasks.md)
 5. **Flow.** A function that calls the tasks; passing a task's result to another
-   is the dependency. A generator flow receives outputs at each `yield` and
-   decides what runs next from them. → [Tasks](tasks.md)
+   is the dependency. A flow that waits is an `async def` function: it receives
+   outputs at each `await` and decides what runs next from them. → [Tasks](tasks.md)
 6. **Config.** Where each kind runs, in TOML. → [Routing](routing.md)
 7. **Check.** `contraagent check tasks.py:<flow> --config pipeline.toml --kwargs '{...}'`
    until it prints ✓. → [Checking and testing](testing.md)
@@ -61,7 +61,7 @@ for another port).
 | A rule the schema cannot express? | A validator; a `CommandValidator` when the agent should also run it before it stops. → [Contracts](contracts.md) |
 | A rule about the output and the input together? | A validator that takes `params` (or a `CommandValidator` given `{call}`). → [Contracts](contracts.md) |
 | Order without passing data? | `after=` on the later task. |
-| What runs depends on results? | A generator flow: `yield` a task call and receive its output there; loops, branches and fan-outs are plain Python. → [Tasks](tasks.md) |
+| What runs depends on results? | An `async def` flow: `await` a task call and receive its output there; loops, branches and fan-outs are plain Python and asyncio (`asyncio.gather`). → [Tasks](tasks.md#flows-that-depend-on-results) |
 | A one-off task with no plugin? | `agent_task(..., instructions=...)`; a plugin for anything kept. |
 | Where may a task's data go? | `requires=` traits in code; credentials in the config. → [Routing](routing.md) |
 
@@ -79,16 +79,26 @@ for another port).
   Nothing in a plugin names a run, a unit or a file path.
 - The same kind on the same unit from two flow calls needs `key=`; within one
   flow call the second is numbered (`<key>~2`).
-- A generator called and not yielded never runs: `yield sub(u)` (its own flow
-  call) or `yield from sub(u)`, not `sub(u)`.
+- A coroutine never awaited never runs: `await sub(u)`, or
+  `asyncio.gather(sub(u), ...)` for flow calls of their own, not `sub(u)`.
+  `contraagent check` reports a coroutine never awaited as an error, the run logs
+  a warning, and mypy and pyright report it too.
 - Flow code must take the same path for the same outputs, or a resumed run
   creates different tasks: a random choice or the clock belongs in a Python task.
-- Flow code between two `yield`s runs on the thread that schedules every task:
-  heavy work there stalls the run, and belongs in a Python task.
-- A Python task runs once, as one task, and cannot yield tasks. Work that waits
+- Flow code between two `await`s runs on the event loop that schedules every
+  task: heavy work there stalls the run, and belongs in a Python task. So does
+  I/O, also through an async client: files, network, subprocesses.
+- Flow code does not call `Pipeline.run` or `asyncio.run`: both raise inside a
+  flow. Async code outside a flow runs a pipeline with
+  `await Pipeline(config).run_async(flow, ...)`.
+- Flow code does not branch on the order in which tasks finish
+  (`asyncio.as_completed`, `FIRST_COMPLETED`): a resumed run finishes them in
+  another order. `asyncio.gather(..., return_exceptions=True)`, inspected by
+  position, tolerates failures in the same way in every run.
+- A Python task runs once, as one task, and does not await tasks. Work that waits
   on tasks belongs in a flow, with its Python steps as separate Python tasks.
-- A task is called inside a flow only; `pending.output` is read after the run (a
-  generator flow receives the output at the `yield`).
+- A task is called inside a flow only; `pending.output` is read after the run (an
+  async flow receives the output at the `await`).
 - A failed task refuses every task that reads its output; a task that reads
   every unit's output (a report) is refused when any of them failed.
 - The library reports through `logging` (`contraagent.*`): configure it at INFO

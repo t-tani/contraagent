@@ -155,10 +155,10 @@ def test_the_graph_sets_each_tasks_tail_from_its_estimator(tmp_path):
     with graph.building():
         example.summarize("a", path="x")
         example.report(summaries=[])
-    assert [t.tail_s for t in graph.take_new()] == [7.0, None]
+    assert [t.tail_s for t in graph.tasks()] == [7.0, None]
 
 
-def test_a_past_run_of_a_generator_flow_gives_its_first_tasks_a_tail(tmp_path):
+def test_a_past_run_of_an_async_flow_gives_its_first_tasks_a_tail(tmp_path):
     agent = StubAgent(
         {
             "summarize": lambda launch: {"unit": launch.unit, "points": ["p"]},

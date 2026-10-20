@@ -34,19 +34,19 @@ def publish(count: int) -> int:
     return count
 
 
-def topic_work(topics: list[str]):
+async def topic_work(topics: list[str]):
     notes: list[Note] = []
     for topic in topics:
         try:
-            notes.append((yield write(topic, subject=topic)))
+            notes.append(await write(topic, subject=topic))
         except TaskDeferred:
             break  # past the deadline: the other topics wait for the next cycle
     if notes:
-        yield summarize(notes=[n.model_dump() for n in notes])
+        await summarize(notes=[n.model_dump() for n in notes])
     return notes
 
 
-def cycle(topics: list[str], deadline_s: float = 45 * 60):
-    notes = yield time_box(topic_work(topics), deadline_s=deadline_s, grace_s=15 * 60, finishing_kinds=["summarize"])
-    yield publish(count=len(notes))
+async def cycle(topics: list[str], deadline_s: float = 45 * 60):
+    notes = await time_box(topic_work(topics), deadline_s=deadline_s, grace_s=15 * 60, finishing_kinds=["summarize"])
+    await publish(count=len(notes))
     return [n.topic for n in notes]

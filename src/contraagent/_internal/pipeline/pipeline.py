@@ -3,10 +3,11 @@
     pipeline = Pipeline("pipeline.toml")
     report = pipeline.run(docs, units=["alpha", "beta"])
 
-A flow that never yields builds the whole task graph before anything runs. A
-flow that is a generator (or returns one) is driven by a `FlowDriver`: each
-`yield` waits for the tasks or flow calls it names, and the flow creates
-further tasks from their outputs. Its reachable kinds (`reach.py`) are routed,
+A flow that does not wait (a plain `def`) builds the whole task graph before
+anything runs. An async flow (an `async def` function, or a function that returns
+its coroutine) is driven by a `FlowDriver` on the event loop: each `await` waits
+for the tasks or flow calls it names, and the flow creates further tasks from
+their outputs. Its reachable kinds (`reach.py`) are routed,
 and probed by the preflight, before the first launch, with the kinds of its
 first step; a kind its code does not reach (declared while the flow runs) is
 routed when it is created, so a config problem raises at that task call. Its
@@ -23,6 +24,8 @@ task's declared defaults, an `AgentRunner` with failover and retry, and a
 
 from __future__ import annotations
 
+import gc
+import inspect
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -31,7 +34,7 @@ from typing import Any
 
 from contraagent._internal.backends import Backend, create_backend, known_agents
 from contraagent._internal.dispatch.entry import run_sync
-from contraagent._internal.dispatch.flow import FlowCall, FlowDriver
+from contraagent._internal.dispatch.flow import SECOND_RUN, FlowCall, FlowDriver, driven_here, generator_flow_error, never_awaited
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent._internal.dispatch.queue import GRACE_S, OVERDUE_S, RETRY_WAIT_S, THROTTLE_S
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_INVALID_INPUT, STOP_PARTIAL, Deferral, Task, TaskResult
@@ -57,8 +60,8 @@ class RunReport:
     """What a `Pipeline.run` did. The flow's `Pending` values read their outputs from it too.
 
     `run_id` and `run_dir`: the run and its directory. `results`: each task's final
-    `TaskResult`, by key. `value`: what the flow returned, as it returned it: a generator
-    flow's return value, or, for a flow that does not yield, its return value, a task
+    `TaskResult`, by key. `value`: what the flow returned, as it returned it: an async
+    flow's return value, or, for a flow that does not wait, its return value, a task
     call's `Pending` included (its output is `value.output`); None when the flow raised.
     `flow_errors`: the top flow calls that raised after their first task was queued.
 
@@ -203,9 +206,9 @@ class Pipeline:
         `env`: extra variables for every launch (a tool's own API key: a chosen
         credential removes every other secret-looking variable from the child).
         `log`: a function given each progress line instead of the `logging` module.
-        `max_passes`: how many passes a `while` loop of flow code may make: a task call, or a
-        `yield` of a child flow call, in a later pass raises `TooManyPasses`; default
-        `[defaults] max_passes`, else 10. A generator function's `@max_passes(n)` bounds
+        `max_passes`: how many passes a `while` loop of flow code may make: a task call, or
+        the creation of a child flow call, in a later pass raises `TooManyPasses`; default
+        `[defaults] max_passes`, else 10. An `async def` function's `@max_passes(n)` bounds
         its own `while` loops in place of it.
         `quota_rule(credential, reading)`: a reason the credential rests now, or None, given its
         latest quota reading (`QuotaReading`), or the reason and when the rest ends
@@ -368,10 +371,13 @@ class Pipeline:
     def check(self, flow: Callable[..., Any], /, *args: Any, **kwargs: Any) -> CheckReport:
         """Build the task graph `run` would, and check everything that needs no launch.
 
-        * the flow: it builds; every `after=` names a task of the run. A generator flow
-          is run to its first wait (every flow call it starts, up to the first `yield`
-          that waits for a task), and an exception in any of them is reported;
-        * the kinds of the run: those of the tasks the flow created, and for a generator
+        * the flow: it builds; every `after=` names a task of the run. An async flow is
+          run to its first wait (every flow call it starts, up to the first `await` that
+          waits for a task; no task's output is given), and an exception in any of them
+          is reported, as is a coroutine that was never awaited (a call of an async def
+          function with no `await`). A generator flow is refused: the error says how to
+          write it as an async flow;
+        * the kinds of the run: those of the tasks the flow created, and for an async
           flow also its reachable kinds (`contraagent docs concepts`, "reachable kind"),
           since it creates the rest as it runs. Two reachable declarations of one kind
           that differ (a default argument the caller replaces) are a warning, and the
@@ -405,12 +411,15 @@ class Pipeline:
     def run(self, flow: Callable[..., Any], /, *args: Any, run_id: str | None = None, resume: bool = False, **kwargs: Any) -> RunReport:
         """Call `flow(*args, **kwargs)` and run the tasks it creates to the end.
 
-        A flow that never yields builds the whole task graph first. A flow that is,
-        or returns, a generator is driven: each `yield` receives the outputs it
-        waited for, and what it creates next runs as it is created. An exception
-        in a flow before its first task is queued is raised; after, it is recorded
-        in `RunReport.flow_errors` (and `flow_calls.jsonl`) and the run goes on with
-        the tasks already queued.
+        A flow that does not wait builds the whole task graph first. An async flow
+        (an `async def` function, or a function that returns its coroutine) is driven:
+        each `await` receives the outputs it waited for, and what it creates runs as it
+        is created. An exception in a flow before its first task is queued is raised;
+        after, it is recorded in `RunReport.flow_errors` (and `flow_calls.jsonl`) and
+        the run goes on with the tasks already queued. A generator flow raises
+        TypeError, which says how to write it as an async flow. A coroutine that was
+        never awaited (a call of an async def function with no `await`) is logged as a
+        warning.
 
         `run_id` defaults to the flow's name (`<flow>-stub` in a stub run), with each character a
         file name cannot hold on every operating system turned into `_` (`<lambda>` runs as
@@ -446,8 +455,13 @@ class Pipeline:
 
         The flow's code and every callback run on the event loop's thread; the agents
         and the Python tasks' functions run on threads of the run's own pool, so the
-        event loop stays free while tasks run.
+        event loop stays free while tasks run. One event loop runs one run at a time: a
+        second `run_async` while one runs on the same event loop raises RuntimeError.
         """
+        if driven_here():
+            raise RuntimeError(f"Pipeline.run_async(): {SECOND_RUN}")
+        if inspect.isgeneratorfunction(flow):
+            raise generator_flow_error(_name(flow))
         suffix = "-stub" if self.stub is not None else "-replay" if self.replay is not None else ""
         run_id = run_id or f"{portable(flow.__name__)}{suffix}"
         with Run(
@@ -498,21 +512,21 @@ class Pipeline:
                     graph.flow_call_ended(call)
                     run.record_flow_call("end", call.id, state=call.state, error=call.error)
 
-            driver = FlowDriver(waits_for=graph.waits_for, answer=graph.answer, created=graph.take_new, on_flow_call=on_flow_call)
+            driver = FlowDriver(waits_for=graph.waits_for, answer=graph.answer, on_flow_call=on_flow_call)
             graph.driver = driver
 
             def follow_up(result: TaskResult) -> list[Task]:
                 graph.record(result)
                 return driver.follow_up(result)
 
-            with graph.building():
+            with graph.building(), driver.driving(), never_awaited() as forgotten:
                 try:
-                    value, tasks, driven = _start(flow, args, kwargs, graph, driver, run)
+                    value, driven = await _start(flow, args, kwargs, graph, driver, run)
                     if driven:  # route every kind its code can reach before the first launch
                         for spec in reachable(flow, *args, *kwargs.values()):
                             graph.reached(spec)
                     specs = graph.agent_specs()
-                    if not driven:  # a generator flow's kinds are known at its end (below)
+                    if not driven:  # an async flow's kinds are known at its end (below)
                         _check_tables(self.config, specs, graph)
                     plan = RoutingPlan.build(
                         self.config,
@@ -598,13 +612,16 @@ class Pipeline:
                     )
                     driver.past_grace = queue.past_hard_stop
                     journaled = len(run.rows())
-                    queue.extend(tasks)
+                    driver.attach(queue)  # the tasks created so far are queued
                     summary = await queue.run_async()
                 finally:
                     try:
                         services.close()
                     finally:
-                        driver.finish()
+                        await driver.finish()
+                gc.collect()  # a coroutine dropped in a reference cycle is reported too
+            for line in forgotten:
+                run.progress(f"[flow] {line}", warning=True)
             if driven:
                 specs = graph.agent_specs()
                 _check_tables(self.config, specs, graph)
@@ -671,26 +688,34 @@ def _checked_services(services: Mapping[str, Service] | None) -> dict[str, Servi
     return out
 
 
-def _start(
+def _name(flow: Callable[..., Any]) -> str:
+    return f"{getattr(flow, '__module__', '')}.{getattr(flow, '__qualname__', repr(flow))}"
+
+
+async def _start(
     flow: Callable[..., Any], args: tuple, kwargs: dict[str, Any], graph: Graph, driver: FlowDriver, run: Run
-) -> tuple[Any, list[Task], bool]:
-    """Call the flow: (its value, the tasks to queue first, whether it is driven).
+) -> tuple[Any, bool]:
+    """Call the flow: (its value, whether it is driven). An async flow runs to its first
+    wait (every flow call it starts, until each waits for a task).
 
     A flow that raises before a task is queued raises here: the static part of
-    any flow, or the first step of a generator flow that created no task."""
-    function = f"{getattr(flow, '__module__', '')}.{getattr(flow, '__qualname__', repr(flow))}"
+    any flow, or the first step of an async flow that created no task."""
+    function = _name(flow)
     try:
         value = flow(*args, **kwargs)
     except Exception as exc:
         run.record_flow_call("start", "0", function=function)
         run.record_flow_call("end", "0", state="raised", error=exc)
         raise
-    if not isinstance(value, GeneratorType):
+    if isinstance(value, GeneratorType):
+        value.close()
+        raise generator_flow_error(function)
+    if not inspect.iscoroutine(value):
         run.record_flow_call("start", "0", function=function)
         run.record_flow_call("end", "0", state="returned")
-        return value, graph.take_new(), False
-    tasks = driver.start(value)
-    top = driver.calls["0"]
+        return value, False
+    top = driver.start(value)
+    await driver.settle()
     if top.state == "raised" and not graph.nodes and top.error is not None:
         raise top.error
-    return None, tasks, True
+    return None, True

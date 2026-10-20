@@ -407,7 +407,7 @@ class RoutingPlan:
         hops included.
         With `all_kinds` (the default) `kinds` are every kind of the run, and a task
         table naming none of them is logged (`check_task_tables`); False for a plan of
-        some kinds only (a generator flow creates kinds as it runs).
+        some kinds only (an async flow creates kinds as it runs).
         """
         kinds = list(kinds)
         errors: list[str] = []  # every problem, reported together

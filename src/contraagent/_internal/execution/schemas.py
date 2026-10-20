@@ -255,8 +255,8 @@ class PlanRow(BaseModel):
 
 class FlowCallRow(BaseModel):
     """One line of `runs/<run>/flow_calls.jsonl`. `event` `start`: `parent`, `function`,
-    `flow` (the flow path where the parent yielded it; empty for a top flow call) and, for a
-    flow call yielded through `time_box`, `time_box`; `end`: `state` (`returned`, `raised`,
+    `flow` (the flow path where the parent created it; empty for a top flow call) and, for a
+    flow call started through `time_box`, `time_box`; `end`: `state` (`returned`, `raised`,
     `closed`) and `error` (`"<type>: <message>"` or null). A row holds only its event's fields."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", serialize_by_alias=True)

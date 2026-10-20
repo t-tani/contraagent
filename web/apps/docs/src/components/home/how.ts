@@ -44,7 +44,7 @@ function lines(file: string[], from: string, to: string): Line[] {
 
 export function how(): How {
   const file = repoFile(TASKS).split('\n');
-  const parts = [lines(file, 'class Summary(BaseModel)', 'points: list[str]'), lines(file, 'summarize = agent_task(', ')'), lines(file, 'def docs(', 'return (yield report(')];
+  const parts = [lines(file, 'class Summary(BaseModel)', 'points: list[str]'), lines(file, 'summarize = agent_task(', ')'), lines(file, 'def docs(', 'return await report(')];
   const quoted: Line[] = [];
   for (const p of parts) {
     if (quoted.length) quoted.push({ n: 0, html: '' });

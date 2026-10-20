@@ -865,7 +865,7 @@ def _checked_implementations(kind: str, implementations: Any, plugin: Any, instr
 class Implementations[Out](Mapping[str, AgentTask[Out]]):
     """One step declared with several implementations (`agent_task(implementations=)`): an
     agent task per implementation, by name. `review["go"]` is the kind `review-go`; call it as
-    any agent task (`yield review["go"](unit)`). `kind` is their base kind."""
+    any agent task (`await review["go"](unit)`). `kind` is their base kind."""
 
     def __init__(self, kind: str, tasks: Mapping[str, AgentTask[Out]]) -> None:
         self.kind = kind

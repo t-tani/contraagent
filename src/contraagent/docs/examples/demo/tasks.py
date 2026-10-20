@@ -2,8 +2,8 @@
 
 Each agent task is an interface (parameters, output, budget) whose
 implementation is a role of the `plugins/docs` plugin. A flow is a plain
-function: passing one task's result to another is the dependency. `docs` is a
-generator: it waits for results and decides on them (a review loop per unit).
+function: passing one task's result to another is the dependency. `docs` is an
+`async def` flow: it waits for results and decides on them (a review loop per unit).
 `docs_one_review` creates the same kinds of tasks without waiting for any.
 
 Each output declares an example that passes its validators (`examples` in its JSON
@@ -14,6 +14,7 @@ prepared unit, and the note names it.
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -144,24 +145,24 @@ def docs_one_review(units: list[str]):
     return report(summaries=summaries)
 
 
-def review_loop(unit: str):
+async def review_loop(unit: str):
     """One unit: its summary, revised until the review approves it, then its note.
     None when the summary could not be made."""
     try:
-        summary = yield summarize(unit, prepared=prepare(unit))
+        summary = await summarize(unit, prepared=prepare(unit))
     except TaskFailed:
         return None
     while True:
-        figures = yield score(unit, summary=summary)
-        verdict = yield review(unit, summary=summary, score=figures)
+        figures = await score(unit, summary=summary)
+        verdict = await review(unit, summary=summary, score=figures)
         if verdict.approved:
             break
-        summary = yield revise(unit, summary=summary, verdict=verdict)
-    yield write_note(unit, summary=summary)
+        summary = await revise(unit, summary=summary, verdict=verdict)
+    await write_note(unit, summary=summary)
     return summary
 
 
-def docs(units: list[str]):
+async def docs(units: list[str]):
     """Every unit's review loop at once (a flow call each), then one report over the approved summaries."""
-    summaries = yield [review_loop(u) for u in units]
-    return (yield report(summaries=[s for s in summaries if s is not None]))
+    summaries = await asyncio.gather(*[review_loop(u) for u in units])
+    return await report(summaries=[s for s in summaries if s is not None])

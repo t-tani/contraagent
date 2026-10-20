@@ -148,7 +148,7 @@ class Frame(BaseModel)
     file: str = Field(description="relative to the run's working directory when under it, else as recorded")
     function: str = Field(description='`module.qualname`')
     line: int
-    loops: tuple[Loop, ...] = Field(default=(), description='the loops of a generator whose pass `line` was in, outermost first; empty outside a loop and for any other frame')
+    loops: tuple[Loop, ...] = Field(default=(), description='the loops of an async flow whose pass `line` was in, outermost first; empty outside a loop and for any other frame')
     model_config: ConfigDict = ConfigDict(extra='forbid', frozen=True, serialize_by_alias=True)
 
 class Hop(BaseModel)
@@ -970,13 +970,13 @@ def save(name: str, value: Any) -> None
 def service_address(name: str) -> str | None
 
 def time_box(
-    flow: Generator[Y, S, R],
+    flow: Coroutine[Any, Any, T],
     *,
     deadline_s: float,
     grace_s: float = GRACE_S,
     finishing_kinds: Iterable[str] = (),
     slack_s: float | None = None,
-) -> Generator[Y, S, R]
+) -> Awaitable[T]
 
 ## contraagent.config
 
@@ -1903,6 +1903,9 @@ class Before
     text: str | None = None
     def value(self, schema: type[BaseModel] | None) -> Any
 
+class BetweenPasses(Protocol)
+    def __call__(self) -> Awaitable[bool]
+
 @dataclass
 class Check
     def __init__(
@@ -1922,9 +1925,6 @@ class Check
 class ClaimCapacity(Protocol)
     def allowed(self, held: int) -> int
     def started(self) -> None
-
-class Created(Protocol)
-    def __call__(self) -> Iterable[Task]
 
 class CredentialRests
     def __init__(
@@ -2021,7 +2021,6 @@ class FlowCall
     def __init__(
         self,
         id: str,
-        gen: Generator[Any, Any, Any],
         parent: FlowCall | None = None,
         function: str = '',
         site: tuple[str, int] | None = None,
@@ -2031,17 +2030,19 @@ class FlowCall
         error: BaseException | None = None,
         time_box: TimeBox | None = None,
         started_at: float = time.time(),
-        _children: itertools.count = (lambda: itertools.count(1))(),
+        task: asyncio.Task[Any] | None = None,
+        coro: Any = None,
     ) -> None
+    coro: Any = field(default=None, repr=False)
     error: BaseException | None = None
     frontier: tuple[str, ...] = ()
     function: str = ''
-    gen: Generator[Any, Any, Any] = field(repr=False)
     id: str
     parent: FlowCall | None = field(default=None, repr=False)
     site: tuple[str, int] | None = None
     started_at: float = field(default_factory=time.time)
     state: FlowState = 'running'
+    task: asyncio.Task[Any] | None = field(default=None, repr=False)
     time_box: TimeBox | None = None
     value: Any = field(default=None, repr=False)
 
@@ -2051,22 +2052,27 @@ class FlowDriver
         *,
         waits_for: WaitsFor | None = None,
         answer: Answer | None = None,
-        created: Created | None = None,
         on_flow_call: OnFlowCall | None = None,
         past_grace: Callable[[], bool] | None = None,
         slow_step_s: float = 1.0,
     ) -> None
+    def add(self, task: Task) -> None
+    def alive(self) -> bool
+    def attach(self, queue: WorkQueue) -> None
     calls: dict[str, FlowCall]
-    current: FlowCall | None
+    @property current: FlowCall | None
     done: dict[str, TaskResult]
-    def finish(self) -> None
+    def driving(self) -> Iterator[FlowDriver]
+    async def finish(self) -> None
     def follow_up(self, result: TaskResult) -> list[Task]
     past_grace: Callable[[], bool] | None
-    def run(self, queue: WorkQueue, *flows: Generator[Any, Any, Any]) -> dict[str, Any]
+    def run(self, queue: WorkQueue, *flows: Coroutine[Any, Any, Any]) -> dict[str, Any]
+    async def run_async(self, queue: WorkQueue, *flows: Coroutine[Any, Any, Any]) -> dict[str, Any]
+    async def settle(self) -> bool
     slow_step_s
-    def start(self, flow: Generator[Any, Any, Any]) -> list[Task]
+    def start(self, flow: Coroutine[Any, Any, Any]) -> FlowCall
     def time_boxes(self, call: FlowCall | None) -> tuple[TimeBox, ...]
-    @property waiting: list[FlowCall]
+    async def wait(self, item: Any) -> Any
 
 class FollowUp(Protocol)
     def __call__(self, result: TaskResult, /) -> list[Task]
@@ -2416,6 +2422,7 @@ class WorkQueue
         runner: TaskRunner,
         *,
         follow_up: FollowUp | None = None,
+        between_passes: BetweenPasses | None = None,
         on_event: OnEvent | None = None,
         on_result: OnResult | None = None,
         max_concurrent: int = MAX_CONCURRENT,
@@ -2433,6 +2440,7 @@ class WorkQueue
         slack_s: float | None = None,
     )
     def add(self, task: Task) -> bool
+    between_passes: BetweenPasses | None
     def capacity(self, name: str) -> int
     claim_capacity: dict[str, int | ClaimCapacity]
     deadline_at: float | None
@@ -2459,6 +2467,7 @@ class WorkQueue
     throttle_on: frozenset[str]
     throttle_s
     time_box: TimeBox | None
+    def wake(self) -> None
 
 def run_until_valid(
     backend: Backend,
@@ -3079,14 +3088,14 @@ class FileView(Closed)
     truncated: bool = False
 
 class FlowCallNode(Closed)
-    error: str | None = Field(None, description='`<type>: <message>` of what it raised (or what closing it raised); else null')
-    flow: list[Frame] = Field(default_factory=list, description="the flow path where the parent yielded it, with its loops' passes; empty for a top flow")
-    function: str = Field(description='`module.qualname` of the generator function (or of a flow that does not yield)')
+    error: str | None = Field(None, description='`<type>: <message>` of what it raised (or what cancelling it raised); else null')
+    flow: list[Frame] = Field(default_factory=list, description="the flow path where the parent created it, with its loops' passes; empty for a top flow")
+    function: str = Field(description='`module.qualname` of the async def function (or of a flow that does not wait)')
     id: str = Field(description='`0` for the top flow, `<parent>.<n>` for a child')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     parent: str | None = Field(description="the parent flow call's id; null for a top flow")
     state: FlowState
-    time_box: TimeBoxRecord | None = Field(None, description='its own deadline, for a flow call yielded through `time_box`; else null')
+    time_box: TimeBoxRecord | None = Field(None, description='its own deadline, for a flow call started through `time_box`; else null')
 
 class HostSummary(Closed)
     host_id: str

@@ -282,7 +282,7 @@ def test_a_callable_a_user_writes_is_a_protocol_with_its_call_documented():
     signature, so `help()` and a type checker both show it."""
     callables = {
         "contraagent": ["QuotaRule", "TaskScope", "Validator"],
-        "contraagent.engine": ["AccountOf", "Answer", "Created", "FollowUp", "OnEvent", "OnFlowCall", "OnResult", "WaitsFor"],
+        "contraagent.engine": ["AccountOf", "Answer", "BetweenPasses", "FollowUp", "OnEvent", "OnFlowCall", "OnResult", "WaitsFor"],
         "contraagent.monitor": ["PanelFn", "TaskDetailFn", "TrendsPanelFn"],
         "contraagent.backends": ["Sink"],
     }
@@ -420,7 +420,7 @@ def test_the_scheduling_arguments_are_the_queues():
     scheduling = {"deadline_s", "grace_s", "slack_s", "finishing_kinds", "overdue_s", "claim_capacity", "retry_wait_s", "throttle_s"}
     assert {k: pipeline[k] for k in scheduling} == {k: queue[k] for k in scheduling}
     run_queue = _keywords(Run.queue, leave=("runner", "resume"))
-    assert set(run_queue) == set(queue) - {"on_event", "on_result"}
+    assert set(run_queue) == set(queue) - {"on_event", "on_result", "between_passes"}  # `FlowDriver.attach` sets it
     assert [k for k in run_queue if run_queue[k] != queue[k]] == ["retry_on", "throttle_on"]  # a coding agent's stops
     assert _keywords(Run.agent_runner) == _keywords(AgentRunner, leave=("run_dir", "run_id"))
     assert _keywords(Run.credential_rests) == _keywords(CredentialRests, leave=("on_change", "now", "clock"))

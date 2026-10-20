@@ -36,8 +36,8 @@ def test_a_partial_result_is_ok_its_value_the_output_and_the_flow_receives_it(tm
     def double(n: int) -> Count:
         return Count(n=n * 2 + 1)
 
-    def flow():
-        c = yield count("a")
+    async def flow():
+        c = await count("a")
         double(n=c.n)
 
     report = pipeline(tmp_path).run(flow)

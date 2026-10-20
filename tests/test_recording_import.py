@@ -1,6 +1,7 @@
 """Recordings imported from a run that was not recorded (`import_recording`, `contraagent
 recording import`): what a replay then plays, and what the import leaves out."""
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -37,10 +38,10 @@ def look_up(topic: str) -> Note | Partial[Note]:
     return Partial(Note(title=f"{topic}, from the cache"), reason="the local index server is not up")
 
 
-def flow(units: list[str]):
-    notes = yield [write(u) for u in units]
-    yield summarize(units[0])
-    return (yield count(notes=notes))
+async def flow(units: list[str]):
+    notes = await asyncio.gather(*[write(u) for u in units])
+    await summarize(units[0])
+    return await count(notes=notes)
 
 
 def edit(launch):
@@ -150,10 +151,10 @@ def test_an_imported_recording_plays_only_for_its_own_key(tmp_path):
 
 
 def test_what_did_not_finish_or_cannot_be_imported_is_reported(tmp_path):
-    def three(units):
-        yield [write(u) for u in units]
-        yield tidy("all")
-        yield summarize(units[0])
+    async def three(units):
+        await asyncio.gather(*[write(u) for u in units])
+        await tidy("all")
+        await summarize(units[0])
 
     def tidied(launch):
         (Path(launch.call.cwd) / "topics" / "alpha" / "old.md").write_text("tidied")

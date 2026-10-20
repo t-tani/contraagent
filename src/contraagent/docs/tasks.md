@@ -100,10 +100,12 @@ it wrote passes its checks: `agent_task(partial_on=["timeout", "stalled"])`, in
 
 ## The flow
 
-A flow is a plain function, with no decorator. `Pipeline` tells a generator flow
-(one that yields) from one that does not by itself.
+A flow is a function, with no decorator. A flow that waits for outputs is an
+`async def` function (see [Flows that depend on results](#flows-that-depend-on-results));
+a flow that does not wait is a plain `def` function. `Pipeline` tells one from the
+other by itself.
 
-A flow that does not yield creates every task at once:
+A flow that does not wait creates every task at once:
 
 ::code{file="examples/demo/tasks.py" from="def docs_one_review(" to="def review_loop("}
 
@@ -132,15 +134,19 @@ reference to the task's future output:
 - After the run, `pending.output` is the checked value.
 
 `contraagent run <file.py>:<flow> --config ... --kwargs '{...}'` runs a flow from
-the command line, with the arguments `contraagent check` takes, and exits 1 when
-a task or the flow failed. A program calls `Pipeline.run`, which returns a
-`RunReport`: `ok`, `failed`, `deferred`, the results by task key, `flow_errors`,
-and `value`, whatever the flow returned (a `Pending` in it reads its task's output);
-its docstring lists every field.
-A deferred task (not launched: past a deadline, or on a resting credential) is in
-`deferred`, with its cause, and is no failure: `ok` holds when no task failed and
-the flow returned. A `TaskDeferred` the flow does not catch ends the flow without
-its value, so it is a flow error and `ok` is False.
+the command line, with the arguments `contraagent check` takes, and exits 1 when a
+task or the flow failed. A program calls `Pipeline.run`, which returns a
+`RunReport`. Async code (an `async def` function, a notebook) calls
+`await Pipeline.run_async(...)` instead: it runs the flow on the running event loop and
+returns the same report, and `Pipeline.run` raises `RuntimeError` there. One event
+loop runs one run at a time: a second `run_async` on a loop that runs one raises an
+error. The `RunReport` holds `ok`, `failed`, `deferred`, the results by task key,
+`flow_errors`, and `value`, whatever the flow returned (a `Pending` in it reads its
+task's output); its docstring lists every field. A deferred task (not launched: past
+a deadline, or on a resting credential) is in `deferred`, with its cause, and is no
+failure: `ok` holds when no task failed and the flow returned. A `TaskDeferred` the
+flow does not catch ends the flow without its value, so it is a flow error and `ok`
+is False.
 
 A run id is a file name on every operating system, so that a pipeline written on
 Linux also runs on Windows. It holds no `/`, `\`, `<`, `>`, `:`, `"`, `|`, `?`, `*`
@@ -164,13 +170,13 @@ of:
   schema, its validators and its params schema; for a Python task, its function's
   source, its output schema and its validators;
 - each task it waits for: the content of that task's output file when the flow
-  received the output and passed it on (a generator flow), else that task's
+  received the output and passed it on (an async flow), else that task's
   fingerprint (a task call passed before it finished, as in a flow that does not
-  yield).
+  wait).
 
 A changed parameter or an edited instruction, role file or function runs its task
 again. A task after it runs again when the output it received changed: one that
-wrote the same output leaves it skipped. In a flow that does not yield, every task
+wrote the same output leaves it skipped. In a flow that does not wait, every task
 after it runs again. The functions that call the tasks, their names and lines are
 not part of it: renaming a function of the flow runs nothing again.
 
@@ -232,31 +238,58 @@ docstring lists them.
 
 ## Flows that depend on results
 
-A flow that is a generator yields a task call and receives the task's checked
-output at the `yield`, so what it creates next can depend on it. The demo's
-`docs` reviews each unit's summary and revises it until the review approves it,
-every unit at once, then one report joins them. A unit whose summary could not
-be made (`zeta`) ends its loop there.
+A flow that waits for outputs is an `async def` function. It awaits a task call and
+receives the task's checked output at the `await`, so what it creates next can
+depend on it. The demo's `docs` reviews each unit's summary and revises it until the
+review approves it, every unit at once, then one report joins them. A unit whose
+summary could not be made (`zeta`) ends its loop there.
 
 ::code{file="examples/demo/tasks.py" from="def review_loop("}
 
-- `yield task(...)` receives the output: the model instance, the text (a `str`),
-  the Python task's return value, or None for a task with no output.
-- `yield [a, b]` (a list or a tuple) waits for every item and receives the
-  outputs in order. An item may be a generator: it runs as its own flow call,
-  beside the others, and what it returns is its item. `yield from sub(...)` runs
-  `sub` in the same flow call.
+- `await task(...)` receives the output: the model instance, the text (a `str`),
+  the Python task's return value, or None for a task with no output. A task call
+  returns `Pending[Out]`, and the `await` gives an `Out`, so a type checker knows
+  the output's type.
+- A task call does not wait. It queues the task and returns its `Pending` at once,
+  so a helper function that only creates tasks can be a plain `def`. A task called
+  and never awaited still runs; the flow call does not wait for it.
+- `await sub(...)`, for an `async def` function `sub` of flow code, runs `sub` in
+  the same flow call, as any function call does. A coroutine that is never awaited
+  (`sub(u)` without `await`) never runs: the run logs a warning line for it, and
+  `contraagent check` reports it as an error.
+- Work at the same time is plain asyncio; contraagent adds no functions of its
+  own for it. `await asyncio.gather(a, b)` waits for every item and receives the
+  outputs in order, each with its own type. An item may be a task call or a child
+  flow, `sub(...)`: an asyncio Task whose coroutine is flow code is a flow call of
+  its own, beside the others, and what it returns is its item.
+  `asyncio.TaskGroup` and `asyncio.create_task` start flow calls in the same way.
 - Passing a received output on to another task is the dependency, as passing
   the task call is: the second review waits for the revision and reads its file.
   A number, a bool, None or a `str` the flow built is a value.
-- A task that did not succeed raises `TaskFailed` at the `yield` (`.stop`,
+- A task that did not succeed raises `TaskFailed` at the `await` (`.stop`,
   `.key`, `.result`, and `.item`, the task call); a refused task too
   (`invalid_input`), and an output that no longer passes its checks
   (`invalid_output`). A task not launched by the deadline, or whose remaining
   work cannot finish before it, raises `TaskDeferred`, which a flow may answer
-  with a task of a `finishing_kinds` kind. A batch settles every item, then raises the first failure by position.
-  Tolerating a failure is `try`/`except`.
-- A task called and never yielded still runs; the flow call does not wait for it.
+  with a task of a `finishing_kinds` kind. An exception that ends a child flow
+  call is raised again at its parent's `await`.
+- One failure is tolerated with `try`/`except` around its `await`. Without more
+  arguments, `gather` raises the first failure as soon as it comes, and the other
+  items go on running. To tolerate failures in a group, give
+  `return_exceptions=True`: `gather` then waits for every item, and an item that
+  failed is its exception. Inspect the items by position, as `analyse_bundle`
+  does in [Flow calls, loops and layers](#flow-calls-loops-and-layers).
+- Flow code does not depend on the order in which tasks finish. A resume runs the
+  flow again, and its skipped tasks finish in another order than the first run's.
+  A branch on `asyncio.as_completed`, on `asyncio.wait(..., return_when=FIRST_COMPLETED)`
+  or on which exception `gather` raises first can create other tasks on a resume.
+  `gather(..., return_exceptions=True)`, inspected by position, gives the same
+  answer in every order.
+- Cancelling a flow call never cancels the agent tasks it created: they run to
+  their end, and their results are in the run. A flow call is cancelled when a
+  sibling in its `asyncio.TaskGroup` fails, when its time box is past its grace
+  window, or when the run ends before it returns; `flow_calls.jsonl` records it
+  `closed`.
 - A task's output file is its kind's `output_name` under the run's `out/`: a
   path template with `{kind}`, `{unit}` and `{key}`, `{unit}` being the key for a
   task call given `key=`, so tasks of one kind and one unit with different keys
@@ -293,14 +326,18 @@ be made (`zeta`) ends its loop there.
   exception is in `RunReport.flow_errors`: `ok` is False and `contraagent run`
   exits 1.
 
-Flow code runs between two `yield`s on the thread that schedules every task: a
+Flow code runs between two `await`s on the event loop that schedules every task: a
 step that takes more than a second is logged, and heavy work belongs in a Python
-task. A resumed run runs the flow again from the start and answers each skipped
-task with its output, so the flow must create the same tasks for the same
-outputs: a random choice or the clock belongs in a Python task too.
+task. Flow code does no I/O either: no file, network or subprocess call, through an
+async client or not. I/O belongs in a Python task: the run records its output, and a
+resume skips it. Flow code does not start another run or event loop: `Pipeline.run`
+and `asyncio.run` raise inside a flow. A resumed run runs the flow again from the
+start and answers each skipped task with its output, so the flow must create the
+same tasks for the same outputs: a random choice or the clock belongs in a Python
+task too.
 
-The queue starts first the ready tasks with the longest work after them. In a
-generator flow that work is not queued yet, so it is estimated (a task's tail,
+The queue starts first the ready tasks with the longest work after them. In an
+async flow that work is not queued yet, so it is estimated (a task's tail,
 `contraagent.engine.JournalEstimates`): the median, over
 tasks of the same kind created by the same functions in the same passes of
 their loops (pass 3 and later counted as one), of the longest chain of wall
@@ -326,16 +363,16 @@ these words itself.
 
 Each task records where the flow created it (`plan.jsonl`: `flow`,
 `created_from`, `flow_call`), and each flow call its start, with the frames of
-its parent where the parent yielded it (`flow`), and its end
+its parent where the parent created it (`flow`), and its end
 (`flow_calls.jsonl`); the docstring of `contraagent.engine.Run` lists the
 files and `contraagent.Origin` the fields. A flow that does
-not yield is flow call `0`, and its tasks have no `created_from`.
-`contraagent check` runs a generator flow to its first wait and checks the kinds
+not wait is flow call `0`, and its tasks have no `created_from`.
+`contraagent check` runs an async flow to its first wait and checks the kinds
 its code reaches (see [Checking and testing](testing.md)).
 
 ### Loops and passes
 
-A loop is a `for` or `while` statement of a generator in flow code, named by its
+A loop is a `for` or `while` statement in flow code, named by its
 first line. A pass is one iteration of one loop: 1 when the loop is entered, and
 one more each time it goes back to its start (the end of its body, or
 `continue`), whether or not that iteration created a task. Each frame of a
@@ -344,34 +381,35 @@ with its pass (`flow[].loops`: `{"line": 122, "pass": 1}, {"line": 125, "pass":
 2}` is pass 2 of the inner loop in pass 1 of the outer one). A loop entered again
 starts again at pass 1: an inner loop counts from 1 in each pass of the outer
 one. Each flow call counts its own: two flow calls of one function do not share
-passes. A loop in a function that is not a generator, or in code outside the flow
-(the standard library, contraagent), is not listed.
+passes. A loop in code outside the flow (the standard library, contraagent) is
+not listed.
 
 These are not passes:
 
 - an attempt: a retry of one task;
 - the `~n` of a key: the n-th task under one key in a flow call (`refine-u~3`
   may be pass 2 of an inner loop in pass 2 of the outer one);
-- a comprehension: `yield [step(u) for u in units]` is a fan-out, its tasks in
-  the passes of the loops around it, with no pass of their own.
+- a comprehension: `await asyncio.gather(*[step(u) for u in units])` is a
+  fan-out, its tasks in the passes of the loops around it, with no pass of their
+  own.
 
 `max_passes` (`Pipeline(max_passes=)` or `[defaults] max_passes`, 10 by default)
-bounds every `while` loop: a task call, or a `yield` of a child flow call, in a
+bounds every `while` loop: a task call, or the start of a child flow call, in a
 later pass raises `TooManyPasses`, which names the loop (`file:line`) and the
-pass; for a child flow call the parent receives it at the `yield`. A `for` loop
+pass; for a child flow call the parent receives it at the `await`. A `for` loop
 has no limit: it ends with its iterable. A comprehension has none either.
 
-Loops that converge at different speeds need different bounds. A generator
+Loops that converge at different speeds need different bounds. An `async def`
 function decorated with `@max_passes(n)` gives each `while` loop of its own code
 the bound `n`, in every call of it, in place of the run's value; every other loop
 keeps the run's. The decorator returns the function itself, so the flow is still a
 plain function, and `max_passes` is imported from `contraagent`. `analyse_file`, in
 the next section, revises a column's reading at most 4 times whatever the run's
 `max_passes` is. Two loops that need different bounds go in two
-functions: one of them may run in the same flow call through `yield from`, since the
+functions: one of them may run in the same flow call through `await`, since the
 bound belongs to the function's code, not to the flow call. `TooManyPasses` names
-the function whose bound the loop passed. `@max_passes` on a function that is not a
-generator function, or that has no `while` loop, raises `TypeError` where it is
+the function whose bound the loop passed. `@max_passes` on a function that is not
+an `async def` function, or that has no `while` loop, raises `TypeError` where it is
 declared.
 
 Passes are counted from the loops' back edges as the flow runs
@@ -381,13 +419,17 @@ use (3 and 4) are both taken, `pass` is null and no loop is bounded.
 
 ## Flow calls, loops and layers
 
-A generator a flow yields runs as its own flow call, so flows nest to any depth,
-with loops inside loops. `examples/analysis/flow.py` has three layers:
-`analyse` yields one `analyse_bundle` per bundle; each `analyse_bundle` fans out
-a `classify` per file (a batch sized by what `unpack` returned) and yields one
-`analyse_file` per data file; each `analyse_file` picks its parser by the file's
-format (a kind chosen on a result, both reachable), then loops over the top
-columns and, inside that, revises each until `verify` accepts it.
+A child flow that a flow gives to `asyncio.gather`, `asyncio.TaskGroup` or
+`asyncio.create_task` runs as its own flow call, so flows nest to any depth, with
+loops inside loops. A flow call's id is its parent's and a number: `0.1`, `0.1.2`,
+the n-th flow call its parent created, counted from 1. The numbers follow the order
+of creation, not the order of finishing, so the same flow code gives the same ids in
+every run. `examples/analysis/flow.py` has three layers: `analyse` gathers one
+`analyse_bundle` per bundle; each `analyse_bundle` fans out a `classify` per file (a
+group sized by what `unpack` returned), leaves out a file whose `classify` failed,
+and gathers one `analyse_file` per data file; each `analyse_file` picks its parser
+by the file's format (a kind chosen on a result, both reachable), then loops over
+the top columns and, inside that, revises each until `verify` accepts it.
 
 ::code{file="examples/analysis/flow.py" from="@max_passes(4)" to="def analyse_bundle("}
 
@@ -407,8 +449,8 @@ agent what to put there, as for any other field:
 
 ::code{file="examples/missing/flow.py" from="class Review(" to="class Fetched("}
 
-The flow reads the field at the `yield` and acts on it. Here it runs the task that
-provides each missing document and yields the review again with the documents it now
+The flow reads the field at the `await` and acts on it. Here it runs the task that
+provides each missing document and runs the review again with the documents it now
 has; the second review of a unit has the key `review-<unit>~2`. The `while` loop ends
 when nothing is missing or nothing new was found, and `max_passes` bounds it as any
 other loop:
@@ -430,9 +472,11 @@ the item appears.
 
 `Pipeline(deadline_s=)` is a deadline over the whole run. When only one part of a
 flow must end in time, and the steps after it must run however it went, put that
-part in a **time box**: yield its generator through `time_box(...)`. Its deadline
-counts from the moment that flow call starts, and holds over the tasks it and the
-flow calls it starts create; nothing outside it is held to it.
+part in a **time box**: give its coroutine to `time_box(...)` and await what it
+returns. The part runs as a flow call of its own; `time_box(...)` can also be an
+item of `asyncio.gather`. Its deadline counts from the moment that flow call
+starts, and holds over the tasks it and the flow calls it starts create; nothing
+outside it is held to it.
 
 ::code{file="examples/time_box/flow.py" from="def topic_work("}
 
@@ -441,8 +485,10 @@ quarter of `deadline_s`) its tasks go before the others, its `finishing_kinds`
 first, and one whose known remaining work cannot finish in time is deferred at
 once; past the deadline only its `finishing_kinds` launch, for `grace_s`; every
 other task it creates is deferred, and the flow receives `TaskDeferred` at its
-`yield`. A box whose flow does not catch it raises it to the flow call that
-yielded the box, which may catch it and go on. The deferred tasks are in
+`await`. A box whose flow does not catch it raises it to the flow call that
+awaits the box, which may catch it and go on. A box past its grace window is
+cancelled: its flow call is `closed`, and the agent tasks it created still run to
+their end. The deferred tasks are in
 `RunReport.deferred`, not `failed`: a flow that caught the deferral and returned
 leaves the run ok, and `contraagent run` exits 0.
 
@@ -507,7 +553,7 @@ as memory frees, and a waiting task starts then, while the others still run.
 
 A claim that names `{unit}` on a task with no unit, or a parameter the call does
 not give, raises at the task call; so does a parameter that is an output not
-received yet (yield it first), and one that holds an empty list, which would claim
+received yet (await it first), and one that holds an empty list, which would claim
 nothing. Claims are not part of the fingerprint: they change
 when a task runs, not what it does. The plan records each task's claims, and the
 monitor shows them in the task's detail.
@@ -752,8 +798,6 @@ first agent, stops the agents still running once that process is gone.
 
 The parts under `Pipeline` work on their own (`contraagent.engine`); their docstrings
 describe them.
-With its default callbacks, `FlowDriver` drives generators that yield `Task`s
-and receive `TaskResult`s.
 
 | Part | What it does |
 |---|---|
@@ -762,7 +806,7 @@ and receive `TaskResult`s.
 | `PythonTaskRunner` | Python tasks in-process, checked by the same contracts |
 | `TaskAdapter` | what a domain says about its tasks (prompt, plugin, contracts, changes, env) |
 | `WorkQueue` | claims and their capacities, caps, retry, throttle; a greedy schedule by bottom level, then priority, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first, deferring what cannot finish; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
-| `FlowDriver` | generator flows over a `WorkQueue`, for flows that depend on results: each `yield` waits for tasks or child flow calls, and a failure raises `TaskFailed` there |
+| `FlowDriver` | async flows over a `WorkQueue`, for flows that depend on results: each `await` waits for a task or a child flow call, and a failure raises `TaskFailed` there |
 | `RoutingPlan`, `Router`, `CredentialRests` | per-kind routing and budgets, the failover chain, and the credentials that rest on their quota or after a refused launch |
 | `run_until_valid`, `OutputContract`, `InputContract` | files checked by schema and validators; resume until they pass |
 | `CursorStore` | resume cursor: stage, per-unit step, in-flight work, markers |

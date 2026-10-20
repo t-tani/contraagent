@@ -1,5 +1,6 @@
 """A stub run (`Pipeline(stub=)`, `contraagent run --stub`): the stub agent plays every task."""
 
+import asyncio
 import json
 import sys
 from pathlib import Path
@@ -91,11 +92,11 @@ def publish(found: list[Found]) -> None:
     calls.append("publish")
 
 
-def flow(units: list[str]):
-    paths = yield [fetch(u) for u in units]
-    found = yield [find(u, path=p) for u, p in zip(units, paths, strict=True)]
+async def flow(units: list[str]):
+    paths = await asyncio.gather(*[fetch(u) for u in units])
+    found = await asyncio.gather(*[find(u, path=p) for u, p in zip(units, paths, strict=True)])
     kept = [f for f in found if f.verdict == "keep"]
-    yield publish(found=kept)
+    await publish(found=kept)
     return len(kept)
 
 

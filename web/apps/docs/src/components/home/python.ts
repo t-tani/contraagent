@@ -2,7 +2,7 @@
 // the themes' code tokens (--ca-code-*). Built with the site: no highlighter in the page.
 
 const KEYWORDS = new Set([
-  'def', 'return', 'yield', 'try', 'except', 'while', 'if', 'else', 'elif', 'break', 'for', 'in', 'is', 'not', 'and', 'or',
+  'async', 'def', 'await', 'return', 'yield', 'try', 'except', 'while', 'if', 'else', 'elif', 'break', 'for', 'in', 'is', 'not', 'and', 'or',
   'import', 'from', 'class', 'with', 'as', 'raise', 'pass', 'lambda',
 ]);
 const CONSTANTS = new Set(['True', 'False', 'None']);

@@ -27,11 +27,11 @@ def test_a_stub_run_rests_a_credential_past_its_cap_and_falls_over(tmp_path):
     stub = StubAgent({"q": writes({"note": "n"}, quota=QuotaReading(five_hour_pct=80.0)), "q_nohop": {"note": "n"}})
     deferred: list[str] = []
 
-    def flow():
-        yield q("first")  # runs on capped, which reports 80%
-        yield q("second")  # capped rests: the omp hop
+    async def flow():
+        await q("first")  # runs on capped, which reports 80%
+        await q("second")  # capped rests: the omp hop
         try:
-            yield q_nohop("third")  # no hop left: deferred
+            await q_nohop("third")  # no hop left: deferred
         except TaskDeferred as exc:
             deferred.append(str(exc))
 

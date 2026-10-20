@@ -1,6 +1,7 @@
 """Recordings and replays (`Pipeline(record=)`, `Pipeline(replay=)`, `contraagent run
 --record/--replay`): a run's task attempts kept, then played with nothing spent."""
 
+import asyncio
 import contextlib
 import json
 import os
@@ -35,10 +36,10 @@ def count(notes: list[Note]) -> int:
     return len(notes)
 
 
-def flow(units: list[str]):
-    notes = yield [write(u) for u in units]
-    yield summarize(units[0])
-    return (yield count(notes=notes))
+async def flow(units: list[str]):
+    notes = await asyncio.gather(*[write(u) for u in units])
+    await summarize(units[0])
+    return await count(notes=notes)
 
 
 def edit(launch):
@@ -223,8 +224,8 @@ def test_a_replay_is_not_combined_with_what_would_launch_or_record(tmp_path):
         Pipeline(replay=tmp_path / "empty")
 
 
-def cli_flow(units: list[str]):
-    yield [write(u) for u in units]
+async def cli_flow(units: list[str]):
+    await asyncio.gather(*[write(u) for u in units])
 
 
 def test_the_cli_records_and_replays(tmp_path, monkeypatch, capsys):
@@ -349,10 +350,10 @@ def test_a_recording_run_reports_the_changes_no_task_declared(tmp_path):
     (cwd / "old-report.txt").write_text("old")
     stray[:] = [cwd / "report.txt", cwd / ".git" / "index", cwd / "pkg" / "__pycache__" / "m.pyc"]
 
-    def flow(units):
+    async def flow(units):
         (cwd / "old-report.txt").unlink()  # the flow's own side effect
-        yield write(units[0])
-        return (yield publish(title="done"))
+        await write(units[0])
+        return await publish(title="done")
 
     lines: list[str] = []
     agent = StubAgent({"write": edit}, execute=["publish"])
@@ -445,8 +446,8 @@ def tally(unit: str, words: int) -> Note:
     return Note(title=unit)
 
 
-def tally_flow(units: list[str]):
-    yield [tally(u, words=len(u)) for u in units]
+async def tally_flow(units: list[str]):
+    await asyncio.gather(*[tally(u, words=len(u)) for u in units])
 
 
 def counts_panel(run) -> dict:

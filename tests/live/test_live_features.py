@@ -526,13 +526,13 @@ def test_a_credential_past_its_credential_rests_and_its_tasks_fall_over(ws, agen
     }
     deferred = []
 
-    def flow():
-        yield kinds["q_capped"]("first")  # no reading yet: runs on the capped credential, which reports one
-        yield kinds["q_ruled"]("first")
-        yield kinds["q_capped"]("second")  # past its cap now: the fallback hop
-        yield kinds["q_ruled"]("second")  # the rule rests it: the fallback hop
+    async def flow():
+        await kinds["q_capped"]("first")  # no reading yet: runs on the capped credential, which reports one
+        await kinds["q_ruled"]("first")
+        await kinds["q_capped"]("second")  # past its cap now: the fallback hop
+        await kinds["q_ruled"]("second")  # the rule rests it: the fallback hop
         try:
-            yield kinds["q_nohop"]("third")  # no hop left: deferred
+            await kinds["q_nohop"]("third")  # no hop left: deferred
         except TaskDeferred as exc:
             deferred.append(str(exc))
 
@@ -634,21 +634,21 @@ def test_a_time_box_cuts_its_own_work_and_the_flow_goes_on_after_it(ws, agent):
     wrap = agent_task(f"wrap_{agent}", instructions=say, output=Note, max_turns=6, timeout_s=300, **route(agent))
     after = agent_task(f"after_{agent}", instructions=say, output=Note, max_turns=6, timeout_s=300, **route(agent))
 
-    def work(topics):
+    async def work(topics):
         done = []
         for topic in topics:
             try:
-                yield jot(topic)
+                await jot(topic)
             except TaskDeferred:
                 break
             done.append(topic)
-        yield wrap("all")  # a finishing kind: launches past the deadline, in the grace window
+        await wrap("all")  # a finishing kind: launches past the deadline, in the grace window
         return done
 
-    def flow():
+    async def flow():
         box = time_box(work([f"t{i}" for i in range(6)]), deadline_s=12, grace_s=120, finishing_kinds=[f"wrap_{agent}"])
-        done = yield box
-        yield after("next")  # outside the box: its deadline does not hold here
+        done = await box
+        await after("next")  # outside the box: its deadline does not hold here
         return done
 
     report = pipeline(ws).run(flow, run_id=f"time-box-{agent}")
@@ -684,9 +684,9 @@ def test_each_reading_names_its_account_alike_across_launches(ws, agent):
         **route(agent),
     )
 
-    def flow():
-        yield say("one")
-        yield say("two")
+    async def flow():
+        await say("one")
+        await say("two")
 
     p = pipeline(ws)
     expected = p.backends[ROUTES[agent][0]].account(AMBIENT, ROUTES[agent][1])
