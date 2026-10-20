@@ -4,6 +4,7 @@ the context window from the catalogue), and the one stop ladder (`refusal.classi
 
 import json
 import os
+import threading
 
 import pytest
 
@@ -338,3 +339,39 @@ def test_a_cool_off_is_read_in_either_form():
     assert parse_retry_after('{"retry_after": 30}') == 30.0
     assert parse_retry_after("no cool-off") is None
     assert json.dumps(parse_retry_after("")) == "null"
+
+
+# --- what a backend makes once, however many launches ask together --------------------------
+
+
+def test_threads_that_ask_together_get_one_version_one_catalogue_and_one_scratch_root(tmp_path, monkeypatch):
+    from contraagent._internal.backends import base
+
+    made: list[str] = []
+    monkeypatch.setattr(base, "cli_version", lambda binary, env: made.append("version") or "1.0")
+
+    class Counting(OmpBackend):
+        def read_models(self):
+            made.append("models")
+            return {"p/m": 1000}
+
+        def scratch_parent(self):
+            made.append("scratch")
+            return tmp_path / "scratch"
+
+    backend = Counting(base_env={}, trace=False)
+    start = threading.Barrier(8)
+    got: list[tuple] = []
+
+    def ask() -> None:
+        start.wait()
+        got.append((backend.version(), backend.models(), backend.scratch("t", "a").parent.parent))
+
+    threads = [threading.Thread(target=ask) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sorted(made) == ["models", "scratch", "version"]
+    assert len(got) == 8 and len({str(g) for g in got}) == 1
+    assert [p.name for p in (tmp_path / "scratch").iterdir()] == [got[0][2].name]
