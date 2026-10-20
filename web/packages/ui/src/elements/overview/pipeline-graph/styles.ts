@@ -56,8 +56,8 @@ export const graphStyles = [
     .opens { display: inline-flex; gap: 6px; margin-left: auto; }
 
     /* The outline: a column beside the graph, or a part above it on a narrow frame. */
-    .whole { display: grid; grid-template-columns: minmax(200px, 282px) minmax(0, 1fr); gap: 14px; align-items: start; }
-    .whole > .g { min-width: 0; }
+    .whole, .whole > .g { display: flex; flex-direction: column; flex: auto; min-height: 0; min-width: 0; }
+    .whole.side { display: grid; grid-template-columns: minmax(200px, 282px) minmax(0, 1fr); gap: 14px; align-items: start; }
     .outline { font-size: 12px; max-height: 70vh; overflow: auto; padding: 2px 6px 2px 0; border-right: 1px solid var(--line); }
     .otree, .otree ul { list-style: none; margin: 0; padding: 0; }
     .otree ul { padding-left: 10px; }
