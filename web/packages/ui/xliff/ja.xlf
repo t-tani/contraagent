@@ -3232,6 +3232,22 @@
   <source>Authentication failed</source>
   <target>認証エラー</target>
 </trans-unit>
+<trans-unit id="sa5441ff1c4c71a32">
+  <source>Tokens per API call unknown</source>
+  <target>API 呼び出しごとのトークンは不明</target>
+</trans-unit>
+<trans-unit id="sacbf23fb29caa9f9">
+  <source>Only the token totals that the coding agent printed are known, not the tokens of each API call (usage_unknown)</source>
+  <target>分かっているのはコーディングエージェントが出力したトークンの合計だけ。API 呼び出しごとのトークンは不明（usage_unknown）</target>
+</trans-unit>
+<trans-unit id="sadb0119c6d963645">
+  <source>Tokens unknown</source>
+  <target>トークンは不明</target>
+</trans-unit>
+<trans-unit id="sb8127ffb12a5fb54">
+  <source>The tokens of an agent session that ran are not known (usage_unknown)</source>
+  <target>実行したエージェントのセッションのトークンは不明（usage_unknown）</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

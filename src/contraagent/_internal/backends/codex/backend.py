@@ -3,7 +3,9 @@
 One launch is one `codex exec` (or `codex exec resume <thread id>`) in the
 launch's cwd, with its JSONL events read as they arrive (`wire.EventReader`)
 and the session's rollout file read after it ends (`wire.read_rollout`) for
-what the events do not carry: per-call tokens, the model, the plan's usage.
+what the events do not carry: per-call tokens, the model, the plan's usage. When it
+cannot be read, the launch's tokens are the totals its `turn.completed` event printed, and
+`LaunchResult.usage_unknown` says so.
 
 What a launch sees (checked against codex-cli 0.162.1): no AGENTS.md
 (`project_doc_max_bytes=0`), no plugins or execpolicy rules, of the hooks only its
@@ -172,6 +174,9 @@ class CodexBackend(ResumeById, Backend):
 
     def __init__(self, binary: str = "codex", base_env: dict[str, str] | None = None):
         super().__init__(binary, base_env)
+        #: Each thread's tokens so far, as its last launch's `turn.completed` printed them: a
+        #: resumed launch's own tokens are its totals minus these (`EventReader.earlier`).
+        self._thread_usage: dict[str, dict] = {}
 
     def scratch_parent(self) -> Path:
         """Not under /tmp: codex refuses to put its helper binaries in a CODEX_HOME there."""
@@ -380,6 +385,7 @@ class CodexBackend(ResumeById, Backend):
         leaves no rollout behind. A resumed thread's rollout is read from where it ended. The
         launch's temporary directory (`launch_tmp`) lives only as long as its process."""
         assert isinstance(fold, EventReader)
+        fold.earlier = self._thread_usage.get(launch.resume) if launch.resume else {}
         home = Path(env.get("CODEX_HOME") or Path.home() / ".codex")
         earlier = find_rollout(home, launch.resume) if launch.resume else None
         start = earlier.stat().st_size if earlier is not None else 0
@@ -389,6 +395,8 @@ class CodexBackend(ResumeById, Backend):
             out = super().exchange(launch, argv, env, fold, watch)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+        if fold.thread_id and fold.turn_usage:
+            self._thread_usage[fold.thread_id] = fold.turn_usage
         found = find_rollout(home, fold.thread_id)
         if found is not None:
             fold.rollout = read_rollout(found, start if found == earlier else 0)

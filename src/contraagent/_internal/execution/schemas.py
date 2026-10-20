@@ -114,6 +114,12 @@ class JournalRow(RecordModel):
     #: Event types the coding agent sent that this contraagent does not read, with their
     #: counts (rounds and hops summed): a newer coding agent than its reader.
     unread_events: dict[str, int] = Field(default_factory=dict)
+    #: What of the attempt's tokens could not be read (`LaunchResult.usage_unknown`; over its
+    #: rounds and hops, `tokens` when any launch's are unknown, else `calls` when any launch's
+    #: are): `calls`, `usage` holds the totals the coding agent printed, and its per-call
+    #: figures (`resident`, `peak_context`) stand for one call of those totals; `tokens`, the
+    #: tokens of a launch that ran are missing from `usage`. '' when every token was read.
+    usage_unknown: Literal["", "calls", "tokens"] = ""
     #: The files the attempt changed under its task's `changes` patterns; None when it declares none.
     changes: Changes | None = None
     #: The kind's `context_budget` the attempt's launches ran under (tokens of one API call's
@@ -196,6 +202,7 @@ class LaunchRow(RecordModel):
     web_queries: list[str]
     safety_stops: list[SafetyStop] = Field(default_factory=list)
     unread_events: dict[str, int]
+    usage_unknown: Literal["", "calls", "tokens"] = Field("", description="what of the launch's tokens could not be read")
     init_model: str
     init_tools: int
     init_errors: list[dict]

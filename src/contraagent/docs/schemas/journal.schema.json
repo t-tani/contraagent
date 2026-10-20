@@ -782,6 +782,16 @@
       "title": "Unread Events",
       "type": "object"
     },
+    "usage_unknown": {
+      "default": "",
+      "enum": [
+        "",
+        "calls",
+        "tokens"
+      ],
+      "title": "Usage Unknown",
+      "type": "string"
+    },
     "changes": {
       "anyOf": [
         {
