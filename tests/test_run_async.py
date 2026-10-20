@@ -177,3 +177,36 @@ def test_ctrl_c_in_the_flow_code_stops_it_at_once(tmp_path):
     finally:
         signal.signal(signal.SIGINT, previous)
     assert went_on == []
+
+
+def test_after_ctrl_c_a_task_that_ignores_its_cancellation_is_left_after_the_time_limit(monkeypatch, caplog):
+    from contraagent._internal.dispatch import entry
+
+    monkeypatch.setattr(entry, "CANCEL_S", 0.2)
+    ended: list[str] = []
+
+    async def stubborn():
+        while True:
+            try:
+                await asyncio.sleep(3600)
+            except asyncio.CancelledError:
+                continue  # ignores its cancellation
+
+    async def polite():
+        try:
+            await asyncio.sleep(3600)
+        finally:
+            ended.append("polite")
+
+    async def main():
+        asyncio.get_running_loop().create_task(stubborn(), name="stubborn")
+        asyncio.get_running_loop().create_task(polite(), name="polite")
+        await asyncio.sleep(0)  # both start and wait
+        raise KeyboardInterrupt  # as Ctrl-C while the loop waits
+
+    with caplog.at_level("WARNING", logger=entry.__name__), pytest.raises(KeyboardInterrupt):
+        entry.run_sync(main, called="test", instead="main()")
+    assert ended == ["polite"]
+    assert [r.getMessage() for r in caplog.records if r.name == entry.__name__] == [
+        "1 task(s) did not end within 0.2s of being cancelled and are left behind: stubborn"
+    ]
