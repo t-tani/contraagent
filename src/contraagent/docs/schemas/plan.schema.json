@@ -3,7 +3,6 @@
   "$comment": "One line of `plan.jsonl` in a run directory of run format 1.",
   "$defs": {
     "Frame": {
-      "additionalProperties": false,
       "description": "One frame of a flow path (outermost first): a call site in flow code where a task\nwas created. A comprehension is not a loop.",
       "properties": {
         "function": {
@@ -39,7 +38,6 @@
       "type": "object"
     },
     "Loop": {
-      "additionalProperties": false,
       "description": "A `for` or `while` loop of an async flow around a call site, and the pass the call\nsite was in.",
       "properties": {
         "line": {

@@ -1816,7 +1816,6 @@
             "description": "`dependency_deferred`: the key of the deferred task whose output it reads"
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
           "cause"
@@ -1911,7 +1910,6 @@
             "description": "the kinds whose chain held it"
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
           "agent",
@@ -2183,7 +2181,6 @@
             "default": []
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
           "function",
@@ -3051,7 +3048,6 @@
             "title": "Reason"
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
           "kind",
@@ -3216,7 +3212,6 @@
             "description": "one iteration of this loop, numbered from 1 since the loop was last entered in that frame; null when not counted"
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
           "line",
@@ -4181,7 +4176,6 @@
             "description": "the kinds with no route left that stopped the run (policy `stop`)"
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
           "policy"
@@ -4429,7 +4423,6 @@
             "title": "Seven Day Pct"
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
           "credential"
@@ -5249,7 +5242,6 @@
             "title": "To Model"
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
           "kind",
@@ -6073,7 +6065,6 @@
             "default": []
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
           "started_at",

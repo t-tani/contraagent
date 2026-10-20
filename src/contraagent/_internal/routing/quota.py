@@ -62,11 +62,11 @@ from collections.abc import Callable, Iterable, Mapping
 from datetime import UTC, datetime
 from typing import ClassVar, Protocol
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict
 
 from contraagent._internal.backends.credentials import Credential, Pool
 from contraagent._internal.dispatch.queue import GRACE_S
-from contraagent._internal.dispatch.records import WINDOWS, QuotaReading, Rest, window_spec
+from contraagent._internal.dispatch.records import WINDOWS, QuotaReading, RecordModel, Rest, window_spec
 from contraagent._internal.runs.times import parse_iso
 
 
@@ -121,11 +121,11 @@ def reading_of(reading: QuotaReading) -> dict:
     return {"observed_at": reading.observed_at, "windows": windows}
 
 
-class QuotaCap(BaseModel):
+class QuotaCap(RecordModel):
     """One credential's quota caps (`[credentials.<name>] max_five_hour_pct`, `max_seven_day_pct`):
     the utilization (%) of a window past which it rests; None for a window with no cap."""
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     credential: str
     five_hour_pct: float | None = None

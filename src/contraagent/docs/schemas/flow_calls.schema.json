@@ -3,7 +3,6 @@
   "$comment": "One line of `flow_calls.jsonl` in a run directory of run format 1.",
   "$defs": {
     "Frame": {
-      "additionalProperties": false,
       "description": "One frame of a flow path (outermost first): a call site in flow code where a task\nwas created. A comprehension is not a loop.",
       "properties": {
         "function": {
@@ -39,7 +38,6 @@
       "type": "object"
     },
     "Loop": {
-      "additionalProperties": false,
       "description": "A `for` or `while` loop of an async flow around a call site, and the pass the call\nsite was in.",
       "properties": {
         "line": {
@@ -68,7 +66,6 @@
       "type": "object"
     },
     "TimeBoxRecord": {
-      "additionalProperties": false,
       "description": "A flow call's own deadline (`time_box`, `TimeBox`), as `flow_calls.jsonl` records it.",
       "properties": {
         "started_at": {
@@ -111,7 +108,6 @@
       "type": "object"
     }
   },
-  "additionalProperties": false,
   "description": "One line of `runs/<run>/flow_calls.jsonl`. `event` `start`: `parent`, `function`,\n`flow` (the flow path where the parent created it; empty for a top flow call) and, for a\nflow call started through `time_box`, `time_box`; `end`: `state` (`returned`, `raised`,\n`closed`) and `error` (`\"<type>: <message>\"` or null). A row holds only its event's fields.",
   "properties": {
     "ts": {

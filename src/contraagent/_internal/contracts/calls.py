@@ -29,11 +29,12 @@ from contraagent._internal.backends.launch import Launch
 from contraagent._internal.contracts.contract import Check, OutputContract, check_file, correction_prompt
 from contraagent._internal.contracts.rows import row_of, rows_file
 from contraagent._internal.contracts.validators import CommandValidator
+from contraagent._internal.dispatch.records import RecordModel
 from contraagent._internal.platform import envvars
 from contraagent._internal.runs.files import write_document
 
 
-class SchemaRef(BaseModel):
+class SchemaRef(RecordModel):
     """Where the output schema can be imported from, so a hook validates with pydantic itself."""
 
     module: str
@@ -41,8 +42,8 @@ class SchemaRef(BaseModel):
     search_path: str | None = None
 
 
-class CallOutput(BaseModel):
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", serialize_by_alias=True)
+class CallOutput(RecordModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(serialize_by_alias=True)
 
     path: str
     #: `json`: one JSON document; `text`: any text; `jsonl`: rows, one JSON object per line,
@@ -62,10 +63,8 @@ class CallOutput(BaseModel):
     preserve: list[str] = Field(default_factory=list)
 
 
-class CallFile(BaseModel):
+class CallFile(RecordModel):
     """One agent task's call: who it is, what it is given, what it must leave behind."""
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     version: int = 1
     run: str
