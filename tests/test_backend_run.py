@@ -4,6 +4,7 @@ the context window from the catalogue), and the one stop ladder (`refusal.classi
 
 import json
 import os
+import threading
 
 import pytest
 
@@ -58,6 +59,40 @@ def test_claude_reads_a_quota_refusal_on_stderr(tmp_path):
     assert result.stop == Stop.RATE_LIMITED and not result.ok
     assert result.quota_refusal is not None and result.quota_refusal.retry_after_s == 120.0
     assert result.started_at and result.cli_version == "2.1.296"
+
+
+def claude_one_turn(answer: str) -> LaunchResult:
+    reader = StreamReader(Limits())
+    reader.feed({"type": "system", "subtype": "init", "session_id": "s-1"})
+    reader.feed({"type": "result", "subtype": "success", "is_error": False, "result": answer, "num_turns": 1})
+    return reader.result(Launch(prompt="x", label="t"), "claude", exit_code=0, killed=None)
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "Bash(pytest -q)",
+        "I will run the tests.\nBash(pytest -q)\nRead(report.txt)\nWrite(out.json)",
+        "- `Read(src/app.py)`\n- `Edit(src/app.py)`",
+        "```\nWrite(out.json)\n```",
+    ],
+)
+def test_claude_s_one_turn_answer_of_written_tool_calls_is_hollow(answer):
+    result = claude_one_turn(answer)
+    assert result.stop is Stop.COMPLETED and result.hollow and not result.ok
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "The function opens the file with `Read(path)` and returns its lines.",
+        "To check it, I would use Bash(pytest -q) after the change.\nThe change itself is small.",
+        "The hook is named so:\n\n```\nBash(rm:*)\n```\n\nIt matches every rm, so the rule denies it.\nNothing else changes.",
+    ],
+)
+def test_claude_s_one_turn_answer_that_quotes_a_tool_call_is_not_hollow(answer):
+    result = claude_one_turn(answer)
+    assert result.stop is Stop.COMPLETED and not result.hollow and result.ok
 
 
 def claude_stop(**result) -> Stop:
@@ -338,3 +373,39 @@ def test_a_cool_off_is_read_in_either_form():
     assert parse_retry_after('{"retry_after": 30}') == 30.0
     assert parse_retry_after("no cool-off") is None
     assert json.dumps(parse_retry_after("")) == "null"
+
+
+# --- what a backend makes once, however many launches ask together --------------------------
+
+
+def test_threads_that_ask_together_get_one_version_one_catalogue_and_one_scratch_root(tmp_path, monkeypatch):
+    from contraagent._internal.backends import base
+
+    made: list[str] = []
+    monkeypatch.setattr(base, "cli_version", lambda binary, env: made.append("version") or "1.0")
+
+    class Counting(OmpBackend):
+        def read_models(self):
+            made.append("models")
+            return {"p/m": 1000}
+
+        def scratch_parent(self):
+            made.append("scratch")
+            return tmp_path / "scratch"
+
+    backend = Counting(base_env={}, trace=False)
+    start = threading.Barrier(8)
+    got: list[tuple] = []
+
+    def ask() -> None:
+        start.wait()
+        got.append((backend.version(), backend.models(), backend.scratch("t", "a").parent.parent))
+
+    threads = [threading.Thread(target=ask) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sorted(made) == ["models", "scratch", "version"]
+    assert len(got) == 8 and len({str(g) for g in got}) == 1
+    assert [p.name for p in (tmp_path / "scratch").iterdir()] == [got[0][2].name]

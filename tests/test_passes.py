@@ -273,6 +273,84 @@ def test_the_tool_id_is_freed_when_counting_ends_and_another_tool_keeps_its_own(
     assert {t: mon.get_tool(t) for t in loops.TOOL_IDS} == before
 
 
+def jumps_seen_by_a_later_tool(fn) -> list[str]:
+    """The functions whose back edges a tool that takes contraagent's id after it sees."""
+    mon = sys.monitoring
+    tool = next(t for t in loops.TOOL_IDS if mon.get_tool(t) is None)
+    seen: list[str] = []
+    mon.use_tool_id(tool, "a later tool")
+    try:
+        mon.register_callback(tool, mon.events.JUMP, lambda code, src, dst: seen.append(code.co_name) if dst < src else None)
+        mon.set_events(tool, mon.events.JUMP)
+        fn()
+    finally:
+        mon.set_events(tool, 0)
+        mon.register_callback(tool, mon.events.JUMP, None)
+        mon.free_tool_id(tool)
+    return seen
+
+
+def test_a_tool_that_takes_the_id_after_counting_receives_every_jump():
+    """`DISABLE` outlives `free_tool_id` (and 3.14's `clear_tool_id`): the counter turns the
+    locations it disabled back on as it frees the id (`restart_events`)."""
+
+    def plain():  # not flow code's loop (not an async def): disabled at its first jump
+        total = 0
+        for i in range(3):
+            total += i
+        return total
+
+    with loops.counting(loops.LoopCounter()):
+        plain()
+    assert "plain" in jumps_seen_by_a_later_tool(plain)
+
+
+def test_with_both_tool_ids_taken_a_run_counts_nothing_and_ends_as_any_other(tmp_path):
+    mon = sys.monitoring
+    taken = [t for t in loops.TOOL_IDS if mon.get_tool(t) is None]
+    for t in taken:
+        mon.use_tool_id(t, "another tool")
+    try:
+
+        async def flow():
+            for k in range(3):
+                await step("u", n=k)
+
+        rep = pipeline(tmp_path).run(flow)
+    finally:
+        for t in taken:
+            mon.free_tool_id(t)
+    assert rep.ok and not rep.flow_errors
+    assert [passes(r) for r in plan_of(rep).values()] == [[None], [None], [None]]
+
+
+def test_where_the_callback_cannot_find_the_jumping_frame_nothing_is_counted(tmp_path, monkeypatch):
+    """Off CPython (no `sys.monitoring`, or a callback not run on the jumping frame): the
+    tool is not taken."""
+    monkeypatch.setattr(loops, "_monitoring", lambda: None)
+
+    async def flow():
+        for k in range(2):
+            await step("u", n=k)
+
+    rep = pipeline(tmp_path).run(flow)
+    assert rep.ok and [passes(r) for r in plan_of(rep).values()] == [[None], [None]]
+    assert all(sys.monitoring.get_tool(t) != loops.TOOL_NAME for t in loops.TOOL_IDS)
+
+
+@pytest.mark.skipif(sys.implementation.name != "cpython", reason="a code object is freed when its last reference goes")
+def test_the_analysis_of_a_code_object_goes_with_it():
+    """Code made anew at each call (`exec`) does not make the analyses grow."""
+    before = len(loops._codes)
+    for i in range(20):
+        module = compile(f"async def made_{i}(n):\n    while n:\n        n -= 1\n", f"<made_{i}>", "exec")
+        code = next(c for c in module.co_consts if isinstance(c, type(module)))
+        assert loops.loops_of(code).loops  # analysed: one `while`
+        assert len(loops._codes) == before + 1
+        del module, code
+        assert len(loops._codes) == before
+
+
 # --- in a pipeline ----------------------------------------------------------------------
 
 

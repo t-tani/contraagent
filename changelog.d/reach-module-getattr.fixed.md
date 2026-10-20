@@ -1,0 +1,1 @@
+`Pipeline.check` and the start of a run, while they find the task declarations a flow's code can reach, no longer call a module's `__getattr__` (a name imported when first used, a deprecation warning). They read a module's attributes from its namespace only.

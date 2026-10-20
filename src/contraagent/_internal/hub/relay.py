@@ -13,7 +13,10 @@ what it does not hold yet:
   most `batch_bytes` of lines (a longer line goes alone) and `batch_lines` lines.
 * **Documents** (`RunSource.documents`: `run.json`, `cursor.json`, and the files in
   `contracts/`, `definitions/`, `calls/`, `inflight/`, `pipeline/`): a document whose
-  content changed; `text: null` for one that is gone. One that does not parse as JSON is half written and waits.
+  content changed; `text: null` for one that is gone. One that does not parse as JSON is
+  not sent: a document is replaced whole (`write_document`), never seen half written, so
+  it is broken. The relay logs a warning once for that content and sends the document
+  when it parses again.
 * **Files a contract names** (`outputs[].path`, `inputs[].path`): when their content,
   size or modification time changed, their content as a blob (`has_blob`, `put_blob`) and a
   `FileRef`; `sha256: null` for a missing one. A relative path is under the run's `cwd`
@@ -192,6 +195,7 @@ class Relay:
         self._refused = False
         self._lock = threading.Lock()
         self._next_resync = 0.0
+        self._unreadable: set[tuple[str, str, str]] = set()  # (run, document, SHA-256) warned about
         self._reported: set[tuple[str, str]] = set()
         #: run -> the keys of its running tasks, for each run live at the last heartbeat
         self._running: dict[str, set[str]] = {}
@@ -378,8 +382,11 @@ class Relay:
                 continue
             try:
                 json.loads(text)
-            except ValueError:
-                continue  # half written: the next pass
+            except ValueError as exc:
+                if (run, name, sha) not in self._unreadable:
+                    self._unreadable.add((run, name, sha))
+                    _logger.warning("run %s: %s is not JSON (%s); not sent until it is", run, name, exc)
+                continue
             pending.documents.append(DocumentPut(name=name, text=text))
             pending.doc_shas[name] = sha
         for name in sorted(set(prog.documents) - present):

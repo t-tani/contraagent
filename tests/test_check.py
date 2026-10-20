@@ -5,6 +5,7 @@ import functools
 import json
 import re
 import sys
+import types
 
 import pytest
 from pydantic import BaseModel, Field, field_validator
@@ -374,6 +375,20 @@ def test_reachable_follows_globals_module_attributes_closures_and_containers():
     assert sorted(kinds) == ["later", "review", "summarize"]
     assert "revise" not in kinds  # declared in the module, never referred to
     assert [spec.kind for spec in reachable(functools.partial(helper, "a"))] == ["later"]
+
+
+asked: list[str] = []
+lazy = types.ModuleType("lazy_tasks")
+lazy.__getattr__ = asked.append  # a module `__getattr__` (PEP 562): a name given when first used
+
+
+async def flow_of_a_lazy_module():
+    await lazy.review("a")
+
+
+def test_reachable_does_not_run_a_modules_getattr():
+    assert reachable(flow_of_a_lazy_module) == []
+    assert "review" not in asked  # (pytest itself asks for `__test__`)
 
 
 def test_a_reachable_kinds_routing_is_checked_before_any_task_of_it_exists():

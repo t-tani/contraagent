@@ -25,9 +25,10 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
-from typing import Protocol
+from typing import Any, Protocol
 
 from contraagent._internal.backends.credentials import Ambient, Credential, CredentialBinding, CredentialError
 from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
@@ -344,10 +345,7 @@ class Backend(abc.ABC):
     def version(self) -> str:
         """The version `<binary> --version` prints (its first `1.2.3`-like word), asked once;
         '' when the binary is missing or prints none."""
-        own: dict = vars(self)
-        if own.get("_version") is None:
-            own["_version"] = cli_version(self.binary, self._base_env)
-        return own["_version"]
+        return self._once("_version", lambda: cli_version(self.binary, self._base_env))
 
     def run_catalogue(self, *args: str, env: dict[str, str] | None = None) -> str | None:
         """What `<binary> <args>` prints when it lists the agent's models, within
@@ -383,18 +381,28 @@ class Backend(abc.ABC):
     def scratch(self, label: str, which: str, create: bool = True) -> Path:
         """A directory per launch label and purpose (a resumed launch keeps its label, and so
         its directory), under one root this process removes as it ends (`exit_dir`)."""
-        own: dict = vars(self)
-        if own.get("_scratch_root") is None:
-            parent = self.scratch_parent()
-            if parent is not None:
-                parent.mkdir(parents=True, exist_ok=True)
-                own["_scratch_root"] = exit_dir(f"contraagent-{self.name}-", parent)
-            else:
-                own["_scratch_root"] = exit_dir(f"{self.name}-")
-        d = own["_scratch_root"] / safe_label(label) / which
+        d = self._once("_scratch_root", self._make_scratch_root) / safe_label(label) / which
         if create:
             d.mkdir(parents=True, exist_ok=True)
         return d
+
+    def _make_scratch_root(self) -> Path:
+        parent = self.scratch_parent()
+        if parent is None:
+            return exit_dir(f"{self.name}-")
+        parent.mkdir(parents=True, exist_ok=True)
+        return exit_dir(f"contraagent-{self.name}-", parent)
+
+    def _once[T](self, name: str, make: Callable[[], T]) -> T:
+        """The value `make()` gives, made once per backend and kept as `name`: launches on
+        worker threads that ask together wait for the one that makes it. The value and a
+        lock of its own are kept in `vars(self)`, since a subclass need not call
+        `Backend.__init__`; `dict.setdefault` is atomic, so every thread gets the same lock."""
+        own: dict[str, Any] = vars(self)
+        with own.setdefault(f"{name}_lock", threading.Lock()):
+            if name not in own:
+                own[name] = make()
+            return own[name]
 
     def bind_credential(
         self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
@@ -438,11 +446,7 @@ class Backend(abc.ABC):
     def models(self) -> dict[str, int | None] | None:
         """`read_models()`, read on the first call and kept for the backend's life: one
         local read per backend per run, however many launches ask."""
-        own: dict = vars(self)
-        with own.setdefault("_models_lock", threading.Lock()):
-            if "_models" not in own:
-                own["_models"] = self.read_models()
-            return own["_models"]
+        return self._once("_models", self.read_models)
 
     def catalogue(self) -> set[str] | None:
         """Provider-qualified model ids this agent advertises (`models`), or None.
