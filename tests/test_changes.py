@@ -4,6 +4,8 @@ to its runner (`scopes`, `enrichers`, `row_extras`)."""
 import contextlib
 import json
 import os
+import sys
+import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -202,6 +204,25 @@ def test_a_rewrite_at_the_same_size_within_one_mtime_tick_is_a_modification(tmp_
     result = enricher.enrich(task, before, TaskResult(task, True, "completed"))
     assert result is not None and result.changes is not None
     assert result.changes.modified == ("notes/rewritten.md",)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the stamp is the mtime and the size alone on Windows")
+def test_a_rewrite_that_puts_back_an_old_mtime_and_size_is_a_modification(tmp_path):
+    enricher = ChangesEnricher(lambda task: ["notes/**"], tmp_path)
+    task = make_python_task("write", lambda: None, unit="a")
+    (tmp_path / "notes").mkdir()
+    restored = tmp_path / "notes" / "restored.md"
+    restored.write_text("attempt 1\n", encoding="utf-8", newline="\n")
+    long_ago = restored.stat().st_mtime_ns - 3_600_000_000_000
+    os.utime(restored, ns=(long_ago, long_ago))
+    before = enricher.snapshot(task)
+    assert before is not None and before.digests == {}  # written long before: the stamp alone tells
+    time.sleep(0.05)  # past the tick of the status change time
+    restored.write_text("attempt 2\n", encoding="utf-8", newline="\n")
+    os.utime(restored, ns=(long_ago, long_ago))  # as `cp -p` or `touch -r` would leave it
+    result = enricher.enrich(task, before, TaskResult(task, True, "completed"))
+    assert result is not None and result.changes is not None
+    assert result.changes.modified == ("notes/restored.md",)
 
 
 def test_scan_covers_everything_under_a_matched_directory(tmp_path):

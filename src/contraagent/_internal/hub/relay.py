@@ -14,8 +14,8 @@ what it does not hold yet:
 * **Documents** (`RunSource.documents`: `run.json`, `cursor.json`, and the files in
   `contracts/`, `definitions/`, `calls/`, `inflight/`, `pipeline/`): a document whose
   content changed; `text: null` for one that is gone. One that does not parse as JSON is half written and waits.
-* **Files a contract names** (`outputs[].path`, `inputs[].path`): when their size or
-  modification time changed, their content as a blob (`has_blob`, `put_blob`) and a
+* **Files a contract names** (`outputs[].path`, `inputs[].path`): when their content,
+  size or modification time changed, their content as a blob (`has_blob`, `put_blob`) and a
   `FileRef`; `sha256: null` for a missing one. A relative path is under the run's `cwd`
   in `run.json` (`layout.file_path`).
 
@@ -396,13 +396,12 @@ class Relay:
                 pending.file_stats[path] = None
                 continue
             stat = [st.size, st.mtime_ns]
-            held = prog.files.get(path)
-            if held is not None and held[:2] == stat:
-                continue
             got = self.source.file(run, path)
             if got is None:
                 continue
             sha = _sha(got.data)
+            if prog.files.get(path) == [*stat, sha]:
+                continue
             if not self._call(self.client.has_blob, sha):
                 self._call(self.client.put_blob, sha, got.data)
             pending.files.append(FileRef(path=path, sha256=sha, size=got.size, mtime=st.mtime))

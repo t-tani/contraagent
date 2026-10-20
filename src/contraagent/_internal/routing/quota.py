@@ -56,6 +56,7 @@ and a `CredentialPool`.
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
@@ -68,6 +69,8 @@ from contraagent._internal.backends.credentials import Credential, Pool
 from contraagent._internal.dispatch.queue import GRACE_S
 from contraagent._internal.dispatch.records import WINDOWS, QuotaReading, RecordModel, Rest, window_spec
 from contraagent._internal.runs.times import parse_iso
+
+_logger = logging.getLogger(__name__)
 
 
 class QuotaRule(Protocol):
@@ -202,7 +205,7 @@ class CredentialRests:
             try:
                 self.on_change("start", rest)
             except Exception:  # a record that cannot be written must not stop a launch
-                pass
+                _logger.warning("[rest] %s: on_change raised; the rest holds", name, exc_info=True)
         return rest
 
     def observe(self, reading: QuotaReading) -> None:
@@ -311,7 +314,7 @@ class CredentialRests:
             try:
                 self.on_change(*event)
             except Exception:  # a record that cannot be written must not stop a launch
-                pass
+                _logger.warning("[rest] %s: on_change raised; the rest holds", event[1].credential, exc_info=True)
         return rest, since
 
     def _capped(self, name: str, reading: QuotaReading, pool: Pool | None) -> Rest | None:
