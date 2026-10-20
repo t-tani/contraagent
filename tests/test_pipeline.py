@@ -283,7 +283,7 @@ def test_an_output_rewritten_at_the_same_size_within_one_mtime_tick_counts_as_re
 
 @pytest.mark.skipif(sys.platform == "win32", reason="the stamp is the mtime and the size alone on Windows")
 def test_an_output_rewritten_with_its_old_mtime_and_size_put_back_counts_as_rewritten(tmp_path):
-    from contraagent.engine import OutputContract
+    from contraagent.engine import Before, OutputContract
 
     out = tmp_path / "out.json"
     out.write_text('{"n": 1}')
@@ -292,6 +292,8 @@ def test_an_output_rewritten_with_its_old_mtime_and_size_put_back_counts_as_rewr
     contract = OutputContract(out, Doc)
     before = contract.before(tmp_path)
     assert before.digest is None  # written long before: the stamp alone tells
+    assert before.stamp == (long_ago, 8) and "_full_stamp" not in repr(before)  # the public stamp: mtime and size
+    assert before == Before(before.stamp)
     time.sleep(0.05)  # past the tick of the status change time
     out.write_text('{"n": 2}')
     os.utime(out, ns=(long_ago, long_ago))  # as `cp -p` or `touch -r` would leave it

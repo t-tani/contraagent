@@ -123,8 +123,13 @@ class OutputContract(_FileContract):
         preserves nothing."""
         path = self.resolve(cwd)
         since = time.time_ns()
-        stamp = file_stamp(path)
-        digest = recent_digest(path, stamp, since)
+        full = file_stamp(path)
+        before = self._before(path, full, recent_digest(path, full, since))
+        object.__setattr__(before, "_full_stamp", full)
+        return before
+
+    def _before(self, path: Path, full: Stamp | None, digest: str | None) -> Before:
+        stamp = (full[0], full[1]) if full is not None else None
         if not (self.preserve or self.compares) or stamp is None:
             return Before(stamp, digest=digest)
         try:
@@ -150,7 +155,7 @@ class OutputContract(_FileContract):
         return check_file(
             self.resolve(cwd),
             self.schema,
-            before.stamp if before is not None else None,
+            full_stamp(before),
             self.fresh,
             self.validators,
             params=params,
@@ -170,10 +175,13 @@ class Before:
     (`OutputContract.compares`), and the digest of its content when its stamp was recent
     (`recent_digest`): a rewrite at the same size and mtime differs from it there."""
 
-    stamp: tuple[int, ...] | None
+    stamp: tuple[int, int] | None
     preserved: Mapping[str, Any] = field(default_factory=dict)
     text: str | None = None
     digest: str | None = None
+    #: The whole stamp `OutputContract.before` took (`file_stamp`), ctime and inode
+    #: included; None for one made otherwise (`full_stamp`).
+    _full_stamp: tuple[int, ...] | None = field(default=None, init=False, repr=False, compare=False)
 
     def value(self, schema: type[BaseModel] | None) -> Any:
         """The text parsed as a check parses the file: the model instance (`schema`), or the
@@ -337,11 +345,20 @@ def recent_digest(path: Path, stamp: Stamp | None, since_ns: int) -> str | None:
     return file_digest(path)
 
 
+def full_stamp(before: Before | None) -> Stamp | None:
+    """The stamp `before` holds, ctime and inode included when `OutputContract.before` took
+    it; `Before.stamp` for one made otherwise."""
+    if before is None:
+        return None
+    return before._full_stamp if before._full_stamp is not None else before.stamp
+
+
 def unwritten(path: Path, stamp: Stamp | None, before: Stamp | None, digest: str | None = None) -> bool:
     """Whether the file at `path`, whose stamp is now `stamp`, is as it was before a launch:
-    its stamp then was `before` and, when `digest` (`recent_digest`) was taken, its content
-    still has that digest."""
-    return before is not None and stamp == before and (digest is None or file_digest(path) == digest)
+    its stamp then was `before` (compared as far as `before` goes: a `Before.stamp` holds
+    the mtime and the size alone) and, when `digest` (`recent_digest`) was taken, its
+    content still has that digest."""
+    return before is not None and stamp is not None and stamp[: len(before)] == before and (digest is None or file_digest(path) == digest)
 
 
 def check_file(
@@ -729,7 +746,7 @@ def _drop_unfinished(contract: OutputContract, cwd: Path, before: Before | None)
         return False
     path = contract.resolve(cwd)
     stamp = file_stamp(path)
-    if stamp is None or (before is not None and unwritten(path, stamp, before.stamp, before.digest)):
+    if stamp is None or (before is not None and unwritten(path, stamp, full_stamp(before), before.digest)):
         return False
     return drop_unfinished(path)
 
