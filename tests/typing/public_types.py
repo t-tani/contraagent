@@ -147,6 +147,7 @@ def flow() -> None:
     assert_type(survey("a"), Pending[Triage])
     assert_type(review["fast"]("a", params), Pending[Triage])
     assert_type(read_note("a", NoteParams(note=InputFile("in/a.md"))), Pending[Triage])
+    assert_type(note("a", params).input_file(), InputFile)
     assert_type(measure("a", note=InputFile(Path("in/a.md"))), Pending[int])
 
 

@@ -243,6 +243,7 @@ class Partial[Out]
 
 class Pending[Out]
     def __init__(self) -> None
+    def input_file(self) -> InputFile
     @property key: str
     @property ok: bool
     @property origin: Origin | None

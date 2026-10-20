@@ -48,9 +48,9 @@ _DESCRIPTION = (
 
 class InputFile:
     """A file a task is given as a param: its path, and the SHA-256 of its content taken
-    at the task call. A large input goes to a task as one (a long text output,
-    `InputFile(pending.path)`; a file on disk, `InputFile("in/spec.md")`) instead of
-    being copied into its params.
+    at the task call. A large input goes to a task as one (a task's output,
+    `pending.input_file()` once the flow awaited it; a file on disk,
+    `InputFile("in/spec.md")`) instead of being copied into its params.
 
     It is a field of an agent task's params model (`note: InputFile = Field(description=...)`)
     or a Python task's parameter (`def count(note: InputFile)`). The params hold

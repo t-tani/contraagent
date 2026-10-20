@@ -59,8 +59,7 @@ async def report(topic: str) -> tuple[Verdict, int]:
     """One topic: the draft, then its review and its word count, both given the draft's file."""
     written = draft(topic, DraftParams(topic=topic))
     await written  # the draft is in its output file now
-    assert written.path is not None  # a task with an output has an output file
-    file = InputFile(written.path)
+    file = written.input_file()
     return await asyncio.gather(
         review(topic, ReviewParams(report=file, audience="new team members")),
         count_words(topic, report=file),

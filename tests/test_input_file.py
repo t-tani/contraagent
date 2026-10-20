@@ -79,8 +79,7 @@ def test_a_text_output_passed_on_by_its_path_is_given_from_its_writer(tmp_path):
     async def flow():
         written = note("a")
         await written
-        assert written.path is not None
-        return await review("a", ReviewParams(note=InputFile(written.path)))
+        return await review("a", ReviewParams(note=written.input_file()))
 
     report = pipeline(tmp_path, agent).run(flow, run_id="r")
     assert report.ok
@@ -256,3 +255,36 @@ def test_the_example_gives_the_reviewer_the_draft_s_file_and_resumes_with_nothin
     agent.launches.clear()
     again = run(resume=True)
     assert again.ok and agent.launches == [] and {r.stop for r in again.results.values()} == {"skipped"}
+
+
+def test_a_task_s_output_file_is_an_input_file_only_once_it_succeeded(tmp_path):
+    from contraagent.testing import fails
+
+    tidy = agent_task("tidy", instructions="Tidy.", max_turns=3, timeout_s=30)
+    note = agent_task("note", output=str, instructions="Write a note.", max_turns=3, timeout_s=30)
+    agent = StubAgent({"note": fails(), "tidy": None, "review": {"approved": True}})
+    raised: list[str] = []
+
+    async def flow():
+        for make in (lambda: tidy("a"), lambda: note("a")):
+            pending = make()
+            try:
+                pending.input_file()
+            except ValueError as exc:
+                raised.append(str(exc))
+            try:
+                await pending
+            except Exception:
+                pass
+            try:
+                pending.input_file()
+            except ValueError as exc:
+                raised.append(str(exc))
+
+    pipeline(tmp_path, agent).run(flow, run_id="r")
+    assert raised == [
+        "tidy-a has no output file to give as an input file",
+        "tidy-a has no output file to give as an input file",
+        "note-a has not finished: await it before you give its output file as an input file",
+        "note-a ended error: its output file is not given as an input file",
+    ]

@@ -611,9 +611,10 @@ call, and reads the file itself.
   directory (`Pipeline(cwd=)`). The JSON Schema of the params model in the call file
   (`params_json_schema`) tells the agent to read the file with its tools. A light
   launch (`tools=()`) has no tool to read a file, so give it the text as a `str` field.
-- A text output that the flow received goes by its output file, `InputFile(pending.path)`,
-  once the flow has awaited the task. A file that is there before the run goes by its
-  path, `InputFile("in/spec.md")`.
+- A task's output goes by its output file: `pending.input_file()`, once the flow has
+  awaited the task. It raises `ValueError` for a task that has no output, has not
+  finished or did not succeed. A file that is there before the run goes by its path,
+  `InputFile("in/spec.md")`.
 - The file is in the working directory, or it is an output file of the run. A
   relative path that climbs out with `..` raises `ValueError` where the `InputFile` is
   made. An absolute path outside both directories, a symbolic link to a file outside

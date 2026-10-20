@@ -169,6 +169,21 @@ class Pending[Out]:
         """The output file, or None for a task with no output."""
         return self._node.output_path
 
+    def input_file(self) -> InputFile:
+        """The task's output file as an input file, to give another task: a long text
+        output by its path and hash instead of its text. Its task call hashes the file, so
+        the flow awaits this task first. ValueError for a task with no output file, one that
+        has not finished, or one that did not succeed."""
+        path = self._node.output_path
+        if path is None:
+            raise ValueError(f"{self.key} has no output file to give as an input file")
+        result = self.result
+        if result is None:
+            raise ValueError(f"{self.key} has not finished: await it before you give its output file as an input file")
+        if not result.ok:
+            raise ValueError(f"{self.key} ended {result.stop}: its output file is not given as an input file")
+        return InputFile(path)
+
     @property
     def origin(self) -> Origin | None:
         """Where the flow created the task."""
