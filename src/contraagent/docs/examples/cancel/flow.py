@@ -1,11 +1,11 @@
 """Probes whose answers stop being needed: the first blocking finding settles a review.
 
-`review` asks one probe per question about a change, each in a flow call of its own in
-one `asyncio.TaskGroup`. A probe that finds a blocking problem raises `Blocked`, and the
-group closes the other flow calls. Their probes are called with
-`.options(cancellable=True)`, so a probe still queued is not launched and a running one
-has its launch stopped: no flow call waits for their answers any longer. A probe
-called without the option would run to its end, and its answer would be in the run.
+`review` asks one probe per question about a change, each in a flow call of its own.
+The flow call whose probe finds a blocking problem cancels the others, which closes them.
+Their probes are called with `.options(cancellable=True)`, so a probe still queued is
+not launched and a running one has its launch stopped: no flow call waits for their
+answers any longer. A probe called without the option would run to its end, and its
+answer would be in the run.
 """
 
 from __future__ import annotations
@@ -38,27 +38,19 @@ QUESTIONS = {
 }
 
 
-class Blocked(Exception):
-    """A probe found a problem that blocks the change."""
-
-    def __init__(self, finding: Finding) -> None:
-        super().__init__(finding.note)
-        self.finding = finding
-
-
-async def ask(change: str, name: str, question: str) -> Finding:
+async def ask(change: str, name: str, question: str, probes: list[asyncio.Task[Finding]]) -> Finding:
     finding = await probe.options(key=f"probe-{change}-{name}", cancellable=True)(change, question=question)
-    if finding.blocking:
-        raise Blocked(finding)
+    if finding.blocking:  # the review is settled: the other probes' answers are not needed
+        for other in probes:
+            if other is not asyncio.current_task():
+                other.cancel()
     return finding
 
 
 async def review(change: str) -> str:
-    blocked: list[Finding] = []
-    try:
-        async with asyncio.TaskGroup() as group:
-            for name, question in QUESTIONS.items():
-                group.create_task(ask(change, name, question))
-    except* Blocked as caught:
-        blocked = [error.finding for error in caught.exceptions if isinstance(error, Blocked)]
+    probes: list[asyncio.Task[Finding]] = []
+    for name, question in QUESTIONS.items():
+        probes.append(asyncio.create_task(ask(change, name, question, probes)))
+    answers = await asyncio.gather(*probes, return_exceptions=True)
+    blocked = [answer for answer in answers if isinstance(answer, Finding) and answer.blocking]
     return f"blocked: {blocked[0].note}" if blocked else "clear"

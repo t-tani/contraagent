@@ -166,8 +166,8 @@ By default a task runs to its end whatever happens to the flow call that created
 it, as a task nothing awaits does: its result is in the run and in the journal, and a
 resume uses its output. A flow call is closed when a sibling in its
 `asyncio.TaskGroup` fails, when its time box is past its grace window, when it
-waits for what nothing will answer, or when the run ends before it returns. A task
-called with `.options(cancellable=True)` is cancelled once the flow call that
+waits for what nothing will answer, when flow code cancels its asyncio Task, or when
+the run ends before it returns. A task called with `.options(cancellable=True)` is cancelled once the flow call that
 created it and every flow call that waited for it were closed and no flow call
 waits for it. A queued one is not launched. A running agent task has its launch
 stopped within a second, and no other hop, correction round or attempt of it
