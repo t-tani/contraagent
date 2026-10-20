@@ -938,7 +938,9 @@ def max_passes(n: int, /) -> Callable[[F], F]
 def pipeline_table(name: str) -> dict[str, Any]
 
 @overload
-def python_task(fn: Callable[..., Out], /) -> PythonTask[Out]
+def python_task(fn: Callable[..., Partial[Out]], /) -> PythonTask[Out]
+@overload
+def python_task(fn: Callable[..., Out | Partial[Out]], /) -> PythonTask[Out]
 @overload
 def python_task(
     *,
@@ -950,7 +952,7 @@ def python_task(
     retry_on: tuple[type[Exception], ...] = (),
     output_name: str | None = None,
     outside_state: OutsideState | None = None,
-) -> Callable[[Callable[..., Out]], PythonTask[Out]]
+) -> Callable[[Callable[..., Out | Partial[Out]]], PythonTask[Out]]
 def python_task(
     fn: Callable[..., Any] | None = None,
     /,
