@@ -116,10 +116,16 @@ for another port).
   on tasks belongs in a flow, with its Python steps as separate Python tasks.
 - A task is called inside a flow only; `pending.output` is read after the run (an
   async flow receives the output at the `await`).
-- A task call's `Pending` given to another task as a param (`review(u, summary=summarize(u))`)
-  raises `TypeError` at the call: await it and pass the output
-  (`summary=await summarize(u)`), or give it in `.options(after=[...])` when the second
-  task only has to start after the first.
+- An agent task that is given anything declares a params model (`agent_task(...,
+  params=ReviewParams)`), and its call passes an instance of it:
+  `review(u, ReviewParams(summary=summary))`. A task without one is called `task(u)`.
+  Keyword params (`review(u, summary=...)`) raise `TypeError`. A Python task is called
+  as its function is, and a function that takes the unit has a parameter `unit: str`.
+- A task call's `Pending` given to another task as a param
+  (`review(u, ReviewParams(summary=summarize(u)))`) is refused, by a type checker and at
+  the call: await it and pass the output (`ReviewParams(summary=await summarize(u))`),
+  or give it in `.options(after=[...])` when the second task only has to start after
+  the first.
 - A task that reads what a task before it (`after=`) changed in the working tree
   declares that state with `outside_state=`: an `after=` task is not part of its
   fingerprint, so a resume would skip it with the old state.

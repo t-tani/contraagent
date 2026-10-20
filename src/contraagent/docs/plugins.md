@@ -1,8 +1,9 @@
 # Plugins
 
 The prompt carries no task knowledge. The runner writes the task's data to a
-**call file** (its params, the output path, format and JSON Schema, where to
-import the model from, the command validators), and the prompt only says
+**call file** (its params, the JSON Schema of its params model with each field's
+description, the output path, format and JSON Schema, where to import the model
+from, the command validators), and the prompt only says
 "carry out this call". What to do is the plugin's; what to do it *with* is the
 call file's. A plugin can be tried on its own with a call file written by hand.
 

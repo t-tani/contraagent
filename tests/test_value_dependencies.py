@@ -28,8 +28,25 @@ class Holder(BaseModel):
     depth: int = 1
 
 
+class Given(BaseModel):
+    """The params of `check` given a document: a field of any type, so a type checker lets
+    a `Pending` or a value that is not JSON in."""
+
+    doc: Any
+
+
+class Loose(BaseModel):
+    """The params of `check` for a flow that gives it a document, documents or a text."""
+
+    doc: Any = None
+    docs: Any = None
+    text: Any = None
+
+
 write = agent_task("write", instructions="Write.", output=Doc, max_turns=3, timeout_s=30)
 check = agent_task("check", instructions="Check.", output=Doc, max_turns=3, timeout_s=30)
+check_doc = agent_task("check", instructions="Check.", params=Given, output=Doc, max_turns=3, timeout_s=30)
+check_any = agent_task("check", instructions="Check.", params=Loose, output=Doc, max_turns=3, timeout_s=30)
 hold = agent_task("hold", instructions="Hold.", params=Holder, output=Doc, max_turns=3, timeout_s=30)
 
 
@@ -73,15 +90,15 @@ def flow_call_ends(rep) -> dict[str, dict[str, Any]]:
 @pytest.mark.parametrize(
     ("given", "where"),
     [
-        (lambda p: {"doc": p}, "doc is the Pending of write-u"),
-        (lambda p: {"docs": [1, p]}, "docs[1] is the Pending of write-u"),
-        (lambda p: {"docs": {"first": p}}, "docs['first'] is the Pending of write-u"),
-        (lambda p: {"docs": {"first": (p,)}}, "docs['first'][0] is the Pending of write-u"),
+        (lambda p: Loose(doc=p), "doc is the Pending of write-u"),
+        (lambda p: Loose(docs=[1, p]), "docs[1] is the Pending of write-u"),
+        (lambda p: Loose(docs={"first": p}), "docs['first'] is the Pending of write-u"),
+        (lambda p: Loose(docs={"first": (p,)}), "docs['first'][0] is the Pending of write-u"),
     ],
 )
 def test_a_pending_among_the_params_raises_at_the_call_and_says_how_to_write_it(tmp_path, given, where):
     def flow():
-        check("u", **given(write("u")))
+        check_any("u", given(write("u")))
 
     with pytest.raises(TypeError) as raised:
         pipeline(tmp_path, Agent()).run(flow)
@@ -92,7 +109,7 @@ def test_a_pending_among_the_params_raises_at_the_call_and_says_how_to_write_it(
 
 def test_a_pending_inside_a_model_raises_at_the_call(tmp_path):
     async def flow():
-        hold("u", doc=Holder(doc=write("u")))  # the field takes any value
+        hold("u", Holder(doc=Holder(doc=write("u"))))  # the field takes any value
 
     rep = pipeline(tmp_path, Agent()).run(flow)
     [error] = rep.flow_errors
@@ -124,11 +141,14 @@ class Opaque:
 
 @pytest.mark.parametrize(
     ("value", "says"),
-    [(Opaque(), "doc is a Opaque, which is not JSON"), (float("nan"), "params hold a value that is not JSON")],
+    [
+        (Opaque(), "params hold a value that is not JSON or not of its field's type: .*Opaque"),
+        (float("nan"), "params hold a value that is not JSON"),
+    ],
 )
 def test_a_param_that_is_not_json_raises_at_the_call(tmp_path, value, says):
     with pytest.raises(TypeError, match=says):
-        pipeline(tmp_path, Agent()).run(lambda: check("u", doc=value))
+        pipeline(tmp_path, Agent()).run(lambda: check_doc("u", Given(doc=value)))
 
 
 def test_a_python_tasks_default_that_is_not_json_raises_at_the_call(tmp_path):
@@ -145,9 +165,9 @@ def test_the_call_file_holds_the_value_the_flow_passed_at_the_call(tmp_path):
         doc = await write("u")
         out = tmp_path / "runs" / "flow" / "out" / "write" / "u.json"
         out.write_text(json.dumps({"unit": "u", "text": "changed on disk"}))  # after the flow received it
-        given = {"doc": doc.model_dump()}
-        call = check("u", **given)
-        given["doc"]["text"] = "changed by the flow"  # after the call
+        given = Given(doc=doc.model_dump())
+        call = check_doc("u", given)
+        given.doc["text"] = "changed by the flow"  # after the call
         await call
 
     agent = Agent()
@@ -160,8 +180,8 @@ def test_a_default_given_and_a_default_left_out_have_one_fingerprint(tmp_path):
     def flow():
         count.options(key="left-out")(doc={"unit": "u", "text": "t"})
         count.options(key="given")(doc={"unit": "u", "text": "t"}, scale=1)
-        hold.options(key="model-left-out")("u", doc="d")
-        hold.options(key="model-given")("u", doc="d", depth=1)
+        hold.options(key="model-left-out")("u", Holder(doc="d"))
+        hold.options(key="model-given")("u", Holder(doc="d", depth=1))
 
     rep = pipeline(tmp_path, Agent()).run(flow)
     tasks = {k: r.task for k, r in rep.results.items()}
@@ -175,13 +195,13 @@ def test_a_default_given_and_a_default_left_out_have_one_fingerprint(tmp_path):
 def test_a_copy_of_an_output_is_the_same_value_and_given_from_it(tmp_path):
     async def flow():
         doc = await write("u")
-        check.options(key="whole")("u", doc=doc)
-        check.options(key="copy")("u", doc=copy.deepcopy(doc))
-        check.options(key="dumped")("u", doc=doc.model_dump())
-        check.options(key="typed")("u", doc=Doc(unit="u", text="first"))
-        check.options(key="field")("u", text=doc.text)
-        check.options(key="literal")("u", text="first")
-        check.options(key="built")("u", text=doc.text.upper())
+        check_any.options(key="whole")("u", Loose(doc=doc))
+        check_any.options(key="copy")("u", Loose(doc=copy.deepcopy(doc)))
+        check_any.options(key="dumped")("u", Loose(doc=doc.model_dump()))
+        check_any.options(key="typed")("u", Loose(doc=Doc(unit="u", text="first")))
+        check_any.options(key="field")("u", Loose(text=doc.text))
+        check_any.options(key="literal")("u", Loose(text="first"))
+        check_any.options(key="built")("u", Loose(text=doc.text.upper()))
 
     rep = pipeline(tmp_path, Agent()).run(flow)
     assert rep.ok
@@ -201,9 +221,9 @@ def test_a_whole_row_of_a_rows_output_records_the_edge(tmp_path):
     async def flow():
         rows = await collect("u")
         for i, row in enumerate(rows):
-            check.options(key=f"row-{i}")("u", doc=row)
-        check.options(key="all")("u", docs=list(rows))
-        check.options(key="text")("u", text=rows[0].text)
+            check_any.options(key=f"row-{i}")("u", Loose(doc=row))
+        check_any.options(key="all")("u", Loose(docs=list(rows)))
+        check_any.options(key="text")("u", Loose(text=rows[0].text))
 
     rep = pipeline(tmp_path, Agent()).run(flow)
     assert rep.ok, rep.failed
@@ -214,11 +234,11 @@ def test_a_whole_row_of_a_rows_output_records_the_edge(tmp_path):
 
 def test_given_from_never_changes_what_a_resume_skips(tmp_path):
     async def from_output():
-        await check("u", text=(await write("u")).text)
+        await check_any("u", Loose(text=(await write("u")).text))
 
     async def from_literal():
         await write("u")
-        await check("u", text="first")
+        await check_any("u", Loose(text="first"))
 
     agent = Agent()
     assert pipeline(tmp_path, agent).run(from_output, run_id="r").ok
@@ -232,7 +252,7 @@ def test_an_upstream_task_that_runs_again_with_the_same_output_leaves_its_reader
         writer = agent_task("write", instructions=instructions, output=Doc, max_turns=3, timeout_s=30)
 
         async def run():
-            await check("u", doc=await writer("u"))
+            await check_doc("u", Given(doc=await writer("u")))
 
         return run
 
@@ -265,7 +285,7 @@ def test_a_flow_call_that_outlives_its_parent_is_counted_before_the_parents_end_
     async def child(pending):
         started.set()
         await asyncio.sleep(0)
-        await check("u", doc=await pending)  # after the parent returned
+        await check_doc("u", Given(doc=await pending))  # after the parent returned
 
     async def flow():
         pending = write("u")

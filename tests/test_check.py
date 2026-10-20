@@ -70,7 +70,7 @@ def test_a_sound_flow_passes_and_counts_its_tasks(tmp_path, plugin_dir):
         return sum(len(s.points) for s in summaries)
 
     async def flow(units):
-        await total(summaries=await asyncio.gather(*[summarize(u, path=f"{u}.md", words=3) for u in units]))
+        await total(summaries=await asyncio.gather(*[summarize(u, Doc(path=f"{u}.md", words=3)) for u in units]))
 
     report = pipeline().check(flow, ["a", "b"])
     assert report.ok, report
@@ -98,7 +98,7 @@ def test_what_a_run_would_find_one_launch_at_a_time_is_reported_at_once(plugin_d
     review = agent_task("review", plugin=plugin_dir, output=str)  # no budget
 
     def flow():
-        s = summarize("a", path="a.md", words=3)
+        s = summarize("a", Doc(path="a.md", words=3))
         review.options(after=["python:nowhere", s])("a")
 
     report = pipeline({"tasks": {"sumarize": {"max_turns": 3}}}).check(flow)
@@ -115,8 +115,8 @@ def test_parameters_are_validated_at_the_call(plugin_dir):
     summarize = agent_task("summarize", plugin=plugin_dir, params=Named, output=Summary, max_turns=5, timeout_s=60)
 
     def flow():
-        summarize("c", n=1, name="c")
-        summarize("a", n=0, name="ABC")  # constraints and validators: the whole model
+        summarize("c", Named(n=1, name="c"))
+        summarize("a", Named.model_construct(n=0, name="ABC"))  # constraints and validators: the whole model
 
     (error,) = pipeline().check(flow).errors
     assert f"{__file__}:" in error
@@ -129,11 +129,11 @@ def test_a_flow_that_raises_is_reported_at_the_callers_line(plugin_dir):
     summarize = agent_task("summarize", plugin=plugin_dir, params=Doc, output=Summary, max_turns=5, timeout_s=60)
 
     def flow():
-        summarize("a", path="a.md")  # words missing
+        summarize("a", Doc.model_construct(path="a.md"))  # words missing
 
     report = pipeline().check(flow)
     assert len(report.errors) == 1
-    assert f"{__file__}:" in report.errors[0] and "missing words" in report.errors[0]
+    assert f"{__file__}:" in report.errors[0] and "words: Field required" in report.errors[0]
 
 
 def test_a_broken_plugin_is_linted(plugin_dir):
@@ -355,8 +355,8 @@ def test_an_async_flow_is_checked_to_its_first_wait_with_its_reachable_kinds():
 
 async def summarize_via_module(unit):
     """Reaches the example's tasks as attributes of its module."""
-    summary = await example.summarize(unit, path="x")
-    return await example.review(unit, summary=summary)
+    summary = await example.summarize(unit, example.SummarizeParams(path="x"))
+    return await example.review(unit, example.ReviewParams(summary=summary))
 
 
 def test_reachable_follows_globals_module_attributes_closures_and_containers():
@@ -391,11 +391,11 @@ def test_reachable_does_not_run_a_modules_getattr():
 
 
 def test_a_reachable_kinds_routing_is_checked_before_any_task_of_it_exists():
-    late = agent_task("late", instructions="l", output=Summary)  # no budget
+    late = agent_task("late", instructions="l", params=example.ReviewParams, output=Summary)  # no budget
 
     async def flow():
-        summary = await example.summarize("a", path="x")
-        await late("a", summary=summary)
+        summary = await example.summarize("a", example.SummarizeParams(path="x"))
+        await late("a", example.ReviewParams(summary=summary))
 
     report = pipeline().check(flow)
     assert report.kinds == {"summarize": 1} and report.later_kinds == ["late"]
@@ -404,13 +404,13 @@ def test_a_reachable_kinds_routing_is_checked_before_any_task_of_it_exists():
 
 async def review_twice(unit, revise=example.revise):
     """Revises with `revise`: the example's, unless the caller gives another."""
-    summary = await example.summarize(unit, path="x")
-    await example.review(unit, summary=summary)
-    return await revise(unit, summary=summary)
+    summary = await example.summarize(unit, example.SummarizeParams(path="x"))
+    verdict = await example.review(unit, example.ReviewParams(summary=summary))
+    return await revise(unit, example.ReviseParams(summary=summary, verdict=verdict))
 
 
 def test_two_reachable_declarations_of_one_kind_that_differ_are_a_warning():
-    terse = agent_task("revise", instructions="be terse", output=example.Summary, max_turns=5, timeout_s=60)
+    terse = agent_task("revise", instructions="be terse", params=example.ReviseParams, output=example.Summary, max_turns=5, timeout_s=60)
 
     async def flow():
         return await review_twice("a", revise=terse)
@@ -428,7 +428,7 @@ def test_the_first_steps_params_and_flow_call_errors_are_reported(plugin_dir):
     named = agent_task("named", plugin=plugin_dir, params=Named, output=Summary, max_turns=5, timeout_s=60)
 
     async def part(u):
-        await named(u, n=0, name=u)
+        await named(u, Named.model_construct(n=0, name=u))
 
     async def bad(u):
         raise ValueError(f"no {u}")
@@ -445,8 +445,8 @@ def test_the_first_steps_params_and_flow_call_errors_are_reported(plugin_dir):
 
 def test_every_flow_call_is_driven_to_its_first_wait_however_deep():
     async def leaf(u):
-        await example.summarize(u, path=u)
-        await example.review(u)  # not reached: the check gives no output
+        summary = await example.summarize(u, example.SummarizeParams(path=u))
+        await example.review(u, example.ReviewParams(summary=summary))  # not reached: the check gives no output
 
     async def middle(u):
         async with asyncio.TaskGroup() as group:
@@ -463,7 +463,7 @@ def test_every_flow_call_is_driven_to_its_first_wait_however_deep():
 
 def test_a_generator_flow_is_refused_with_its_rewrite():
     def flow():
-        yield example.summarize("a", path="x")
+        yield example.summarize("a", example.SummarizeParams(path="x"))
 
     for given in (flow, lambda: flow()):
         report = pipeline().check(given)
@@ -475,11 +475,11 @@ def test_a_generator_flow_is_refused_with_its_rewrite():
 
 def test_a_coroutine_never_awaited_is_an_error():
     async def sub(u):
-        return await example.summarize(u, path=u)
+        return await example.summarize(u, example.SummarizeParams(path=u))
 
     async def flow():
         sub("a")  # pyright: ignore[reportUnusedCoroutine]  # the await forgotten
-        await example.summarize("b", path="b")
+        await example.summarize("b", example.SummarizeParams(path="b"))
 
     report = pipeline().check(flow)
     assert not report.ok
@@ -489,7 +489,7 @@ def test_a_coroutine_never_awaited_is_an_error():
 
 def test_a_check_from_a_running_event_loop_runs_on_a_thread_of_its_own():
     async def flow():
-        await example.summarize("a", path="x")
+        await example.summarize("a", example.SummarizeParams(path="x"))
 
     async def main():
         return pipeline().check(flow)
@@ -524,19 +524,27 @@ def test_the_preflight_probes_every_reachable_kind(tmp_path, monkeypatch):
 # --- classes of flow code: their methods reach the tasks they create ---------------
 
 EDIT_TASKS = """
+from pydantic import BaseModel
+
 from contraagent import agent_task
+
+
+class Draft(BaseModel):
+    draft: str
+
+
 start = agent_task("start", instructions="s", output=str, max_turns=5, timeout_s=60)
 refine = agent_task("refine", instructions="r", output=str, max_turns=5, timeout_s=60)
-polish = agent_task("polish", instructions="p", output=str, max_turns=5, timeout_s=60)
+polish = agent_task("polish", instructions="p", params=Draft, output=str, max_turns=5, timeout_s=60)
 """
 
 EDIT_BOARD = """
-from edit_tasks import polish, refine, start
+from edit_tasks import Draft, polish, refine, start
 
 
 async def rounds(unit):
     draft = await refine(unit)
-    return await polish(unit, draft=draft)
+    return await polish(unit, Draft(draft=draft))
 
 
 class Base:
@@ -625,7 +633,11 @@ def test_a_class_of_flow_code_reaches_the_tasks_its_methods_create(edit_board, h
 
 
 def test_a_class_of_other_code_is_not_followed(edit_board):
-    shelf = type("Shelf", (), {"__module__": "pathlib", "step": edit_board.refine, "go": lambda self: edit_board.polish("a")})
+    shelf = type(
+        "Shelf",
+        (),
+        {"__module__": "pathlib", "step": edit_board.refine, "go": lambda self: edit_board.polish("a", edit_board.Draft(draft="d"))},
+    )
     assert reachable(shelf) == []
     assert reachable(shelf()) == []
     assert [spec.kind for spec in reachable(edit_board.Board)] == ["refine", "polish"]
@@ -688,7 +700,7 @@ def test_a_check_drives_the_flows_with_no_event_loop_running():
 
     async def flow():
         seen.append(type(asyncio.get_running_loop()).__name__)
-        await example.summarize("a", path="x")
+        await example.summarize("a", example.SummarizeParams(path="x"))
 
     report = pipeline().check(flow)
     assert report.ok and seen == ["FlowLoop"]

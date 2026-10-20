@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from contraagent import Partial, agent_task, python_task
 
@@ -42,6 +42,10 @@ class Summary(BaseModel):
     text: str
 
 
+class SummarizeParams(BaseModel):
+    sources: Sources = Field(description="the topic and the files found on it")
+
+
 @python_task
 def find_sources(unit: str) -> Sources | Partial[Sources]:
     """The files on topic `unit`, from the local index server; none while it is unavailable."""
@@ -53,6 +57,7 @@ def find_sources(unit: str) -> Sources | Partial[Sources]:
 
 summarize = agent_task(
     "summarize",
+    params=SummarizeParams,
     instructions="Summarize the files in params.sources.paths in one paragraph; with no files, say so.",
     output=Summary,
     max_turns=10,
@@ -62,7 +67,7 @@ summarize = agent_task(
 
 async def topic(name: str) -> None:
     """One topic: its sources, then its summary."""
-    await summarize(name, sources=await find_sources(name))
+    await summarize(name, SummarizeParams(sources=await find_sources(name)))
 
 
 async def topics(names: list[str]):

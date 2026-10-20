@@ -169,7 +169,11 @@ def test_a_refused_input_is_an_attempt_the_scope_and_the_enricher_see(tmp_path):
 
 def test_a_scope_for_one_executor_leaves_the_other_and_agent_tasks_keep_theirs(tmp_path):
     seen: list = []
-    note = agent_task("note", instructions="Write a note.", output=Note, max_turns=5, timeout_s=60)
+
+    class NoteParams(BaseModel):
+        n: dict
+
+    note = agent_task("note", instructions="Write a note.", params=NoteParams, output=Note, max_turns=5, timeout_s=60)
 
     @python_task
     def count(unit: str) -> Count:
@@ -181,7 +185,7 @@ def test_a_scope_for_one_executor_leaves_the_other_and_agent_tasks_keep_theirs(t
     every: list = []
     agent = StubAgent({"note": {"text": "t"}})
     report = pipeline(tmp_path, backends=agent.backends(), scopes=[python_only, recording_scope(every)]).run(
-        lambda: note.options(after=[count("a")])("a", n={"n": 1})
+        lambda: note.options(after=[count("a")])("a", NoteParams(n={"n": 1}))
     )
     assert report.ok, report.failed
     assert seen == [("enter", "python", "count", 0), ("exit", "python", "count", 0)]

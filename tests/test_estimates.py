@@ -162,7 +162,7 @@ def test_the_graph_sets_each_tasks_tail_from_its_estimator(tmp_path):
     graph = Graph(tmp_path / "out")
     graph.tail = lambda t: 7.0 if t.kind == "summarize" else None
     with graph.building():
-        example.summarize("a", path="x")
+        example.summarize("a", example.SummarizeParams(path="x"))
         example.report(summaries=[])
     assert [t.tail_s for t in graph.tasks()] == [7.0, None]
 

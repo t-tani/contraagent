@@ -19,7 +19,7 @@ class Item(BaseModel):
 
 
 class Opaque:
-    """A class pydantic has no schema for: checked with `isinstance`."""
+    """A class pydantic has no JSON Schema for."""
 
 
 seen: dict[str, Any] = {}
@@ -50,11 +50,6 @@ def take_text(text: str, item: Item) -> str:
 
 
 @python_task
-def take_opaque(thing: Opaque) -> str:
-    return type(thing).__name__
-
-
-@python_task
 def make_item(unit: str) -> Item:
     return Item(name=unit, size=3)
 
@@ -67,25 +62,25 @@ def run(tmp_path, flow, agent: StubAgent | None = None, **kwargs):
 
 
 def test_a_dict_given_to_a_model_parameter_becomes_the_model(tmp_path):
-    report = run(tmp_path, lambda: take_item(item={"name": "a", "size": 1}))
+    report = run(tmp_path, lambda: take_item(item={"name": "a", "size": 1}))  # pyright: ignore[reportArgumentType]
     assert report.ok, report.failed
     assert isinstance(seen["item"], Item) and seen["item"] == Item(name="a", size=1)
 
 
 def test_a_list_of_dicts_given_to_a_list_of_models_becomes_a_list_of_models(tmp_path):
-    report = run(tmp_path, lambda: take_items(items=[{"name": "a", "size": 1}, Item(name="b", size=2)]))
+    report = run(tmp_path, lambda: take_items(items=[{"name": "a", "size": 1}, Item(name="b", size=2)]))  # pyright: ignore[reportArgumentType]
     assert report.ok, report.failed
     assert [type(i) for i in seen["items"]] == [Item, Item] and report.results["python:take_items"].ok
 
 
 def test_an_argument_is_converted_and_an_unannotated_one_passes_as_json(tmp_path):
     label = ("not", "checked")
-    report = run(tmp_path, lambda: take_count(count="3", label=label))
+    report = run(tmp_path, lambda: take_count(count="3", label=label))  # pyright: ignore[reportArgumentType]
     assert report.ok and seen["count"] == 3 and seen["label"] == ["not", "checked"]  # copied as JSON at the call
 
 
 def test_a_mismatch_refuses_the_task_before_the_function_runs(tmp_path):
-    report = run(tmp_path, lambda: take_items(items=[{"zzz": "x"}]))
+    report = run(tmp_path, lambda: take_items(items=[{"zzz": "x"}]))  # pyright: ignore[reportArgumentType]
     assert not report.ok and "items" not in seen
     [failed] = report.failed
     assert failed.stop == "invalid_input" and failed.rounds == 0
@@ -95,19 +90,22 @@ def test_a_mismatch_refuses_the_task_before_the_function_runs(tmp_path):
 
 
 def test_a_mismatch_names_each_parameter(tmp_path):
-    report = run(tmp_path, lambda: take_count(count="many", label=1))
+    report = run(tmp_path, lambda: take_count(count="many", label=1))  # pyright: ignore[reportArgumentType]
     [failed] = report.failed
     assert failed.reason == "invalid input: parameter count: Input should be a valid integer, unable to parse string as an integer"
 
 
 def test_a_value_that_is_not_json_is_refused_at_the_call(tmp_path):
-    with pytest.raises(TypeError, match="take_opaque\\(\\): thing is a Opaque, which is not JSON"):
-        run(tmp_path, lambda: take_opaque(thing=Opaque()), run_id="instance")
-    report = run(tmp_path, lambda: take_opaque(thing="x"), run_id="string")
-    [failed] = report.failed
-    assert failed.stop == "invalid_input" and failed.reason.startswith(
-        "invalid input: parameter thing: Input should be an instance of Opaque"
-    )
+    with pytest.raises(TypeError, match="take_count\\(\\): label is a Opaque, which is not JSON"):
+        run(tmp_path, lambda: take_count(count=1, label=Opaque()), run_id="instance")
+
+
+def test_an_annotation_without_a_json_schema_is_refused_where_the_task_is_declared():
+    def take_opaque(thing: Opaque) -> str:
+        return type(thing).__name__
+
+    with pytest.raises(TypeError, match="parameter thing is annotated .*Opaque.*, which has no JSON Schema"):
+        python_task(take_opaque)
 
 
 def test_outputs_of_other_tasks_count_as_their_values(tmp_path):
@@ -136,13 +134,13 @@ class Later(BaseModel):
 
 
 def test_a_type_defined_after_the_function_resolves_at_the_first_call(tmp_path):
-    assert run(tmp_path, lambda: take_later(later={"v": "2"})).ok
+    assert run(tmp_path, lambda: take_later(later={"v": "2"})).ok  # pyright: ignore[reportArgumentType]
     assert seen["later"] == Later(v=2)
 
 
 def test_a_stub_run_refuses_what_a_run_refuses(tmp_path):
     seen.clear()
     pipeline = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, stub=StubAgent(), log=lambda line: None)
-    report = pipeline.run(lambda: take_item(item={"name": "a"}))
+    report = pipeline.run(lambda: take_item(item={"name": "a"}))  # pyright: ignore[reportArgumentType]
     [failed] = report.failed
     assert failed.stop == "invalid_input" and failed.reason == "invalid input: parameter item.size: Field required"

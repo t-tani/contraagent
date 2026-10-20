@@ -14,6 +14,30 @@ it is.
 
 ::code{file="examples/demo/tasks.py" from="summarize = agent_task(" to="@python_task"}
 
+A task's params model is a pydantic model of its own: each field is one param, and
+its `Field(description=...)` tells the agent what the param is. The call file carries
+the fields' values as JSON (`params`) and the model's JSON Schema beside them
+(`params_json_schema`), so a description and a constraint (`ge=1`, a `Literal`) reach
+the agent. Tasks that share fields share a base model, which each task's model
+extends; a check across fields is a `model_validator` of the model.
+
+::code{file="examples/demo/tasks.py" from="class SummarizeParams" to="def three_points"}
+
+A task call passes the unit and an instance of the model:
+`summarize(unit, SummarizeParams(prepared=prepared))`, or
+`summarize(SummarizeParams(...))` for a task with no unit. The declaration is typed
+`AgentTask[SummarizeParams, Summary]`, so a type checker (mypy, pyright) finds a
+misspelled field, a value of another type, a required field left out and the model
+of another task before anything runs, and a function that takes any task with its
+params (`async def attempt[P: BaseModel, Out](task: AgentTask[P, Out], unit: str, params: P) -> Out`)
+keeps both types. The instance is of the model itself: one of a subclass carries
+fields the model's JSON Schema does not describe, and raises `TypeError` at the call.
+A task declared without `params=` takes no params: it is typed `AgentTask[None, Out]`,
+called `tidy(unit)` or `tidy()`, and its params are `{}`; a call that gives it params
+raises `TypeError`. A text output with an example,
+`output=Annotated[str, Field(examples=[...])]`, is typed as `str`; an `Annotated`
+around anything else raises `TypeError` where the task is declared.
+
 `agent_task`'s arguments, and the topic that explains each (the docstring states
 them all):
 
@@ -36,8 +60,15 @@ them all):
 ## Python tasks
 
 A function becomes a task with the same contract machinery: its return
-annotation is its output contract, a function with a `unit` parameter is given
-the unit, and a raised exception fails the task. Its arguments are JSON values,
+annotation is its output contract, and a raised exception fails the task. A task
+call calls it as the function is called, and a type checker checks the call
+against the function's parameters (`PythonTask[P, Out]`). Its parameter named
+`unit`, a string, takes the task's unit; a function without one makes tasks with
+no unit (key `python:<kind>`). Every other parameter is a param, by its name, so
+the function's parameters are named: a positional-only parameter, `*args` and
+`**kwargs` raise `TypeError` where the task is declared, and so does an annotation
+pydantic has no JSON Schema for. Its kind is the function's name, or the one
+`@python_task(kind=...)` gives. Its arguments are JSON values,
 copied at the task call, and its parameters' annotations are its input types: each
 argument is checked and converted before the call (pydantic, lax mode), so a model
 given to a model parameter arrives as the model, a list of dicts given to
@@ -133,9 +164,12 @@ reference to the task's future output:
   are its call options, given by `task.options(...)` (see below).
 - A call that the run could not make raises `TypeError` at the call, and
   `contraagent check` reports it at the flow's line: for a Python task a keyword
-  its function has no parameter for, or a required parameter left out, for an agent
-  task params its params model does not validate, and for any task a call option
-  given as a keyword of the call.
+  its function has no parameter for, or a required parameter left out; for an agent
+  task params that are no instance of its params model itself, params given to a
+  task without a model or as keywords, and an instance whose fields no longer
+  validate under the model (a value set after it was made); and for any task a
+  call option given as a keyword of the call. A type checker finds most of them
+  before the run.
 - After the run, `pending.output` is the checked value.
 
 ### Call options
@@ -143,15 +177,16 @@ reference to the task's future output:
 A task call takes the task's params, and nothing else. The words that say how the
 task is run are its call options: `task.options(...)` returns the same task with
 them, and calling what it returns is the task call, as in
-`summarize.options(key="summary-short", priority=2)("alpha", length="short")`.
+`summarize.options(key="summary-short", priority=2)("alpha", params)`.
 
 `options` takes each option as a keyword, and an option it is not given keeps the
 value it had, so `summarize.options(priority=2).options(key="k")` has both. None
 given as `key` or `credential` clears it: the key is `<kind>-<unit>` again, and the
 credential is the kind's. The task
 it returns has the same declaration: one kind, one digest, one `[tasks.<kind>]`
-table. Its type is the task's own (`AgentTask[Summary]` stays `AgentTask[Summary]`),
-so a function that takes a task and calls it with a key keeps the output type too.
+table. Its type is the task's own (`AgentTask[SummarizeParams, Summary]` stays
+`AgentTask[SummarizeParams, Summary]`), so a function that takes a task and calls it
+with a key keeps the params and output types too.
 Each option is checked where `options` is given; one that is wrong raises
 `TypeError` there.
 
@@ -171,9 +206,10 @@ Each option is checked where `options` is given; one that is wrong raises
   longer (see below).
 
 A params field or a Python task's parameter may have the name of an option
-(`key`, `priority`): the call gives it as a param. A call option given as a keyword
-of the call to a task without such a param raises `TypeError` that names
-`options`. Only `key` is part of the fingerprint.
+(`key`, `priority`): it is a param like any other. A call option given as a keyword
+of an agent task's call, or of a Python task's call to a function without such a
+parameter, raises `TypeError` that names `options`. Only `key` is part of the
+fingerprint.
 
 By default a task runs to its end whatever happens to the flow call that created
 it, as a task nothing awaits does: its result is in the run and in the journal, and a
@@ -497,7 +533,7 @@ a flow error would be too short. A task's own duration is the median of its
 kind's completed attempts, in this run once one has finished, else in the
 recent runs.
 
-A task's `priority` (`summarize.options(priority=2)("alpha")`, a number, default 0)
+A task's `priority` (`summarize.options(priority=2)("alpha", params)`, a number, default 0)
 orders tasks the queue would otherwise start in the order they were queued:
 among ready tasks with equal work after them, the highest priority starts
 first. It is a tie-breaker only. A task with longer work after it still starts
@@ -757,10 +793,11 @@ such task started in the last 30 seconds, since a server just started has not ta
 its memory yet; where the OS reports none, memory does not limit the name. The capacity grows
 as memory frees, and a waiting task starts then, while the others still run.
 
-A claim that names `{unit}` on a task with no unit, or a parameter the call does
-not give, raises at the task call; so does a parameter that is an output not
-received yet (await it first), and one that holds an empty list, which would claim
-nothing. Claims are not part of the fingerprint: they change
+A claim that names `{params.<name>}`, where `<name>` is no field of the task's params
+model (for a Python task, no parameter of its function), raises where the task is
+declared. A claim that names `{unit}` on a task with no unit, or a parameter the call
+does not give, raises at the task call; so does a parameter that holds an empty list,
+which would claim nothing. Claims are not part of the fingerprint: they change
 when a task runs, not what it does. The plan records each task's claims, and the
 monitor shows them in the task's detail.
 
