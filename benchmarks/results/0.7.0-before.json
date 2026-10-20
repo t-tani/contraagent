@@ -1,0 +1,3721 @@
+{
+ "label": "before scheduling",
+ "version": "0.6.2",
+ "python": "3.12.9",
+ "seeds": 20,
+ "scale_s": 0.2,
+ "scenarios": {
+  "demo": {
+   "runs": {
+    "first": [
+     {
+      "makespan": 31.93,
+      "idle": 15.37,
+      "launches": 24,
+      "work": 80.32,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 44.31,
+      "idle": 26.5,
+      "launches": 24,
+      "work": 106.32,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 46.51,
+      "idle": 21.68,
+      "launches": 24,
+      "work": 117.74,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 31.76,
+      "idle": 4.92,
+      "launches": 24,
+      "work": 90.24,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 42.53,
+      "idle": 27.87,
+      "launches": 24,
+      "work": 99.61,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 31.94,
+      "idle": 10.63,
+      "launches": 24,
+      "work": 85.08,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 34.88,
+      "idle": 15.42,
+      "launches": 24,
+      "work": 89.11,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 32.36,
+      "idle": 5.61,
+      "launches": 24,
+      "work": 91.26,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 48.95,
+      "idle": 31.26,
+      "launches": 24,
+      "work": 115.43,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 34.88,
+      "idle": 1.93,
+      "launches": 24,
+      "work": 102.61,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 36.91,
+      "idle": 3.93,
+      "launches": 24,
+      "work": 106.68,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 26.31,
+      "idle": 3.49,
+      "launches": 24,
+      "work": 75.36,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 36.34,
+      "idle": 6.19,
+      "launches": 24,
+      "work": 102.75,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 49.83,
+      "idle": 49.93,
+      "launches": 24,
+      "work": 99.47,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 34.19,
+      "idle": 5.92,
+      "launches": 24,
+      "work": 96.55,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 38.79,
+      "idle": 5.23,
+      "launches": 24,
+      "work": 111.06,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 37.85,
+      "idle": 10.89,
+      "launches": 24,
+      "work": 102.58,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 27.12,
+      "idle": 2.12,
+      "launches": 24,
+      "work": 79.16,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 30.71,
+      "idle": 3.39,
+      "launches": 24,
+      "work": 88.64,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 27.9,
+      "idle": 8.77,
+      "launches": 24,
+      "work": 74.75,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     }
+    ],
+    "second": [
+     {
+      "makespan": 35.8,
+      "idle": 26.96,
+      "launches": 24,
+      "work": 80.32,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 48.48,
+      "idle": 39.0,
+      "launches": 24,
+      "work": 106.32,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 46.0,
+      "idle": 20.14,
+      "launches": 24,
+      "work": 117.74,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 32.23,
+      "idle": 6.3,
+      "launches": 24,
+      "work": 90.24,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 37.71,
+      "idle": 13.4,
+      "launches": 24,
+      "work": 99.61,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 33.32,
+      "idle": 14.76,
+      "launches": 24,
+      "work": 85.08,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 34.64,
+      "idle": 14.72,
+      "launches": 24,
+      "work": 89.11,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 32.54,
+      "idle": 6.27,
+      "launches": 24,
+      "work": 91.26,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 52.0,
+      "idle": 40.5,
+      "launches": 24,
+      "work": 115.43,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 40.18,
+      "idle": 17.82,
+      "launches": 24,
+      "work": 102.61,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 44.0,
+      "idle": 25.23,
+      "launches": 24,
+      "work": 106.68,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 26.27,
+      "idle": 3.36,
+      "launches": 24,
+      "work": 75.36,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 40.29,
+      "idle": 18.06,
+      "launches": 24,
+      "work": 102.75,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 47.63,
+      "idle": 43.34,
+      "launches": 24,
+      "work": 99.47,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 36.01,
+      "idle": 11.42,
+      "launches": 24,
+      "work": 96.55,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 46.56,
+      "idle": 28.54,
+      "launches": 24,
+      "work": 111.06,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 40.67,
+      "idle": 19.35,
+      "launches": 24,
+      "work": 102.58,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 28.86,
+      "idle": 7.3,
+      "launches": 24,
+      "work": 79.16,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 38.26,
+      "idle": 26.07,
+      "launches": 24,
+      "work": 88.64,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 27.85,
+      "idle": 8.72,
+      "launches": 24,
+      "work": 74.75,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     }
+    ]
+   },
+   "summary": {
+    "first": {
+     "makespan": 34.88,
+     "idle": 7.48,
+     "deferred": 0.0,
+     "makespan_worst": 49.83,
+     "failed": 0
+    },
+    "second": {
+     "makespan": 37.98,
+     "idle": 17.94,
+     "deferred": 0.0,
+     "makespan_worst": 52.0,
+     "failed": 0
+    }
+   }
+  },
+  "demo-loop": {
+   "runs": {
+    "first": [
+     {
+      "makespan": 34.26,
+      "idle": 12.15,
+      "launches": 28,
+      "work": 90.53,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 59.08,
+      "idle": 62.53,
+      "launches": 28,
+      "work": 114.61,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 51.9,
+      "idle": 17.84,
+      "launches": 32,
+      "work": 137.75,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 42.14,
+      "idle": 3.46,
+      "launches": 34,
+      "work": 122.83,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 42.76,
+      "idle": 10.98,
+      "launches": 30,
+      "work": 117.17,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 35.05,
+      "idle": 3.27,
+      "launches": 30,
+      "work": 101.78,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 37.85,
+      "idle": 13.41,
+      "launches": 28,
+      "work": 100.02,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 46.39,
+      "idle": 17.56,
+      "launches": 36,
+      "work": 120.25,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 48.55,
+      "idle": 15.36,
+      "launches": 30,
+      "work": 129.79,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 49.17,
+      "idle": 21.46,
+      "launches": 32,
+      "work": 125.5,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 36.87,
+      "idle": 3.84,
+      "launches": 24,
+      "work": 106.68,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 36.63,
+      "idle": 7.21,
+      "launches": 34,
+      "work": 102.57,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 53.6,
+      "idle": 12.08,
+      "launches": 40,
+      "work": 148.37,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 49.93,
+      "idle": 40.53,
+      "launches": 28,
+      "work": 107.51,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 51.82,
+      "idle": 14.0,
+      "launches": 38,
+      "work": 137.88,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 44.51,
+      "idle": 15.22,
+      "launches": 26,
+      "work": 115.82,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 42.17,
+      "idle": 6.16,
+      "launches": 30,
+      "work": 120.21,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 29.58,
+      "idle": 4.68,
+      "launches": 26,
+      "work": 83.54,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 40.5,
+      "idle": 5.9,
+      "launches": 34,
+      "work": 115.43,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 36.38,
+      "idle": 19.95,
+      "launches": 30,
+      "work": 89.0,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     }
+    ],
+    "second": [
+     {
+      "makespan": 36.02,
+      "idle": 17.43,
+      "launches": 28,
+      "work": 90.53,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 53.94,
+      "idle": 47.12,
+      "launches": 28,
+      "work": 114.61,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 52.98,
+      "idle": 21.08,
+      "launches": 32,
+      "work": 137.75,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 43.33,
+      "idle": 7.03,
+      "launches": 34,
+      "work": 122.83,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 43.45,
+      "idle": 12.73,
+      "launches": 30,
+      "work": 117.17,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 36.45,
+      "idle": 7.4,
+      "launches": 30,
+      "work": 101.78,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 36.62,
+      "idle": 9.75,
+      "launches": 28,
+      "work": 100.02,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 41.3,
+      "idle": 3.51,
+      "launches": 36,
+      "work": 120.25,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 52.74,
+      "idle": 28.33,
+      "launches": 30,
+      "work": 129.79,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 49.49,
+      "idle": 22.74,
+      "launches": 32,
+      "work": 125.5,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 41.62,
+      "idle": 18.07,
+      "launches": 24,
+      "work": 106.68,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 34.81,
+      "idle": 1.65,
+      "launches": 34,
+      "work": 102.57,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 52.03,
+      "idle": 3.67,
+      "launches": 40,
+      "work": 148.37,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 51.39,
+      "idle": 46.51,
+      "launches": 28,
+      "work": 107.51,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 52.96,
+      "idle": 20.79,
+      "launches": 38,
+      "work": 137.88,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 42.79,
+      "idle": 12.41,
+      "launches": 26,
+      "work": 115.82,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 41.44,
+      "idle": 3.96,
+      "launches": 30,
+      "work": 120.21,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 31.52,
+      "idle": 10.88,
+      "launches": 26,
+      "work": 83.54,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 44.35,
+      "idle": 17.43,
+      "launches": 34,
+      "work": 115.43,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 33.13,
+      "idle": 10.25,
+      "launches": 30,
+      "work": 89.0,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     }
+    ]
+   },
+   "summary": {
+    "first": {
+     "makespan": 42.47,
+     "idle": 12.78,
+     "deferred": 0.0,
+     "makespan_worst": 59.08,
+     "failed": 0
+    },
+    "second": {
+     "makespan": 43.06,
+     "idle": 12.57,
+     "deferred": 0.0,
+     "makespan_worst": 53.94,
+     "failed": 0
+    }
+   }
+  },
+  "demo-deadline": {
+   "runs": {
+    "first": [
+     {
+      "makespan": 29.09,
+      "idle": 28.01,
+      "launches": 16,
+      "work": 59.17,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 40.21,
+      "cost_after_deadline": 0.9484,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 14.92,
+      "idle": 1.92,
+      "launches": 12,
+      "work": 42.78,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 42.78,
+      "cost_after_deadline": 0,
+      "deferred_would_fit": 1
+     },
+     {
+      "makespan": 27.94,
+      "idle": 22.28,
+      "launches": 10,
+      "work": 61.51,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 33.63,
+      "cost_after_deadline": 1.3936,
+      "deferred_would_fit": 2
+     },
+     {
+      "makespan": 15.27,
+      "idle": 5.84,
+      "launches": 12,
+      "work": 39.9,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 31.95,
+      "cost_after_deadline": 0.3974,
+      "deferred_would_fit": 3
+     },
+     {
+      "makespan": 18.41,
+      "idle": 8.39,
+      "launches": 10,
+      "work": 46.78,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 30.45,
+      "cost_after_deadline": 0.8161,
+      "deferred_would_fit": 1
+     },
+     {
+      "makespan": 20.23,
+      "idle": 10.32,
+      "launches": 12,
+      "work": 50.24,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 23.96,
+      "cost_after_deadline": 1.3142,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 14.96,
+      "idle": 3.29,
+      "launches": 10,
+      "work": 41.48,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 41.48,
+      "cost_after_deadline": 0,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 15.16,
+      "idle": 3.54,
+      "launches": 11,
+      "work": 41.83,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 38.7,
+      "cost_after_deadline": 0.1564,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 21.8,
+      "idle": 10.35,
+      "launches": 14,
+      "work": 54.92,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 38.39,
+      "cost_after_deadline": 0.8267,
+      "deferred_would_fit": 1
+     },
+     {
+      "makespan": 17.56,
+      "idle": 7.55,
+      "launches": 9,
+      "work": 45.08,
+      "deferred": 7,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 27.55,
+      "cost_after_deadline": 0.8761,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 28.64,
+      "idle": 31.6,
+      "launches": 11,
+      "work": 53.26,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 37.03,
+      "cost_after_deadline": 0.8112,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 17.04,
+      "idle": 6.6,
+      "launches": 13,
+      "work": 42.14,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 40.02,
+      "cost_after_deadline": 0.1058,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 18.65,
+      "idle": 8.97,
+      "launches": 10,
+      "work": 44.87,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 35.49,
+      "cost_after_deadline": 0.469,
+      "deferred_would_fit": 1
+     },
+     {
+      "makespan": 18.44,
+      "idle": 6.8,
+      "launches": 16,
+      "work": 48.45,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 32.94,
+      "cost_after_deadline": 0.7752,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 15.99,
+      "idle": 4.23,
+      "launches": 11,
+      "work": 43.7,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 30.46,
+      "cost_after_deadline": 0.6619,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 30.2,
+      "idle": 34.41,
+      "launches": 10,
+      "work": 56.13,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 37.62,
+      "cost_after_deadline": 0.9254,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 15.78,
+      "idle": 5.6,
+      "launches": 13,
+      "work": 41.66,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 34.93,
+      "cost_after_deadline": 0.3369,
+      "deferred_would_fit": 1
+     },
+     {
+      "makespan": 16.15,
+      "idle": 3.39,
+      "launches": 14,
+      "work": 45.0,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 38.73,
+      "cost_after_deadline": 0.3132,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 26.32,
+      "idle": 21.82,
+      "launches": 12,
+      "work": 57.09,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 25.59,
+      "cost_after_deadline": 1.575,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 17.07,
+      "idle": 2.6,
+      "launches": 14,
+      "work": 48.56,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 31.38,
+      "cost_after_deadline": 0.8587,
+      "deferred_would_fit": 0
+     }
+    ],
+    "second": [
+     {
+      "makespan": 16.53,
+      "idle": 5.12,
+      "launches": 14,
+      "work": 44.4,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 37.2,
+      "cost_after_deadline": 0.3604,
+      "deferred_would_fit": 4
+     },
+     {
+      "makespan": 14.2,
+      "idle": 3.19,
+      "launches": 10,
+      "work": 39.35,
+      "deferred": 7,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 39.35,
+      "cost_after_deadline": 0,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 14.93,
+      "idle": 3.55,
+      "launches": 6,
+      "work": 41.18,
+      "deferred": 8,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 41.18,
+      "cost_after_deadline": 0,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 16.06,
+      "idle": 6.11,
+      "launches": 12,
+      "work": 42.02,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 35.61,
+      "cost_after_deadline": 0.3206,
+      "deferred_would_fit": 6
+     },
+     {
+      "makespan": 23.22,
+      "idle": 15.34,
+      "launches": 12,
+      "work": 54.24,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 37.92,
+      "cost_after_deadline": 0.8161,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 18.83,
+      "idle": 7.82,
+      "launches": 8,
+      "work": 48.29,
+      "deferred": 8,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 22.0,
+      "cost_after_deadline": 1.3142,
+      "deferred_would_fit": 5
+     },
+     {
+      "makespan": 14.93,
+      "idle": 5.98,
+      "launches": 7,
+      "work": 38.74,
+      "deferred": 8,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 38.74,
+      "cost_after_deadline": 0,
+      "deferred_would_fit": 6
+     },
+     {
+      "makespan": 15.72,
+      "idle": 3.71,
+      "launches": 10,
+      "work": 43.39,
+      "deferred": 7,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 36.66,
+      "cost_after_deadline": 0.3367,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 20.29,
+      "idle": 4.08,
+      "launches": 14,
+      "work": 56.35,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 34.76,
+      "cost_after_deadline": 1.0793,
+      "deferred_would_fit": 4
+     },
+     {
+      "makespan": 17.62,
+      "idle": 10.41,
+      "launches": 7,
+      "work": 41.16,
+      "deferred": 8,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 23.64,
+      "cost_after_deadline": 0.8761,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 20.71,
+      "idle": 14.34,
+      "launches": 12,
+      "work": 47.72,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 38.76,
+      "cost_after_deadline": 0.448,
+      "deferred_would_fit": 5
+     },
+     {
+      "makespan": 20.06,
+      "idle": 7.75,
+      "launches": 16,
+      "work": 52.36,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 38.55,
+      "cost_after_deadline": 0.6905,
+      "deferred_would_fit": 4
+     },
+     {
+      "makespan": 20.3,
+      "idle": 5.14,
+      "launches": 10,
+      "work": 55.5,
+      "deferred": 7,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 26.73,
+      "cost_after_deadline": 1.4382,
+      "deferred_would_fit": 5
+     },
+     {
+      "makespan": 17.23,
+      "idle": 6.71,
+      "launches": 12,
+      "work": 44.93,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 39.78,
+      "cost_after_deadline": 0.2579,
+      "deferred_would_fit": 4
+     },
+     {
+      "makespan": 14.11,
+      "idle": 4.23,
+      "launches": 8,
+      "work": 38.04,
+      "deferred": 8,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 38.04,
+      "cost_after_deadline": 0,
+      "deferred_would_fit": 6
+     },
+     {
+      "makespan": 30.17,
+      "idle": 18.92,
+      "launches": 12,
+      "work": 71.54,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 33.06,
+      "cost_after_deadline": 1.9242,
+      "deferred_would_fit": 2
+     },
+     {
+      "makespan": 14.35,
+      "idle": 2.99,
+      "launches": 10,
+      "work": 39.88,
+      "deferred": 7,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 39.88,
+      "cost_after_deadline": 0,
+      "deferred_would_fit": 5
+     },
+     {
+      "makespan": 15.89,
+      "idle": 4.84,
+      "launches": 12,
+      "work": 42.77,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 38.98,
+      "cost_after_deadline": 0.1892,
+      "deferred_would_fit": 4
+     },
+     {
+      "makespan": 33.35,
+      "idle": 38.12,
+      "launches": 12,
+      "work": 61.87,
+      "deferred": 7,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 31.83,
+      "cost_after_deadline": 1.5024,
+      "deferred_would_fit": 5
+     },
+     {
+      "makespan": 17.18,
+      "idle": 2.93,
+      "launches": 14,
+      "work": 48.56,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 37.7,
+      "cost_after_deadline": 0.5429,
+      "deferred_would_fit": 3
+     }
+    ]
+   },
+   "summary": {
+    "first": {
+     "makespan": 17.98,
+     "idle": 7.17,
+     "deferred": 5.0,
+     "done_by_deadline": 35.21,
+     "cost_after_deadline": 0.79,
+     "deferred_would_fit": 0.0,
+     "makespan_worst": 30.2,
+     "failed": 0
+    },
+    "second": {
+     "makespan": 17.2,
+     "idle": 5.56,
+     "deferred": 6.5,
+     "done_by_deadline": 37.81,
+     "cost_after_deadline": 0.4,
+     "deferred_would_fit": 4.0,
+     "makespan_worst": 33.35,
+     "failed": 0
+    }
+   }
+  },
+  "analysis": {
+   "runs": {
+    "first": [
+     {
+      "makespan": 74.96,
+      "idle": 117.08,
+      "launches": 28,
+      "work": 107.68,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 43.65,
+      "idle": 51.33,
+      "launches": 27,
+      "work": 79.5,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 48.5,
+      "idle": 53.98,
+      "launches": 31,
+      "work": 91.4,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 27.11,
+      "idle": 10.82,
+      "launches": 30,
+      "work": 70.37,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 30.92,
+      "idle": 19.94,
+      "launches": 29,
+      "work": 72.67,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 39.05,
+      "idle": 41.47,
+      "launches": 26,
+      "work": 75.6,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 55.11,
+      "idle": 64.55,
+      "launches": 30,
+      "work": 100.56,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 32.38,
+      "idle": 19.56,
+      "launches": 29,
+      "work": 76.92,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 38.68,
+      "idle": 38.25,
+      "launches": 30,
+      "work": 76.98,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 28.96,
+      "idle": 23.69,
+      "launches": 30,
+      "work": 63.08,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 55.34,
+      "idle": 73.32,
+      "launches": 29,
+      "work": 92.55,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 41.73,
+      "idle": 39.74,
+      "launches": 29,
+      "work": 85.18,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 34.56,
+      "idle": 29.4,
+      "launches": 30,
+      "work": 74.08,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 43.79,
+      "idle": 50.35,
+      "launches": 30,
+      "work": 80.74,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 31.52,
+      "idle": 25.36,
+      "launches": 28,
+      "work": 68.86,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 24.84,
+      "idle": 10.42,
+      "launches": 29,
+      "work": 63.79,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 34.26,
+      "idle": 28.23,
+      "launches": 29,
+      "work": 74.32,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 60.59,
+      "idle": 84.12,
+      "launches": 29,
+      "work": 97.45,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 56.44,
+      "idle": 74.56,
+      "launches": 28,
+      "work": 94.52,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 38.76,
+      "idle": 43.15,
+      "launches": 27,
+      "work": 72.97,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     }
+    ],
+    "second": [
+     {
+      "makespan": 77.42,
+      "idle": 124.46,
+      "launches": 28,
+      "work": 107.68,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 45.45,
+      "idle": 56.72,
+      "launches": 27,
+      "work": 79.5,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 48.75,
+      "idle": 53.9,
+      "launches": 31,
+      "work": 91.4,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 28.81,
+      "idle": 15.95,
+      "launches": 30,
+      "work": 70.37,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 33.13,
+      "idle": 26.61,
+      "launches": 29,
+      "work": 72.67,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 41.26,
+      "idle": 46.02,
+      "launches": 26,
+      "work": 75.6,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 56.21,
+      "idle": 67.84,
+      "launches": 30,
+      "work": 100.56,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 31.01,
+      "idle": 15.94,
+      "launches": 29,
+      "work": 76.92,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 40.07,
+      "idle": 43.08,
+      "launches": 30,
+      "work": 76.98,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 30.69,
+      "idle": 28.86,
+      "launches": 30,
+      "work": 63.08,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 56.36,
+      "idle": 76.29,
+      "launches": 29,
+      "work": 92.55,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 41.36,
+      "idle": 38.72,
+      "launches": 29,
+      "work": 85.18,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 35.94,
+      "idle": 33.52,
+      "launches": 30,
+      "work": 74.08,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 40.99,
+      "idle": 42.07,
+      "launches": 30,
+      "work": 80.74,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 32.47,
+      "idle": 28.32,
+      "launches": 28,
+      "work": 68.86,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 25.82,
+      "idle": 13.37,
+      "launches": 29,
+      "work": 63.79,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 35.0,
+      "idle": 30.47,
+      "launches": 29,
+      "work": 74.32,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 60.4,
+      "idle": 83.61,
+      "launches": 29,
+      "work": 97.45,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 56.58,
+      "idle": 75.07,
+      "launches": 28,
+      "work": 94.52,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 43.51,
+      "idle": 57.42,
+      "launches": 27,
+      "work": 72.97,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     }
+    ]
+   },
+   "summary": {
+    "first": {
+     "makespan": 38.91,
+     "idle": 40.61,
+     "deferred": 0.0,
+     "makespan_worst": 74.96,
+     "failed": 0
+    },
+    "second": {
+     "makespan": 41.12,
+     "idle": 42.58,
+     "deferred": 0.0,
+     "makespan_worst": 77.42,
+     "failed": 0
+    }
+   }
+  },
+  "chains": {
+   "runs": {
+    "first": [
+     {
+      "makespan": 63.3,
+      "idle": 4.52,
+      "launches": 33,
+      "work": 121.87,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 68.36,
+      "idle": 3.23,
+      "launches": 33,
+      "work": 133.29,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 59.27,
+      "idle": 4.31,
+      "launches": 33,
+      "work": 114.1,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 62.91,
+      "idle": 1.71,
+      "launches": 33,
+      "work": 122.41,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 61.74,
+      "idle": 4.08,
+      "launches": 33,
+      "work": 118.86,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 60.29,
+      "idle": 2.12,
+      "launches": 33,
+      "work": 118.03,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 57.3,
+      "idle": 1.15,
+      "launches": 33,
+      "work": 113.28,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 63.97,
+      "idle": 5.22,
+      "launches": 33,
+      "work": 122.59,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 57.44,
+      "idle": 3.4,
+      "launches": 33,
+      "work": 111.32,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 51.49,
+      "idle": 2.26,
+      "launches": 33,
+      "work": 100.56,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 63.01,
+      "idle": 3.73,
+      "launches": 33,
+      "work": 122.11,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 59.83,
+      "idle": 3.05,
+      "launches": 33,
+      "work": 116.46,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 61.01,
+      "idle": 3.76,
+      "launches": 33,
+      "work": 118.12,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 67.92,
+      "idle": 6.1,
+      "launches": 33,
+      "work": 126.59,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 61.24,
+      "idle": 2.94,
+      "launches": 33,
+      "work": 114.51,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 59.8,
+      "idle": 8.99,
+      "launches": 33,
+      "work": 108.84,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 53.55,
+      "idle": 1.89,
+      "launches": 33,
+      "work": 104.97,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 56.74,
+      "idle": 1.84,
+      "launches": 33,
+      "work": 111.43,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 71.1,
+      "idle": 5.34,
+      "launches": 33,
+      "work": 136.63,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 60.27,
+      "idle": 1.92,
+      "launches": 33,
+      "work": 118.39,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     }
+    ],
+    "second": [
+     {
+      "makespan": 63.75,
+      "idle": 3.74,
+      "launches": 33,
+      "work": 121.87,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 70.01,
+      "idle": 4.81,
+      "launches": 33,
+      "work": 133.29,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 58.07,
+      "idle": 1.77,
+      "launches": 33,
+      "work": 114.1,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 62.21,
+      "idle": 1.87,
+      "launches": 33,
+      "work": 122.41,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 60.72,
+      "idle": 2.43,
+      "launches": 33,
+      "work": 118.86,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 60.53,
+      "idle": 2.84,
+      "launches": 33,
+      "work": 118.03,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 59.2,
+      "idle": 4.96,
+      "launches": 33,
+      "work": 113.28,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 64.18,
+      "idle": 5.61,
+      "launches": 33,
+      "work": 122.59,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 57.22,
+      "idle": 2.95,
+      "launches": 33,
+      "work": 111.32,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 52.17,
+      "idle": 3.62,
+      "launches": 33,
+      "work": 100.56,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 64.86,
+      "idle": 7.39,
+      "launches": 33,
+      "work": 122.11,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 60.31,
+      "idle": 2.41,
+      "launches": 33,
+      "work": 116.46,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 61.72,
+      "idle": 3.84,
+      "launches": 33,
+      "work": 118.12,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 64.59,
+      "idle": 2.38,
+      "launches": 33,
+      "work": 126.59,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 58.52,
+      "idle": 2.32,
+      "launches": 33,
+      "work": 114.51,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 56.42,
+      "idle": 3.53,
+      "launches": 33,
+      "work": 108.84,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 54.04,
+      "idle": 2.75,
+      "launches": 33,
+      "work": 104.97,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 57.68,
+      "idle": 3.64,
+      "launches": 33,
+      "work": 111.43,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 70.79,
+      "idle": 4.62,
+      "launches": 33,
+      "work": 136.63,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 61.26,
+      "idle": 3.87,
+      "launches": 33,
+      "work": 118.39,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     }
+    ]
+   },
+   "summary": {
+    "first": {
+     "makespan": 60.65,
+     "idle": 3.31,
+     "deferred": 0.0,
+     "makespan_worst": 71.1,
+     "failed": 0
+    },
+    "second": {
+     "makespan": 60.62,
+     "idle": 3.58,
+     "deferred": 0.0,
+     "makespan_worst": 70.79,
+     "failed": 0
+    }
+   }
+  },
+  "fan-in": {
+   "runs": {
+    "first": [
+     {
+      "makespan": 43.44,
+      "idle": 8.9,
+      "launches": 36,
+      "work": 121.09,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 43.76,
+      "idle": 12.22,
+      "launches": 36,
+      "work": 118.79,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 39.12,
+      "idle": 4.46,
+      "launches": 36,
+      "work": 112.59,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 47.93,
+      "idle": 18.11,
+      "launches": 36,
+      "work": 125.45,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 46.74,
+      "idle": 14.92,
+      "launches": 36,
+      "work": 125.11,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 49.3,
+      "idle": 6.16,
+      "launches": 36,
+      "work": 141.6,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 39.32,
+      "idle": 8.71,
+      "launches": 36,
+      "work": 109.1,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 36.44,
+      "idle": 5.35,
+      "launches": 36,
+      "work": 103.82,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 40.56,
+      "idle": 12.24,
+      "launches": 36,
+      "work": 109.31,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 38.81,
+      "idle": 8.24,
+      "launches": 36,
+      "work": 108.04,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 42.8,
+      "idle": 6.26,
+      "launches": 36,
+      "work": 121.98,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 47.22,
+      "idle": 10.71,
+      "launches": 36,
+      "work": 130.77,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 44.93,
+      "idle": 13.23,
+      "launches": 36,
+      "work": 121.4,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 45.07,
+      "idle": 6.67,
+      "launches": 36,
+      "work": 128.31,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 46.2,
+      "idle": 8.73,
+      "launches": 36,
+      "work": 129.66,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 48.75,
+      "idle": 12.09,
+      "launches": 36,
+      "work": 133.96,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 35.03,
+      "idle": 5.88,
+      "launches": 36,
+      "work": 98.92,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 40.75,
+      "idle": 11.03,
+      "launches": 36,
+      "work": 111.09,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 44.77,
+      "idle": 10.12,
+      "launches": 36,
+      "work": 124.06,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 40.65,
+      "idle": 11.28,
+      "launches": 36,
+      "work": 110.38,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     }
+    ],
+    "second": [
+     {
+      "makespan": 42.47,
+      "idle": 5.91,
+      "launches": 36,
+      "work": 121.09,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 41.2,
+      "idle": 4.53,
+      "launches": 36,
+      "work": 118.79,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 38.57,
+      "idle": 2.92,
+      "launches": 36,
+      "work": 112.59,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 42.81,
+      "idle": 2.81,
+      "launches": 36,
+      "work": 125.45,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 42.69,
+      "idle": 2.83,
+      "launches": 36,
+      "work": 125.11,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 49.06,
+      "idle": 5.44,
+      "launches": 36,
+      "work": 141.6,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 37.64,
+      "idle": 3.69,
+      "launches": 36,
+      "work": 109.1,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 36.42,
+      "idle": 5.29,
+      "launches": 36,
+      "work": 103.82,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 37.32,
+      "idle": 2.51,
+      "launches": 36,
+      "work": 109.31,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 38.17,
+      "idle": 6.29,
+      "launches": 36,
+      "work": 108.04,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 42.79,
+      "idle": 6.2,
+      "launches": 36,
+      "work": 121.98,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 46.19,
+      "idle": 7.61,
+      "launches": 36,
+      "work": 130.77,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 42.95,
+      "idle": 7.28,
+      "launches": 36,
+      "work": 121.4,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 43.62,
+      "idle": 2.39,
+      "launches": 36,
+      "work": 128.31,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 44.31,
+      "idle": 3.01,
+      "launches": 36,
+      "work": 129.66,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 45.8,
+      "idle": 3.28,
+      "launches": 36,
+      "work": 133.96,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 33.75,
+      "idle": 2.16,
+      "launches": 36,
+      "work": 98.92,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 38.1,
+      "idle": 3.05,
+      "launches": 36,
+      "work": 111.09,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 44.2,
+      "idle": 8.33,
+      "launches": 36,
+      "work": 124.06,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 38.35,
+      "idle": 4.52,
+      "launches": 36,
+      "work": 110.38,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     }
+    ]
+   },
+   "summary": {
+    "first": {
+     "makespan": 43.6,
+     "idle": 9.51,
+     "deferred": 0.0,
+     "makespan_worst": 49.3,
+     "failed": 0
+    },
+    "second": {
+     "makespan": 42.58,
+     "idle": 4.1,
+     "deferred": 0.0,
+     "makespan_worst": 49.06,
+     "failed": 0
+    }
+   }
+  },
+  "claims": {
+   "runs": {
+    "first": [
+     {
+      "makespan": 32.59,
+      "idle": 29.19,
+      "launches": 24,
+      "work": 68.49,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 27.67,
+      "idle": 13.11,
+      "launches": 24,
+      "work": 69.81,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 38.11,
+      "idle": 14.45,
+      "launches": 24,
+      "work": 99.77,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 42.73,
+      "idle": 12.78,
+      "launches": 24,
+      "work": 115.3,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 45.56,
+      "idle": 34.24,
+      "launches": 24,
+      "work": 102.35,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 49.09,
+      "idle": 10.53,
+      "launches": 24,
+      "work": 136.63,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 55.79,
+      "idle": 29.89,
+      "launches": 24,
+      "work": 137.39,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 31.5,
+      "idle": 10.03,
+      "launches": 24,
+      "work": 84.36,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 39.83,
+      "idle": 11.97,
+      "launches": 24,
+      "work": 107.36,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 54.26,
+      "idle": 28.14,
+      "launches": 24,
+      "work": 134.52,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 54.18,
+      "idle": 44.91,
+      "launches": 24,
+      "work": 117.49,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 51.56,
+      "idle": 39.54,
+      "launches": 24,
+      "work": 115.0,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 57.96,
+      "idle": 13.29,
+      "launches": 24,
+      "work": 160.48,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 39.43,
+      "idle": 31.69,
+      "launches": 24,
+      "work": 86.51,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 55.53,
+      "idle": 42.3,
+      "launches": 24,
+      "work": 124.18,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 33.81,
+      "idle": 13.22,
+      "launches": 24,
+      "work": 88.09,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 43.86,
+      "idle": 20.35,
+      "launches": 24,
+      "work": 111.13,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 44.41,
+      "idle": 26.66,
+      "launches": 24,
+      "work": 106.45,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 62.8,
+      "idle": 46.47,
+      "launches": 24,
+      "work": 141.81,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 60.89,
+      "idle": 59.43,
+      "launches": 24,
+      "work": 123.11,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     }
+    ],
+    "second": [
+     {
+      "makespan": 26.27,
+      "idle": 10.2,
+      "launches": 24,
+      "work": 68.49,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 24.79,
+      "idle": 4.46,
+      "launches": 24,
+      "work": 69.81,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 34.57,
+      "idle": 3.85,
+      "launches": 24,
+      "work": 99.77,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 41.26,
+      "idle": 8.35,
+      "launches": 24,
+      "work": 115.3,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 42.3,
+      "idle": 24.43,
+      "launches": 24,
+      "work": 102.35,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 52.32,
+      "idle": 20.2,
+      "launches": 24,
+      "work": 136.63,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 56.96,
+      "idle": 33.35,
+      "launches": 24,
+      "work": 137.39,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 31.68,
+      "idle": 10.48,
+      "launches": 24,
+      "work": 84.36,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 44.16,
+      "idle": 24.97,
+      "launches": 24,
+      "work": 107.36,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 52.67,
+      "idle": 23.39,
+      "launches": 24,
+      "work": 134.52,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 54.42,
+      "idle": 45.66,
+      "launches": 24,
+      "work": 117.49,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 51.88,
+      "idle": 40.54,
+      "launches": 24,
+      "work": 115.0,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 57.72,
+      "idle": 12.58,
+      "launches": 24,
+      "work": 160.48,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 33.03,
+      "idle": 12.46,
+      "launches": 24,
+      "work": 86.51,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 54.79,
+      "idle": 40.07,
+      "launches": 24,
+      "work": 124.18,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 31.92,
+      "idle": 7.55,
+      "launches": 24,
+      "work": 88.09,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 41.83,
+      "idle": 14.26,
+      "launches": 24,
+      "work": 111.13,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 40.97,
+      "idle": 16.35,
+      "launches": 24,
+      "work": 106.45,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 65.06,
+      "idle": 53.27,
+      "launches": 24,
+      "work": 141.81,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 60.53,
+      "idle": 58.31,
+      "launches": 24,
+      "work": 123.11,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     }
+    ]
+   },
+   "summary": {
+    "first": {
+     "makespan": 44.98,
+     "idle": 27.4,
+     "deferred": 0.0,
+     "makespan_worst": 62.8,
+     "failed": 0
+    },
+    "second": {
+     "makespan": 43.23,
+     "idle": 18.27,
+     "deferred": 0.0,
+     "makespan_worst": 65.06,
+     "failed": 0
+    }
+   }
+  },
+  "competing": {
+   "runs": {
+    "first": [
+     {
+      "makespan": 37.31,
+      "idle": 8.07,
+      "launches": 31,
+      "work": 103.75,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 43.06,
+      "idle": 21.21,
+      "launches": 31,
+      "work": 107.83,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 43.15,
+      "idle": 15.46,
+      "launches": 31,
+      "work": 113.83,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 52.31,
+      "idle": 19.4,
+      "launches": 31,
+      "work": 137.08,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 42.4,
+      "idle": 14.04,
+      "launches": 31,
+      "work": 112.75,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 56.29,
+      "idle": 16.13,
+      "launches": 31,
+      "work": 152.28,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 45.87,
+      "idle": 27.04,
+      "launches": 31,
+      "work": 110.13,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 40.6,
+      "idle": 22.23,
+      "launches": 31,
+      "work": 99.06,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 41.7,
+      "idle": 16.77,
+      "launches": 31,
+      "work": 108.03,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 34.27,
+      "idle": 5.75,
+      "launches": 31,
+      "work": 96.87,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 41.84,
+      "idle": 7.73,
+      "launches": 31,
+      "work": 117.42,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 46.77,
+      "idle": 23.21,
+      "launches": 31,
+      "work": 116.6,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 62.75,
+      "idle": 9.79,
+      "launches": 31,
+      "work": 178.0,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 41.63,
+      "idle": 16.27,
+      "launches": 31,
+      "work": 108.08,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 49.23,
+      "idle": 21.31,
+      "launches": 31,
+      "work": 125.89,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 38.64,
+      "idle": 15.32,
+      "launches": 31,
+      "work": 100.04,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 42.77,
+      "idle": 28.89,
+      "launches": 31,
+      "work": 98.96,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 39.65,
+      "idle": 16.59,
+      "launches": 31,
+      "work": 101.45,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 60.24,
+      "idle": 32.67,
+      "launches": 31,
+      "work": 147.24,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 52.99,
+      "idle": 19.88,
+      "launches": 31,
+      "work": 138.43,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     }
+    ],
+    "second": [
+     {
+      "makespan": 35.51,
+      "idle": 2.59,
+      "launches": 31,
+      "work": 103.75,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 40.55,
+      "idle": 13.46,
+      "launches": 31,
+      "work": 107.83,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 40.52,
+      "idle": 7.2,
+      "launches": 31,
+      "work": 113.83,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 49.91,
+      "idle": 12.28,
+      "launches": 31,
+      "work": 137.08,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 41.54,
+      "idle": 11.68,
+      "launches": 31,
+      "work": 112.75,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 55.25,
+      "idle": 13.21,
+      "launches": 31,
+      "work": 152.28,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 41.62,
+      "idle": 14.34,
+      "launches": 31,
+      "work": 110.13,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 37.1,
+      "idle": 11.87,
+      "launches": 31,
+      "work": 99.06,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 39.37,
+      "idle": 9.81,
+      "launches": 31,
+      "work": 108.03,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 34.27,
+      "idle": 4.79,
+      "launches": 31,
+      "work": 96.87,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 41.41,
+      "idle": 6.25,
+      "launches": 31,
+      "work": 117.42,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 42.93,
+      "idle": 11.82,
+      "launches": 31,
+      "work": 116.6,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 63.45,
+      "idle": 11.89,
+      "launches": 31,
+      "work": 178.0,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 38.87,
+      "idle": 8.12,
+      "launches": 31,
+      "work": 108.08,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 45.36,
+      "idle": 9.85,
+      "launches": 31,
+      "work": 125.89,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 35.69,
+      "idle": 6.63,
+      "launches": 31,
+      "work": 100.04,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 35.51,
+      "idle": 7.16,
+      "launches": 31,
+      "work": 98.96,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 35.61,
+      "idle": 5.04,
+      "launches": 31,
+      "work": 101.45,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 55.9,
+      "idle": 20.08,
+      "launches": 31,
+      "work": 147.24,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     },
+     {
+      "makespan": 62.69,
+      "idle": 49.27,
+      "launches": 31,
+      "work": 138.43,
+      "deferred": 0,
+      "failed": 0,
+      "flow_errors": 0
+     }
+    ]
+   },
+   "summary": {
+    "first": {
+     "makespan": 42.92,
+     "idle": 16.68,
+     "deferred": 0.0,
+     "makespan_worst": 62.75,
+     "failed": 0
+    },
+    "second": {
+     "makespan": 40.98,
+     "idle": 10.77,
+     "deferred": 0.0,
+     "makespan_worst": 63.45,
+     "failed": 0
+    }
+   }
+  },
+  "time-box": {
+   "runs": {
+    "first": [
+     {
+      "makespan": 60.09,
+      "idle": 53.95,
+      "launches": 17,
+      "work": 126.07,
+      "deferred": 7,
+      "failed": 0,
+      "flow_errors": 1,
+      "done_by_deadline": 40.69,
+      "cost_after_deadline": 4.2691,
+      "deferred_would_fit": 3
+     },
+     {
+      "makespan": 34.25,
+      "idle": 16.25,
+      "launches": 21,
+      "work": 86.21,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 67.03,
+      "cost_after_deadline": 0.959,
+      "deferred_would_fit": 1
+     },
+     {
+      "makespan": 30.14,
+      "idle": 5.37,
+      "launches": 22,
+      "work": 84.83,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 70.62,
+      "cost_after_deadline": 0.7108,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 32.59,
+      "idle": 13.28,
+      "launches": 16,
+      "work": 84.26,
+      "deferred": 8,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 61.22,
+      "cost_after_deadline": 1.1518,
+      "deferred_would_fit": 2
+     },
+     {
+      "makespan": 25.75,
+      "idle": 2.01,
+      "launches": 21,
+      "work": 75.03,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 75.03,
+      "cost_after_deadline": 0,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 33.78,
+      "idle": 7.08,
+      "launches": 24,
+      "work": 93.99,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 58.24,
+      "cost_after_deadline": 1.7876,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 59.63,
+      "idle": 49.59,
+      "launches": 21,
+      "work": 129.04,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 1,
+      "done_by_deadline": 61.32,
+      "cost_after_deadline": 3.3859,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 30.2,
+      "idle": 2.32,
+      "launches": 18,
+      "work": 88.09,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 63.12,
+      "cost_after_deadline": 1.2482,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 39.4,
+      "idle": 12.45,
+      "launches": 16,
+      "work": 105.67,
+      "deferred": 8,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 39.7,
+      "cost_after_deadline": 3.2982,
+      "deferred_would_fit": 4
+     },
+     {
+      "makespan": 36.14,
+      "idle": 17.95,
+      "launches": 18,
+      "work": 90.36,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 60.68,
+      "cost_after_deadline": 1.4843,
+      "deferred_would_fit": 1
+     },
+     {
+      "makespan": 27.91,
+      "idle": 4.5,
+      "launches": 18,
+      "work": 78.96,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 77.85,
+      "cost_after_deadline": 0.0552,
+      "deferred_would_fit": 5
+     },
+     {
+      "makespan": 34.5,
+      "idle": 20.43,
+      "launches": 23,
+      "work": 82.92,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 71.7,
+      "cost_after_deadline": 0.5611,
+      "deferred_would_fit": 1
+     },
+     {
+      "makespan": 34.35,
+      "idle": 8.27,
+      "launches": 21,
+      "work": 94.71,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 54.38,
+      "cost_after_deadline": 2.0162,
+      "deferred_would_fit": 2
+     },
+     {
+      "makespan": 27.54,
+      "idle": 1.58,
+      "launches": 17,
+      "work": 80.99,
+      "deferred": 7,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 78.76,
+      "cost_after_deadline": 0.1116,
+      "deferred_would_fit": 3
+     },
+     {
+      "makespan": 43.14,
+      "idle": 36.37,
+      "launches": 18,
+      "work": 92.96,
+      "deferred": 7,
+      "failed": 0,
+      "flow_errors": 1,
+      "done_by_deadline": 49.83,
+      "cost_after_deadline": 2.1568,
+      "deferred_would_fit": 4
+     },
+     {
+      "makespan": 34.05,
+      "idle": 12.68,
+      "launches": 23,
+      "work": 89.38,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 74.44,
+      "cost_after_deadline": 0.747,
+      "deferred_would_fit": 1
+     },
+     {
+      "makespan": 25.36,
+      "idle": 1.53,
+      "launches": 22,
+      "work": 74.44,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 74.44,
+      "cost_after_deadline": 0,
+      "deferred_would_fit": 2
+     },
+     {
+      "makespan": 34.21,
+      "idle": 8.98,
+      "launches": 23,
+      "work": 93.56,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 62.13,
+      "cost_after_deadline": 1.5714,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 36.55,
+      "idle": 16.74,
+      "launches": 22,
+      "work": 92.82,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 62.6,
+      "cost_after_deadline": 1.5113,
+      "deferred_would_fit": 1
+     },
+     {
+      "makespan": 34.5,
+      "idle": 11.3,
+      "launches": 19,
+      "work": 92.07,
+      "deferred": 7,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 65.0,
+      "cost_after_deadline": 1.3538,
+      "deferred_would_fit": 0
+     }
+    ],
+    "second": [
+     {
+      "makespan": 60.03,
+      "idle": 52.75,
+      "launches": 17,
+      "work": 127.13,
+      "deferred": 9,
+      "failed": 0,
+      "flow_errors": 1,
+      "done_by_deadline": 40.82,
+      "cost_after_deadline": 4.3155,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 35.98,
+      "idle": 11.59,
+      "launches": 23,
+      "work": 96.09,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 61.87,
+      "cost_after_deadline": 1.7113,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 24.39,
+      "idle": 1.37,
+      "launches": 20,
+      "work": 71.55,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 71.55,
+      "cost_after_deadline": 0,
+      "deferred_would_fit": 2
+     },
+     {
+      "makespan": 29.35,
+      "idle": 6.56,
+      "launches": 15,
+      "work": 81.22,
+      "deferred": 8,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 71.18,
+      "cost_after_deadline": 0.5021,
+      "deferred_would_fit": 2
+     },
+     {
+      "makespan": 36.89,
+      "idle": 23.33,
+      "launches": 21,
+      "work": 87.22,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 69.68,
+      "cost_after_deadline": 0.8771,
+      "deferred_would_fit": 1
+     },
+     {
+      "makespan": 27.03,
+      "idle": 2.42,
+      "launches": 22,
+      "work": 78.58,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 77.28,
+      "cost_after_deadline": 0.0651,
+      "deferred_would_fit": 1
+     },
+     {
+      "makespan": 60.71,
+      "idle": 61.12,
+      "launches": 20,
+      "work": 120.89,
+      "deferred": 7,
+      "failed": 0,
+      "flow_errors": 1,
+      "done_by_deadline": 52.06,
+      "cost_after_deadline": 3.4415,
+      "deferred_would_fit": 2
+     },
+     {
+      "makespan": 32.24,
+      "idle": 3.08,
+      "launches": 20,
+      "work": 92.82,
+      "deferred": 6,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 60.93,
+      "cost_after_deadline": 1.5946,
+      "deferred_would_fit": 3
+     },
+     {
+      "makespan": 33.24,
+      "idle": 5.37,
+      "launches": 14,
+      "work": 94.27,
+      "deferred": 8,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 36.6,
+      "cost_after_deadline": 2.8833,
+      "deferred_would_fit": 3
+     },
+     {
+      "makespan": 41.35,
+      "idle": 33.7,
+      "launches": 18,
+      "work": 90.06,
+      "deferred": 7,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 62.36,
+      "cost_after_deadline": 1.3848,
+      "deferred_would_fit": 1
+     },
+     {
+      "makespan": 32.54,
+      "idle": 11.1,
+      "launches": 20,
+      "work": 86.43,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 59.58,
+      "cost_after_deadline": 1.3429,
+      "deferred_would_fit": 4
+     },
+     {
+      "makespan": 26.26,
+      "idle": 1.24,
+      "launches": 20,
+      "work": 77.44,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 77.44,
+      "cost_after_deadline": 0,
+      "deferred_would_fit": 3
+     },
+     {
+      "makespan": 40.97,
+      "idle": 17.71,
+      "launches": 22,
+      "work": 105.09,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 58.3,
+      "cost_after_deadline": 2.3397,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 30.28,
+      "idle": 1.54,
+      "launches": 19,
+      "work": 89.21,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 52.67,
+      "cost_after_deadline": 1.8269,
+      "deferred_would_fit": 1
+     },
+     {
+      "makespan": 43.14,
+      "idle": 23.3,
+      "launches": 20,
+      "work": 106.02,
+      "deferred": 8,
+      "failed": 0,
+      "flow_errors": 1,
+      "done_by_deadline": 43.6,
+      "cost_after_deadline": 3.121,
+      "deferred_would_fit": 2
+     },
+     {
+      "makespan": 29.06,
+      "idle": 4.25,
+      "launches": 22,
+      "work": 82.8,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 62.29,
+      "cost_after_deadline": 1.0254,
+      "deferred_would_fit": 2
+     },
+     {
+      "makespan": 28.83,
+      "idle": 4.77,
+      "launches": 24,
+      "work": 81.6,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 74.41,
+      "cost_after_deadline": 0.3594,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 31.9,
+      "idle": 2.05,
+      "launches": 23,
+      "work": 93.56,
+      "deferred": 4,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 59.17,
+      "cost_after_deadline": 1.7197,
+      "deferred_would_fit": 0
+     },
+     {
+      "makespan": 27.5,
+      "idle": 3.8,
+      "launches": 20,
+      "work": 78.53,
+      "deferred": 5,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 77.56,
+      "cost_after_deadline": 0.0485,
+      "deferred_would_fit": 2
+     },
+     {
+      "makespan": 36.31,
+      "idle": 10.1,
+      "launches": 19,
+      "work": 98.61,
+      "deferred": 8,
+      "failed": 0,
+      "flow_errors": 0,
+      "done_by_deadline": 56.6,
+      "cost_after_deadline": 2.1009,
+      "deferred_would_fit": 1
+     }
+    ]
+   },
+   "summary": {
+    "first": {
+     "makespan": 34.23,
+     "idle": 11.88,
+     "deferred": 6.0,
+     "done_by_deadline": 62.86,
+     "cost_after_deadline": 1.3,
+     "deferred_would_fit": 1.0,
+     "makespan_worst": 60.09,
+     "failed": 3
+    },
+    "second": {
+     "makespan": 32.39,
+     "idle": 5.96,
+     "deferred": 5.0,
+     "done_by_deadline": 61.4,
+     "cost_after_deadline": 1.49,
+     "deferred_would_fit": 1.5,
+     "makespan_worst": 60.71,
+     "failed": 3
+    }
+   }
+  }
+ },
+ "not_run": {
+  "demo-one-review": "this version refuses a task call's `Pending` among the params of another task call",
+  "demo-one-review-deadline": "this version refuses a task call's `Pending` among the params of another task call"
+ }
+}

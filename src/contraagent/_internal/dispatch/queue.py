@@ -19,9 +19,11 @@ ready when:
 * the kind's own cap (`runner.config(task).max_concurrent`) has room.
 
 The schedule is a greedy list schedule: whenever a slot is free, the first
-task in the order that can start, starts; no slot idles while a task can start
-(Graham's bound, within 2 - 1/m of the best makespan, holds for any such order).
-The order:
+task in the order that can start, starts. Its invariant: **no slot idles while a
+task can start** (ready, as above, and not held back by the starvation guard,
+below). Graham's bound, within 2 - 1/m of the best makespan, holds for any order
+that keeps it, and only for one that does. A deadline defers a task only when
+other work takes the slot it would have had (below). The order:
 
 * by bottom level, highest first: a task's estimate plus the longer of its
   known dependents' path and its `tail_s` (`_blevel`), so long remaining chains
@@ -46,14 +48,23 @@ A deadline is a **time box** (`TimeBox`): the run's own (`deadline_s`, with
 is held to every box it is in. From a box's `deadline - slack_s` on, the
 objective for its tasks is the work finished by the deadline, not the makespan:
 they come before the others, its `finishing_kinds` first, then the smallest
-bottom level first, and one whose own estimate is known and whose bottom level
-is longer than the time left is deferred at once (a flow may answer the
-deferral). Past the deadline only the box's `finishing_kinds` still launch, for
-its grace window (`grace_s`); every other task in it is deferred. So the
-earliest deadline of a task's boxes stops it, and a finishing kind launches
-past a deadline only while each box it is in lets it. On top sit one retry for
-the stop values in `retry_on`, and throttling (two `throttle_on` results in a
-row halve the slots for `throttle_s`).
+bottom level first. A task of the box that is not one of its finishing kinds is
+**late** when its **finish chance**, the chance that it and the work after it
+end before the deadline, is below `FINISH_CHANCE`. The chance comes from the
+`finish_chance` callback (`JournalEstimates.finish_chance`: the share of past
+samples that fit in the time left), from the task's own `estimate_s` (1 or 0),
+or from the `estimate` callback's point (1 or 0); a task with none of them is
+never late. A late task goes to the end of the order, and starts when the pass
+reaches it with a slot free. It is deferred (`cannot_finish`; a flow may answer
+the deferral) only when the pass filled every slot with other tasks before it:
+then its slot went to work more likely to finish. Each pass asks again, so the
+chance follows the samples of the tasks that finish and the time that passes.
+Past the deadline only the box's `finishing_kinds` still launch, for its grace
+window (`grace_s`); every other task in it is deferred. So the earliest deadline
+of a task's boxes stops it, and a finishing kind launches past a deadline only
+while each box it is in lets it. On top sit one retry for the stop values in
+`retry_on`, and throttling (two `throttle_on` results in a row halve the slots
+for `throttle_s`).
 
 Every `Task` carries two identities (`dispatch/task.py`): `.id`, fresh per
 object and used only for this queue's bookkeeping, and `.key`, the stable
@@ -152,6 +163,10 @@ OVERDUE_S = 600.0
 #: deadline, when `slack_s` is not given.
 SLACK_SHARE = 0.25
 
+#: Below this finish chance a task is late (the module docstring): 0.5 asks for the
+#: median of its samples to fit, the point the queue compared before it kept samples.
+FINISH_CHANCE = 0.5
+
 #: How long `finishing_kinds` still launch past the deadline, when `grace_s` is not given.
 GRACE_S = 900.0
 
@@ -191,6 +206,14 @@ class BetweenPasses(Protocol):
     until it waits; whether it may still add tasks."""
 
     def __call__(self) -> Awaitable[bool]: ...
+
+
+class FinishChance(Protocol):
+    """`finish_chance(task, within_s, after_s)`: the chance, from 0 to 1, that `task` and the
+    work after it end within `within_s` seconds of its start, the work after it known to the
+    queue being `after_s` long; None when nothing is known of it."""
+
+    def __call__(self, task: Task, within_s: float, after_s: float, /) -> float | None: ...
 
 
 class OnResult(Protocol):
@@ -278,6 +301,7 @@ class WorkQueue:
         estimate: Callable[[Task], float | None] | None = None,
         overdue_s: float = OVERDUE_S,
         slack_s: float | None = None,
+        finish_chance: FinishChance | None = None,
     ):
         self.runner = runner
         self.follow_up: FollowUp = follow_up or (lambda result: [])
@@ -304,6 +328,8 @@ class WorkQueue:
         # A domain's own estimate per task (e.g. from past runs); used when a
         # task carries none. Asked again on every pass, so it may learn as the run goes.
         self._estimate_fn = estimate
+        # A domain's chance that a task's work fits in the time left (the module docstring).
+        self._finish_chance_fn = finish_chance
         self.overdue_s = overdue_s
         self._ready_since: dict[str, float] = {}  # by .id: when its dependencies were all done
         # Stop values worth one retry, and stop values that count toward a
@@ -647,12 +673,18 @@ class WorkQueue:
             if t.id not in self._ready_since and self._startable(t, now):
                 self._ready_since[t.id] = now
         memo: dict[str, float] = {}
-        if self._defer_late(memo, now):
-            memo = {}  # the deferrals' follow-ups may have queued more
+        late = self._late(memo, now)
+        order = self._order(self._queued, memo, now)
+        order = [t for t in order if t.id not in late] + [t for t in order if t.id in late]
         head: Task | None = None  # the first task in the order that cannot start
         guarded = False
-        for task in self._order(self._queued, memo, now):
+        started = 0
+        for i, task in enumerate(order):
             if len(self._running) >= self.slots():
+                # Every slot is taken. A late task the pass did not reach lost its slot to
+                # work more likely to finish: deferred, when this pass started that work.
+                if started:
+                    self._defer_displaced([t for t in order[i:] if t.id in late], late)
                 break
             if self._closed(task, now) is not None:
                 continue  # queued by a deferral's follow-up; deferred on the next pass
@@ -682,6 +714,7 @@ class WorkQueue:
             self.on_event("start", task, attempt=attempt, running=len(self._running) + 1, slots=self.slots())
             self._occupy(task)
             self._running[loop.run_in_executor(pool, self.runner.run, task)] = task
+            started += 1
 
     def _skip_startable(self, tasks: Iterable[Task]) -> None:
         """Ask `skip` about each of `tasks` whose fingerprint is complete only when it starts
@@ -703,31 +736,51 @@ class WorkQueue:
                 self._ready_since.pop(task.id, None)
                 self._settle(TaskResult.skipped(started))
 
-    def _defer_late(self, memo: dict[str, float], now: float) -> bool:
-        """In a time box's endgame, before its deadline: defer each task that could start
-        but whose work cannot finish before the deadline, its own estimate known and its
-        bottom level longer than the time left. The box's finishing kinds are kept: they
-        have its grace window. Whether it deferred any."""
-        late: list[tuple[Task, Deferral]] = []
+    def _late(self, memo: dict[str, float], now: float) -> dict[str, Deferral]:
+        """The late tasks, by `.id`, each with its deferral: startable, in a time box's
+        endgame before its deadline, not one of the box's finishing kinds (they have its
+        grace window), and with a finish chance below `FINISH_CHANCE`."""
+        late: dict[str, Deferral] = {}
         for t in self._queued:
-            if not self._startable(t, now) or self._known_est(t) is None:
+            if not self._startable(t, now):
                 continue
             for box in self._boxes(t):
                 left = box.deadline_at - now
                 if left <= 0 or now < box.deadline_at - box.slack_s or t.kind in box.finishing_kinds:
                     continue
-                need = self._blevel(t, memo)
-                if need > left:
-                    reason = _named(f"cannot finish before the deadline: needs {need:.0f}s, {left:.0f}s left", box)
-                    late.append((t, Deferral(reason, box.cause("cannot_finish", need_s=round(need), left_s=round(left)))))
+                chance = self._finish_chance(t, left, memo)
+                if chance is not None and chance < FINISH_CHANCE:
+                    need = self._blevel(t, memo)
+                    reason = _named(
+                        f"cannot finish before the deadline: needs {need:.0f}s, {left:.0f}s left, finish chance {chance:.0%}", box
+                    )
+                    late[t.id] = Deferral(reason, box.cause("cannot_finish", need_s=round(need), left_s=round(left)))
                     break
-        if not late:
-            return False
-        ids = {t.id for t, _ in late}
+        return late
+
+    def _finish_chance(self, task: Task, left: float, memo: dict[str, float]) -> float | None:
+        """The chance that `task` and the work after it end within `left` seconds: from its
+        own `estimate_s`, else the `finish_chance` callback, else the `estimate` callback; a
+        point estimate gives 1 or 0. None when none of them knows the task."""
+        after = max((self._blevel(d, memo) for d in self._successors.get(task.key, ())), default=0.0)
+        if task.estimate_s is None and self._finish_chance_fn is not None:
+            chance = self._finish_chance_fn(task, left, after)
+            if chance is not None:
+                return chance
+        est = self._known_est(task)
+        if est is None:
+            return None
+        return 1.0 if est + max(after, task.tail_s or 0.0) <= left else 0.0
+
+    def _defer_displaced(self, tasks: list[Task], late: Mapping[str, Deferral]) -> None:
+        """Defer each of the late `tasks` still queued: every slot went to other tasks."""
+        ids = {t.id for t in tasks}
+        displaced = [t for t in self._queued if t.id in ids]
+        if not displaced:
+            return
         self._queued = [t for t in self._queued if t.id not in ids]
-        for t, why in late:
-            self._defer(t, why)
-        return True
+        for t in displaced:
+            self._defer(t, late[t.id])
 
     def _occupy(self, task: Task) -> None:
         for name in set(task.claims):

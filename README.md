@@ -156,8 +156,8 @@ The runner manages the launches around this. After a rate limit or a failed laun
 a task moves along its kind's `fallbacks` to another model, coding agent or
 credential (the account that the agent's API calls are billed to). Caps on a
 subscription's 5-hour and weekly usage pause a credential until its usage window
-resets. Work that cannot finish before the run's deadline is deferred, with its
-cause recorded. A kind can keep what a launch stopped for its time had written, as a
+resets. Near the run's deadline, work unlikely to finish in time gives its slot to
+other work and is deferred, with its cause recorded. A kind can keep what a launch stopped for its time had written, as a
 partial result, when that passes its checks. `contraagent run --resume` runs a task again only when its
 parameters, its definition or the outputs it received have changed.
 
