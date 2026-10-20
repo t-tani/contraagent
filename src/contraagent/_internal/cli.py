@@ -394,7 +394,7 @@ def _flow_command(args) -> int:
             "continue it with --resume, or start a new one with another --run-id"
         )
         return 1
-    except ContraagentError as exc:  # refused before anything ran: routing, the preflight
+    except ContraagentError as exc:  # refused before anything ran (routing, the preflight), or a journal not written
         print(f"✗ {args.flow}\n  error: {exc}")
         return 1
     done = len(result.results) - len(result.failed) - len(result.deferred)

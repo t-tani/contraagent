@@ -162,6 +162,20 @@ def test_retry_then_exhausted(tmp_path):
     assert [row["attempt"] for row in run.rows()] == [0, 1]
 
 
+def test_an_on_attempt_that_raises_is_logged_and_the_result_stands(tmp_path, caplog):
+    backend = StubBackend(lambda launch, n: Stop.COMPLETED)
+    _, runner, _ = build(tmp_path, backend)
+
+    def on_attempt(result):
+        raise OSError(28, "No space left on device")
+
+    with caplog.at_level(logging.WARNING, logger="contraagent"):
+        res = RetryingRunner(runner, on_attempt=on_attempt).run(Task("write", key="w", unit="u"))
+    assert res.ok and len(backend.launches) == 1
+    [record] = [r for r in caplog.records if r.name == "contraagent._internal.execution.runner"]
+    assert "[error] w: on_attempt raised" in record.getMessage() and record.exc_info is not None
+
+
 def test_cursor_store(tmp_path):
     cur = CursorStore(tmp_path / "cursor.json", "r1", stages=["a", "b"], steps=["s1", "s2"])
     cur.advance_stage("a")
