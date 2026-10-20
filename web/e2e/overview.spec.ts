@@ -101,7 +101,9 @@ test.describe('docs: a review loop per unit', () => {
     const row = (name: string) => table.locator('tbody tr', { has: page.locator('.name', { hasText: name }) });
     await expect(row('prepare').locator('.st .n')).toHaveText('5/6');
     await expect(row('prepare').locator('.st .err')).toHaveText('1 failed');
-    await expect(row('summarize').locator('.st .warn')).toHaveText('1 not started');
+    // zeta's review loop ends at its failed prepare: its summary is never created.
+    await expect(row('summarize').locator('.st .n')).toHaveText('5/5');
+    await expect(row('summarize').locator('.st .warn')).toHaveCount(0);
     await expect(row('score').locator('.st .warn')).toHaveText('1 partly done'); // epsilon's word counter is unavailable
     await expect(table.locator('thead th')).toHaveText(['Kind', 'Status', 'Waits for', 'Created after', 'Later tasks']);
     // A click on a row selects it, with the node's card beside it.
