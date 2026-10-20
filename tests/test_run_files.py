@@ -15,6 +15,7 @@ import contraagent
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import (
     append_lines,
+    last_line,
     lines_at,
     parse_rows,
     read_document,
@@ -162,6 +163,24 @@ def test_lines_are_read_by_byte_offset_and_a_last_line_without_its_newline_waits
     assert read_lines(path, 1, max_bytes=1) == (["bé"], 3)  # at least one line
     assert read_lines(path, 3) == ([], 3) and read_lines(path, 7) == ([], 3)
     assert read_lines(path, 0, 0) == ([], 3)
+
+
+@pytest.mark.parametrize("block", [1, 3, 4096])
+def test_the_last_complete_line_is_read_from_the_end(tmp_path, monkeypatch, block):
+    from contraagent._internal.runs import files
+
+    monkeypatch.setattr(files, "BLOCK", block)
+    path = tmp_path / "log.jsonl"
+    path.write_bytes(b"")
+    assert last_line(path) is None
+    path.write_bytes(b"d")
+    assert last_line(path) is None  # no newline yet
+    path.write_bytes("a\nbé\n".encode() + b"c" * 10 + b"\nd")
+    assert last_line(path) == "c" * 10  # "d" has no newline yet
+    path.write_bytes("bé\n".encode())
+    assert last_line(path) == "bé"
+    path.write_bytes(b"a\n\n")
+    assert last_line(path) == ""
 
 
 def test_a_line_breaks_at_a_newline_only(tmp_path):

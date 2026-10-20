@@ -116,7 +116,10 @@ def schema_ref_of(schema: type[BaseModel]) -> SchemaRef | None:
 
 
 def import_schema(ref: SchemaRef) -> type[BaseModel] | None:
-    """The schema a `SchemaRef` names, or None when it cannot be imported here."""
+    """The schema a `SchemaRef` names, or None when it cannot be imported here. Its
+    `search_path` goes first on `sys.path`, as the directory of a script `python` runs does,
+    and stays there: a validator of the schema may import a neighbour of its module when it
+    runs. This runs in the hook's own short process, so no other code shares that path."""
     if ref.search_path and ref.search_path not in sys.path:
         sys.path.insert(0, ref.search_path)
     try:

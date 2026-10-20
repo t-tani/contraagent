@@ -4,6 +4,7 @@ The implementation of the OS the tests run on is tested against the OS itself; t
 against a fake of the calls they make, so a Linux run still tests the Windows code."""
 
 import ctypes
+import errno
 import os
 import subprocess
 import sys
@@ -275,6 +276,25 @@ def test_a_posix_lock_is_held_by_one_open_file(tmp_path):
     finally:
         os.close(a)
         os.close(b)
+
+
+class Fcntl:
+    """`flock` that fails as a file system without locks does (`ENOLCK`), or as a held lock does."""
+
+    LOCK_EX, LOCK_NB, LOCK_UN = 2, 4, 8
+
+    def __init__(self, errno_: int) -> None:
+        self.errno = errno_
+
+    def flock(self, fd: int, op: int) -> None:
+        raise OSError(self.errno, os.strerror(self.errno))
+
+
+def test_only_a_lock_held_elsewhere_reads_as_held():
+    assert not PosixLocks(Fcntl(errno.EWOULDBLOCK)).try_lock(0)
+    with pytest.raises(OSError) as raised:
+        PosixLocks(Fcntl(errno.ENOLCK)).try_lock(0)
+    assert raised.value.errno == errno.ENOLCK
 
 
 class Msvcrt:

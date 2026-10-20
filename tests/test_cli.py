@@ -134,3 +134,37 @@ def test_the_stream_format_help_lists_every_registered_format():
     [commands] = [a for a in parser("monitor")._actions if isinstance(a, argparse._SubParsersAction)]
     [option] = [a for a in commands.choices["monitor"]._actions if a.dest == "stream_format"]
     assert f"built-in format ({', '.join(known_agents())})" in (option.help or "")
+
+
+# --- loading `path/to/file.py:attr` -----------------------------------------------------------
+
+
+def test_a_file_named_as_a_module_already_imported_is_refused(tmp_path):
+    import queue  # noqa: F401 (a standard library module, imported)
+
+    from contraagent._internal.commandline import load_attr
+
+    (tmp_path / "queue.py").write_text("flow = 1\n", encoding="utf-8")
+    with pytest.raises(ImportError, match="the module name 'queue' is already .*queue.py; rename queue.py"):
+        load_attr(f"{tmp_path / 'queue.py'}:flow")
+    assert sys.modules["queue"].__name__ == "queue" and hasattr(sys.modules["queue"], "Queue")
+
+
+def test_files_of_one_name_load_in_turn_and_import_their_neighbours_when_they_run(tmp_path):
+    from contraagent._internal.commandline import load_attr
+
+    for name in ("a", "b"):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "loadattr_steps.py").write_text(
+            f"def flow():\n    import loadattr_helper_{name}\n    return loadattr_helper_{name}.WHO\n", encoding="utf-8"
+        )
+        (tmp_path / name / f"loadattr_helper_{name}.py").write_text(f"WHO = {name!r}\n", encoding="utf-8")
+    try:
+        assert load_attr(f"{tmp_path / 'a' / 'loadattr_steps.py'}:flow")() == "a"
+        assert load_attr(f"{tmp_path / 'b' / 'loadattr_steps.py'}:flow")() == "b"  # anew, under the same name
+    finally:
+        for name in ("loadattr_steps", "loadattr_helper_a", "loadattr_helper_b"):
+            sys.modules.pop(name, None)
+        for name in ("a", "b"):
+            if str(tmp_path / name) in sys.path:
+                sys.path.remove(str(tmp_path / name))

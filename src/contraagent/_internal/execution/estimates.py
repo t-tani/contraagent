@@ -38,13 +38,15 @@ from __future__ import annotations
 import statistics
 import threading
 from collections.abc import Callable, Iterable, Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from contraagent._internal.dispatch.task import Task, kind_name
 from contraagent._internal.runs import layout
-from contraagent._internal.runs.files import parse_rows
+from contraagent._internal.runs.files import iter_rows, last_line, parse_rows
 from contraagent._internal.runs.source import DirectorySource
+from contraagent._internal.runs.times import parse_iso
 
 #: What a tail is estimated for: (the flow path's function names, the kind, the passes of
 #: the loops around it, outermost first, each capped at `LOOP_CAP`; None when not counted).
@@ -256,8 +258,21 @@ def run_tails(
 
 
 def recent_runs(source: DirectorySource, recent: int = RECENT_RUNS) -> list[str]:
-    """The `recent` runs of `source` whose journal was written to last, oldest first."""
+    """The `recent` runs of `source` whose journal was written to last, oldest first: by
+    the time (`ts`) of its last row, which a copy of the runs directory keeps, and by the
+    journal's modification time when that row has none."""
     if recent <= 0:
         return []
-    written = [(st.mtime_ns, run) for run in source.runs() if (st := source.stat(run, layout.JOURNAL)) is not None]
+    written: list[tuple[datetime, str]] = []
+    for run in source.runs():
+        st = source.stat(run, layout.JOURNAL)
+        if st is None:
+            continue
+        try:
+            line = last_line(source.path(run, layout.JOURNAL))
+        except OSError:
+            line = None
+        row = next(iter_rows([line]), {}) if line is not None else {}
+        at = parse_iso(row.get("ts")) or datetime.fromtimestamp(st.mtime_ns / 1e9, tz=UTC)
+        written.append((at, run))
     return [run for _, run in sorted(written)[-recent:]]
