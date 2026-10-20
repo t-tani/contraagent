@@ -222,8 +222,8 @@ The run format stays 1: the records of 0.7 add fields and values, and remove non
 - `flow_calls.jsonl`: the end of a flow call that raised has `raised_at` and
   `raised_by`; the end of a top flow call has `unawaited`, the tasks that no flow
   call awaited, gave in `after=` or returned.
-- `plan.jsonl`: `given_from`, the tasks whose outputs a task was given, and
-  `input_files`, its input files.
+- `plan.jsonl`: `given_from`, the tasks whose outputs a task was given, as a value
+  or as an input file, and `input_files`, its input files.
 - `run.json`: `flow`, the top flow, which the monitor's forecast reads.
 - `journal.jsonl`: `fingerprint_parts`, and the stop `cancelled`. `rerun` names the
   parts that changed.
