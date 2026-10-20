@@ -5,7 +5,7 @@ import { msg, str } from '@lit/localize';
 import { html, nothing, type TemplateResult } from 'lit';
 import { toneAttr } from '@contraagent/elements';
 import { pill } from '@contraagent/elements/primitives';
-import { facts, fmtDur, kindUnit, listText, localTime, tokenCount, unreadEvents, usd } from '../../words/format.js';
+import { facts, fmtDur, kindUnit, listText, localTime, tokenCount, unreadEvents, usageUnknown, usageUnknownWords, usd } from '../../words/format.js';
 import { attemptNames, deferredText, changedFiles, changedFilesTip, changeLabel, credentialLabel, credentialTip, locksLabel, locksTip, modelSwitch, outcomeLabel, priorityText, priorityTip, replayedLabel, replayedTip, stopLabel, type ChangeKind } from '../../words/index.js';
 import { contextWarnedText, contextWarnedTip, peakContextLine, peakContextTip, peakTry } from '../../words/context.js';
 import { readingShort, readingTip } from '../../words/quota.js';
@@ -120,6 +120,7 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
   const otherModels = session ? [...new Set(byTs.map((r) => r.model).filter((x): x is string => !!x && x !== who.model))] : [];
   const first = rows[0];
   const tries = rows.filter(isLaunched);
+  const unknownUsage = usageUnknownWords(usageUnknown(tries));
   const extras = Object.entries(d).filter(([k]) => !SHOWN_KEYS.has(k));
   const [verdictText, tone] = verdict(c);
   const kindName = py ? msg('Python task') : msg('Agent task');
@@ -165,6 +166,9 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
         ? html`<div class="meta unread" title=${msg('Event types this contraagent version does not know (unread_events)')}>
             <span aria-hidden="true">⚠</span> ${msg(str`Unrecognized events: ${unreadEvents(tries)}`)}
           </div>`
+        : nothing}
+      ${unknownUsage
+        ? html`<div class="meta unread" title=${unknownUsage.tip}><span aria-hidden="true">⚠</span> ${unknownUsage.label}</div>`
         : nothing}
       ${d.task_detail_error ? html`<div class="meta v-bad">${msg(str`The task_detail callback failed: ${d.task_detail_error ?? ''}`)}</div>` : nothing}
       ${launches.map(

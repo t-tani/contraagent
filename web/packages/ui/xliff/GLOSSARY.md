@@ -134,6 +134,7 @@ wherever the UI shows a state or a count to the reader.
 | created / modified / deleted (a changed file) | 作成 / 変更 / 削除 |
 | page (the web page a web fetch read) | ページ |
 | unrecognized events (`unread_events`: event types from a coding agent that this contraagent does not recognize) | 未対応のイベント |
+| Tokens per API call unknown / Tokens unknown (`usage_unknown`: tokens of a launch that could not be read) | API 呼び出しごとのトークンは不明 / トークンは不明 |
 | 5-hour / weekly usage (a subscription's utilization) | 5 時間枠 / 週の利用率 |
 | 5-hour / weekly (a usage window), weekly (`model`) (a model's own) | 5 時間枠 / 週, 週（`model`） |
 | warning threshold (the usage past which the status warns) | 警告のしきい値 |

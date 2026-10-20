@@ -514,6 +514,17 @@
       "title": "Unread Events",
       "type": "object"
     },
+    "usage_unknown": {
+      "default": "",
+      "description": "what of the launch's tokens could not be read",
+      "enum": [
+        "",
+        "calls",
+        "tokens"
+      ],
+      "title": "Usage Unknown",
+      "type": "string"
+    },
     "init_model": {
       "title": "Init Model",
       "type": "string"

@@ -6,7 +6,8 @@
 `agent_message`, `reasoning`, `command_execution`, `file_change`,
 `mcp_tool_call`, `web_search`, `todo_list`, `error`), `error` (a request
 that failed; `Reconnecting... N/M (...)` while codex retries it) and
-`turn.completed` (the turn's summed `usage`) or `turn.failed`.
+`turn.completed` (`usage`: the thread's tokens so far, its earlier launches' included
+when it was resumed) or `turn.failed`.
 
 The events carry no per-call token counts, no model name and no account
 usage. The rollout file codex writes for a persisted session
@@ -14,22 +15,30 @@ usage. The rollout file codex writes for a persisted session
 `event_msg` `token_count` per API call (`last_token_usage`, the model's
 `model_context_window`, `rate_limits`), a `turn_context` with the model, and what a Stop
 hook sent back (a user message `<hook_prompt hook_run_id="...">text</hook_prompt>`, the
-text XML-escaped). `read_rollout` takes those.
+text XML-escaped). `read_rollout` takes those. The rollout is codex's own file, in no
+documented form: the launch's calls from it are checked against the totals of
+`turn.completed`, which stand in for them when the rollout cannot be read
+(`LaunchResult.usage_unknown`). `tests/fixtures/codex/<version>/` holds a recording of both.
 """
 
 from __future__ import annotations
 
 import html
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResult, Stop
 from contraagent._internal.backends.refusal import FAILED_STOPS, Ending, Signals
 from contraagent._internal.backends.wire import EventFold, feedback_errors, positive_int, tokens
 from contraagent._internal.dispatch.records import QuotaReading
 from contraagent._internal.runs.times import iso_of, now_iso
+
+_logger = logging.getLogger(__name__)
+_warned: set[str] = set()  # the rollout problems this process already logged
 
 #: An HTTP status as codex-cli 0.162.1 words one: `unexpected status 429 Too Many Requests: ...`,
 #: `exceeded retry limit, last status: 429 Too Many Requests`. A bare number is no status: a
@@ -67,6 +76,8 @@ _FIVE_HOUR_MIN, _SEVEN_DAY_MIN = 300, 10080
 
 #: Item types that are a tool call; the rest are the agent's own text.
 TOOL_ITEMS = ("command_execution", "file_change", "mcp_tool_call", "web_search")
+#: The token counts of a `usage` (`turn.completed`, a rollout's `last_token_usage`) that are read.
+TOKEN_KEYS = ("input_tokens", "cached_input_tokens", "cache_write_input_tokens", "output_tokens")
 #: Every `--json` event type `EventReader` reads; another is counted in `unread`.
 KNOWN_EVENTS = frozenset(
     {"thread.started", "turn.started", "turn.completed", "turn.failed", "item.started", "item.updated", "item.completed", "error"}
@@ -89,7 +100,12 @@ def tool_name(item: dict) -> str:
 class EventReader(EventFold):
     """One `--json` event at a time: the thread id, the final message, tool use, retries,
     the end. The rollout file (`rollout`, read after the launch) adds per-call tokens,
-    the model, its context window and the plan's usage."""
+    the model, its context window and the plan's usage.
+
+    `earlier` is the thread's `turn.completed` usage before this launch: {} for a new
+    thread, the last launch's for a resumed one, None when that is not known (a thread
+    an earlier process resumed). The launch's own totals are its `turn.completed` usage
+    minus `earlier` (`own_usage`)."""
 
     agent = "codex"
     known_events = KNOWN_EVENTS
@@ -98,8 +114,11 @@ class EventReader(EventFold):
     def __init__(self) -> None:
         super().__init__()
         self.messages: list[str] = []
-        #: The turn's summed `usage` (`turn.completed`).
+        #: The thread's tokens so far (`turn.completed`'s `usage`).
         self.turn_usage: dict = {}
+        #: The thread's tokens before this launch (see the class docstring).
+        self.earlier: dict | None = {}
+        self.turn_started = False
         self.completed = False
         self.failure = ""
         self.errors: list[str] = []  # item `error`s and `error` events past their retries
@@ -124,6 +143,8 @@ class EventReader(EventFold):
             return None
         if typ == "thread.started":
             self.session_id = str(ev.get("thread_id") or "")
+        elif typ == "turn.started":
+            self.turn_started = True
         elif typ == "item.completed":
             self._item(ev.get("item") or {})
         elif typ == "error":
@@ -141,7 +162,8 @@ class EventReader(EventFold):
                 return Stop.AUTH_FAILED
         elif typ == "turn.completed":
             self.completed = True
-            self.turn_usage = ev.get("usage") or {}
+            usage = ev.get("usage")
+            self.turn_usage = usage if isinstance(usage, dict) else {}
         elif typ == "turn.failed":
             self.failure = str((ev.get("error") or {}).get("message") or "")
         return None
@@ -167,12 +189,8 @@ class EventReader(EventFold):
     def result(self, launch: Launch, agent: str, *, exit_code: int | None, killed: Stop | None) -> LaunchResult:
         stop = self.stop(exit_code=exit_code, killed=killed)
         rollout = self.rollout
-        calls = rollout.calls if rollout is not None else []
-        if not calls and self.turn_usage:
-            # No rollout to read: the turn's sum stands in as one call.
-            calls = [call_usage(self.turn_usage, launch.model)]
         model = (rollout.model if rollout is not None else "") or launch.model
-        # The turn's own sum counts a resumed thread's earlier turns too; the calls do not.
+        calls, unknown = self.read_calls(model)
         self.calls = [CallUsage(c.model or model, c.input, c.cache_read, c.cache_creation, c.output) for c in calls]
         text = self.result_text
         structured = None
@@ -197,7 +215,50 @@ class EventReader(EventFold):
             stderr_tail=self.failure,
             hook_errors=list(rollout.hook_errors) if rollout is not None else [],
             raw_result={"usage": self.turn_usage} if self.turn_usage else {},
+            usage_unknown=unknown,
         )
+
+    def own_usage(self) -> dict | None:
+        """This launch's own totals: `turn_usage` minus `earlier`; None when either is unknown."""
+        if not self.turn_usage or self.earlier is None:
+            return None
+        try:
+            return {k: tokens(self.turn_usage, k) - tokens(self.earlier, k) for k in TOKEN_KEYS}
+        except (TypeError, ValueError):
+            return None
+
+    def read_calls(self, model: str) -> tuple[list[CallUsage], Literal["", "calls", "tokens"]]:
+        """The launch's API calls, and what of them is unknown (`LaunchResult.usage_unknown`).
+
+        The rollout's calls, when it was read and they add up to the launch's own totals
+        (when those are not known: when it holds a call, or the turn printed no totals).
+        Else one call of the totals `turn.completed` printed (with a resumed thread's
+        earlier launches when their totals are not known), else none: unknown when a turn
+        started. The first rollout of each problem is logged."""
+        rollout = self.rollout
+        own = self.own_usage()
+        if rollout is not None and rollout.known:
+            if adds_up(rollout.calls, own) if own is not None else rollout.calls or not self.turn_usage:
+                return rollout.calls, ""
+            problem = "its token counts do not add up to the turn's in `codex exec --json`"
+        elif rollout is not None:
+            problem = "it holds no line this reader knows"
+        else:
+            problem = "it was not found"
+        if not self.turn_started:
+            return [], ""
+        if problem not in _warned:
+            _warned.add(problem)
+            _logger.warning(
+                f"[codex] the rollout file of thread {self.thread_id or '?'} cannot be read: {problem}; a newer codex? "
+                "The launch's tokens are the turn's totals (LaunchResult.usage_unknown)"
+            )
+        totals = own if own is not None else self.turn_usage
+        try:
+            spent = any(tokens(totals, k) for k in TOKEN_KEYS)
+            return ([call_usage(totals, model)], "calls") if spent else ([], "tokens")
+        except (TypeError, ValueError):
+            return [], "tokens"
 
 
 @dataclass
@@ -206,6 +267,9 @@ class Rollout:
     context window, account usage."""
 
     calls: list[CallUsage] = field(default_factory=list)
+    #: True when a line of the file is one this reader knows (`session_meta`, `turn_context`,
+    #: a `token_count`): the file is in the form it reads, and `calls` are all it holds.
+    known: bool = False
     model: str = ""
     #: The model's context window (`token_count`'s `model_context_window`, the latest); None without one.
     context_window: int | None = None
@@ -236,6 +300,15 @@ def call_usage(u: dict, model: str) -> CallUsage:
     return CallUsage(
         model=model, input=max(0, total - read - written), cache_read=read, cache_creation=written, output=tokens(u, "output_tokens")
     )
+
+
+def adds_up(calls: list[CallUsage], totals: dict) -> bool:
+    """Whether `calls` sum to `totals` (a `turn.completed` `usage`), in whole input and in output."""
+    try:
+        want = (tokens(totals, "input_tokens"), tokens(totals, "output_tokens"))
+    except (TypeError, ValueError):
+        return False
+    return (sum(c.context for c in calls), sum(c.output for c in calls)) == want
 
 
 def quota_reading(limits: dict) -> QuotaReading | None:
@@ -299,12 +372,15 @@ def read_rollout(path: Path, start: int = 0) -> Rollout:
             continue
         typ = ev.get("type")
         if typ == "session_meta":
+            out.known = True
             out.cli_version = str(payload.get("cli_version") or "")
         elif typ == "response_item" and (said := hook_prompt(payload)) is not None:
             out.hook_errors.append(feedback_errors(said))
         elif typ == "turn_context":
+            out.known = True
             out.model = str(payload.get("model") or out.model)
         elif typ == "event_msg" and payload.get("type") == "token_count":
+            out.known = True
             info = payload.get("info") or {}
             last = info.get("last_token_usage")
             if isinstance(last, dict):

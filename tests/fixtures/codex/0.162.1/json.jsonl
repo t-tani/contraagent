@@ -1,0 +1,8 @@
+{"type": "thread.started", "thread_id": "01a158ad-28eb-76a0-ab98-413edeee18c3"}
+{"type": "turn.started"}
+{"type": "item.started", "item": {"id": "item_0", "type": "command_execution", "command": "/usr/bin/zsh -lc 'cat note.txt'", "aggregated_output": "", "exit_code": null, "status": "in_progress"}}
+{"type": "item.completed", "item": {"id": "item_0", "type": "command_execution", "command": "/usr/bin/zsh -lc 'cat note.txt'", "aggregated_output": "The retry queue holds failed jobs.\n", "exit_code": 0, "status": "completed"}}
+{"type": "item.started", "item": {"id": "item_1", "type": "command_execution", "command": "/usr/bin/zsh -lc 'echo hi'", "aggregated_output": "", "exit_code": null, "status": "in_progress"}}
+{"type": "item.completed", "item": {"id": "item_1", "type": "command_execution", "command": "/usr/bin/zsh -lc 'echo hi'", "aggregated_output": "hi\n", "exit_code": 0, "status": "completed"}}
+{"type": "item.completed", "item": {"id": "item_2", "type": "agent_message", "text": "done"}}
+{"type": "turn.completed", "usage": {"input_tokens": 34696, "cached_input_tokens": 31488, "cache_write_input_tokens": 0, "output_tokens": 197, "reasoning_output_tokens": 87}}

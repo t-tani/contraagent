@@ -99,6 +99,25 @@ export function usd(v: number | null | undefined): string {
   return `$${v.toFixed(2)}`;
 }
 
+/** What of the rows' tokens could not be read (`usage_unknown`): `tokens` when any row's,
+ * else `calls` when any row's, else ''. */
+export function usageUnknown(rows: readonly { usage_unknown?: string | null }[]): '' | 'calls' | 'tokens' {
+  const all = new Set(rows.map((r) => r.usage_unknown ?? ''));
+  return all.has('tokens') ? 'tokens' : all.has('calls') ? 'calls' : '';
+}
+
+/** The words for `usage_unknown` (`usageUnknown`): a short label and its tooltip; null when nothing is unknown. */
+export function usageUnknownWords(unknown: '' | 'calls' | 'tokens'): { label: string; tip: string } | null {
+  if (unknown === 'calls')
+    return {
+      label: msg('Tokens per API call unknown'),
+      tip: msg('Only the token totals that the coding agent printed are known, not the tokens of each API call (usage_unknown)'),
+    };
+  if (unknown === 'tokens')
+    return { label: msg('Tokens unknown'), tip: msg('The tokens of an agent session that ran are not known (usage_unknown)') };
+  return null;
+}
+
 /** A row's unread event types with their counts (`session_settled ×2, x ×1`); '' when none. */
 export function unreadEvents(rows: readonly { unread_events?: Record<string, number> | null }[]): string {
   const total = new Map<string, number>();

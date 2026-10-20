@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { factList, facts, fmtDur, listText, localTime, sentence, tokenCount, unreadEvents, usd } from './format.js';
+import { factList, facts, fmtDur, listText, localTime, sentence, tokenCount, unreadEvents, usageUnknown, usageUnknownWords, usd } from './format.js';
 
 describe('format', () => {
   it('writes token counts compactly', () => {
@@ -45,6 +45,16 @@ describe('unreadEvents', () => {
       'session_settled ×3, x ×1',
     );
     expect(unreadEvents([{ unread_events: {} }])).toBe('');
+  });
+});
+
+describe('usageUnknown', () => {
+  it('is the most unknown of the rows', () => {
+    expect(usageUnknown([{ usage_unknown: '' }, {}])).toBe('');
+    expect(usageUnknown([{ usage_unknown: 'calls' }, {}])).toBe('calls');
+    expect(usageUnknown([{ usage_unknown: 'tokens' }, { usage_unknown: 'calls' }])).toBe('tokens');
+    expect(usageUnknownWords('')).toBeNull();
+    expect(usageUnknownWords('calls')?.tip).toContain('usage_unknown');
   });
 });
 
