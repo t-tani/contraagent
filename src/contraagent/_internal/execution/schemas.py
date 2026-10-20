@@ -131,12 +131,21 @@ class JournalRow(RecordModel):
     context_warned: bool = False
     #: A digest of what defines the task's work (`Task.fingerprint`): what a resume compares.
     fingerprint: str = ""
+    #: The digest of each part of what the fingerprint covers, by the part's name
+    #: (`Task.fingerprint_parts`): `definition`, `params`, `output:<key>` (an output it reads),
+    #: `after:<key>` (a task it only waits for), `outside`, `output_of` (the file it fills in, as
+    #: it was when the attempt started). What a resume names when it runs the task again; empty
+    #: in a run of an earlier release.
+    fingerprint_parts: dict[str, str] = Field(default_factory=dict)
     #: The SHA-256 of the outside state its fingerprint covered when the attempt started
     #: (`agent_task(outside_state=)`); empty for a task that declares none.
     outside: str = ""
     #: Why a resume ran the task again although an earlier attempt of the run had finished it
     #: (its outside state changed, ...); empty when no earlier attempt had.
     rerun: str = ""
+    #: For a task that fills in another task's file (`output_of`): the digest of the file as
+    #: the attempt left it, which a resume compares the file with; empty for any other task.
+    output_of_after: str = ""
     #: The flow call that created the task (`Origin.flow_call`); None for a task with no origin.
     flow_call: str | None = None
     #: The attempt was played from a recording (a replay), not launched or called: it spent nothing.

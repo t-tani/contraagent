@@ -27,8 +27,10 @@ live in `contraagent._internal.dispatch.interceptors`.
 from __future__ import annotations
 
 import fnmatch
+import hashlib
+import json
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -46,6 +48,14 @@ def kind_name(kind) -> str:
     compare equal to their values.
     """
     return str(getattr(kind, "value", kind))
+
+
+def fingerprint_of(kind: str, unit: str, key: str, parts: Mapping[str, str]) -> str:
+    """A task's fingerprint from its kind, unit and key and the digest of each part of its
+    work (`Task.fingerprint_parts`): the SHA-256 of their canonical JSON."""
+    body = {"kind": kind_name(kind), "unit": unit, "key": key, "parts": dict(parts)}
+    text = json.dumps(body, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(text.encode()).hexdigest()
 
 
 #: The characters of an `fnmatch` pattern, which a kind name does not hold.
@@ -145,6 +155,9 @@ class Task:
     then, not when it is queued.
     `outside`: the SHA-256 of its outside state, once it is about to start; empty for a
     task that declares none, or before.
+    `fingerprint_parts`: a digest of each part of what its fingerprint covers, by the
+    part's name (`fingerprint_of`), so a resume can say which part changed; empty for a
+    task whose builder gives none.
     `base_kind`: for a kind that is one of several implementations of one step, the
     step's kind (`agent_task(implementations=)`); empty for any other. Recorded in
     `plan.jsonl`; nothing here reads it.
@@ -179,6 +192,7 @@ class Task:
     fingerprint_at_start: bool = False
     outside: str = ""
     credential: str = ""
+    fingerprint_parts: dict[str, str] = field(default_factory=dict)
     cancellable: bool = False
 
     def __post_init__(self) -> None:

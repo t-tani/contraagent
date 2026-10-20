@@ -40,6 +40,9 @@ class Journal:
         #: Why a resume runs each task again that an earlier attempt finished, by key
         #: (`resume_skip`): the `rerun` of each of its rows.
         self.reruns: dict[str, str] = {}
+        #: The digest of the file a task fills in (`output_of`) as it is now, after an attempt
+        #: (`output_of_after`); empty for a task that fills in none. Set by whoever knows the files.
+        self.filled_after: Callable[[Task], str] | None = None
 
     def row(self, result: TaskResult) -> JournalRow:
         """The journal row for one finished attempt."""
@@ -82,8 +85,10 @@ class Journal:
             context_budget=getattr(o, "context_budget", None),
             context_warned=bool(getattr(o, "context_warned", False)),
             fingerprint=task.fingerprint,
+            fingerprint_parts=dict(task.fingerprint_parts),
             outside=task.outside,
             rerun=self.reruns.get(task.key, ""),
+            output_of_after=self.filled_after(task) if self.filled_after is not None else "",
             flow_call=task.origin.flow_call if task.origin is not None else None,
             replayed=result.replayed,
             **(self._row_extras(result) if self._row_extras else {}),
@@ -111,3 +116,8 @@ class Journal:
     def last_rows(self) -> dict[str, dict[str, Any]]:
         """Each key's last row: what a resume compares a task with."""
         return {r["key"]: r for r in self.rows() if r.get("key")}
+
+    def places(self) -> dict[str, int]:
+        """Each key's place in the order the journal recorded its tasks: the index of its
+        last row. A resume gives the flow the results of the tasks it skips in this order."""
+        return {r["key"]: i for i, r in enumerate(self.rows()) if r.get("key")}

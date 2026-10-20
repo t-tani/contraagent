@@ -184,6 +184,8 @@ def test_a_queued_cancellable_task_is_cancelled_and_never_launched(tmp_path):
     assert report.cancelled == [result] and result not in report.failed
     [row] = [row for row in journal(report) if row["key"] == "probe-q"]
     assert row["stop"] == "cancelled" and not row["ok"]
+    assert row["fingerprint"] == result.task.fingerprint and row["fingerprint_parts"] == result.task.fingerprint_parts
+    assert row["fingerprint_parts"]  # journaled as any attempt is: a resume compares it part by part
     assert report.summary["by_stop"].get("cancelled") == 1
     monitor = Monitor(tmp_path / "runs")
     [node] = [n for n in monitor.plan("r")["nodes"] if n["key"] == "probe-q"]
@@ -195,7 +197,7 @@ def test_a_queued_cancellable_task_is_cancelled_and_never_launched(tmp_path):
         return await probe.options(cancellable=True)("q")
 
     again = pipeline(tmp_path, agent).run(calm, run_id="r", resume=True)
-    assert again.ok and again.results["probe-q"].stop == "completed"
+    assert again.ok and again.results["probe-q"].stop == "completed"  # not skipped: run again, as a failed task is
     assert [launch.unit for launch in agent.launches] == ["q"]
 
 

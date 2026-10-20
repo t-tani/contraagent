@@ -3024,6 +3024,13 @@
             "title": "Fingerprint",
             "default": ""
           },
+          "fingerprint_parts": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Fingerprint Parts"
+          },
           "outside": {
             "type": "string",
             "title": "Outside",
@@ -3032,6 +3039,11 @@
           "rerun": {
             "type": "string",
             "title": "Rerun",
+            "default": ""
+          },
+          "output_of_after": {
+            "type": "string",
+            "title": "Output Of After",
             "default": ""
           },
           "flow_call": {

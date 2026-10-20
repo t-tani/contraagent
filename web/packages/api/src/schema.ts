@@ -1436,6 +1436,10 @@ export type components = {
              * @default
              */
             fingerprint?: string;
+            /** Fingerprint Parts */
+            fingerprint_parts?: {
+                [key: string]: string;
+            };
             /**
              * Outside
              * @default
@@ -1446,6 +1450,11 @@ export type components = {
              * @default
              */
             rerun?: string;
+            /**
+             * Output Of After
+             * @default
+             */
+            output_of_after?: string;
             /** Flow Call */
             flow_call?: string | null;
             /**
