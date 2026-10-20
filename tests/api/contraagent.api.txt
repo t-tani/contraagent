@@ -28,16 +28,7 @@ class AgentTask[Out]
         base_kind: str = '',
         outside_state: OutsideState | None = None,
     ) -> None
-    def __call__(
-        self,
-        unit: str = '',
-        *,
-        key: str | None = None,
-        after: Sequence[Pending[Any] | str] = (),
-        priority: float = 0.0,
-        credential: str | None = None,
-        **params: Any,
-    ) -> Pending[Out]
+    def __call__(self, unit: str = '', **params: Any) -> Pending[Out]
     base_kind: str = ''
     changes: tuple[str, ...] = ()
     claims: tuple[str, ...] = ()
@@ -48,6 +39,15 @@ class AgentTask[Out]
     instructions: str | None
     kind: str
     @property light: bool
+    def options(
+        self,
+        *,
+        key: str | None | KEEP = KEEP,
+        after: Sequence[Pending[Any] | str] | KEEP = KEEP,
+        priority: float | KEEP = KEEP,
+        credential: str | None | KEEP = KEEP,
+        cancellable: bool | KEEP = KEEP,
+    ) -> Self
     output: type | None
     @property output_format: str | None
     output_from: str = 'file'
@@ -353,15 +353,7 @@ class PythonTask[Out]
         output_name: str = DEFAULT_OUTPUT_NAME,
         outside_state: OutsideState | None = None,
     ) -> None
-    def __call__(
-        self,
-        unit: str = '',
-        *,
-        key: str | None = None,
-        after: Sequence[Pending[Any] | str] = (),
-        priority: float = 0.0,
-        **kwargs: Any,
-    ) -> Pending[Out]
+    def __call__(self, unit: str = '', **kwargs: Any) -> Pending[Out]
     def arguments(self, unit: str, kwargs: dict[str, Any]) -> dict[str, Any]
     claims: tuple[str, ...] = ()
     def definition(self, cwd: Path | None = None) -> dict[str, Any]
@@ -371,6 +363,14 @@ class PythonTask[Out]
     def invoke(self, unit: str, kwargs: dict[str, Any]) -> Any
     @property kind: str
     name: str
+    def options(
+        self,
+        *,
+        key: str | None | KEEP = KEEP,
+        after: Sequence[Pending[Any] | str] | KEEP = KEEP,
+        priority: float | KEEP = KEEP,
+        cancellable: bool | KEEP = KEEP,
+    ) -> Self
     output_format = 'json'
     output_name: str = DEFAULT_OUTPUT_NAME
     output_schema: type[BaseModel] | None
@@ -432,6 +432,7 @@ class RunReport
         value: Any = None,
         flow_errors: list[FlowCall] = list(),
     ) -> None
+    @property cancelled: list[TaskResult]
     @property deferred: list[TaskResult]
     @property failed: list[TaskResult]
     flow_errors: list[FlowCall] = field(default_factory=list)
@@ -485,10 +486,12 @@ class Task
         outside: str = '',
         credential: str = '',
         fingerprint_parts: dict[str, str] = dict(),
+        cancellable: bool = False,
     ) -> None
     after: tuple[str, ...] = ()
     attempt: int = 0
     base_kind: str = ''
+    cancellable: bool = False
     claims: tuple[str, ...] = ()
     credential: str = ''
     @property declared_unit: str
@@ -543,6 +546,8 @@ class TaskResult
         payload: Any = None,
         max_corrections: int | None = None,
     ) -> None
+    @classmethod
+    def cancelled(cls, task: Task, reason: str = '') -> TaskResult
     cause: DeferralCause | None = None
     changes: Changes | None = None
     @classmethod
@@ -1864,6 +1869,7 @@ class AgentRunner
     adapter: TaskAdapter
     def backend_for_route(self, task: Task, route: Route | None) -> Backend
     backends: dict[str, Backend]
+    def cancel(self, task: Task) -> None
     def config(self, task: Task) -> KindConfig
     configs: Mapping[str, KindConfig]
     def credential_for(self, task: Task, route: Route | None) -> Credential
@@ -2189,6 +2195,7 @@ class PythonTaskRunner
         enrichers: Sequence[ResultEnricher] = (),
         config: PipelineConfig | None = None,
     ) -> None
+    def cancel(self, task: Task) -> None
     def config(self, task: Task) -> RunnerConfig
     def contracts(self, task: Task) -> tuple[list[Any], list[Any]]
     def deferral(self, task: Task) -> Deferral | None
@@ -2220,6 +2227,7 @@ class RetryingRunner
         on_exhausted: Callable[[Task, TaskResult], None] | None = None,
     )
     backoff: Callable[[float, int], float] = staticmethod(backoff_s)
+    def cancel(self, task: Task) -> None
     def config(self, task: Task) -> KindConfig
     def deferral(self, task: Task) -> Deferral | None
     def run(self, task: Task) -> TaskResult
@@ -2460,6 +2468,7 @@ class WorkQueue
     )
     def add(self, task: Task) -> bool
     between_passes: BetweenPasses | None
+    def cancel(self, key: str) -> bool
     def capacity(self, name: str) -> int
     claim_capacity: dict[str, int | ClaimCapacity]
     deadline_at: float | None
@@ -3303,6 +3312,7 @@ class Plan(Closed)
 
 class PlanGroup(Closed)
     blocked: int
+    cancelled: int = 0
     done: int
     failed: int
     id: str
@@ -3325,7 +3335,7 @@ class PlanNode(PlanRow)
     base_kind: str = Field('', description="an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty")
     claims: list[str] = Field(default_factory=list, description="the names it holds while it runs, its kind's `claims` filled in")
     created_from: list[str] = Field(default_factory=list, description="keys of the results that reached its flow call between that flow call's previous resume and the one in which it created the task")
-    credential: str = Field('', description='the credential its task call names (`credential=`), which every route of its kind ran it as; empty when it names none, or a run-wide override outranks it')
+    credential: str = Field('', description='the credential its call options name (`.options(credential=)`), which every route of its kind ran it as; empty when it names none, or a run-wide override outranks it')
     deferred: str = Field('', description='why the queue deferred it, never launched (`deferred.jsonl`): a deadline, a resting credential; empty when it was not')
     deferred_cause: DeferralCause | None = Field(None, description='the same as data; null when it was not deferred, or the run recorded no cause')
     executor: Executor = 'agent'
@@ -3466,6 +3476,7 @@ class Substitution(RecordModel)
     to_model: str
 
 class TaskCounts(Closed)
+    cancelled: int = 0
     done: int
     failed: int
     model_config: ConfigDict = ConfigDict(extra='forbid')
