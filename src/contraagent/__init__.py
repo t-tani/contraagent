@@ -23,6 +23,7 @@ budgets, quota readings), `contraagent.backends` (the coding agents), `contraage
 
 from contraagent._internal.backends.credentials import CredentialError
 from contraagent._internal.backends.process import LaunchError
+from contraagent._internal.contracts.input_file import InputFile
 from contraagent._internal.contracts.rows import Rows
 from contraagent._internal.contracts.validators import CommandValidator, Validator
 from contraagent._internal.dispatch.flow import TaskDeferred, TaskFailed, time_box
@@ -61,6 +62,7 @@ __all__ = [
     "Frame",
     "Hop",
     "Implementations",
+    "InputFile",
     "LaunchError",
     "Loop",
     "McpServers",
