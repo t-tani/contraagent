@@ -10,6 +10,37 @@ The changes not released yet are the fragments in [`changelog.d/`](changelog.d/)
 
 <!-- towncrier release notes start -->
 
+## [0.6.0] - 2026-10-20
+
+### Added
+
+- `Pipeline.run_async` and `WorkQueue.run_async` run a pipeline or a queue on a running asyncio event loop, from an `async def` function. The queue's loop is now a coroutine on an event loop, and the runners still run on threads of the queue's pool. `Pipeline.run` and `WorkQueue.run` run that coroutine on a new event loop, and raise `RuntimeError` when they are called from a thread whose event loop is running.
+
+### Changed
+
+- A flow that waits for outputs is an `async def` function that waits with `await` on the run's asyncio event loop, and the outputs it receives have the types of their tasks. Generator flows are refused with a `TypeError` that shows the rewrite. A flow that does not wait stays a plain `def`.
+
+  | Old | New |
+  |---|---|
+  | `def flow(...):` with `yield` | `async def flow(...):` |
+  | `x = yield task(...)` | `x = await task(...)` |
+  | `xs = yield [a(...), b(...)]` | `xs = await asyncio.gather(a(...), b(...))`; with `return_exceptions=True` to keep each failure by position |
+  | `yield [sub(u) for u in us]` (child flow calls) | `await asyncio.gather(*[sub(u) for u in us])`, `asyncio.TaskGroup`, or `asyncio.create_task` |
+  | `yield from helper(...)` (the same flow call) | `await helper(...)` |
+  | `yield time_box(gen, deadline_s=...)` | `await time_box(coro, deadline_s=...)`; `time_box` takes a coroutine |
+  | `@max_passes(n)` on a generator function | `@max_passes(n)` on an `async def` function |
+
+  A flow call is an asyncio Task whose coroutine is flow code, numbered `<parent>.<n>` in the order the parent creates it; `FlowCall.site` and the flow path name where the parent created it. Cancelling a flow call (a `TaskGroup` whose sibling failed, a deferral past the grace window, the end of the run) records it `closed` and leaves the tasks it created running. A coroutine that was never awaited is a warning line in a run and an error in `contraagent check`. One event loop runs one run at a time: a second `Pipeline.run_async` on it raises `RuntimeError`.
+
+  In `contraagent.engine`, `FlowDriver` drives async flows on the running event loop: `FlowDriver.wait(item)` is what a flow awaits, `FlowDriver.add(task)` queues a task without waiting, `run_async` joins `run`, and `start` returns the `FlowCall`. `FlowDriver(created=)` and `Created` → `FlowDriver.add`; `FlowDriver.waiting` → `FlowDriver.alive()`; `FlowDriver.finish()` is a coroutine; `FlowCall.gen` → `FlowCall.task` and `FlowCall.coro`. `WorkQueue(between_passes=)` (a `BetweenPasses`) keeps the queue running while work outside it may still add tasks, and `WorkQueue.wake()` ends its wait.
+
+### Fixed
+
+- `agent_task` now has a precise type under `mypy --strict` and pyright `strict`: `output=Triage` gives `AgentTask[Triage]` (with `implementations=`, `Mapping[str, AgentTask[Triage]]`), no `output` gives `AgentTask[None]`, and a text output such as `Annotated[str, Field(examples=[...])]` gives `AgentTask[Any]`. Before, mypy inferred `AgentTask[Any]` and asked for an annotation on each task, and pyright `strict` reported a task with no output or a text output as partially unknown.
+- The `omp-rpc` backend reads the whole stderr of the coding agent before it takes the tail, so a quota refusal printed last is always seen, and a coding agent that exits before it answers `get_state` no longer adds a 10-second wait to the launch.
+- Two workers that check the same credential at the same moment now record its rests in the order they judged them: `rests.jsonl` no longer shows a rest that begins after the reading that ended it, and the quota rule is called for one account at a time.
+- `contraagent run` keeps Python's handling of SIGPIPE: a write to a coding agent whose input pipe has closed is an error that its launch handles, where before it ended the run at once, with no teardown.
+- A file rewritten at the same size within one tick of the file system's clock (about 16 ms on NTFS) now counts as rewritten: a task's `changes` list it as modified, a `fresh` output passes its check, and a recording run names it among its undeclared changes. A file whose modification time is recent when a task starts keeps the digest of its content, and the comparison after the task reads it. `Before` has a new field, `digest`.
 ## [0.5.0] - 2026-10-18
 
 ### Added

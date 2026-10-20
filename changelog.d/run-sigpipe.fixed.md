@@ -1,1 +1,0 @@
-`contraagent run` keeps Python's handling of SIGPIPE: a write to a coding agent whose input pipe has closed is an error that its launch handles, where before it ended the run at once, with no teardown.
