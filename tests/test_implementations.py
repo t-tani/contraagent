@@ -159,7 +159,7 @@ def test_a_kind_that_is_a_base_kind_or_an_implementation_kind_of_another_declara
     plain = agent_task("review", plugin=plugins / "review-py", output=Review, max_turns=5, timeout_s=60)
     twin = agent_task("review-go", plugin=plugins / "review-go", output=Review, max_turns=5, timeout_s=60)
 
-    @python_task(name="review-py")
+    @python_task(kind="review-py")
     def same_name(unit: str) -> None:
         return None
 

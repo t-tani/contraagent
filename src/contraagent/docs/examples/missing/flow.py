@@ -33,6 +33,10 @@ class Review(BaseModel):
     )
 
 
+class ReviewParams(BaseModel):
+    documents: list[str] = Field(description="the files of the documents to review from, relative to the working directory")
+
+
 class Fetched(BaseModel):
     name: str
     path: str | None = Field(description="where the document is now; None when the archive does not hold it")
@@ -40,6 +44,7 @@ class Fetched(BaseModel):
 
 review = agent_task(
     "review",
+    params=ReviewParams,
     instructions=(
         "Review the unit from the files in params.documents. When you need a document that is not"
         " among them, put its name in `missing` and write the verdict you can without it."
@@ -65,14 +70,14 @@ def fetch(unit: str, name: str) -> Fetched:
 async def review_unit(unit: str, documents: list[str]):
     """Review a unit; while the review names a missing document that the archive holds,
     fetch it and review again. Log what stays missing."""
-    result = await review(unit, documents=documents)
+    result = await review(unit, ReviewParams(documents=documents))
     while result.missing:
         fetched = await asyncio.gather(*[fetch(f"{unit}-{name}", name=name) for name in result.missing])
         found = [f.path for f in fetched if f.path is not None]
         if not found:
             break  # nothing new to review with
         documents = documents + found
-        result = await review(unit, documents=documents)  # the same unit again: key review-<unit>~2
+        result = await review(unit, ReviewParams(documents=documents))  # the same unit again: key review-<unit>~2
     for name in result.missing:
         contraagent.log("missing", {"unit": unit, "document": name})
     return result

@@ -62,6 +62,7 @@ tasks and a flow.
 
 <!-- ::code{file="src/contraagent/docs/examples/tutorial/tasks.py" from="from typing import" to="class Triage"} -->
 <!-- ::code{file="src/contraagent/docs/examples/tutorial/tasks.py" from="class Triage" to="class FixPlan"} -->
+<!-- ::code{file="src/contraagent/docs/examples/tutorial/tasks.py" from="class TriageParams" to="class PlanParams"} -->
 <!-- ::code{file="src/contraagent/docs/examples/tutorial/tasks.py" from="triage = agent_task(" to="plan_fix = agent_task"} -->
 <!-- ::code{file="src/contraagent/docs/examples/tutorial/tasks.py" from="def triage_one" to="def triage_and_plan"} -->
 ```python
@@ -78,8 +79,13 @@ class Triage(BaseModel):
     summary: str = Field(description="what goes wrong, in one sentence")
 
 
+class TriageParams(BaseModel):
+    report: str = Field(description="the bug report to triage, relative to the working directory")
+
+
 triage = agent_task(
     "triage",
+    params=TriageParams,
     plugin="plugins/triage",
     role="triager",
     output=Triage,
@@ -91,9 +97,9 @@ triage = agent_task(
 
 async def triage_one(name: str):
     """One report: its triage, and a fix plan when it is high severity."""
-    found = await triage(name, report=report_path(name))
+    found = await triage(name, TriageParams(report=report_path(name)))
     if found.severity == "high":
-        await plan_fix(name, report=report_path(name), triage=found)
+        await plan_fix(name, PlanParams(report=report_path(name), triage=found))
     return found
 ```
 

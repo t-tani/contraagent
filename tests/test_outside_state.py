@@ -235,7 +235,7 @@ def test_check_reports_a_function_that_raises(tmp_path):
     report = pipeline(tmp_path).check(lambda: tally("a"))
     assert not report.ok and "tasks" in report.topics
     assert any("python:tally-a: tally: outside_state raised KeyError" in e for e in report.errors)
-    fine = python_task(name="fine", outside_state=lambda unit, params: unit)(lambda unit: None)
+    fine = python_task(kind="fine", outside_state=lambda unit, params: unit)(lambda unit: None)
     assert pipeline(tmp_path).check(lambda: fine("a")).ok
 
 

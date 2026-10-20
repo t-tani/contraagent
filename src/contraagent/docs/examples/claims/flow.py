@@ -11,7 +11,7 @@ as many at once as the host's free memory and cores hold.
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from contraagent import PerTask, agent_task
 
@@ -22,6 +22,14 @@ class Written(BaseModel):
 
 class Verdict(BaseModel):
     relevant: bool
+
+
+class MergeParams(BaseModel):
+    topics: list[str] = Field(description="the topics to merge, the first one the topic they are merged into")
+
+
+class SubjectParams(BaseModel):
+    subject: str = Field(description="the subject to look for")
 
 
 style = agent_task(
@@ -42,6 +50,7 @@ terms = agent_task(
 )
 merge = agent_task(
     "merge",
+    params=MergeParams,
     instructions="Merge the topics named in params.topics into the first of them.",
     output=Written,
     claims=["topic:{params.topics}"],
@@ -50,6 +59,7 @@ merge = agent_task(
 )
 triage = agent_task(
     "triage",
+    params=SubjectParams,
     instructions="Read the file topics/${unit}.md. Is it relevant to params.subject?",
     output=Verdict,
     max_turns=5,
@@ -58,6 +68,7 @@ triage = agent_task(
 
 lookup = agent_task(
     "lookup",
+    params=SubjectParams,
     instructions="Start the local index server, find the passages on params.subject, and stop it.",
     output=Written,
     claims=["index"],
@@ -73,5 +84,5 @@ def topics(names: list[str]):
     for name in names:
         style(name)
         terms(name)  # one topic's rewrites run one after the other
-        triage(name, subject="security")  # claims nothing: runs beside them
-    merge.options(key="merge")(names[0], topics=names)  # claims every topic it names
+        triage(name, SubjectParams(subject="security"))  # claims nothing: runs beside them
+    merge.options(key="merge")(names[0], MergeParams(topics=names))  # claims every topic it names

@@ -7,11 +7,19 @@ which each of them names in `skills_from`.
 
 from __future__ import annotations
 
+from pydantic import BaseModel, Field
+
 from contraagent import agent_task
 from contraagent.docs.examples.demo.tasks import Summary
 
+
+class DocumentParams(BaseModel):
+    path: str = Field(description="the document to work from, relative to the working directory")
+
+
 summarize = agent_task(
     "summarize",
+    params=DocumentParams,
     plugin="../demo/plugins/docs",
     role="summarizer",
     skills_from=["plugins/house-style"],
@@ -21,6 +29,7 @@ summarize = agent_task(
 )
 write_note = agent_task(
     "write_note",
+    params=DocumentParams,
     plugin="../demo/plugins/docs",
     role="writer",
     skills_from=["plugins/house-style"],
@@ -32,5 +41,5 @@ write_note = agent_task(
 
 def notes(units: list[str]):
     for unit in units:
-        summarize(unit, path=f"in/{unit}.md")
-        write_note(unit, path=f"in/{unit}.md")
+        summarize(unit, DocumentParams(path=f"in/{unit}.md"))
+        write_note(unit, DocumentParams(path=f"in/{unit}.md"))

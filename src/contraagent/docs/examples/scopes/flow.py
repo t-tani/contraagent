@@ -20,7 +20,7 @@ from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from contraagent import Pipeline, Task, agent_task, python_task
 
@@ -39,6 +39,10 @@ class Summary(BaseModel):
     text: str
 
 
+class SummarizeParams(BaseModel):
+    sources: Sources = Field(description="the topic and the files found on it")
+
+
 @python_task(retries=2, retry_on=(ConnectionError, TimeoutError))
 def find_sources(unit: str) -> Sources:
     """The files on topic `unit`, from the attempt's local index server."""
@@ -48,6 +52,7 @@ def find_sources(unit: str) -> Sources:
 
 summarize = agent_task(
     "summarize",
+    params=SummarizeParams,
     instructions="Summarize the files in params.sources.paths in one paragraph.",
     output=Summary,
     max_turns=10,
@@ -87,7 +92,7 @@ def index_server(task: Task) -> contextlib.AbstractContextManager[None]:
 
 async def topic(name: str) -> None:
     """One topic: its sources, then its summary."""
-    await summarize(name, sources=await find_sources(name))
+    await summarize(name, SummarizeParams(sources=await find_sources(name)))
 
 
 async def topics(names: list[str]):

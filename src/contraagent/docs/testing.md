@@ -80,7 +80,7 @@ through the whole flow. In each string of an example the stub writes, `{unit}`,
 `{key}`, `{kind}` and `{params.<name>}` are the task call's, as in a claim, when the
 value is a string or a number; any other field stays as written. So one example
 passes a validator that compares an output with a param set per unit:
-`{"module": "{params.module}"}` is `"bank"` for the call `review("bank", module="bank")`.
+`{"module": "{params.module}"}` is `"bank"` for the call `review("bank", ReviewParams(module="bank"))`.
 A coding agent reads the example as written, in the output's schema. Examples that
 agree with each other pass too: the demo's summary names the unit of the prepared
 example, and its note names the summary's unit:

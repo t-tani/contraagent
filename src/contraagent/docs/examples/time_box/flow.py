@@ -10,7 +10,7 @@ the time box, is outside it, so the box's deadline never stops it.
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from contraagent import TaskDeferred, agent_task, python_task, time_box
 
@@ -24,8 +24,23 @@ class Digest(BaseModel):
     text: str
 
 
-write = agent_task("write", instructions="Write a short note on ${subject}.", output=Note, max_turns=10, timeout_s=600)
-summarize = agent_task("summarize", instructions="Summarize the notes in one paragraph.", output=Digest, max_turns=5, timeout_s=300)
+class WriteParams(BaseModel):
+    subject: str = Field(description="what the note is about")
+
+
+class SummarizeParams(BaseModel):
+    notes: list[Note] = Field(description="the notes written in this cycle")
+
+
+write = agent_task("write", params=WriteParams, instructions="Write a short note on ${subject}.", output=Note, max_turns=10, timeout_s=600)
+summarize = agent_task(
+    "summarize",
+    params=SummarizeParams,
+    instructions="Summarize the notes in one paragraph.",
+    output=Digest,
+    max_turns=5,
+    timeout_s=300,
+)
 
 
 @python_task
@@ -38,11 +53,11 @@ async def topic_work(topics: list[str]):
     notes: list[Note] = []
     for topic in topics:
         try:
-            notes.append(await write(topic, subject=topic))
+            notes.append(await write(topic, WriteParams(subject=topic)))
         except TaskDeferred:
             break  # past the deadline: the other topics wait for the next cycle
     if notes:
-        await summarize(notes=[n.model_dump() for n in notes])
+        await summarize(SummarizeParams(notes=notes))
     return notes
 
 

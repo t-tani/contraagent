@@ -122,12 +122,16 @@ class Note(BaseModel):
     text: str
 
 
+class Checked(BaseModel):
+    note: Note
+
+
 write = agent_task("write", instructions="Write a note.", output=Note, max_turns=3, timeout_s=60)
-check = agent_task("check", instructions="Check the note.", output=Note, max_turns=3, timeout_s=60)
+check = agent_task("check", instructions="Check the note.", output=Note, params=Checked, max_turns=3, timeout_s=60)
 
 
 async def flow():
-    await check(note=await write(unit="a"), unit="a")
+    await check("a", Checked(note=await write("a")))
 
 
 class Listed(StubAgent):

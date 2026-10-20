@@ -209,19 +209,51 @@ class Verdict(BaseModel):
     note: str
 
 
+class SummarizeParams(BaseModel):
+    prepared: Prepared
+
+
+class ReviewParams(BaseModel):
+    summary: Summary
+    score: Score
+
+
+class ReviseParams(BaseModel):
+    summary: Summary
+    verdict: Verdict
+
+
+class NoteParams(BaseModel):
+    summary: Summary
+
+
 def three_points(path: Path, summary: Summary):
     if len(summary.points) != 3:
         return [f"points: exactly three expected, got {len(summary.points)}"]
 
 
 summarize = agent_task(
-    "summarize", instructions="Summarize params.prepared.", output=Summary, validators=[three_points], max_turns=10, timeout_s=3600
+    "summarize",
+    params=SummarizeParams,
+    instructions="Summarize params.prepared.",
+    output=Summary,
+    validators=[three_points],
+    max_turns=10,
+    timeout_s=3600,
 )
-review = agent_task("review", instructions="Review params.summary.", output=Verdict, max_turns=10, timeout_s=3600)
+review = agent_task("review", params=ReviewParams, instructions="Review params.summary.", output=Verdict, max_turns=10, timeout_s=3600)
 revise = agent_task(
-    "revise", instructions="Revise params.summary.", output=Summary, validators=[three_points], max_turns=10, timeout_s=3600
+    "revise",
+    params=ReviseParams,
+    instructions="Revise params.summary.",
+    output=Summary,
+    validators=[three_points],
+    max_turns=10,
+    timeout_s=3600,
 )
-write_note = agent_task("write_note", instructions="Write a note on params.summary.", output=str, max_turns=10, timeout_s=3600)
+write_note = agent_task(
+    "write_note", params=NoteParams, instructions="Write a note on params.summary.", output=str, max_turns=10, timeout_s=3600
+)
 
 
 @python_task
@@ -240,9 +272,9 @@ def report(summaries: list[Summary]) -> str:
 
 
 async def one_review(unit: str) -> Summary:
-    summary = await summarize(unit, prepared=await prepare(unit))
+    summary = await summarize(unit, SummarizeParams(prepared=await prepare(unit)))
     figures = await score(unit, summary=summary)
-    await asyncio.gather(review(unit, summary=summary, score=figures), write_note(unit, summary=summary))
+    await asyncio.gather(review(unit, ReviewParams(summary=summary, score=figures)), write_note(unit, NoteParams(summary=summary)))
     return summary
 
 
@@ -252,14 +284,14 @@ async def docs_one_review(units: list[str]):
 
 
 async def review_loop(unit: str):
-    summary = await summarize(unit, prepared=await prepare(unit))
+    summary = await summarize(unit, SummarizeParams(prepared=await prepare(unit)))
     while True:
         figures = await score(unit, summary=summary)
-        verdict = await review(unit, summary=summary, score=figures)
+        verdict = await review(unit, ReviewParams(summary=summary, score=figures))
         if verdict.approved:
             break
-        summary = await revise(unit, summary=summary, verdict=verdict)
-    await write_note(unit, summary=summary)
+        summary = await revise(unit, ReviseParams(summary=summary, verdict=verdict))
+    await write_note(unit, NoteParams(summary=summary))
     return summary
 
 

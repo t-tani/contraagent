@@ -37,7 +37,7 @@ def failing(*errors: Exception):
 
 def test_an_exception_of_retry_on_gets_a_fresh_attempt_each_a_journal_row(tmp_path):
     fn, calls = failing(ConnectionError("refused"), TimeoutError("slow"))
-    count = python_task(name="count", retries=2, retry_on=(ConnectionError, TimeoutError))(fn)
+    count = python_task(kind="count", retries=2, retry_on=(ConnectionError, TimeoutError))(fn)
     report = pipeline(tmp_path).run(lambda: count("a"))
     result = report.results["python:count-a"]
     assert result.ok and len(calls) == 3
@@ -49,7 +49,7 @@ def test_an_exception_of_retry_on_gets_a_fresh_attempt_each_a_journal_row(tmp_pa
 
 def test_an_exception_retry_on_does_not_name_fails_the_task_at_once(tmp_path):
     fn, calls = failing(ValueError("bad topic"))
-    count = python_task(name="count", retries=2, retry_on=(ConnectionError,))(fn)
+    count = python_task(kind="count", retries=2, retry_on=(ConnectionError,))(fn)
     report = pipeline(tmp_path).run(lambda: count("a"))
     assert not report.results["python:count-a"].ok and len(calls) == 1
     [row] = rows(report)
@@ -58,7 +58,7 @@ def test_an_exception_retry_on_does_not_name_fails_the_task_at_once(tmp_path):
 
 def test_the_last_attempt_s_failure_is_the_task_s_result_and_a_subclass_is_retried(tmp_path):
     fn, calls = failing(ConnectionRefusedError("refused"), ConnectionResetError("reset"), ConnectionError("again"))
-    count = python_task(name="count", retries=1, retry_on=(ConnectionError,))(fn)
+    count = python_task(kind="count", retries=1, retry_on=(ConnectionError,))(fn)
     report = pipeline(tmp_path).run(lambda: count("a"))
     result = report.results["python:count-a"]
     assert not result.ok and result.reason == "ConnectionResetError: reset" and len(calls) == 2
@@ -83,7 +83,7 @@ def test_an_off_contract_output_is_not_retried(tmp_path):
 
 def test_a_resume_skips_a_task_finished_after_a_retry(tmp_path):
     fn, calls = failing(ConnectionError("refused"))
-    count = python_task(name="count", retries=1, retry_on=(ConnectionError,))(fn)
+    count = python_task(kind="count", retries=1, retry_on=(ConnectionError,))(fn)
     first = pipeline(tmp_path).run(lambda: count("a"), run_id="r")
     assert first.ok and len(calls) == 2
     second = pipeline(tmp_path).run(lambda: count("a"), run_id="r", resume=True)
@@ -114,8 +114,8 @@ def test_retries_show_in_the_definition_and_leave_the_digest_alone():
     def count(unit: str) -> int:
         return 1
 
-    plain = python_task(name="count")(count)
-    retried = python_task(name="count", retries=2, retry_on=(ConnectionError, TimeoutError))(count)
+    plain = python_task(kind="count")(count)
+    retried = python_task(kind="count", retries=2, retry_on=(ConnectionError, TimeoutError))(count)
     assert retried.digest() == plain.digest()  # how a task runs, not what it produces
     body = retried.definition()
     assert body["retries"] == 2 and body["retry_on"] == ["ConnectionError", "TimeoutError"]
