@@ -28,8 +28,9 @@ to 0.1 seconds (half a minute at the default scale). The figures carry the noise
 real sleeps and threads: a few percent between two runs of the same seed.
 
 The scenarios are listed in `SCENARIOS`: the demo's flows (`docs`, an async flow with
-a review loop per unit, and `docs_one_review`, which does not wait, so the queue knows
-each task's successors early; copied here without the demo's command validators,
+a review loop per unit, and `docs_one_review`, one review per unit; up to 0.6.2
+`docs_one_review` did not wait, so the queue knew each task's successors early, and
+`results/0.6.2.json` measured it so; copied here without the demo's command validators,
 which start a Python process each and would hold a slot for minutes at this scale),
 the analysis example as it is (nested flows, the `heavy` claim), and synthetic flows:
 chains of different lengths on two slots, fan-out and join, a claim every second unit
@@ -238,18 +239,20 @@ def report(summaries: list[Summary]) -> str:
     return "\n".join(f"{s.unit}: {len(s.points)} points" for s in summaries)
 
 
-def docs_one_review(units: list[str]):
-    summaries = []
-    for u in units:
-        summary = summarize(u, prepared=prepare(u))
-        review(u, summary=summary, score=score(u, summary=summary))
-        write_note(u, summary=summary)
-        summaries.append(summary)
-    return report(summaries=summaries)
+async def one_review(unit: str) -> Summary:
+    summary = await summarize(unit, prepared=await prepare(unit))
+    figures = await score(unit, summary=summary)
+    await asyncio.gather(review(unit, summary=summary, score=figures), write_note(unit, summary=summary))
+    return summary
+
+
+async def docs_one_review(units: list[str]):
+    done = await asyncio.gather(*[one_review(u) for u in units], return_exceptions=True)
+    return await report(summaries=[s for s in done if isinstance(s, Summary)])
 
 
 async def review_loop(unit: str):
-    summary = await summarize(unit, prepared=prepare(unit))
+    summary = await summarize(unit, prepared=await prepare(unit))
     while True:
         figures = await score(unit, summary=summary)
         verdict = await review(unit, summary=summary, score=figures)
@@ -475,7 +478,7 @@ SCENARIOS: list[Scenario] = [
     ),
     Scenario(
         "demo-one-review",
-        "`docs_one_review`: the same tasks as `demo`, created without waiting, so each task's successors are known early; "
+        "`docs_one_review`: the same tasks as `demo`, one review per unit (up to 0.6.2 created without waiting); "
         "the note does not wait for the review",
         lambda: (docs_one_review, {"units": DEMO_UNITS}),
         3,
