@@ -1,0 +1,36 @@
+{
+  "call": "examples/runner/flow.py:reviews",
+  "config": false,
+  "flow": "runner.reviews",
+  "kwargs": {
+    "units": [
+      "alpha",
+      "beta"
+    ]
+  },
+  "outputs": {
+    "review/alpha.json": "6c502d6a666fc0bf16b614242e4ee9746102f5fe5e8fc6eeff6924fa403ebd02",
+    "review/beta.json": "6c502d6a666fc0bf16b614242e4ee9746102f5fe5e8fc6eeff6924fa403ebd02"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "review-alpha": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-beta": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "beta"
+    }
+  },
+  "value": null
+}

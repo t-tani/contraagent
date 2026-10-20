@@ -36,7 +36,7 @@ from contraagent._internal.dispatch.entry import run_sync
 from contraagent._internal.dispatch.flow import SECOND_RUN, FlowCall, FlowDriver, driven_here, generator_flow_error, never_awaited
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent._internal.dispatch.queue import GRACE_S, OVERDUE_S, RETRY_WAIT_S, THROTTLE_S
-from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_INVALID_INPUT, STOP_PARTIAL, Deferral, Task, TaskResult
+from contraagent._internal.dispatch.task import STOP_CANCELLED, STOP_DEFERRED, STOP_INVALID_INPUT, STOP_PARTIAL, Deferral, Task, TaskResult
 from contraagent._internal.execution import teardown as _teardown
 from contraagent._internal.execution.adapter import McpServers
 from contraagent._internal.execution.python_tasks import recording
@@ -84,7 +84,9 @@ class RunReport:
     with one; `partial` lists them (`by_stop` counts them).
 
     A deferred task (stop `deferred`: not launched, nothing spent) is not a failure: it is
-    in `deferred`, never in `failed`. `ok` is True when no task failed and there is no flow
+    in `deferred`, never in `failed`; nor is a cancelled one (stop `cancelled`, called with
+    `.options(cancellable=True)` and waited for by no flow call any longer), in `cancelled`.
+    `ok` is True when no task failed and there is no flow
     error: no top flow call raised, and no flow call raised an exception of its own. A
     flow that catches `TaskDeferred` and returns is ok; a `TaskDeferred` the flow does not
     catch ends the flow without its value, so it is in `flow_errors` and the run is not ok."""
@@ -111,13 +113,19 @@ class RunReport:
 
     @property
     def failed(self) -> list[TaskResult]:
-        """The results that are not ok, but for the deferred ones."""
-        return [r for r in self.results.values() if not r.ok and r.stop != STOP_DEFERRED]
+        """The results that are not ok, but for the deferred and the cancelled ones."""
+        return [r for r in self.results.values() if not r.ok and r.stop not in (STOP_DEFERRED, STOP_CANCELLED)]
 
     @property
     def deferred(self) -> list[TaskResult]:
         """The deferred tasks' results: not launched, each with its `reason` and `cause` (a `DeferralCause`)."""
         return [r for r in self.results.values() if r.stop == STOP_DEFERRED]
+
+    @property
+    def cancelled(self) -> list[TaskResult]:
+        """The cancelled tasks' results (stop `cancelled`): called with `.options(cancellable=True)`,
+        and waited for by no flow call any longer; not launched, or their launch stopped."""
+        return [r for r in self.results.values() if r.stop == STOP_CANCELLED]
 
     @property
     def partial(self) -> list[TaskResult]:
@@ -144,6 +152,11 @@ class _InputsFirst:
 
     def starting(self, task: Task) -> Task:
         return self._graph.starting(task)
+
+    def cancel(self, task: Task) -> None:
+        ask = getattr(self._runner, "cancel", None)
+        if ask is not None:
+            ask(task)
 
     def run(self, task: Task) -> TaskResult:
         why = self._graph.refusal(task)
@@ -389,7 +402,7 @@ class Pipeline:
     def check(self, flow: Callable[..., Any], /, *args: Any, **kwargs: Any) -> CheckReport:
         """Build the task graph `run` would, and check everything that needs no launch.
 
-        * the flow: it builds; every `after=` names a task of the run. An async flow is
+        * the flow: it builds; every task its call options' `after` names is a task of the run. An async flow is
           run to its first wait (every flow call it starts, up to the first `await` that
           waits for a task; no task's output is given), and an exception in any of them
           is reported, as is a coroutine that was never awaited (a call of an async def
@@ -415,7 +428,7 @@ class Pipeline:
           `changes` patterns;
         * routing: the config against those kinds (budgets, efforts, failover chains,
           credentials and the traits tasks require; the credential each task created
-          names in its call, `credential=`), the coding agents' programs on
+          names in its call options, `.options(credential=)`), the coding agents' programs on
           PATH, and each model against the list its coding agent keeps locally
           (`Backend.catalogue`, e.g. `omp models --json`).
 

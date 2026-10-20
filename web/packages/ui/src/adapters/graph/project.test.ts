@@ -44,7 +44,7 @@ describe('layerGraph: a static flow', () => {
     expect(n.get('kind:summarize')?.units[5]).toMatchObject({ unit: 'zeta', state: 'blocked' });
     expect(n.get('kind:report')?.units).toEqual([]);
     expect(n.get('kind:report')?.single).toEqual([{ key: 'report', unit: '', state: 'blocked', count: 1, keys: ['report'] }]);
-    expect(n.get('kind:prepare')?.counts).toEqual({ total: 6, done: 5, partial: 0, failed: 1, running: 0, pending: 0, skipped: 0, blocked: 0 });
+    expect(n.get('kind:prepare')?.counts).toEqual({ total: 6, done: 5, partial: 0, failed: 1, running: 0, pending: 0, skipped: 0, blocked: 0, cancelled: 0 });
   });
 
   it('keeps its layout while the states change', () => {

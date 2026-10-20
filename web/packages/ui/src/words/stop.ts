@@ -19,6 +19,8 @@ function knownStopLabel(stop: Stop, reason?: string | null): string {
       return msg('done', { id: 'stop-completed', desc: 'How an attempt ended: completed' });
     case 'skipped':
       return msg('skipped');
+    case 'cancelled':
+      return msg('cancelled', { id: 'stop-cancelled', desc: 'How an attempt ended: cancelled, because no part of the pipeline waited for its result any longer' });
     case 'partial':
       return msg('partly done', { id: 'stop-partial', desc: 'How an attempt ended: partial, its output a placeholder' });
     case 'invalid_input': {

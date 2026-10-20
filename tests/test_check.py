@@ -98,7 +98,7 @@ def test_what_a_run_would_find_one_launch_at_a_time_is_reported_at_once(plugin_d
 
     def flow():
         s = summarize("a", path="a.md", words="many")
-        review("a", s=s, after=["python:nowhere"])
+        review.options(after=["python:nowhere"])("a", s=s)
 
     report = pipeline({"tasks": {"sumarize": {"max_turns": 3}}}).check(flow)
     assert not report.ok
@@ -648,13 +648,16 @@ def signed(unit: str, credential: str) -> Doc:
         ({"priority": "high"}, "priority must be a finite number, not 'high'"),
         ({"after": "other"}, "after takes a list of tasks (each a task call's result or a task key), not 'other'"),
         ({"after": [3]}, "not 3 in it"),
-        ({"key": 3}, "key must be a string (or None), not 3"),
+        ({"key": 3}, "key must be a string or None, not 3"),
         ({"words": 2}, "the function cannot take this call: got an unexpected keyword argument 'words'"),
     ],
 )
 def test_a_python_task_call_the_run_could_not_make_is_refused_at_the_call_and_reported(call, says):
+    options = {name: value for name, value in call.items() if name in ("key", "after", "priority")}
+    params = {name: value for name, value in call.items() if name not in options}
+
     def flow():
-        tally("a", **call)
+        tally.options(**options)("a", **params)
 
     with pytest.raises(TypeError, match=re.escape(says)):
         flow()

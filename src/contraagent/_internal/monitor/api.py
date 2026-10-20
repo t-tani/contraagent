@@ -123,7 +123,8 @@ class TaskCounts(Closed):
     """A run's tasks (not attempts) by how they ended. `not_started`: refused for
     an input, or waiting behind a task that failed; `running`: running now (in a
     live run); `waiting`: queued in a live run; `not_run`: deferred, or queued in a
-    run that is no longer live (it will not run)."""
+    run that is no longer live (it will not run); `cancelled`: cancelled once no flow
+    call waited for it (called with `.options(cancellable=True)`)."""
 
     total: int
     done: int
@@ -134,6 +135,7 @@ class TaskCounts(Closed):
     waiting: int
     not_run: int = 0
     skipped: int
+    cancelled: int = 0
 
 
 class AccountQuota(Closed):
@@ -382,8 +384,10 @@ class JournalPage(Closed):
 
 #: `failed`: ran and failed. `partial`: its last result was `partial` (ok, its output a
 #: placeholder a resume makes again). `blocked`: did not start (refused for a missing or
-#: off-contract input, or waiting behind a failed or blocked task).
-TaskState = Literal["pending", "running", "done", "partial", "failed", "skipped", "blocked"]
+#: off-contract input, or waiting behind a failed or blocked task). `cancelled`: its last
+#: result was `cancelled` (called with `.options(cancellable=True)` and waited for by no
+#: flow call any longer: not launched, or its launch stopped).
+TaskState = Literal["pending", "running", "done", "partial", "failed", "skipped", "blocked", "cancelled"]
 
 
 class FlowCallNode(Closed):
@@ -472,6 +476,7 @@ class PlanGroup(Closed):
     pending: int
     skipped: int
     blocked: int
+    cancelled: int = 0
 
 
 class ModelUsage(Closed):

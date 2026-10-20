@@ -1,0 +1,90 @@
+{
+  "call": "examples/demo/tasks.py:docs",
+  "config": true,
+  "flow": "demo.docs",
+  "kwargs": {
+    "units": [
+      "alpha",
+      "beta"
+    ]
+  },
+  "outputs": {
+    "prepare/alpha.json": "a1a444b09ef9a4a5ed8afe51035c8e63f87e128639118061e1340505dae74b0e",
+    "prepare/beta.json": "a1a444b09ef9a4a5ed8afe51035c8e63f87e128639118061e1340505dae74b0e",
+    "report/report.json": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+    "review/alpha.json": "788e22c67fb08eebcdbf58087a1a11ae3406a7ede4efa3932fc5f724905e9443",
+    "review/beta.json": "788e22c67fb08eebcdbf58087a1a11ae3406a7ede4efa3932fc5f724905e9443",
+    "score/alpha.json": "c0974bb3f58e04ceb936d85d0b01642a120aa2d4ea89c5fea013560b2bdf561e",
+    "score/beta.json": "c0974bb3f58e04ceb936d85d0b01642a120aa2d4ea89c5fea013560b2bdf561e",
+    "summarize/alpha.json": "09f89db57845dd0730117ee569bff3ec965025c044ffb2307f49f2e2b9f9514f",
+    "summarize/beta.json": "09f89db57845dd0730117ee569bff3ec965025c044ffb2307f49f2e2b9f9514f",
+    "write_note/alpha.md": "c0e9bece6f1edeb92ce6bb7c99d125de7a904186780c5faf12c00fd42ff4ccca",
+    "write_note/beta.md": "c0e9bece6f1edeb92ce6bb7c99d125de7a904186780c5faf12c00fd42ff4ccca"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "python:prepare-alpha": {
+      "kind": "prepare",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "python:prepare-beta": {
+      "kind": "prepare",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "python:report": {
+      "kind": "report",
+      "stop": "completed",
+      "unit": "python:report"
+    },
+    "python:score-alpha": {
+      "kind": "score",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "python:score-beta": {
+      "kind": "score",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "review-alpha": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "review-beta": {
+      "kind": "review",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "summarize-alpha": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "summarize-beta": {
+      "kind": "summarize",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "write_note-alpha": {
+      "kind": "write_note",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "write_note-beta": {
+      "kind": "write_note",
+      "stop": "completed",
+      "unit": "beta"
+    }
+  },
+  "value": ""
+}

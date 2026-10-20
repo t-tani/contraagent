@@ -11,8 +11,9 @@ import type { DeferralCause, JournalRow, Plan, PlanNode, TaskState } from './typ
  * - `failed`: it ran and its last attempt failed.
  * - `not_started`: it never ran: an input was missing or off-contract, or it waits behind a task that failed.
  * - `running`, `waiting` (queued, not started yet), `skipped`.
+ * - `cancelled`: its last attempt was cancelled (stop `cancelled`): no flow call waited for it any longer; not failed.
  */
-export type Outcome = 'done' | 'recovered' | 'partial' | 'failed' | 'not_started' | 'running' | 'waiting' | 'skipped';
+export type Outcome = 'done' | 'recovered' | 'partial' | 'failed' | 'not_started' | 'running' | 'waiting' | 'skipped' | 'cancelled';
 
 export interface TaskOutcome {
   key: string;
@@ -61,6 +62,7 @@ export function outcomeOf(node: Pick<PlanNode, 'state'> | undefined, attempts: r
   if (last.stop === 'skipped') return 'skipped';
   if (last.stop === 'invalid_input') return 'not_started';
   if (last.stop === 'partial') return 'partial';
+  if (last.stop === 'cancelled') return 'cancelled';
   if (isOk(last)) return attempts.some((a) => isLaunched(a) && !isOk(a)) ? 'recovered' : 'done';
   return 'failed';
 }
@@ -96,8 +98,8 @@ export function planOutcome(state: TaskState): Outcome {
   }
 }
 
-/** Nothing is left to do for the task in this run: done, done after retrying, partial (its later tasks run on its output), or skipped. */
-export const isFinished = (o: Outcome): boolean => o === 'done' || o === 'recovered' || o === 'partial' || o === 'skipped';
+/** Nothing is left to do for the task in this run: done, done after retrying, partial (its later tasks run on its output), skipped, or cancelled. */
+export const isFinished = (o: Outcome): boolean => o === 'done' || o === 'recovered' || o === 'partial' || o === 'skipped' || o === 'cancelled';
 
 /** Every task of the run (from the plan, and from the journal for tasks the plan does not list), by key. */
 export function taskOutcomes(journal: readonly JournalRow[], plan: Plan): Map<string, TaskOutcome> {
@@ -191,7 +193,7 @@ export function problems(outcomes: ReadonlyMap<string, TaskOutcome>): Problems {
 
 /** How many tasks the run has, and how they ended. */
 export function outcomeCounts(outcomes: ReadonlyMap<string, TaskOutcome>): Record<Outcome, number> & { total: number } {
-  const c = { done: 0, recovered: 0, partial: 0, failed: 0, not_started: 0, running: 0, waiting: 0, skipped: 0, total: 0 };
+  const c = { done: 0, recovered: 0, partial: 0, failed: 0, not_started: 0, running: 0, waiting: 0, skipped: 0, cancelled: 0, total: 0 };
   for (const t of outcomes.values()) {
     c[t.outcome]++;
     c.total++;

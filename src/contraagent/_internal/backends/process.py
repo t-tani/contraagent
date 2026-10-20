@@ -3,10 +3,18 @@
 Runs argv to completion under the `Limits` deadline, streams stdout
 through an optional capture file, and kills the whole process group on
 timeout or stall. Knows nothing about claude vs omp output shapes.
+
+A launch also stops when its task is cancelled: the runner of the task marks the
+launches it makes (`stopped_by`), and once the mark is set, `run_process` refuses to
+start a process and stops the group of the one it runs, within a second, as it stops
+one past its deadline. A backend that runs its process without `run_process` asks
+`stop_requested()` itself.
 """
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import json
 import logging
 import os
@@ -14,6 +22,7 @@ import queue
 import subprocess
 import threading
 import time
+from collections.abc import Iterator
 from typing import Protocol
 
 from contraagent._internal.backends import live_processes
@@ -48,6 +57,31 @@ def signal_of(exit_code: int | None) -> int | None:
 
 class LaunchError(ContraagentError):
     """The child process could not be started (missing binary, bad cwd, ...)."""
+
+
+#: Why a launch is refused once its task is cancelled (`stopped_by`).
+STOPPED = "not started: its task was cancelled"
+
+#: The mark of the launches this thread makes for one task (`stopped_by`).
+_stop_mark: contextvars.ContextVar[threading.Event | None] = contextvars.ContextVar("contraagent_launch_stop", default=None)
+
+
+@contextlib.contextmanager
+def stopped_by(mark: threading.Event) -> Iterator[None]:
+    """The launches made in the block stop once `mark` is set (another thread sets it): one
+    not started yet raises `LaunchError` (`STOPPED`), and `run_process` stops the group of
+    the one it runs within a second, its kill reason None."""
+    token = _stop_mark.set(mark)
+    try:
+        yield
+    finally:
+        _stop_mark.reset(token)
+
+
+def stop_requested() -> bool:
+    """Whether the mark of the launches this thread makes is set (`stopped_by`)."""
+    mark = _stop_mark.get()
+    return mark is not None and mark.is_set()
 
 
 class Sink(Protocol):
@@ -175,6 +209,8 @@ def run_process(
     started_wall = time.monotonic()
     if live_processes.launches_refused():
         raise LaunchError(live_processes.REFUSED)
+    if stop_requested():
+        raise LaunchError(STOPPED)
     since = live_processes.epoch()
     try:
         proc = subprocess.Popen(
@@ -231,10 +267,15 @@ def _supervise(
     # Unbuffered so each chunk is on disk as soon as it is read: the monitor
     # tails this file while the agent runs.
     stream = open(launch.stream_path, "ab", buffering=0) if launch.stream_path is not None else None
+    mark = _stop_mark.get()
+    stopped = False  # its task was cancelled: the group is stopped below
     try:
         # A thread reads the pipe (no `select`, which on Windows takes sockets only) and
         # hands each chunk over as it comes; the wait for one is bounded below.
         while True:
+            if mark is not None and mark.is_set():
+                stopped = True
+                break
             now = time.monotonic()
             if now >= deadline:
                 killed = Stop.TIMEOUT
@@ -264,9 +305,9 @@ def _supervise(
                 killed = _feed_sink(sink, pending, chunk)
                 if killed is not None:
                     break
-        if killed is None and sink is not None and pending:
+        if killed is None and sink is not None and pending and not stopped:
             sink(b"".join(pending))
-        if killed is None:
+        if killed is None and not stopped:
             # EOF on stdout is not exit: a child can close its stdout and
             # keep running, so the wait is still bounded by the deadline.
             try:

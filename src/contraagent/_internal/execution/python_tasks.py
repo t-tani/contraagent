@@ -132,6 +132,13 @@ class PythonTaskRunner:
         ask = getattr(self._inner, "deferral", None) if task.fn is None else None
         return ask(task) if ask is not None else None
 
+    def cancel(self, task: Task) -> None:
+        """Stop an agent task (`inner`'s `cancel`, when it has one); a Python task runs to its
+        end: its function runs on a thread, which cannot be stopped."""
+        ask = getattr(self._inner, "cancel", None) if task.fn is None else None
+        if ask is not None:
+            ask(task)
+
     def contracts(self, task: Task) -> tuple[list[Any], list[Any]]:
         """(outputs, inputs) declared for `task`, by the task and by the adapter."""
         payload = task.payload

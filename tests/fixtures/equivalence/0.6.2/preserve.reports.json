@@ -1,0 +1,37 @@
+{
+  "call": "examples/preserve/flow.py:reports",
+  "config": false,
+  "flow": "preserve.reports",
+  "kwargs": {
+    "units": {
+      "q3": [
+        "Revenue",
+        "Costs"
+      ]
+    }
+  },
+  "outputs": {
+    "outline/q3.json": "b16409c677ce8918b0bf5c54ff1bf6c54b2ab10f7741c18f9d3fab34cb202434"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "fill-q3": {
+      "kind": "fill",
+      "stop": "completed",
+      "unit": "q3"
+    },
+    "python:outline-q3": {
+      "kind": "outline",
+      "stop": "completed",
+      "unit": "q3"
+    }
+  },
+  "value": null
+}
