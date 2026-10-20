@@ -81,6 +81,7 @@ exclude = [
     "web/playwright-report",
     "web/packages/ui/custom-elements.json",
     "docs/assets",   # the root README's logo (brand/) and screenshots (`pnpm --dir web screenshots`)
+    "benchmarks",    # the scheduling benchmark and its results: run from a checkout
 ]
 
 # The changelog: one fragment per user-visible change in changelog.d/ (`<slug>.<type>.md`,
@@ -137,7 +138,7 @@ testpaths = ["tests"]
 # `--dist loadgroup` keeps the tests of one `xdist_group` on one worker. `-n0` runs it in one process.
 # A worker that dies ends the session, naming the test it ran: under `loadgroup` the worker
 # started in its place is given no test, and the session would wait for it forever.
-addopts = "-m 'not live and not e2e and not perf' -n auto --maxprocesses=6 --dist loadgroup --max-worker-restart=0"
+addopts = "-m 'not live and not e2e and not perf and not bench' -n auto --maxprocesses=6 --dist loadgroup --max-worker-restart=0"
 # Every warning fails the tests: a deprecated name contraagent itself still uses, a new
 # deprecation in a dependency, a connection or file left open. An exception names the
 # warning's source and why it stays; each one is raised only by the oldest versions that
@@ -154,6 +155,7 @@ filterwarnings = [
 markers = [
     "perf: times a view over a large made-up runs directory (minutes, machine-dependent); run with `uv run pytest -m perf -s`",
     "live: calls real coding agents and spends tokens; run with `CONTRAAGENT_LIVE=1 uv run pytest -m live`",
+    "bench: runs benchmarks/schedule.py on one seed of every scenario (under a minute); run with `uv run pytest -m bench`",
     "e2e: the hub and relays as real processes over Postgres and RustFS in docker; run with `uv run pytest -m e2e`",
 ]
 
@@ -194,6 +196,7 @@ ignore = [
 # The library reports through `logging`; only the command line and the examples print.
 "src/contraagent/_internal/cli.py" = ["T20"]
 "src/contraagent/docs/examples/**" = ["T20"]
+"benchmarks/**" = ["T20"]   # a command-line tool
 
 [tool.ruff.lint.isort]
 known-first-party = ["contraagent"]

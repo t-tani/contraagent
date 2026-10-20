@@ -25,6 +25,17 @@ pnpm tarballs      # the three packages as tarballs/*.tgz to install from this c
 pnpm tarballs:registry  # the same tarballs as the release publishes them to npm
 ```
 
+Chromium stops every request in progress when a network interface of the host is added
+or removed, as when a container starts or stops, even a request to 127.0.0.1
+(`net::ERR_NETWORK_CHANGED`). A page whose module does not load draws no live element,
+and its end-to-end test fails with the requests that failed. On a host that runs
+containers beside the tests, run them in a network namespace of their own, which has
+only the loopback interface:
+
+```
+unshare -rn sh -c 'ip link set lo up && pnpm e2e'
+```
+
 ## Layers
 
 `api` and `elements` come first and never import each other; `ui` imports both;

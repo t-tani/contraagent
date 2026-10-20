@@ -630,12 +630,18 @@ def test_the_public_modules_are_fully_typed():
     rather than inferred. The examples under `contraagent.docs` are installed with the
     package, so pyright counts them too; they are documentation, not API, and are left out."""
     import json
+    import os
 
+    # `--verifytypes` finds the package with the first `python` on PATH: it reads neither
+    # `--pythonpath` nor the configured environment. This interpreter's directory goes
+    # first, so the check is of the package this test imports, with no environment active.
+    path = os.pathsep.join([str(Path(sys.executable).parent), os.environ.get("PATH", "")])
     out = subprocess.run(
         [sys.executable, "-m", "pyright", "--verifytypes", "contraagent", "--ignoreexternal", "--outputjson"],
         capture_output=True,
         text=True,
         encoding="utf-8",
+        env={**os.environ, "PATH": path},
     ).stdout
     symbols = json.loads(out)["typeCompleteness"]["symbols"]
     incomplete = [

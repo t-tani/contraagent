@@ -32,10 +32,16 @@ function pages(): string[] {
     .sort();
 }
 
-/** The page at `path`, its live elements drawn. */
+/**
+ * The page at `path`, its live elements drawn. A request that fails fails the test with
+ * its cause: a live element whose module did not load is never drawn.
+ */
 async function open(page: Page, path: string) {
+  const failed: string[] = [];
+  page.on('requestfailed', (r) => failed.push(`${r.url()} ${r.failure()?.errorText ?? ''}`));
   await page.goto(`${DOCS}${path}`);
   await page.waitForLoadState('networkidle');
+  expect(failed, `${path}: requests that failed`).toEqual([]);
   await expect
     .poll(() =>
       page.evaluate(() =>
