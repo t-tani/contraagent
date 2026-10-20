@@ -29,7 +29,9 @@ real sleeps and threads: a few percent between two runs of the same seed.
 
 The scenarios are listed in `SCENARIOS`: the demo's flows (`docs`, an async flow with
 a review loop per unit, and `docs_one_review`, which does not wait, so the queue knows
-each task's successors early; copied here without the demo's command validators,
+each task's successors early: it orders the same tasks with `after=` and gives them
+values of the same shape in place of the outputs, which a flow that does not wait
+cannot pass on; copied here without the demo's command validators,
 which start a Python process each and would hold a slot for minutes at this scale),
 the analysis example as it is (nested flows, the `heavy` claim), and synthetic flows:
 chains of different lengths on two slots, fan-out and join, a claim every second unit
@@ -208,19 +210,51 @@ class Verdict(BaseModel):
     note: str
 
 
+class SummarizeParams(BaseModel):
+    prepared: Prepared
+
+
+class ReviewParams(BaseModel):
+    summary: Summary
+    score: Score
+
+
+class ReviseParams(BaseModel):
+    summary: Summary
+    verdict: Verdict
+
+
+class NoteParams(BaseModel):
+    summary: Summary
+
+
 def three_points(path: Path, summary: Summary):
     if len(summary.points) != 3:
         return [f"points: exactly three expected, got {len(summary.points)}"]
 
 
 summarize = agent_task(
-    "summarize", instructions="Summarize params.prepared.", output=Summary, validators=[three_points], max_turns=10, timeout_s=3600
+    "summarize",
+    params=SummarizeParams,
+    instructions="Summarize params.prepared.",
+    output=Summary,
+    validators=[three_points],
+    max_turns=10,
+    timeout_s=3600,
 )
-review = agent_task("review", instructions="Review params.summary.", output=Verdict, max_turns=10, timeout_s=3600)
+review = agent_task("review", params=ReviewParams, instructions="Review params.summary.", output=Verdict, max_turns=10, timeout_s=3600)
 revise = agent_task(
-    "revise", instructions="Revise params.summary.", output=Summary, validators=[three_points], max_turns=10, timeout_s=3600
+    "revise",
+    params=ReviseParams,
+    instructions="Revise params.summary.",
+    output=Summary,
+    validators=[three_points],
+    max_turns=10,
+    timeout_s=3600,
 )
-write_note = agent_task("write_note", instructions="Write a note on params.summary.", output=str, max_turns=10, timeout_s=3600)
+write_note = agent_task(
+    "write_note", params=NoteParams, instructions="Write a note on params.summary.", output=str, max_turns=10, timeout_s=3600
+)
 
 
 @python_task
@@ -241,22 +275,24 @@ def report(summaries: list[Summary]) -> str:
 def docs_one_review(units: list[str]):
     summaries = []
     for u in units:
-        summary = summarize(u, prepared=prepare(u))
-        review(u, summary=summary, score=score(u, summary=summary))
-        write_note(u, summary=summary)
+        placeholder = Summary(unit=u, points=["parses a config file", "validates it", "reports errors"])
+        summary = summarize.options(after=[prepare(u)])(u, SummarizeParams(prepared=Prepared(unit=u, words=12)))
+        figures = score.options(after=[summary])(u, summary=placeholder)
+        review.options(after=[summary, figures])(u, ReviewParams(summary=placeholder, score=Score(points=3, words=7)))
+        write_note.options(after=[summary])(u, NoteParams(summary=placeholder))
         summaries.append(summary)
-    return report(summaries=summaries)
+    return report.options(after=summaries)(summaries=[Summary(unit=u, points=[]) for u in units])
 
 
 async def review_loop(unit: str):
-    summary = await summarize(unit, prepared=prepare(unit))
+    summary = await summarize(unit, SummarizeParams(prepared=await prepare(unit)))
     while True:
         figures = await score(unit, summary=summary)
-        verdict = await review(unit, summary=summary, score=figures)
+        verdict = await review(unit, ReviewParams(summary=summary, score=figures))
         if verdict.approved:
             break
-        summary = await revise(unit, summary=summary, verdict=verdict)
-    await write_note(unit, summary=summary)
+        summary = await revise(unit, ReviseParams(summary=summary, verdict=verdict))
+    await write_note(unit, NoteParams(summary=summary))
     return summary
 
 
