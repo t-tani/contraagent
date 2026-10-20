@@ -14,6 +14,10 @@ const DIR = join(process.cwd(), 'packages', 'elements', 'docs', 'examples');
 const read = (f: string) => readFileSync(join(DIR, f), 'utf8');
 const files = readdirSync(DIR);
 const modules = files.filter((f) => f.endsWith('.ts'));
+// Imported as the file loads, so that a test's time limit is for its checks alone.
+const examples = await Promise.all(
+  modules.map((f) => import(`../docs/examples/${f.slice(0, -3)}.ts`) as Promise<{ mount: (host: HTMLElement) => void }>),
+);
 /** The `cae-*` event names (CaeEventMap): an example names them as it listens. */
 const EVENTS = new Set([...readFileSync(join(process.cwd(), 'packages', 'elements', 'src', 'core', 'events.ts'), 'utf8').matchAll(/'(cae-[a-z-]+)':/g)].map((m) => m[1]));
 
@@ -25,8 +29,7 @@ describe('docs/examples', () => {
     for (const t of known) expect(customElements.get(t), t).toBeDefined();
   });
 
-  it.each(modules)('%s mounts into a host', async (f) => {
-    const mod = (await import(`../docs/examples/${f.slice(0, -3)}.ts`)) as { mount: (host: HTMLElement) => void };
+  it.each(modules.map((f, i) => [f, examples[i]!] as const))('%s mounts into a host', (_f, mod) => {
     const host = document.createElement('div');
     document.body.append(host);
     mod.mount(host);

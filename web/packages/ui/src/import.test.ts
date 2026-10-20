@@ -6,12 +6,16 @@ import { describe, expect, it } from 'vitest';
 
 const ENTRIES = ['@contraagent/ui/adapters', '@contraagent/ui/words', '@contraagent/ui/core', '@contraagent/ui/localize'];
 
+// Imported as the file loads: the first import transforms most of the package, which
+// takes as long as the machine makes it, and a test's time limit is for its checks.
+const imported = await Promise.allSettled(ENTRIES.map((spec) => import(spec) as Promise<Record<string, unknown>>));
+
 describe('importing @contraagent/ui without a DOM', () => {
-  it.each(ENTRIES)('%s', async (spec) => {
-    const mod = (await import(spec)) as Record<string, unknown>;
-    expect(Object.keys(mod).length).toBeGreaterThan(0);
+  it.each(ENTRIES.map((spec, i) => [spec, imported[i]!] as const))('%s', (_spec, result) => {
+    if (result.status === 'rejected') throw result.reason;
+    expect(Object.keys(result.value).length).toBeGreaterThan(0);
     expect(globalThis.document).toBeUndefined();
-  }, 30_000); // the first import transforms the whole package
+  });
 
   it('configures Lit Localize only when asked, once', async () => {
     const { configureLocales, getLocale } = await import('@contraagent/ui/localize');

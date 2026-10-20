@@ -115,13 +115,15 @@ describe('compound: the layer shown with functions drawn open', () => {
       nodes.push(ft(`t${i}`, `u${i % 40}`, `k${depth}${i % 3}`, i % 97 === 0 ? 'failed' : 'done', path, i % 5 ? {} : py));
     }
     const plan = planOf(nodes);
-    const t0 = performance.now();
+    // The processor time this process spent, not the time on the clock, which grows
+    // with whatever else the machine runs.
+    const t0 = process.cpuUsage();
     const c = compound(plan, [levels[0] as string], { budget: 40, maxSpan: 13 });
     const a = arrange(shapeOf(c.model));
-    const ms = performance.now() - t0;
+    const used = process.cpuUsage(t0);
+    const ms = (used.user + used.system) / 1000;
     expect(c.model.nodes.length).toBeLessThanOrEqual(60);
     expect(a.layers.length).toBeGreaterThan(0);
-    // Generous for a loaded test machine; the report gives the measured time.
     expect(ms).toBeLessThan(1500);
   });
 });
