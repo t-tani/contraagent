@@ -29,6 +29,9 @@ interpreter rather than one per launch, and no `PR_SET_PDEATHSIG`: that fires
 when the *thread* that forked exits (launches fork from worker threads), and it
 would need a `preexec_fn`, which is unsafe in a process with threads. The
 agent itself is started as before, so its pid and exit status are its own.
+Each group is told with the start of its first process, and the watchdog signals
+a group only while that start is unchanged, so a group number reused after the
+agents are gone is left alone (`watchdog`).
 """
 
 from __future__ import annotations
@@ -41,6 +44,8 @@ import sys
 import threading
 import time
 
+from contraagent._internal.backends import watchdog
+from contraagent._internal.platform import processes
 from contraagent._internal.platform.groups import groups
 
 _lock = threading.Lock()
@@ -68,50 +73,7 @@ REFUSED = "refused: the run is stopping on a signal"
 #: that a teardown does not feel like a hang.
 _TERM_GRACE_S = 5.0
 
-
-#: The watchdog: lines `+<pgid>` and `-<pgid>` on its stdin, a socket; at its end of
-#: file (this interpreter is gone) it stops the groups still listed, as `_kill_group` does.
-_WATCHDOG = r"""
-import os, signal, time
-groups, buf = set(), b""
-while True:
-    try:
-        data = os.read(0, 4096)
-    except InterruptedError:
-        continue
-    except OSError:
-        data = b""
-    if not data:
-        break
-    buf += data
-    *lines, buf = buf.split(b"\n")
-    for line in lines:
-        if line[:1] == b"+":
-            groups.add(int(line[1:]))
-        elif line[:1] == b"-":
-            groups.discard(int(line[1:]))
-def alive(g):
-    try:
-        os.killpg(g, 0)
-        return True
-    except OSError:
-        return False
-for g in list(groups):
-    try:
-        os.killpg(g, signal.SIGTERM)
-    except OSError:
-        groups.discard(g)
-end = time.monotonic() + 5.0
-while groups and time.monotonic() < end:
-    time.sleep(0.1)
-    groups = {g for g in groups if alive(g)}
-for g in groups:
-    try:
-        os.killpg(g, signal.SIGKILL)
-    except OSError:
-        pass
-"""
-
+#: The watchdog's process (`watchdog`) and this interpreter's end of its socket.
 _watchdog: subprocess.Popen | None = None
 _watch: socket.socket | None = None
 #: The pid that started the watchdog: a forked child of this interpreter starts its own.
@@ -119,7 +81,7 @@ _watch_pid = 0
 
 
 def _tell_watchdog(line: str) -> None:
-    """Tell the watchdog an agent group started (`+pgid`) or ended (`-pgid`), starting it
+    """Tell the watchdog an agent group started (`+pgid start`) or ended (`-pgid`), starting it
     first when there is none; none where the OS ends the groups itself. Never raises: an
     agent runs whether or not it is watched."""
     global _watchdog, _watch, _watch_pid
@@ -134,7 +96,7 @@ def _tell_watchdog(line: str) -> None:
                 if sys.platform == "darwin":  # no MSG_NOSIGNAL there: the socket's own option
                     ours.setsockopt(socket.SOL_SOCKET, getattr(socket, "SO_NOSIGPIPE", 0x1022), 1)
                 _watchdog = subprocess.Popen(
-                    [sys.executable, "-I", "-c", _WATCHDOG],
+                    [sys.executable, "-I", watchdog.__file__, processes.__file__],
                     stdin=theirs.fileno(),
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
@@ -159,11 +121,11 @@ def _release_watchdog() -> None:
     with _lock:
         if _watch is None or _watch_pid != os.getpid() or _live:
             return
-        watch, watchdog, _watch, _watchdog = _watch, _watchdog, None, None
+        watch, proc, _watch, _watchdog = _watch, _watchdog, None, None
     watch.close()
-    if watchdog is not None:
+    if proc is not None:
         try:
-            watchdog.wait(timeout=5.0)
+            proc.wait(timeout=5.0)
         except subprocess.TimeoutExpired:
             pass
 
@@ -221,7 +183,9 @@ def register(proc: subprocess.Popen, since: int | None = None) -> bool:
         _kill_group(proc)
         groups.release(proc)
     else:
-        _tell_watchdog(f"+{proc.pid}")
+        start = processes.start_ticks(proc.pid)
+        if start is not None:  # a pid without its start is not trusted (`watchdog`)
+            _tell_watchdog(f"+{proc.pid} {start}")
     return not late
 
 
