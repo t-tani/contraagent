@@ -309,7 +309,12 @@ class Run:
         or killed, always releases it, which is what makes this safe under SIGKILL."""
         path = self.runs_dir / f"{self.run_id}.lock"
         fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
-        if not locks.try_lock(fd):
+        try:
+            taken = locks.try_lock(fd)
+        except OSError as exc:  # no lock on this file system (ENOLCK on some NFS mounts)
+            os.close(fd)
+            raise OSError(exc.errno, f"cannot lock {path}: {exc.strerror}; the runs directory needs a file system with file locks") from exc
+        if not taken:
             os.close(fd)
             raise RunLocked(
                 f"another process already holds run id {self.run_id!r} ({path}); wait for it or pick a different run id"
