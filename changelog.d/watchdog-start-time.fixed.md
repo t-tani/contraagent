@@ -1,1 +1,0 @@
-The watchdog that stops the agents of an interpreter killed outright (SIGKILL, the OOM killer) on Linux and macOS now signals a process group only while the agent that leads it has the start time recorded when it was launched, or when that agent has ended and only the processes it started remain. It no longer signals an unrelated process that was later given the same process id.

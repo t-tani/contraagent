@@ -10,6 +10,23 @@ The changes not released yet are the fragments in [`changelog.d/`](changelog.d/)
 
 <!-- towncrier release notes start -->
 
+## [0.6.2] - 2026-10-20
+
+### Fixed
+
+- A rewrite that puts back a file's old modification time and size is now seen as a
+  change: outside Windows, an output contract, a task's `changes=` and a recording run
+  also compare the file's status change time and inode, which a program cannot set back.
+  The relay compares the content of the files a contract names, so it sends a file
+  rewritten at the same size and modification time. The monitor shows a task as running
+  from its in-flight marker only while the marker's process has the start time the marker
+  holds, so a pid that another process now has no longer shows a finished task as
+  running, and a resumed run removes the markers an earlier attempt left.
+- A run record that cannot be written is no longer silent. A journal row that cannot be written no longer prints only a traceback: the run goes on, says so in a warning line of its log, and `Pipeline.run` then raises `ContraagentError`, which names the journal and the first error, and leaves the run unfinished, because a resume runs those tasks again. A record that only the monitor reads (`launches.jsonl`, `flow_calls.jsonl`, `rests.jsonl`) gets a warning line and a count by file in `RunReport.summary["record_failures"]`, and the run goes on. The run's log also says when the queue's deferral check or the completion of a fingerprint raised, and a definition or a launch marker that cannot be written is a warning of the `contraagent` logger.
+- A run stopped by SIGTERM or Ctrl-C can no longer hang: the signal handler only wakes a thread that stops the agents and the services, so the teardown never waits for a lock that the interrupted main thread holds. From the signal on, no agent, Python task or service starts: a launch is refused with stop `launch_failed`, until the run has ended, and for the rest of the process on SIGTERM. A run stopped by SIGTERM now also removes its temporary directories (the file of `Pipeline(mcp_servers=)`, which may hold a secret, and each coding agent's scratch directory) before the process ends. A host application's own SIGTERM or SIGINT handler is now called at once, while the teardown runs, and the run waits for the teardown before its services stop and its lock is released.
+- A launch that ended normally is `completed` whatever its answer says. A Claude Code answer that mentioned a rate limit, such as the summary of a task that added rate limiting to an API, was `rate_limited`: the route rested and the task ran again on the next hop. Only an error result's words can now make a launch `rate_limited`, `auth_failed` or `refused`. omp's text mode reads a refusal by its exit status and its stderr, so a short answer that mentions a rate limit is `completed` too. Every coding agent now reads a quota refusal or a refused credential only in the forms that it or its provider prints, such as `unexpected status 429 Too Many Requests`, `429 Go usage limit exceeded`, `Rate limit reached for ...` and Claude Code's `You've hit your limit`, `You've hit your Opus limit` and `API Error: Request rejected (429)`. A failed launch whose stderr holds `line 429` in a traceback, a path such as `rate_limit.py` or `quota.py`, or `Disk quota exceeded` no longer rests its route.
+- The watchdog that stops the agents of an interpreter killed outright (SIGKILL, the OOM killer) on Linux and macOS now signals a process group only while the agent that leads it has the start time recorded when it was launched, or when that agent has ended and only the processes it started remain. It no longer signals an unrelated process that was later given the same process id.
+
 ## [0.6.1] - 2026-10-20
 
 ### Fixed
