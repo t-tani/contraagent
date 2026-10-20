@@ -56,7 +56,9 @@ class _Watch:
 
     def fire(self, signum: int, ends: bool) -> None:
         """From the signal handler: no lock, no I/O."""
+        global _ending
         self.fired = True
+        _ending = _ending or ends
         self._wake.put((signum, ends))
 
     def stop(self) -> None:
@@ -85,6 +87,8 @@ class _Watch:
 
 _watches: list[_Watch] = []
 _watches_lock = threading.Lock()
+#: Whether a signal is ending the process: launches stay refused for good.
+_ending = False
 
 
 def settle() -> None:
@@ -104,9 +108,12 @@ def install_signal_handlers(teardown_fn: Callable[[], None]) -> Callable[[], Non
     the teardown a signal started has ended (a no-op off the main thread, where nothing was
     installed).
 
-    The handler puts back the handler each signal had when this was installed, captured
-    here rather than read inside the handler (where it would be the handler itself), so a
-    second signal is not swallowed by a stale handler, and wakes the teardown. Then:
+    The handler refuses every launch from then on (`live_processes.refuse_launches`: an
+    agent, a Python task, a service), puts back the handler each signal had when this was
+    installed, captured here rather than read inside the handler (where it would be the
+    handler itself), so a second signal is not swallowed by a stale handler, and wakes the
+    teardown. Launches stay refused until `restore` for a signal that leaves the process
+    running, and for good for one that ends it. Then:
 
     * a handler of the host application's own is called, at once, on the main thread;
     * SIGINT otherwise raises KeyboardInterrupt, at once, where the main thread is, so
@@ -119,6 +126,7 @@ def install_signal_handlers(teardown_fn: Callable[[], None]) -> Callable[[], Non
     watch = _Watch(teardown_fn)
 
     def _on_signal(signum, frame):
+        live.refuse_launches()  # first: no launch starts from here on, before the teardown or after it
         prior = previous.get(signum)
         if callable(prior) and prior is not signal.default_int_handler:
             signal.signal(signum, prior)
@@ -153,6 +161,10 @@ def install_signal_handlers(teardown_fn: Callable[[], None]) -> Callable[[], Non
         with _watches_lock:
             if watch in _watches:
                 _watches.remove(watch)
+        if watch.fired and not _ending:
+            # The run the signal stopped has ended, its tasks with it; the process goes on
+            # (Ctrl-C caught, a host's handler): a later run may launch again.
+            live.allow_launches()
 
     return restore
 

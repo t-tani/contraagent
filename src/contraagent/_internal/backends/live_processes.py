@@ -53,6 +53,15 @@ _epoch = 0
 #: How many teardowns are in flight. While any is, every registration is a
 #: latecomer, whether or not its launch noted an epoch.
 _stopping = 0
+#: Set by a signal handler (`refuse_launches`): from then on every launch is refused, before
+#: and after the teardown alike, until `allow_launches` (never, when the signal ends the
+#: process). One assignment, so the handler takes no lock; `register` reads it under
+#: `_lock`, which `stop_all` holds while it takes its list, so a process either is in that
+#: list or is refused, whichever comes first.
+_refused = False
+
+#: Why a launch is refused while the process stops.
+REFUSED = "refused: the run is stopping on a signal"
 
 #: How long a group gets to exit once asked (SIGTERM, CTRL_BREAK) before it is killed. Long enough
 #: for the CLI to write its own farewell and release its ports, short enough
@@ -165,8 +174,28 @@ def epoch() -> int:
         return _epoch
 
 
-def register(proc: subprocess.Popen, since: int | None = None) -> subprocess.Popen:
-    """Publish a spawned agent so the teardown can reach it.
+def refuse_launches() -> None:
+    """Refuse every launch from now on (`launches_refused`, `register`). Called from a signal
+    handler, before it wakes the teardown: it takes no lock."""
+    global _refused
+    _refused = True
+
+
+def allow_launches() -> None:
+    """Allow launches again, once the run a signal stopped has ended and the process goes on."""
+    global _refused
+    with _lock:
+        _refused = False
+
+
+def launches_refused() -> bool:
+    """Whether a signal is stopping the run: a launch is refused before it starts."""
+    return _refused
+
+
+def register(proc: subprocess.Popen, since: int | None = None) -> bool:
+    """Publish a spawned agent so the teardown can reach it; False when it was refused (and
+    stopped) instead.
 
     A process registered while a teardown is running, or whose launch began
     (`since`, from `epoch()`) before a teardown that has since started, is
@@ -175,14 +204,17 @@ def register(proc: subprocess.Popen, since: int | None = None) -> subprocess.Pop
     live, and the run it belonged to is gone. It is a race between a thread
     pool and a signal, and the only way to win it is to refuse the latecomer.
 
-    The refusal is scoped to that teardown, not to the interpreter: a launch
-    that begins after it has finished registers normally, so a second run in
-    the same process (a notebook, a service, a test session) can still start
-    agents.
+    A signal refuses every registration from the moment its handler runs
+    (`refuse_launches`), before the teardown starts and after it ends, so no
+    agent starts between the teardown and the end of the process. Without a
+    signal the refusal is scoped to a teardown, not to the interpreter: a
+    launch that begins after it has finished registers normally, so a second
+    run in the same process (a notebook, a service, a test session) can still
+    start agents.
     """
     groups.adopt(proc)
     with _lock:
-        late = _stopping > 0 or (since is not None and since != _epoch)
+        late = _refused or _stopping > 0 or (since is not None and since != _epoch)
         if not late:
             _live.append(proc)
     if late:
@@ -190,7 +222,7 @@ def register(proc: subprocess.Popen, since: int | None = None) -> subprocess.Pop
         groups.release(proc)
     else:
         _tell_watchdog(f"+{proc.pid}")
-    return proc
+    return not late
 
 
 def _kill_group(proc: subprocess.Popen) -> None:

@@ -3,6 +3,7 @@ registry, signal handling and the run's teardown. Real child processes, sub-seco
 limits."""
 
 import contextlib
+import dataclasses
 import inspect
 import logging
 import os
@@ -21,8 +22,11 @@ from contraagent import Task
 from contraagent._internal.backends import live_processes
 from contraagent._internal.backends.credentials import SecretField
 from contraagent._internal.backends.launch import STDIN_THRESHOLD
-from contraagent._internal.backends.process import run_process
+from contraagent._internal.backends.process import LaunchError, run_process
+from contraagent._internal.dispatch.python_task import make_python_task
 from contraagent._internal.execution import teardown
+from contraagent._internal.execution.python_tasks import PythonTaskRunner
+from contraagent._internal.execution.services import ServiceFailed, Services
 from contraagent._internal.platform import processes
 from contraagent._internal.platform.groups import groups
 from contraagent.backends import Launch, Stop
@@ -259,6 +263,49 @@ def test_host_handler_is_restored_and_called(restore_signals):
     assert signal.getsignal(signal.SIGTERM) is host
     restore()  # waits for the teardown the signal started
     assert calls == ["teardown"]
+
+
+def _refused_everywhere(tmp_path) -> None:
+    """An agent's launch, a process registered late, a Python task and a service start are
+    each refused."""
+    with pytest.raises(LaunchError, match="stopping on a signal"):
+        run_process(_py("print(1)"), dict(os.environ), _launch(tmp_path))
+    late = subprocess.Popen(_SLEEP, **groups.popen_options())  # spawned before the refusal, registered after
+    assert live_processes.register(late) is False
+    assert late.poll() is not None and live_processes.live_count() == 0
+    result = PythonTaskRunner().run(make_python_task("look", lambda: 1))
+    assert not result.ok and result.stop == "launch_failed" and "stopping on a signal" in result.reason
+    services = Services({"index": lambda name: contextlib.nullcontext("http://index")}, tmp_path)
+    with pytest.raises(ServiceFailed, match="the run is ending"):
+        with services.held(dataclasses.replace(make_python_task("look", lambda: 1), claims=["index"])):
+            pass
+
+
+@pytest.mark.parametrize("signum", ["SIGTERM", "SIGINT"])
+def test_no_launch_starts_after_a_signal_teardown_has_ended(tmp_path, monkeypatch, restore_signals, signum):
+    """From the signal's handler on, before the teardown and after it alike: for good when the
+    signal ends the process (SIGTERM), until the run's handlers are put back otherwise."""
+    if threading.current_thread() is not threading.main_thread():  # pragma: no cover
+        pytest.skip("signal handlers live on the main thread")
+    monkeypatch.setattr(live_processes, "_refused", False)  # put back after the test, as is `_ending`
+    monkeypatch.setattr(teardown, "_ending", False)
+    ended: list[int] = []
+    kill = os.kill
+    monkeypatch.setattr(os, "kill", lambda pid, sig: ended.append(sig) if pid == os.getpid() else kill(pid, sig))
+    sig = getattr(signal, signum)
+    signal.signal(sig, signal.SIG_DFL if sig == signal.SIGTERM else signal.default_int_handler)
+    restore = teardown.install_signal_handlers(lambda: None)
+    with contextlib.suppress(KeyboardInterrupt):
+        signal.getsignal(sig)(sig, None)
+    teardown.settle()  # the teardown has ended (and SIGTERM's default action was asked for)
+    assert ended == ([sig] if sig == signal.SIGTERM else [])
+    _refused_everywhere(tmp_path)
+    restore()
+    if sig == signal.SIGTERM:
+        _refused_everywhere(tmp_path)  # the process is ending: no run of it launches again
+    else:
+        out, _, code, _ = run_process(_py("print(1)"), dict(os.environ), _launch(tmp_path))
+        assert code == 0 and out.strip() == b"1"  # Ctrl-C caught: a later run launches
 
 
 def test_restore_with_no_signal_ends_the_teardown_thread(restore_signals):
