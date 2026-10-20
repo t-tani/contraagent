@@ -183,13 +183,16 @@ def test_a_removed_in_flight_marker_is_removed_on_the_hub(runs):
     assert hub.store.document("analyse@h1", "inflight/classify-east-0.json") is None
 
 
-def test_a_half_written_document_waits_for_the_next_pass(runs):
+def test_a_document_that_is_not_json_is_not_sent_and_is_warned_about_once(runs, caplog):
     hub = new_hub()
     r = relay(DirectClient(hub), runs)
     cursor = first(runs) / layout.CURSOR
     cursor.write_text('{"stage": "do')
-    assert r.pass_once()
+    with caplog.at_level("WARNING"):
+        assert r.pass_once() and r.pass_once()
     assert hub.store.document("analyse@h1", layout.CURSOR) is None
+    warned = [rec.getMessage() for rec in caplog.records if "is not JSON" in rec.getMessage()]
+    assert len(warned) == 1 and warned[0].startswith(f"run analyse: {layout.CURSOR} is not JSON")
     cursor.write_text('{"stage": "done"}')
     assert r.pass_once()
     assert hub.store.document("analyse@h1", layout.CURSOR) == '{"stage": "done"}'
