@@ -26,7 +26,8 @@ Layers, bottom up (each imports only the ones above it in this list):
 * `contracts/`  `OutputContract`/`InputContract` (`contract`): files checked by pydantic and
                 `validators`; `run_until_valid` resumes the session until they hold;
                 `calls`: the call file an agent task is handed; `pointers`: the parts of a
-                JSON output a task keeps (`agent_task(preserve=)`)
+                JSON output a task keeps (`agent_task(preserve=)`); `input_file`:
+                `InputFile`, a file a task is given by its path and the hash of its content
 * `routing/`    `PipelineConfig` (one TOML file) -> `RoutingPlan`: per-kind
                 `KindConfig` and failover `Router`, with a preflight
 * `execution/`  `AgentRunner` (one task, with failover), `RetryingRunner`, `PythonTaskRunner`,

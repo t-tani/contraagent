@@ -372,8 +372,8 @@ A changed fingerprint names each part that changed: `its fingerprint changed: it
 definition`, `its fingerprint changed: its params`.
 
 A task whose params changed although every task it was given from or was created
-from was skipped is a **divergence**: the flow gave other params for the
-same outputs. The flow's code reads a clock, randomness or outside state, or the
+from was skipped, and whose input files did not change, is a **divergence**: the
+flow gave other params for the same outputs. The flow's code reads a clock, randomness or outside state, or the
 code itself changed. The task runs again with `rerun` `divergence: ...`, and the
 run logs a warning, `[resume] <key>: divergence: ...`. Its fingerprint keeps a
 wrong output from being used: a divergence costs a run of the task, not a wrong
@@ -600,6 +600,53 @@ Passes are counted from the loops' back edges as the flow runs
 (`sys.monitoring`), about 1 µs each time flow
 code goes back to the start of a loop. When the two monitoring tool ids it can
 use (3 and 4) are both taken, `pass` is null and no loop is bounded.
+
+## Large inputs: input files
+
+A task call copies its params into the call file. A long text that one task wrote and
+another reads would be copied too: the call file grows, and a coding agent cannot read
+a very long file in one step. A large input goes to a task as an input file instead,
+`InputFile(path)`, which is a field of a params model or a parameter of a Python task.
+The task is given the file's path and the SHA-256 of its content, taken at the task
+call, and reads the file itself.
+
+::code{file="examples/input_file/flow.py" from="class ReviewParams" to="draft = agent_task("}
+
+::code{file="examples/input_file/flow.py" from="@python_task" to="async def reports("}
+
+- The params hold `{"path": ..., "sha256": ...}`, the path relative to the working
+  directory (`Pipeline(cwd=)`). The JSON Schema of the params model in the call file
+  (`params_json_schema`) tells the agent to read the file with its tools. A light
+  launch (`tools=()`) has no tool to read a file, so give it the text as a `str` field.
+- A task's output goes by its output file: `pending.input_file()`, once the flow has
+  awaited the task. It raises `ValueError` for a task that has no output, has not
+  finished or did not succeed. A file that is there before the run goes by its path,
+  `InputFile("in/spec.md")`.
+- The file is in the working directory, or it is an output file of the run. A
+  relative path that climbs out with `..` raises `ValueError` where the `InputFile` is
+  made. An absolute path outside both directories, a symbolic link to a file outside
+  them, and a path that names no file raise `ValueError` at the task call.
+- The fingerprint holds the path and the hash. A resume runs the task again when the
+  file has other content, and also when the same content is at another path; while
+  both are the same, it skips the task. The journal keeps the digest of the input
+  files as a part of their own (`input_files` of `fingerprint_parts`), so a file with
+  other content is not a [divergence](#the-flow).
+- When the task is about to start, the file must still have the content it had at the
+  call. A file that changed or is gone refuses the task (`invalid_input`), and the
+  reason names the file. So a task that writes the file finishes before the task call
+  that gives it: the flow awaits it first.
+- A Python task is given an `InputFile` whose `path` is absolute and whose `sha256` is
+  the hash taken at the call. `read_text()` and `read_bytes()` check the content
+  against it: a file that changed while the task ran refuses the task (`invalid_input`).
+- When the path is the output file of a task whose result had reached the flow call
+  that gives the file, that task is in the given from of the task the file is given
+  to, by the same rule as an output given as a value.
+
+The declaration decides whether a param is a value or a file, never the size of a
+value or where it came from: a field typed `str` always holds the text, and a field
+typed `InputFile` always holds a path and a hash. A path given as a plain `str` puts
+only the path in the fingerprint, so a file with other content at the same path would
+not run the task again.
 
 ## Flow calls, loops and layers
 

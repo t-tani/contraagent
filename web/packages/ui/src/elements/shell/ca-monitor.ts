@@ -374,6 +374,15 @@ export class CaMonitor extends LitElement {
       else this.mainScroll.restore();
       this.pendingScroll = null;
     }
+    if (this.snap && this.viewRoute) this.mainScroll.update(this.complete());
+  }
+
+  /** Whether all of what the place shows has arrived: the run's replay, the trends asked for, the hosts. */
+  private complete(): boolean {
+    const { snap, viewRoute } = this;
+    if (viewRoute.page === 'hosts') return snap.hosts !== null;
+    if (viewRoute.page === 'trends') return !!snap.trends?.data && !snap.trends.loading;
+    return snap.run === viewRoute.run && snap.state.ready;
   }
 
   /** Move the line under the selected tab when the tab bar changes size. */
