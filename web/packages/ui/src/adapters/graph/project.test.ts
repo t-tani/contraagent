@@ -1,6 +1,7 @@
 import type { FlowCallNode, Plan } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
 import { autoLayer, layerGraph } from './layer.js';
+import { shapeOf } from './project.js';
 import { AT, F, LOOP, RUN, UNITS, call, ft, node, planOf, reviewRun, staticDemo } from './plans.fixture.js';
 import type { LayerGraph } from './types.js';
 
@@ -327,6 +328,31 @@ describe('layerGraph: a generator flow', () => {
     expect(e('kind:summarize', 'kind:check')).toEqual(['after']);
     expect(e(`kind:fix@${AT}`, `kind:check@${AT}`)).toEqual(['after']);
     expect(e(`kind:score@${AT}`, `kind:check@${AT}`)).toEqual(['created']);
+  });
+
+  it('draws data, order and creation apart, each pair of nodes by the strongest that joins them', () => {
+    const plan = planOf([
+      node('a-u', 'u', 'a', 'done'),
+      // given a's output (and waiting for it): data
+      node('b-u', 'u', 'b', 'done', { after: ['a-u'], given_from: ['a-u'], created_from: ['a-u'] }),
+      // waits for a, not given its output: order only
+      node('c-u', 'u', 'c', 'done', { after: ['a-u'] }),
+      // created after b's result only
+      node('d-u', 'u', 'd', 'pending', { created_from: ['b-u'] }),
+      // one task of e is given c's output, another only waits for c: the pair is data
+      node('e-u', 'u', 'e', 'done', { given_from: ['c-u'] }),
+      node('e-v', 'v', 'e', 'done', { after: ['c-u'] }),
+    ]);
+    const g = layerGraph(plan);
+    const types = Object.fromEntries(g.edges.map((e) => [`${e.from} > ${e.to}`, e.type]));
+    expect(types).toEqual({
+      'kind:a > kind:b': 'given',
+      'kind:a > kind:c': 'after',
+      'kind:b > kind:d': 'created',
+      'kind:c > kind:e': 'given',
+    });
+    const style = Object.fromEntries(shapeOf(g).edges.map((e) => [`${e.from} > ${e.to}`, e.style]));
+    expect(style).toEqual({ 'kind:a > kind:b': 'solid', 'kind:a > kind:c': 'dotted', 'kind:b > kind:d': 'dashed', 'kind:c > kind:e': 'solid' });
   });
 
   it('shows an edge from outside the layer as an incoming stub, named as the nearest layer names it', () => {

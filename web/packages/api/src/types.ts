@@ -62,6 +62,9 @@ export type Loop = S['Loop'];
 export type FlowCallNode = S['FlowCallNode'];
 export type FlowState = FlowCallNode['state'];
 export type TimeBoxRecord = S['TimeBoxRecord'];
+/** The tasks a run is expected to create and has not yet, from an earlier run of its flow; a display only. */
+export type Forecast = S['Forecast'];
+export type ForecastEntry = S['ForecastEntry'];
 
 export type Outputs = S['Outputs'];
 export type OutputTally = S['OutputTally'];
@@ -87,6 +90,11 @@ export type TaskLaunch = S['TaskLaunch'];
 export type TaskIO = S['TaskIO'];
 export type UpstreamTask = S['UpstreamTask'];
 export type DownstreamTask = S['DownstreamTask'];
+/** How a task is joined to an earlier one: given its output (`given_from`), waiting for it only (`after`), created after its result (`created_from`). */
+export type Lineage = NonNullable<UpstreamTask['lineage']>[number];
+/** An input file among a task's params, with the task whose output it is and its check at the start. */
+export type TaskInputFile = S['TaskInputFile'];
+export type InputFileCheck = TaskInputFile['check'];
 
 // --- transcripts -----------------------------------------------------------
 

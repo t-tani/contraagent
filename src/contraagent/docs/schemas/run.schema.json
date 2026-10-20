@@ -306,6 +306,19 @@
       "description": "the quota rule's `module.qualname`; empty without one",
       "title": "Quota Rule"
     },
+    "flow": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "`module.qualname` of the run's top flow (`Pipeline.run(flow)`): the runs of one flow, which the monitor's forecast compares; absent in a run of an earlier release",
+      "title": "Flow"
+    },
     "preflight": {
       "anyOf": [
         {

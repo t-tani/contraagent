@@ -47,6 +47,7 @@ def test_every_endpoint_carries_what_the_core_computed(demo_runs):
         for ep, want in (
             ("plan", mon.plan(run)),
             ("outputs", mon.outputs(run)),
+            ("forecast", mon.forecast(run)),
             ("definitions", mon.definitions(run)),
             ("cursor", mon.cursor(run) or {}),
             ("procs", mon.procs(run)),
@@ -153,7 +154,7 @@ def test_the_live_feed_says_when_the_journal_replay_is_over(demo_runs):
     names = [m["event"] for m in msgs]
     assert names.count("journal") == json.loads(msgs[-1]["data"])["journal"] == mon.journal(run)[1] > 0
     assert names.count("ready") == 1
-    assert {"procs", "plan", "outputs", "cursor"} <= set(names)
+    assert {"procs", "plan", "outputs", "forecast", "cursor"} <= set(names)
 
 
 def test_the_committed_openapi_document_is_current():
@@ -176,6 +177,7 @@ def test_the_contract_is_served_and_describes_the_live_feeds(tmp_path):
         "ProcsMessage",
         "PlanMessage",
         "OutputsMessage",
+        "ForecastMessage",
         "CursorMessage",
         "PanelMessage",
         "ReadyMessage",

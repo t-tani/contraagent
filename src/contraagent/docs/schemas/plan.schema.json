@@ -162,6 +162,17 @@
       "title": "Given From",
       "type": "array"
     },
+    "input_files": {
+      "description": "the input files among its params, as its task call hashed them: `param` (its place in the params, `notes/0`), `path` and `sha256`; absent when it has none",
+      "items": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "title": "Input Files",
+      "type": "array"
+    },
     "base_kind": {
       "default": "",
       "description": "an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty",

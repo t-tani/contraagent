@@ -1,12 +1,14 @@
 // A layer of the run's flow as `<cae-layered-graph>` takes it, and a loop's passes
 // as `<cae-mark-matrix>` takes them: the pipeline graph's words on the generic model.
-import { deriveRun, type JournalRow, type Plan } from '@contraagent/api';
+import { deriveRun, type Forecast, type JournalRow, type Plan } from '@contraagent/api';
 import type { GraphClusterInput, GraphInput, GraphMark, GraphNodeInput, GraphOrder } from '@contraagent/elements/graph';
 import type { MarkMatrixInput, MatrixHeadCell, MatrixMark } from '@contraagent/elements/matrix';
 import type { Fact } from '@contraagent/elements/primitives';
 import { msg, str } from '@lit/localize';
 import { facts, listText } from '../../words/format.js';
 import { loopLabel, notStartedCause, passCount, passLabel, passSpread } from '../../words/index.js';
+import { expectedByNode } from '../forecast.js';
+import { expectedPill } from '../../words/forecast.js';
 import type { TaskLinks } from './highlight.js';
 import { passMatrix, sortRows, type MatrixSort, type PassMatrix } from './matrix.js';
 import { edgeStyle, project, type Projection } from './project.js';
@@ -22,6 +24,8 @@ export interface GraphWordsContext {
   run: string;
   live: boolean;
   links: TaskLinks;
+  /** The run's forecast: a kind node shows the tasks it is expected to have beyond its own. */
+  forecast?: Forecast | null;
 }
 
 /** A note's tone by the class of a node's fact. */
@@ -71,13 +75,17 @@ export function graphInput(m: LayerModel, x: GraphWordsContext, open = false): G
       drill: !!mk.flow,
     };
   };
+  const expected = expectedByNode(x.forecast, m);
   const nodes = m.nodes.map((n): GraphNodeInput => {
     const c = n.counts;
+    const more = expected.get(n.id);
+    const pill = more ? expectedPill(more) : null;
     return {
       id: n.id,
       label: n.label,
       tip: nodeTip(n),
-      summary: nodeLabel(n, m, x.live),
+      summary: pill ? facts(nodeLabel(n, m, x.live), pill.label) : nodeLabel(n, m, x.live),
+      ...(pill ? { expected: pill } : {}),
       cluster: n.box,
       icons: iconsOf(n),
       accent: n.executor === 'agent',

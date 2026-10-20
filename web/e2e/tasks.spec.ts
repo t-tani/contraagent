@@ -77,3 +77,14 @@ test('a partly done task: its reason in its header, its own status in the tasks 
   await page.goto('/?run=docs&tab=overview');
   await expect(page.locator('ca-overview .fl', { hasText: 'score · epsilon' })).toContainText('partly done');
 });
+
+test("a failed task names the flow call it stopped and where, and an earlier task's lineage", async ({ page }) => {
+  await page.goto('/?run=docs&tab=stream&key=python:prepare-zeta');
+  const view = page.locator('ca-task-view');
+  await expect(view.locator('.taskmeta .stopped')).toHaveText(/^This failure stopped review_loop at (\S+\/)?tasks\.py:\d+$/);
+  // review · gamma was given its summary and its figures: each earlier task says how.
+  await page.goto('/?run=docs&tab=stream&key=review-gamma&view=input');
+  const summary = view.locator('.upstream', { hasText: 'summarize · gamma' }).locator('.lineage').first();
+  await expect(summary).toHaveText('given output');
+  await expect(summary).toHaveAttribute('title', /given_from/);
+});

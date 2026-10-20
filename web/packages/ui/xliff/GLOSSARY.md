@@ -168,14 +168,20 @@ wherever the UI shows a state or a count to the reader.
 | key hints: next node / next row / marks / earlier and later tasks / open / up a level | 次のノード / 次の行 / マーク / 依存先タスク・後続タスク / 開く / 1 つ上の階層 |
 | View: Graph \| Table (the pipeline's two views of a layer, a loop's passes being its table) | 表示形式: グラフ \| 表 |
 | Nested loop (a loop box inside another) | 入れ子のループ |
-| waits for output (a solid edge: `after`) | 出力を待つ |
-| created after result (a dashed edge: `created_from`) | 結果を受けて作成 |
+| given output (a solid edge: `given_from`) / runs after (a dotted edge: `after` alone, order only) / created after result (a dashed edge: `created_from`) | 出力を受け取る / 完了を待つ / 結果を受けて作成 |
 | Unit: alpha / Clear highlight (the unit highlighted across layers) | ユニット: alpha / ハイライトを解除 |
 | not run (a task still waiting when the run ended; not the same as not started) | 実行されず |
 | counts by state in one row: 12 done \| 3 failed \| 2 not started (a count only; a cause has its own message) | 完了 12 件 \| 失敗 3 件 \| 未実行 2 件（状態の語が先、数と「件」が後） |
 | N attempts / N tasks (a count) | 試行 N 回 / N タスク |
 | 29 of 31 tasks done / 5 of 31 tasks not done; review: 1 of 1 done | 31 タスク中 29 件完了 / 31 タスク中 5 件が未完了; review: 1 件中 1 件完了 |
-| Waits for / Created after / Later tasks (the graph's table and a node's label) | 依存先 / 作成元 / 後続タスク |
+| Given output of / Runs after / Created after / Later tasks (the graph's table and a node's label) | 入力元 / 順序のみの依存先 / 作成元 / 後続タスク |
+| input file (an `InputFile` param) / same content at the start / changed before the start / not checked | 入力ファイル / 開始時も同じ内容 / 開始前に変更された / 未確認 |
+| Checked files it reads (input contracts) | 読み込むファイル（検証あり） |
+| This failure stopped X at flow.py:42 / Stopped at flow.py:42 by the failure of Y | この失敗で X が flow.py:42 で停止 / Y の失敗により flow.py:42 で停止 |
+| unawaited task (no flow awaited it) | 待たれなかったタスク |
+| forecast / N more tasks expected | 見込み / あと N 件の見込み |
+| divergence (a rerun whose params changed for the same outputs) / Ran again after a resume / Changed | 分岐 / 再開後に再実行 / 変更 |
+| outside state / the file it fills in (`output_of`) | 外部の状態 / 書き足す対象のファイル |
 | Loop at flow.py:130 / Nested loop at flow.py:130 (a loop named by where it is in the flow's code: file and first line; `line N` when the file is not known; also each loop's level in the breadcrumb) | flow.py:130 のループ / flow.py:130 の入れ子のループ（`line N` は「N 行目」） |
 | input X is missing because Y failed (why an input stopped a task) | 入力 X がありません（Y が失敗） |
 | input missing / input failed checks (why a task did not start; `not started (input missing)` for the stop `invalid_input`; both: `not started (input missing and input failed checks)`) | 入力ファイルなし / 入力ファイルに検証エラー（両方: 入力ファイルなし、入力ファイルに検証エラー）; 未実行（入力ファイルなし） |

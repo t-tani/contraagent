@@ -243,7 +243,7 @@ def export(
                 # Never in an export: the launches running now (their commands, their pids) and the transcript.
                 "launches": [],
                 "stream": None,
-                "io": monitor.task_io(run, key, outputs=outputs, plan_rows=plan_rows),
+                "io": monitor.task_io(run, key, outputs=outputs, plan_rows=plan_rows, rows=rows),
                 "row_extras": row_extras(rows),
             }
             if monitor.task_detail_fn is not None:

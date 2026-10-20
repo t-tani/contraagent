@@ -18,7 +18,7 @@ import { BAR_MARKS, fillNode } from './marks.js';
 import { PanZoomController } from './pan-zoom.js';
 import { DEFAULT_LAYERED_GRAPH_STRINGS, type LayeredGraphStrings } from './strings.js';
 import { graphStyles } from './styles.js';
-import type { Arrangement, DrawnGraph, GraphClusterInput, GraphInput, GraphNode, GraphOrder } from './types.js';
+import type { Arrangement, DrawnGraph, GraphClusterInput, GraphInput, GraphNode, GraphOrder, LitMarks } from './types.js';
 import { dag } from './views/dag.js';
 import { foot } from './views/foot.js';
 import { nodeTable } from './views/node-table.js';
@@ -132,8 +132,11 @@ export class CaeLayeredGraph extends LitElement {
   matrix: MarkMatrixInput | null = null;
   /** Above this many marks, a node shows a bar of its counts. */
   barAt = BAR_MARKS;
-  /** The marks a hovered or selected series (or a mark's id, outside any series) lights; default: its own. */
-  related: ((key: string) => ReadonlySet<string>) | undefined = undefined;
+  /**
+   * The marks a hovered or selected series (or a mark's id, outside any series) lights; default: its own.
+   * A map gives each the style of the link that joins it to the series, drawn as a ring in that style.
+   */
+  related: ((key: string) => LitMarks) | undefined = undefined;
   strings: Partial<LayeredGraphStrings> = {};
   matrixStrings: Partial<MarkMatrixStrings> = {};
   /** Draws an icon of a node, a matrix header and the legend; default: `icon(name)`. */
@@ -164,7 +167,7 @@ export class CaeLayeredGraph extends LitElement {
   private measured: { graph: GraphInput; key: string } | null = null;
   private layKey = '';
   private layFor: string | null = null;
-  private litCache: { key: string | null; graph: GraphInput; related: unknown; on: ReadonlySet<string> | null } | null = null;
+  private litCache: { key: string | null; graph: GraphInput; related: unknown; on: LitMarks | null } | null = null;
   private scrolled: Element | null = null;
 
   private readonly pz = new PanZoomController(this, {
@@ -334,7 +337,7 @@ export class CaeLayeredGraph extends LitElement {
   }
 
   /** The series (or mark id) highlighted: the one hovered or focused, else the selected mark's, else `highlight`; and the marks it lights. */
-  protected lit(): { key: string | null; on: ReadonlySet<string> | null } {
+  protected lit(): { key: string | null; on: LitMarks | null } {
     const sel = this.selected;
     const mine = this.hover === null && sel !== null && this.markSeries.has(sel) ? this.markSeries.get(sel) || sel : null;
     const key = this.hover ?? mine ?? this.highlight ?? null;

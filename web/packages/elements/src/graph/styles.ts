@@ -35,6 +35,7 @@ export const graphStyles = css`
   .edges { left: 0; top: 0; pointer-events: none; overflow: visible; z-index: 0; }
   .edges path { fill: none; stroke: var(--line2); stroke-width: 1.5; }
   .edges path.dashed { stroke-dasharray: 5 4; }
+  .edges path.dotted, .legend svg path.dotted { stroke-dasharray: 0.1 4; stroke-linecap: round; stroke-width: 2; }
   /* A cluster's return to its next round: dotted, lighter than the edges, under the cluster's nodes. */
   .edges path.ret, .legend svg path.ret { stroke: var(--text-2); stroke-width: 2; stroke-dasharray: 0.1 4; stroke-linecap: round; opacity: 0.8; }
   .edges path.ret-tip, .legend svg path.ret-head { fill: var(--text-2); stroke: none; opacity: 0.8; }
@@ -103,9 +104,16 @@ export const graphStyles = css`
 
   .marks { display: grid; grid-template-columns: repeat(var(--cols), var(--m)); gap: var(--g); }
   .slot { width: var(--m); height: var(--m); }
+  /* Items expected and not here yet: a dotted outline, apart from the marks of what is here. */
+  .expected { display: inline-block; align-self: flex-start; width: max-content; margin-top: 6px; padding: 0 7px; border: 1.5px dotted var(--line2); border-radius: 999px;
+    font-size: 11px; line-height: 18px; color: var(--text-muted); }
   .taskchip.sel { outline: var(--focus-width) solid var(--accent); outline-offset: 1px; }
   .hl .mark:not(.on) { opacity: 0.16; }
   .hl .mark.on { transform: scale(1.2); }
+  /* A lit mark joined to the highlighted series: a ring in the style of the link's edge. */
+  .hl .mark.on[data-link] { outline: 1.5px solid var(--text-2); outline-offset: 2px; }
+  .hl .mark.on[data-link='dotted'] { outline-style: dotted; }
+  .hl .mark.on[data-link='dashed'] { outline-style: dashed; }
   @media (prefers-reduced-motion: reduce) {
     .node { transition: none; }
   }

@@ -1,7 +1,20 @@
 // The input and output panes of `ca-task-view`: what the task read (parameters,
 // files, earlier tasks, the prompt) and what it wrote (files against their
 // contracts, the outcome, tokens and cost, later tasks).
-import { isLaunched, isPython, runReadings, runStarts, tryQuota, type JournalRow, type Outcome, type SourcedReading } from '@contraagent/api';
+import {
+  isLaunched,
+  isPython,
+  runReadings,
+  runRelative,
+  runStarts,
+  tryQuota,
+  type DownstreamTask,
+  type JournalRow,
+  type Lineage,
+  type Outcome,
+  type SourcedReading,
+  type TaskInputFile,
+} from '@contraagent/api';
 import { msg, str } from '@lit/localize';
 import { html, nothing, type TemplateResult } from 'lit';
 import { pill } from '@contraagent/elements/primitives';
@@ -17,6 +30,7 @@ import { ioFileCard } from '../../shared/file-card.js';
 import { taskChip } from '../../shared/task-chip.js';
 import { inputView, notPassed, type EarlierTask, type InputFile } from '../inputs.js';
 import { roundLabel, roundWhy } from '../../../words/rounds.js';
+import { inputFileCheckWord, lineageTip, lineageWord } from '../../../words/lineage.js';
 import { correctionsOf, hadSession, isPy, producerOf, stateOf, taskLink, type TaskContext } from '../context.js';
 
 const valueText = (v: unknown): string => (typeof v === 'string' ? v : JSON.stringify(v) ?? String(v));
@@ -31,7 +45,11 @@ const sameJson = (a: unknown, b: unknown): boolean => {
 /** A task's outcome as a pill, in its words. */
 const outcomeChip = (o: Outcome) => pill({ text: outcomeLabel(o), tone: outcomeTone(o), mark: outcomeMark(o) });
 
-/** What the task read: its parameters, its input files, the earlier tasks, and (for an agent task) its prompt. */
+/**
+ * What the task read: its parameters, its input files (`InputFile` params), the files
+ * an input contract checks before it starts, the earlier tasks, and (for an agent task)
+ * its prompt.
+ */
 export function inputPane(c: TaskContext): TemplateResult {
   const d = c.detail;
   const io = d.io;
@@ -52,13 +70,37 @@ export function inputPane(c: TaskContext): TemplateResult {
         </table>`
       : html`<div class="meta">${msg('No parameters')}</div>`}
     <h4 class="sect-h">${msg('Input files')}</h4>
-    ${files.length ? files.map((f) => inputCard(c, f)) : html`<div class="meta">${msg('No input files')}</div>`}
+    ${io.input_files?.length ? io.input_files.map((f) => inputFileCard(c, f)) : html`<div class="meta">${msg('No input files')}</div>`}
+    ${files.length
+      ? html`<h4 class="sect-h">${msg('Checked files it reads')}</h4>
+          ${files.map((f) => inputCard(c, f))}`
+      : nothing}
     <h4 class="sect-h">${msg('Earlier tasks')}</h4>
     ${earlier.length ? earlier.map((e) => earlierTask(c, e)) : html`<div class="meta">${msg('No earlier tasks')}</div>`}
     ${isPy(d) ? nothing : promptSection(c)}`;
 }
 
-/** One file the task reads: its check, and the earlier task that writes it or that it is from before the run. */
+/**
+ * One input file of the task (an `InputFile` param): its check at the start, its path,
+ * the param that holds it, its hash, and the earlier task whose output file it is.
+ */
+function inputFileCard(c: TaskContext, f: TaskInputFile) {
+  const tone = f.check === 'passed' ? 'done' : f.check === 'refused' ? 'failed' : 'neutral';
+  const mark = f.check === 'passed' ? 'done' : f.check === 'refused' ? 'failed' : 'pending';
+  const writer = f.writer ? (c.detail.io.upstream.find((u) => u.key === f.writer) ?? c.outcomes.get(f.writer)) : undefined;
+  const origin = f.writer
+    ? html`<span>${msg(html`Output of ${taskLink(c, writer ?? { key: f.writer, kind: f.writer, unit: '' })}`)}</span>`
+    : nothing;
+  return html`<div class="io-card one infile">
+    <div class="io-hd">${pill({ text: inputFileCheckWord(f.check), tone, mark })}<span class="jmono ct-path" title=${f.path}>${runRelative(f.path, c.run)}</span></div>
+    <div class="meta io-from"><span title=${f.sha256}>${facts(msg(str`Param ${f.param}`), `sha256 ${f.sha256.slice(0, 12)}`)}</span>${f.writer
+      ? html` | ${origin}`
+      : nothing}</div>
+    ${f.reason ? html`<div class="meta err">${f.reason}</div>` : nothing}
+  </div>`;
+}
+
+/** One file an input contract checks before the task starts: its check, and the earlier task that writes it or that it is from before the run. */
 function inputCard(c: TaskContext, f: InputFile) {
   const u = f.from;
   const state = u ? c.outcomes.get(u.key)?.outcome : undefined;
@@ -72,7 +114,11 @@ function inputCard(c: TaskContext, f: InputFile) {
   return ioFileCard({ ...f.spec, status: st }, 'input', c.run, { origin, chip });
 }
 
-/** One earlier task: its status, how many of its output files this task reads, and the others folded under it (open when one did not pass). */
+/**
+ * One earlier task: its status, how this task is joined to it (its lineage, in the words of
+ * the graph's edges), how many of its output files this task reads, and the others folded
+ * under it (open when one did not pass).
+ */
 function earlierTask(c: TaskContext, e: EarlierTask) {
   const u = e.task;
   const kindName = isPython(u) ? msg('Python task') : msg('Agent task');
@@ -85,6 +131,7 @@ function earlierTask(c: TaskContext, e: EarlierTask) {
     ${executorIcon(isPython(u), kindName)}
     ${taskLink(c, u)}
     ${state ? outcomeChip(state) : nothing}
+    ${lineageTags(u.lineage ?? [])}
     <span class="meta">${summary}</span>
   </div>`;
   if (!e.rest.length) return html`<div class="upstream">${head}</div>`;
@@ -184,7 +231,24 @@ export function outputPane(c: TaskContext): TemplateResult {
       : nothing}
     ${usageTable(c, d.rows)}
     <h4 class="sect-h">${msg('Later tasks')}</h4>
-    ${io.downstream.length
-      ? html`<div class="down">${io.downstream.map((x) => taskChip(c.host, kindUnit(x), x))}</div>`
-      : html`<div class="meta">${msg('No later tasks')}</div>`}`;
+    ${io.downstream.length ? laterTasks(c, io.downstream) : html`<div class="meta">${msg('No later tasks')}</div>`}`;
+}
+
+/** A task's lineage as tags, in the words of the graph's edges, each with the field it comes from as its tooltip. */
+function lineageTags(lineage: readonly Lineage[]) {
+  return lineage.map((l) => html`<span class="lineage" data-lineage=${l} title=${lineageTip(l)}>${lineageWord(l)}</span>`);
+}
+
+/**
+ * The later tasks, a row of chips per lineage (by the strongest each has): given output,
+ * runs after, created after result; one row without a tag for those an export written
+ * before lineage holds.
+ */
+function laterTasks(c: TaskContext, down: readonly DownstreamTask[]) {
+  const order: Lineage[] = ['given_from', 'after', 'created_from'];
+  const first = (x: DownstreamTask): Lineage | null => order.find((l) => (x.lineage ?? []).includes(l)) ?? null;
+  return [...order, null]
+    .map((l) => [l, down.filter((x) => first(x) === l)] as const)
+    .filter(([, xs]) => xs.length)
+    .map(([l, xs]) => html`<div class="down">${l ? lineageTags([l]) : nothing}${xs.map((x) => taskChip(c.host, kindUnit(x), x))}</div>`);
 }

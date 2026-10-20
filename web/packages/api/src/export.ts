@@ -5,6 +5,7 @@ import { ApiError, type MonitorClient } from './client.js';
 import type { FeedHandlers, Unsubscribe } from './feed.js';
 import type {
   CursorView,
+  Forecast,
   Info,
   JournalPage,
   JsonObject,
@@ -19,7 +20,7 @@ import type {
 
 /** A client of an export: the monitor's client, and the files the server sends over its feed instead. */
 export interface ExportClient extends MonitorClient {
-  /** A file of the export, `data/<path>` (cached): the endpoints' answers, and `plan`, `outputs`, `cursor`. */
+  /** A file of the export, `data/<path>` (cached): the endpoints' answers, and `plan`, `outputs`, `forecast`, `cursor`. */
   file<T>(path: string): Promise<T>;
 }
 
@@ -123,7 +124,7 @@ const isCursor = (c: CursorView | Record<string, never>): c is CursorView => Obj
 export type RunFeedOpener = (run: string, panels: readonly string[], on: FeedHandlers<RunFeedMessage>) => Unsubscribe;
 
 /**
- * The run feed of an export: the run's journal rows, plan, outputs, cursor and panels,
+ * The run feed of an export: the run's journal rows, plan, outputs, forecast, cursor and panels,
  * each once, then `ready`; nothing after. A file it cannot read stops it with `error`.
  */
 export function openExportFeed(client: ExportClient): RunFeedOpener {
@@ -131,10 +132,12 @@ export function openExportFeed(client: ExportClient): RunFeedOpener {
     let closed = false;
     void (async () => {
       try {
-        const [journal, plan, outputs, cursor, bodies] = await Promise.all([
+        const [journal, plan, outputs, forecast, cursor, bodies] = await Promise.all([
           client.journal(r),
           client.file<Plan>(`runs/${seg(r)}/plan.json`),
           client.file<Outputs>(`runs/${seg(r)}/outputs.json`),
+          // An export written before the forecast holds none.
+          client.file<Forecast>(`runs/${seg(r)}/forecast.json`).catch(() => null),
           client.file<CursorView | Record<string, never>>(`runs/${seg(r)}/cursor.json`),
           Promise.all(panels.map((p) => client.panel(r, p).catch((e: unknown): JsonObject => ({ error: String(e) })))),
         ]);
@@ -144,6 +147,7 @@ export function openExportFeed(client: ExportClient): RunFeedOpener {
         for (const row of journal.entries) send({ event: 'journal', data: row });
         send({ event: 'plan', data: plan });
         send({ event: 'outputs', data: outputs });
+        if (forecast) send({ event: 'forecast', data: forecast });
         send({ event: 'cursor', data: isCursor(cursor) ? cursor : null });
         panels.forEach((p, i) => send({ event: `panel:${p}`, data: bodies[i] ?? {} }));
         send({ event: 'ready', data: { journal: journal.total } });

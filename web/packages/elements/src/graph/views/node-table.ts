@@ -7,13 +7,13 @@ import { cycleIcon, innerIcon } from '../icons.js';
 import type { EdgeStyle, GraphInput, GraphNode } from '../types.js';
 import { notes } from './dag.js';
 
-/** The names of the nodes `n` is joined to: by a solid edge, by a dashed one, and the later ones. */
+/** The names of the nodes `n` is joined to: by a solid edge, a dotted one or a dashed one, and the later ones. */
 export function neighbours(
   n: GraphNode,
   g: Pick<GraphInput, 'edges' | 'stubs'>,
   nodes: ReadonlyMap<string, GraphNode>,
   inCluster: (label: string) => string,
-): { solid: string[]; dashed: string[]; later: string[] } {
+): { solid: string[]; dotted: string[]; dashed: string[]; later: string[] } {
   const label = (id: string) => {
     const x = nodes.get(id);
     return !x ? id : x.cluster ? inCluster(x.label) : x.label;
@@ -22,7 +22,7 @@ export function neighbours(
     ...g.stubs.filter((s) => s.to === n.id && s.style === style).map((s) => s.label),
     ...g.edges.filter((e) => e.to === n.id && e.style === style).map((e) => label(e.from)),
   ];
-  return { solid: into('solid'), dashed: into('dashed'), later: [...new Set(g.edges.filter((e) => e.from === n.id).map((e) => label(e.to)))] };
+  return { solid: into('solid'), dotted: into('dotted'), dashed: into('dashed'), later: [...new Set(g.edges.filter((e) => e.from === n.id).map((e) => label(e.to)))] };
 }
 
 /**
@@ -33,6 +33,7 @@ export function neighbours(
 export function nodeTable(h: GraphHost) {
   const g = h.drawn;
   const w = h.words;
+  const dotted = [...g.edges, ...g.stubs].some((e) => e.style === 'dotted');
   const dashed = [...g.edges, ...g.stubs].some((e) => e.style === 'dashed');
   const list = (xs: string[]) => w.list(xs) || w.none;
   // The frame keeps the drawing's height when the drawing of this graph was laid out (left to right); else the table's own, up to the frame's limit.
@@ -46,6 +47,7 @@ export function nodeTable(h: GraphHost) {
           <th scope="col" class="fit">${w.nameHeader}</th>
           <th scope="col" class="fit">${w.statusHeader}</th>
           <th scope="col">${w.solidHeader}</th>
+          ${dotted ? html`<th scope="col">${w.dottedHeader}</th>` : nothing}
           ${dashed ? html`<th scope="col">${w.dashedHeader}</th>` : nothing}
           <th scope="col">${w.laterHeader}</th>
         </tr>
@@ -72,6 +74,7 @@ export function nodeTable(h: GraphHost) {
             </th>
             <td class="fit st">${statusLine(n)}</td>
             <td class="rel"><span>${list(nb.solid)}</span></td>
+            ${dotted ? html`<td class="rel"><span>${list(nb.dotted)}</span></td>` : nothing}
             ${dashed ? html`<td class="rel"><span>${list(nb.dashed)}</span></td>` : nothing}
             <td class="rel"><span>${list(nb.later)}</span></td>
           </tr>`;
