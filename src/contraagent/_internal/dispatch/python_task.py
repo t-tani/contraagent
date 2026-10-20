@@ -37,6 +37,9 @@ class PythonTaskPayload:
     retries: int = 0
     #: The exception classes that give an attempt a fresh one.
     retry_on: tuple[type[Exception], ...] = ()
+    #: The task's params as JSON (an input file among them as its `{"path", "sha256"}`), as
+    #: its contract record keeps them for the monitor; None when not known (opaque here).
+    params: dict | None = None
 
 
 def make_python_task(

@@ -67,6 +67,23 @@ test.describe('docs: a review loop per unit', () => {
     await expect(graph(page).locator('.cluster > .hd .name')).toBeFocused();
   });
 
+  test('draws given outputs solid and creations after a result dashed, each named in the legend and the card', async ({ page }) => {
+    await enter(page, 'review_loop');
+    await expect(graph(page).locator('.edges path.solid').first()).toBeAttached();
+    await expect(graph(page).locator('.edges path.dashed').first()).toBeAttached();
+    await expect(graph(page).locator('.legend')).toContainText('given output');
+    await expect(graph(page).locator('.legend')).toContainText('created after result');
+    await nodeName(page, 'review').click();
+    await expect(inspector(page)).toContainText('Given output of');
+    // Hovering a unit's mark lights its own tasks. In the review loop no other unit's task is
+    // joined to alpha's: every unit's score is equal, and a review is given only its own unit's
+    // (the outputs that reached its flow call), so no mark is ringed in the style of a link.
+    const prepare = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'prepare' }) });
+    await prepare.locator('.mark[title*="alpha"]').hover();
+    await expect(graph(page).locator('.dag.hl .mark.on').first()).toBeAttached();
+    await expect(graph(page).locator('.dag.hl .mark.on[data-link]')).toHaveCount(0);
+  });
+
   test('Shift and an arrow key follow an edge on the same unit', async ({ page }) => {
     await enter(page, 'review_loop');
     const prepare = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'prepare' }) });
@@ -105,7 +122,7 @@ test.describe('docs: a review loop per unit', () => {
     await expect(row('summarize').locator('.st .n')).toHaveText('5/5');
     await expect(row('summarize').locator('.st .warn')).toHaveCount(0);
     await expect(row('score').locator('.st .warn')).toHaveText('1 partly done'); // epsilon's word counter is unavailable
-    await expect(table.locator('thead th')).toHaveText(['Kind', 'Status', 'Waits for', 'Created after', 'Later tasks']);
+    await expect(table.locator('thead th')).toHaveText(['Kind', 'Status', 'Given output of', 'Created after', 'Later tasks']);
     // A click on a row selects it, with the node's card beside it.
     await row('summarize').locator('td').first().click();
     await expect(row('summarize')).toHaveClass(/sel/);
@@ -145,6 +162,14 @@ test.describe('docs: a review loop per unit', () => {
 
 test.describe('analyse: nested flow calls and loops', () => {
   test.beforeEach(({ page }) => open(page, 'analyse'));
+
+  test('shows the forecast from the earlier run of the same flow, on the graph and above it', async ({ page }) => {
+    // analyse-before ran over one more bundle: its tasks are expected and not created.
+    const note = graph(page).locator('.forecast');
+    await expect(note).toContainText(/^Forecast: \d+ more tasks/);
+    await expect(note).toHaveAttribute('title', /analyse-before/);
+    await expect(graph(page).locator('.node .expected').first()).toHaveText(/^\+\d+$/);
+  });
 
   test('drills down three layers of flow calls with the breadcrumb, and back up', async ({ page }) => {
     await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'analyse']);

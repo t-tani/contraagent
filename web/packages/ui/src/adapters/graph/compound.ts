@@ -16,8 +16,8 @@
 import { isPython, type FlowCallNode, type Plan } from '@contraagent/api';
 import { cmpPasses, indexOf, loopsAt, passesAt, placeOf, push, shortName, startsWith, type FlowIndex, type FlowTask } from './flow-index.js';
 import { arrange, extentOf } from '@contraagent/elements/graph';
-import { projectTasks, shapeOf, type Projection } from './project.js';
-import type { FlowBox, GraphEdge, GraphNode, GraphStub, LayerModel, LoopBox, NodeCounts } from './types.js';
+import { projectTasks, shapeOf, stronger, type Projection } from './project.js';
+import type { EdgeType, FlowBox, GraphEdge, GraphNode, GraphStub, LayerModel, LoopBox, NodeCounts } from './types.js';
 
 /** Between a function's place and the id of an item drawn inside it. */
 export const IN_SEP = '::';
@@ -308,17 +308,17 @@ function assemble(ix: FlowIndex, focus: readonly string[], inside: readonly Flow
   };
   const layerAt = (t: FlowTask): string[] => t.path.slice(0, (containerOf.get(t.n.key) as { depth: number }).depth);
   const inOrder = new Set<string>();
-  const pairs = new Map<string, { from: string; to: string; type: 'after' | 'created'; tasks: Set<string>; samePass: boolean }>();
-  const stubs = new Map<string, { id: string; label: string; to: string; type: 'after' | 'created'; tasks: Set<string> }>();
+  const pairs = new Map<string, { from: string; to: string; type: EdgeType; tasks: Set<string>; samePass: boolean }>();
+  const stubs = new Map<string, { id: string; label: string; to: string; type: EdgeType; tasks: Set<string> }>();
   for (const t of inside) {
     const to = drawnOf(t);
-    const link = (dep: string, type: 'after' | 'created') => {
+    const link = (dep: string, type: EdgeType) => {
       const o = ix.byKey.get(dep);
       if (!o) return;
       if (startsWith(o.path, focus)) {
         const from = drawnOf(o);
         if (from === to) {
-          if (type === 'after') inOrder.add(to);
+          if (type !== 'created') inOrder.add(to);
           return;
         }
         // The loops that matter are those of the deepest layer both are drawn in.
@@ -344,16 +344,16 @@ function assemble(ix: FlowIndex, focus: readonly string[], inside: readonly Flow
       const sk = `${s.id}\u0000${to}\u0000${type}`;
       (stubs.get(sk) ?? stubs.set(sk, { ...s, to, type, tasks: new Set() }).get(sk))?.tasks.add(t.n.key);
     };
-    // A task given another's output is drawn after it, as a task that waits for it (`given_from`).
-    for (const dep of new Set([...(t.n.after ?? []), ...(t.n.given_from ?? [])])) link(dep, 'after');
+    for (const dep of t.n.given_from ?? []) link(dep, 'given');
+    for (const dep of t.n.after ?? []) link(dep, 'after');
     for (const dep of t.from) link(dep, 'created');
   }
   for (const n of nodes) n.inOrder = inOrder.has(n.id);
   const edges: GraphEdge[] = [...pairs.values()]
-    .filter((e) => e.type === 'after' || !pairs.has(`${e.from}\u0000${e.to}\u0000after`))
+    .filter((e) => !stronger(e.type).some((x) => pairs.has(`${e.from}\u0000${e.to}\u0000${x}`)))
     .map((e) => ({ from: e.from, to: e.to, tasks: e.tasks.size, type: e.type, samePass: e.samePass, back: false }));
   const stubList: GraphStub[] = [...stubs.values()]
-    .filter((s) => s.type === 'after' || !stubs.has(`${s.id}\u0000${s.to}\u0000after`))
+    .filter((s) => !stronger(s.type).some((x) => stubs.has(`${s.id}\u0000${s.to}\u0000${x}`)))
     .map((s) => ({ id: s.id, label: s.label, to: s.to, tasks: s.tasks.size, type: s.type }));
 
   return { path: [...focus], nodes, boxes, fns: [...fns.values()], edges, stubs: stubList, units };

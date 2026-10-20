@@ -45,9 +45,10 @@ An asynchronous generator that flow code starts during `drain()` is finalized on
 loop: `drain()` puts in the loop's own `sys.set_asyncgen_hooks` while it runs, and
 `close_asyncgens()` closes the ones still open, as `shutdown_asyncgens` does.
 
-Each ready callback also carries a cause: the keys of the task results that led to it.
+Each ready callback also carries a cause: what led to it, a value the driver gives and
+reads (contraagent's driver: the task results that led to it), `()` when nothing did.
 `call_soon` gives a callback the cause of the callback running now, or, outside
-`drain()`, the cause of `caused_by(keys)` around the code that completes a future (the
+`drain()`, the cause of `caused_by(cause)` around the code that completes a future (the
 driver, giving a result). Before a callback runs, `on_run(context, cause)` returns the
 cause of the callbacks it schedules; without `on_run`, its own. Since every callback of
 a Future or a Task goes through `call_soon`, the cause follows each future, done
@@ -92,8 +93,8 @@ class MakeTask(Protocol):
     def __call__(self, coro: Any, /, *, name: str | None = None, context: contextvars.Context | None = None) -> asyncio.Task[Any]: ...
 
 
-#: The keys of the task results that led to a callback (see the module docstring).
-Cause = tuple[str, ...]
+#: What led to a callback, as the driver gives it; `()` when nothing did (see the module docstring).
+Cause = object
 
 
 class OnRun(Protocol):
@@ -136,6 +137,50 @@ def not_flow_code() -> contextlib.AbstractContextManager[None]:
     """`FlowLoop.not_flow_code()` of the flow loop that runs on this thread; nothing outside one."""
     loop = asyncio._get_running_loop()  # pyright: ignore[reportPrivateUsage]
     return loop.not_flow_code() if isinstance(loop, FlowLoop) else contextlib.nullcontext()
+
+
+class Observed(Protocol):
+    """`observed(task, at_once)`: flow code got the value of `task`, a `FlowTask` that has
+    ended: an `await` of it returned (`at_once`: it had ended before the `await`, which did
+    not suspend), or its `result()` returned (`gather` collecting it, or flow code)."""
+
+    def __call__(self, task: FlowTask[Any], at_once: bool, /) -> None: ...
+
+
+class FlowTask[T](asyncio.Task[T]):
+    """The asyncio Task of a flow call: a subclass of `asyncio.Task`, as an event loop may
+    return from `create_task`, that tells `observed` when flow code gets its value. Every
+    way to get a Task's value goes through one of the two methods it overrides: an `await`
+    (`__await__`, the awaitable protocol) and `result()` (what `asyncio.gather` and a
+    wakeup call). `done()`, `exception()` and `cancelled()` give no value and tell nothing,
+    and neither does an `await` or a `result()` that raises."""
+
+    def __init__(
+        self,
+        coro: Coroutine[Any, Any, T],
+        *,
+        loop: asyncio.AbstractEventLoop,
+        name: str | None = None,
+        context: contextvars.Context | None = None,
+        observed: Observed | None = None,
+    ) -> None:
+        super().__init__(coro, loop=loop, name=name, context=context)
+        self._observed = observed
+
+    def result(self) -> T:
+        value = super().result()
+        if self._observed is not None:
+            self._observed(self, False)
+        return value
+
+    def __await__(self) -> Generator[Any, None, T]:
+        at_once = self.done()
+        value = yield from super().__await__()
+        if self._observed is not None:
+            self._observed(self, at_once)
+        return value
+
+    __iter__ = __await__
 
 
 class FlowLoop(asyncio.AbstractEventLoop):

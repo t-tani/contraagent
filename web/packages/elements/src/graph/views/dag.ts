@@ -173,6 +173,7 @@ function node(h: GraphHost, n: GraphNode, parent: Rect | null) {
           : nothing}</span>
     </div>
     ${bar ? statusBar(h, n, group) : marks(h, group)}
+    ${n.expected ? html`<span class="expected" part="expected" aria-hidden="true" title=${n.expected.label}>${n.expected.text}</span>` : nothing}
     ${n.notes?.length ? html`<div class="ex" aria-hidden="true">${notes(n)}</div>` : nothing}
   </section>`;
 }
@@ -212,6 +213,7 @@ function mark(h: GraphHost, g: MarkGroup, s: Slot, i: number, tabStop: boolean, 
   const { key, on } = h.lit();
   const hlKey = hlKeyOf(s);
   const lit = on !== null && ((s.series !== '' && s.series === key) || on.has(m.id));
+  const link = lit && on !== null && 'get' in on ? (on.get(m.id) ?? null) : null;
   const sel = h.selected === m.id ? 'sel' : '';
   const focus = (e: FocusEvent) => {
     h.hover = hlKey;
@@ -227,7 +229,7 @@ function mark(h: GraphHost, g: MarkGroup, s: Slot, i: number, tabStop: boolean, 
   }
   const look = h.states[m.state];
   return html`<button type="button" class="mark ${lit ? 'on' : ''} ${sel}" part="mark" data-tone=${toneAttr(look?.tone)} data-shape=${look?.shape ?? nothing}
-    data-i=${i} data-n=${m.badge ?? nothing} tabindex=${tabStop ? 0 : -1}
+    data-link=${link ?? nothing} data-i=${i} data-n=${m.badge ?? nothing} tabindex=${tabStop ? 0 : -1}
     title=${m.tip ?? nothing}
     aria-label=${m.label} aria-pressed=${!!sel}
     @mouseenter=${() => (h.hover = hlKey)}

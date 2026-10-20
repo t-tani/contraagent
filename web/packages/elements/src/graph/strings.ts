@@ -26,9 +26,10 @@ export interface LayeredGraphStrings {
   more: (n: number) => string;
   /** A node's count without `progress`: its marks of the tone `done`, of all its marks ("2 of 3 done"). */
   progress: (done: number, total: number) => string;
-  /** Legend words: a badge in a mark, the two edge styles, a cluster's return, an inner view. */
+  /** Legend words: a badge in a mark, the three edge styles, a cluster's return, an inner view. */
   badge: string;
   solidEdge: string;
+  dottedEdge: string;
   dashedEdge: string;
   cycle: string;
   drill: string;
@@ -41,6 +42,7 @@ export interface LayeredGraphStrings {
   nameHeader: string;
   statusHeader: string;
   solidHeader: string;
+  dottedHeader: string;
   dashedHeader: string;
   laterHeader: string;
   none: string;
@@ -69,6 +71,7 @@ export const DEFAULT_LAYERED_GRAPH_STRINGS: Readonly<LayeredGraphStrings> = {
   progress: (done, total) => `${done} of ${total} done`,
   badge: 'count',
   solidEdge: 'link',
+  dottedEdge: 'second link',
   dashedEdge: 'other link',
   cycle: 'next round',
   drill: 'has an inner view',
@@ -78,6 +81,7 @@ export const DEFAULT_LAYERED_GRAPH_STRINGS: Readonly<LayeredGraphStrings> = {
   nameHeader: 'Name',
   statusHeader: 'Status',
   solidHeader: 'Earlier',
+  dottedHeader: 'Dotted link from',
   dashedHeader: 'Dashed link from',
   laterHeader: 'Later',
   none: 'none',

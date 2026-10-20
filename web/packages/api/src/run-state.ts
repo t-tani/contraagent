@@ -3,6 +3,7 @@
 import { runActivity } from './derive.js';
 import type {
   CursorView,
+  Forecast,
   JournalRow,
   JsonObject,
   Outputs,
@@ -22,6 +23,8 @@ export interface RunState {
   procs: Procs | null;
   plan: Plan;
   outputs: Outputs;
+  /** Null until the first `forecast` message (an export written before it has none). */
+  forecast: Forecast | null;
   /** Null for a run that keeps no cursor. */
   cursor: CursorView | null;
   panels: Record<string, JsonObject>;
@@ -35,6 +38,7 @@ export function emptyRunState(): RunState {
     procs: null,
     plan: { nodes: [], groups: [], flow_calls: [] },
     outputs: { contracts: [], tally: { valid: 0, invalid: 0, refused: 0, pending: 0, failed: 0, running: 0 } },
+    forecast: null,
     cursor: null,
     panels: {},
     ready: false,
@@ -76,6 +80,9 @@ export function reduceRun(state: RunState, actions: readonly RunAction[]): RunSt
       case 'outputs':
         next = { ...next, outputs: a.data };
         break;
+      case 'forecast':
+        next = { ...next, forecast: a.data };
+        break;
       case 'cursor':
         next = { ...next, cursor: a.data };
         break;
@@ -89,9 +96,12 @@ export function reduceRun(state: RunState, actions: readonly RunAction[]): RunSt
 
 // --- selectors ----------------------------------------------------------------
 
-/** A finished attempt that neither completed, nor was partial (ok, its output a placeholder), nor was skipped. */
+/**
+ * A finished attempt that neither completed, nor was partial (ok, its output a placeholder),
+ * nor was skipped, nor was cancelled (no flow call waited for it any longer: no failure).
+ */
 export const isBad = (row: { stop?: string | undefined }): boolean =>
-  !!row.stop && row.stop !== 'completed' && row.stop !== 'partial' && row.stop !== 'skipped';
+  !!row.stop && row.stop !== 'completed' && row.stop !== 'partial' && row.stop !== 'skipped' && row.stop !== 'cancelled';
 
 /** A Python task (the journal, plan and contracts say who executed it). */
 export const isPython = (x: { executor?: string | undefined }): boolean => x.executor === 'python';

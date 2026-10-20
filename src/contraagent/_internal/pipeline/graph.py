@@ -37,8 +37,9 @@ is numbered:
   function's `@max_passes(n)`, else the run's `max_passes`) raises
   `TooManyPasses` at the task call, and at the creation of a child flow call (a
   `for` loop ends with its iterable and has no limit);
-* it is given from (`Origin.given_from`) the tasks whose outputs the flow had received
-  when it created the task and are among its params, at any depth: a value whose JSON
+* it is given from (`Origin.given_from`) the tasks whose outputs had reached the flow
+  call that created it (`FlowDriver.received`: its causal past) and are among its params,
+  at any depth: a value whose JSON
   is that of a whole output, or of one whole item of an output that is a list (a Rows).
   So a copy of an output counts as the output, and a field taken out of it does not.
   It is shown only, never part of the fingerprint;
@@ -464,7 +465,7 @@ class Graph:
                 flow=frames,
                 created_from=call.frontier if call is not None else (),
                 flow_call=call_id,
-                given_from=self._given_from(params, files),
+                given_from=self._given_from(params, self.driver.received(call) if self.driver is not None else frozenset(), files),
             )
             filled = {"unit": glob.escape(unit or base), "key": glob.escape(base), "kind": spec.kind}
             node = Node(
@@ -702,20 +703,23 @@ class Graph:
                 raise ValueError(message)
         self._named[id(spec)] = spec
 
-    def _given_from(self, params: dict[str, Any], files: Sequence[Bound] = ()) -> tuple[str, ...]:
-        """The keys of the tasks whose outputs the flow received so far and are among `params`
-        (the JSON of a task call's params), in the order the tasks were created. A value of
-        the params, at any depth, counts when its JSON is that of a whole output, or of one
-        whole item of an output that is a list (a Rows); a value that counts is not looked
-        into further. A field or a text taken out of an output, or a value built from it,
-        counts for nothing. An input file among `files` that is a task's output file counts
-        for that task."""
-        keys: set[str] = {key for bound in files if (key := self._writers.get(bound.real)) is not None}
+    def _given_from(self, params: dict[str, Any], past: frozenset[str], files: Sequence[Bound] = ()) -> tuple[str, ...]:
+        """The keys of the tasks whose outputs are among `params` (the JSON of a task call's
+        params), of those in `past`, the results that had reached the creating flow call
+        (`FlowDriver.received`), in the order the tasks were created; several whose outputs
+        are equal are all named. A value of the params, at any depth, counts when its JSON
+        is that of a whole output, or of one whole item of an output that is a list (a Rows);
+        a value that counts is not looked into further. A field or a text taken out of an
+        output, or a value built from it, counts for nothing. An input file among `files`
+        that is a task's output file counts for that task, under the same rule: only when
+        that task's result is in `past`."""
+        keys: set[str] = {key for bound in files if (key := self._writers.get(bound.real)) is not None and key in past}
         todo = list(params.values())
         while todo:
             value = todo.pop()
             digest = _digest(value)
-            if digest is not None and (found := self._outputs.get(digest) or self._items.get(digest)):
+            found = (self._outputs.get(digest, set()) | self._items.get(digest, set())) & past if digest is not None else set()
+            if found:
                 keys |= found
             elif isinstance(value, dict):
                 todo += value.values()
@@ -818,6 +822,7 @@ class Graph:
                 definition=node.spec.definition(),
                 retries=node.spec.retries,
                 retry_on=node.spec.retry_on,
+                params=copy.deepcopy(node.params),
             ),
         )
 

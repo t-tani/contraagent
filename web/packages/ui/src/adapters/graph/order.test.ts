@@ -3,7 +3,7 @@
 // edge paths and order `layerGraph` gives (the generic `arrange` on the layer's
 // projection), where `layoutGraph` puts everything, and every loop's passes. A
 // change here changes how a run's graph is drawn. The snapshot names an edge's
-// style by its type (solid: `after`, dashed: `created`), the order's clusters
+// style by its type (solid: `given`, dotted: `after`, dashed: `created`), the order's clusters
 // `boxes`, as the graph did before the order moved to @contraagent/elements: the
 // file is unchanged since, so the drawing is the same.
 import type { Plan } from '@contraagent/api';
@@ -30,8 +30,9 @@ const rect = (r: { x: number; y: number; w: number; h: number }) => `${r.x},${r.
 
 /** One layer, one direction: what the drawing depends on, as text. */
 /** An edge style by its type, as the snapshot names it. */
-const typed = (s: string): string => s.replaceAll('|solid|', '|after|').replaceAll('|dashed|', '|created|');
-const typeOf = (style: string): string => (style === 'solid' ? 'after' : 'created');
+const TYPE_OF: Record<string, string> = { solid: 'given', dotted: 'after', dashed: 'created' };
+const typed = (s: string): string => s.replace(/\|(solid|dotted|dashed)\|/g, (_, style: string) => `|${TYPE_OF[style] ?? style}|`);
+const typeOf = (style: string): string => TYPE_OF[style] ?? style;
 
 function frozen(plan: Plan, path: readonly string[], down: boolean, prev?: GraphOrder) {
   const g = layerGraph(plan, path, prev, down);

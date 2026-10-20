@@ -506,6 +506,7 @@ class Pipeline:
             run_id, self.runs_dir, fresh=not resume, log=self.log, cwd=self.cwd, row_extras=self.row_extras, config=self.config
         ) as run:
             run.stop_on_signals()  # SIGTERM or Ctrl-C stops the agents too (on the main thread)
+            run.update_info(flow=_name(flow))  # the runs of one flow: the monitor's forecast
             services = Services(
                 self.services,
                 run.dir,

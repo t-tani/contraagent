@@ -25,6 +25,7 @@ from pydantic import ValidationError
 from contraagent._internal.backends.base import Backend
 from contraagent._internal.backends.credentials import Credential
 from contraagent._internal.backends.launch import Stop
+from contraagent._internal.contracts.input_file import input_files_of
 from contraagent._internal.dispatch.flow import FlowState
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent._internal.dispatch.python_task import make_python_task
@@ -223,8 +224,8 @@ def _changed(row: Mapping[str, Any], task: Task) -> list[str]:
 
 
 def _part_name(part: str) -> str:
-    """A part of a fingerprint (`Task.fingerprint_parts`) as a rerun reason names it: a part
-    a run of an earlier release recorded (`output:<key>`, `after:<key>`) by its name."""
+    """A part of a fingerprint (`Task.fingerprint_parts`) as a rerun reason names it; a part
+    of another name, as a journal row of another writer may hold, by its name."""
     return {
         "definition": "its definition",
         "params": "its params",
@@ -841,7 +842,8 @@ class Run:
         work that has not started yet (the journal only knows what finished).
         A task with no origin (built by hand) has an empty `flow` and `created_from`, and
         `flow_call` null. `base_kind` is there only for an implementation kind, `credential`
-        only for a task whose call names one (`Task.credential`)."""
+        only for a task whose call names one (`Task.credential`), `input_files` only for a task
+        whose params (its payload's, as JSON) hold input files."""
         origin = task.origin
         row = PlanRow(
             ts=now_iso(),
@@ -858,6 +860,7 @@ class Run:
             flow_call=origin.flow_call if origin is not None else None,
             base_kind=task.base_kind,
             credential=task.credential,
+            input_files=input_files_of(getattr(task.payload, "params", None)),
         ).to_dict()
         self._append(layout.PLAN, row)
         if self._estimates is not None:

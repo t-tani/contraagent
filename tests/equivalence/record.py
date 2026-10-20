@@ -1,16 +1,20 @@
 """Record what each example flow does on the stub agent into `tests/fixtures/equivalence/<version>/`.
 
-    <checkout>/.venv/bin/python tests/equivalence/record.py tests/fixtures/equivalence/<version>
+    <checkout>/.venv/bin/python tests/equivalence/record.py tests/fixtures/equivalence/<version> [<flow id> ...]
 
 The script runs on whichever contraagent its interpreter imports, and each version runs
 its own examples (`contraagent.docs.examples`), so the interpreter of another checkout
 records that version: `git worktree add <dir> <tag>`, `uv sync` in it, then run this
 file with `<dir>/.venv/bin/python`. It imports only the public modules (and sets
-`RetryingRunner.backoff` to 0, as the tests do), so it runs on 0.6.2 and later.
+`RetryingRunner.backoff` to 0, as the tests do), so it runs on 0.6.2 and later. Flow ids
+after the directory record only those flows: the flows a release added, recorded on the
+current tree.
 
 Each entry of `FLOWS` is one run: an example's flow function with its keyword arguments,
 on the stub agent (`stub`: what `contraagent run --stub` does, no model called and no
-Python task's function run; `approve`: the same, but the reviews approve), or on the
+Python task's function run; `approve`: the same, but the reviews approve; `block`: the
+same, one task at a time, and the security probe finds a blocking problem, so the probes
+still queued are cancelled), or on the
 stub that the example's own tests script (`demo`, `tutorial`: their Python tasks run,
 and some replies fail). A run is recorded as its `summary`: every task by key (kind,
 unit, final stop), each file under the run directory's `out/` by the SHA-256 of its
@@ -53,6 +57,11 @@ APPROVE = {
 }
 #: The units the demo's tests run: zeta's input is malformed, epsilon's score is partial.
 DEMO_UNITS = ["alpha", "beta", "delta", "epsilon", "zeta"]
+#: The replies of the `block` scenario: the first probe that runs blocks the change.
+BLOCK = {
+    "probe-c1-security": {"blocking": True, "note": "The token is in the query string."},
+    "probe": {"blocking": False, "note": "Nothing found."},
+}
 
 
 @dataclass(frozen=True)
@@ -79,6 +88,7 @@ FLOWS = [
     Flow("analysis", "flow", "analyse", {"bundles": ["q3", "q4"]}),
     Flow("before", "flow", "backlogs", {"topics": {"search": ["faster index"], "billing": ["invoices by email"]}}),
     Flow("cancel", "flow", "review", {"change": "c1"}),
+    Flow("cancel", "flow", "review", {"change": "c1"}, scenario="block"),
     Flow("changes", "flow", "topics", {"subjects": {"alpha": "caching", "beta": "retries"}}),
     Flow("claims", "flow", "topics", {"names": UNITS}),
     Flow("concurrency", "flow", "reports", {"units": UNITS}),
@@ -142,6 +152,9 @@ def _pipeline(flow: Flow, work: Path) -> Pipeline:
         options["stub"] = StubAgent(default=writes_example())
     elif flow.scenario == "approve":
         options["stub"] = StubAgent(APPROVE, default=writes_example())
+    elif flow.scenario == "block":
+        options["stub"] = StubAgent(BLOCK)
+        options["max_concurrent"] = 1  # the security probe runs first, the others wait in the queue
     elif flow.scenario == "demo":
         from contraagent.docs.examples.demo import test_demo
 
@@ -253,12 +266,18 @@ def dumps(data: dict[str, Any]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
-    if len(args) != 1:
+    if not args:
         print(__doc__, file=sys.stderr)
         return 2
-    dest = Path(args[0])
+    dest, only = Path(args[0]), set(args[1:])
+    unknown = only - {flow.id for flow in FLOWS}
+    if unknown:
+        print(f"no such flow: {', '.join(sorted(unknown))}", file=sys.stderr)
+        return 2
     dest.mkdir(parents=True, exist_ok=True)
     for flow in FLOWS:
+        if only and flow.id not in only:
+            continue
         if not present(flow):
             print(f"{flow.id}: not in this version's examples", file=sys.stderr)
             continue

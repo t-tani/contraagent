@@ -13,7 +13,11 @@ written are in `web/AGENTS.md`.
 |---|---|---|
 | a task's outcome (`Outcome`: done, recovered, partial, failed, not_started, running, waiting, skipped; plan state `partial`, stop `partial`, `TaskCounts.partial`) | status: done, done after retrying, partly done, failed, not started, running, waiting, skipped; a partial task's reason after `Partly done:` (an agent task's, the stop its launch ended on, in words: `Partly done: timed out`); trends columns: Done, Tasks done, Partly done; Done 97%; Attempts not done | 状態: 完了, リトライ後に完了, 一部のみ完了, 失敗, 未実行, 実行中, 待機中, スキップ |
 | stop (`completed`, `invalid_input`, `timeout`, ...) | outcome; each value in words (`stopLabel`) | 結果 |
-| a cancelled task (stop `cancelled`, plan state `cancelled`, `TaskCounts.cancelled`, `PlanGroup.cancelled`: called with `.options(cancellable=True)`, and no flow call waited for it any longer) | cancelled; N cancelled | 取り消し; 取り消し N 件 |
+| a cancelled task (stop `cancelled`, plan state `cancelled`, `TaskCounts.cancelled`, `PlanGroup.cancelled`: called with `.options(cancellable=True)`, and no flow call waited for it any longer) | cancelled; N cancelled (finished, never a failure: in every count of tasks, never among failed attempts) | 取り消し; 取り消し N 件 |
+| where a flow call stopped (`FlowCallNode.raised_at`, `raised_by`) | on the failed task: This failure stopped `function` at `file:line`; on the flow call: Stopped at `file:line` by the failure of `kind · unit`; a row: Stopped | この失敗で `function` が `file:line` で停止; `kind · unit` の失敗により `file:line` で停止; 停止 |
+| unawaited tasks (`FlowCallNode.unawaited` of a top flow call) | N tasks not awaited, with their chips; tooltip names the field | 待たれなかったタスク N 件 |
+| a rerun (`JournalRow.rerun`) and the parts of the fingerprint that changed (`fingerprint_parts`: `definition`, `params`, `outside`, `output_of`, `input_files`); a divergence (`divergence: ...`) | Ran again after a resume \| Changed: params; definition, params, outside state, the file it fills in, input files; divergence (a pill, and a fact of the attempt) | 再開後に再実行 \| 変更: パラメータ; 定義, パラメータ, 外部の状態, 書き足す対象のファイル, 入力ファイル; 分岐 |
+| the forecast (`Forecast`: tasks expected from the run of the same flow that finished last before this one) | Forecast: N more tasks \| `time` of task time \| `$`; Not in the plan yet: `group +n`; a kind node: +N (a dotted outline), N more tasks expected (forecast) | 見込み: あと N タスク; タスクの所要時間; まだ登録されていない種別; あと N 件の見込み（forecast） |
 | plan state `blocked` | not started | 未実行 |
 | plan state `pending` after the run ended | not run | 実行されず |
 | a deferred task (`PlanNode.deferred`, from `deferred.jsonl`), in a live run too | not run, with its cause in words (`deferredText`, from `deferred_cause`; the recorded reason only for a cause it does not know) | 実行されず |
@@ -82,9 +86,8 @@ written are in `web/AGENTS.md`.
 | `passMatrix` (a loop's passes: a row per unit, a column per node and pass) | Unit, Passes, Pass N (columns); sort units: scheduled order, number of passes, status | ユニット, 周回数, N 周目; 並び順: 登録順, 周回数, 状態 |
 | a node above 200 marks (`asBar`) | a bar of its counts, its failed units by name, +N for the rest | 件数のバー, 失敗したユニット名, +N |
 | the graph's key hints | Tab: next node \| Arrow keys: marks \| Shift + arrow keys: earlier and later tasks \| Enter: open \| Esc: up a level | Tab: 次のノード \| 矢印キー: マーク \| Shift + 矢印キー: 依存先タスク・後続タスク \| Enter: 開く \| Esc: 1 つ上の階層 |
-| `after` (an edge) | waits for output | 出力を待つ |
+| the lineage of a task to an earlier one (`Lineage`; an edge of the pipeline graph, a tag of an earlier or a later task): `given_from` (solid), `after` alone (dotted, order only), `created_from` (dashed) | given output; runs after; created after result; a node's rows: Given output of, Runs after, Created after; tooltips name the field | 出力を受け取る; 完了を待つ; 結果を受けて作成; 入力元, 順序のみの依存先, 作成元 |
 | a time box (`time_box`, `FlowCallNode.time_box`): a flow call's own deadline | Deadline (a function node's and a flow call's row); deferred: Past the deadline of `function`; tooltip: A deadline of its own (time_box) | 締め切り; `function` の締め切りを過ぎた |
-| `created_from` (an edge) | created after result | 結果を受けて作成 |
 | a loop's return to its next pass (a dotted edge in its box) | next pass | 次の周 |
 | a function node or a loop box (their layer, their passes) | has a level below | 下の階層あり |
 | a function drawn open (`FlowBox`), its control; every function's | Show inside / Hide inside; Show all inside / Hide all inside | 中を表示 / 中を隠す; すべての中を表示 / すべての中を隠す |
@@ -93,7 +96,8 @@ written are in `web/AGENTS.md`.
 | `executor` of a kind node | agent task / Python task | エージェントタスク / Python タスク |
 | selection, inspector | selected item; links: Task detail, Tasks of `kind`, Inside `function`, Passes of the loop | 選択中の項目; タスク詳細, `kind` のタスク, `function` の内部, ループの各周 |
 | an attempt of a later run start (`runStarts`) | attempt N \| resumed run | N 回目 \| 再開後 |
-| an input file's origin | Output of `kind · unit`; File from before the run | `kind · unit` の出力; 実行前からあるファイル |
+| an input file (`TaskIO.input_files`: an `InputFile` param, by its path and hash) and its check as the task was about to start (`passed`, `refused`, `not_checked`) | Input files; Param `name` \| sha256 `12 digits` \| Output of `kind · unit`; same content at the start, changed before the start, not checked | 入力ファイル; パラメータ `name`; 開始時も同じ内容, 開始前に変更された, 未確認 |
+| a file an input contract checks (`TaskIO.inputs`, `InputContract`, from an engine `TaskAdapter`) and its origin | Checked files it reads; Output of `kind · unit`; File from before the run | 読み込むファイル（検証あり）; `kind · unit` の出力; 実行前からあるファイル |
 | host (`host_id`), shown only on a hub (`Info.hosts`) | host; `Host h1` as a fact; the hosts page: Hosts | ホスト; ホスト h1; ホスト一覧 |
 | a host's `up` / not `up` (heartbeats stopped, or never sent) | up / no report; no report since `time` (a run picker's host header) | 稼働中 / 報告なし; `time` 以降報告なし |
 | `HostSummary.last_seen`, `interval_s` | last report; report interval | 最終報告; 報告間隔 |
