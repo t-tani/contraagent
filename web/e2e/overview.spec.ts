@@ -75,10 +75,13 @@ test.describe('docs: a review loop per unit', () => {
     await expect(graph(page).locator('.legend')).toContainText('created after result');
     await nodeName(page, 'review').click();
     await expect(inspector(page)).toContainText('Given output of');
-    // Hovering a unit's mark rings the tasks joined to it in the style of their link.
+    // Hovering a unit's mark lights its own tasks. In the review loop no other unit's task is
+    // joined to alpha's: every unit's score is equal, and a review is given only its own unit's
+    // (the outputs that reached its flow call), so no mark is ringed in the style of a link.
     const prepare = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'prepare' }) });
     await prepare.locator('.mark[title*="alpha"]').hover();
-    await expect(graph(page).locator('.dag.hl .mark.on[data-link]').first()).toBeAttached();
+    await expect(graph(page).locator('.dag.hl .mark.on').first()).toBeAttached();
+    await expect(graph(page).locator('.dag.hl .mark.on[data-link]')).toHaveCount(0);
   });
 
   test('Shift and an arrow key follow an edge on the same unit', async ({ page }) => {

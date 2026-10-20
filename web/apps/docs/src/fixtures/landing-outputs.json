@@ -14,7 +14,8 @@
   "The monitor",
   "Many hosts: the hub",
   "Operating a hub",
-  "Compatibility"
+  "Compatibility",
+  "Upgrading from 0.6 to 0.7"
  ],
  "slip": {
   "kwargs": "{\"units\": \"alpha\"}",

@@ -63,6 +63,9 @@ test('a task given earlier outputs names, by each param, the earlier task it cam
   await expect(view).toContainText('No input files');
   await expect(view.locator('.upstream', { hasText: 'summarize · gamma' })).toHaveCount(1);
   await expect(view.locator('.upstream', { hasText: 'score · gamma' })).toHaveCount(1);
+  // Every unit's score is equal; only gamma's own reached the flow call that created the review.
+  await expect(param('score').locator('.from')).toHaveText('From score · gamma');
+  await expect(view.locator('.upstream')).toHaveCount(2);
   await param('summary').locator('.from a').click();
   await expect(page).toHaveURL(/key=summarize-gamma/);
 });

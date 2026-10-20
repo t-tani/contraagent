@@ -1,0 +1,37 @@
+{
+  "call": "examples/cancel/flow.py:review",
+  "config": false,
+  "flow": "cancel.review.block",
+  "kwargs": {
+    "change": "c1"
+  },
+  "outputs": {
+    "probe/probe-c1-security.json": "7b2075dabcc0374774f7b2ea3157b11b07decacc60c70b0f023bc249ab867970"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "block",
+  "tasks": {
+    "probe-c1-data": {
+      "kind": "probe",
+      "stop": "cancelled",
+      "unit": "c1"
+    },
+    "probe-c1-license": {
+      "kind": "probe",
+      "stop": "cancelled",
+      "unit": "c1"
+    },
+    "probe-c1-security": {
+      "kind": "probe",
+      "stop": "completed",
+      "unit": "c1"
+    }
+  },
+  "value": "blocked: The token is in the query string."
+}

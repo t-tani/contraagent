@@ -1,0 +1,1 @@
+The documentation topic `upgrading` (`contraagent docs upgrading`) lists each change that a pipeline written for 0.6 makes to run on 0.7, as the 0.6 form and the 0.7 form, with the steps for a pipeline in production (finish the runs that 0.6 started on 0.6, upgrade a hub before its relays) and how to check the upgrade.

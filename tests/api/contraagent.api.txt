@@ -1484,7 +1484,6 @@ class LaunchResult
         hollow: bool = False,
         safety_stops: list[SafetyStop] = list(),
         unread_events: dict[str, int] = dict(),
-        usage_unknown: Literal['', 'calls', 'tokens'] = '',
         init_model: str = '',
         init_tools: int = 0,
         init_errors: list[dict[str, Any]] = list(),
@@ -1501,6 +1500,7 @@ class LaunchResult
         context_warned: bool = False,
         context_window: int | None = None,
         retryable: bool = True,
+        usage_unknown: Literal['', 'calls', 'tokens'] = '',
     ) -> None
     agent: str = ''
     api_key_source: str = ''
@@ -1974,15 +1974,15 @@ class FlowCall
         frontier: tuple[str, ...] = (),
         value: Any = None,
         error: BaseException | None = None,
-        raised_at: Frame | None = None,
-        raised_by: str | None = None,
         time_box: TimeBox | None = None,
         started_at: float = time.time(),
+        task: asyncio.Task[Any] | None = None,
+        coro: Any = None,
+        raised_at: Frame | None = None,
+        raised_by: str | None = None,
         ended_at: float | None = None,
         unawaited: tuple[str, ...] = (),
         recorded: bool = False,
-        task: asyncio.Task[Any] | None = None,
-        coro: Any = None,
     ) -> None
     coro: Any = field(default=None, repr=False)
     ended_at: float | None = None
@@ -2026,6 +2026,7 @@ class FlowDriver
     def flow_errors(self) -> list[FlowCall]
     def follow_up(self, result: TaskResult) -> list[Task]
     past_grace: Callable[[], bool] | None
+    def received(self, call: FlowCall | None) -> frozenset[str]
     def run(self, queue: WorkQueue, *flows: Coroutine[Any, Any, Any]) -> dict[str, Any]
     async def run_async(self, queue: WorkQueue, *flows: Coroutine[Any, Any, Any]) -> dict[str, Any]
     async def settle(self) -> bool
