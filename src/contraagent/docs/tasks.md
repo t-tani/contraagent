@@ -262,9 +262,10 @@ Where a task's params came from is recorded beside the fingerprint, and never
 changes what a resume skips. A task is given from the tasks whose outputs had reached
 the flow call that created it and are among its params: `plan.jsonl` `given_from`. The
 outputs that reached a flow call are those it awaited, those its parent had received
-when it created the flow call, and those that reached the flow calls it started, once
-they ended; so a value passed down as an argument or returned by a child counts, and an
-equal output of another unit's flow call does not. Several equal outputs that reached it
+when it created the flow call, and those that had reached the flow calls whose end it
+awaited (directly, through `asyncio.gather` or an `asyncio.TaskGroup`); so a value passed
+down as an argument or returned by a child counts, and an equal output of another
+unit's flow call, or of a child it never awaited, does not. Several equal outputs that reached it
 are all named. A value of the params, at any depth, counts when its JSON is that of a
 whole output, or of one whole row of an output that is a list (a Rows). A copy of an
 output counts as the output. A field or a text taken out of an output, or a value built

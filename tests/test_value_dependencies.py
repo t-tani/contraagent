@@ -324,3 +324,21 @@ def test_a_value_passed_to_a_child_and_one_returned_by_a_child_count(tmp_path):
     # Both writes reached the parent before it created the children, and their outputs are equal: both named.
     assert given["check-a"] == given["check-b"] == ["write-a", "write-b"]
     assert given["all"][:2] == ["write-a", "write-b"] and sorted(given["all"][2:]) == ["again-a", "again-b"]  # in creation order
+
+
+@pytest.mark.parametrize("awaits", [False, True])
+def test_a_childs_results_reach_its_parent_only_when_the_parent_awaits_it(tmp_path, awaits):
+    async def child():
+        return await write.options(key="write-child")("same")
+
+    async def flow():
+        started = asyncio.get_running_loop().create_task(child())
+        if awaits:
+            await started  # resumed by the child's end
+        else:
+            await check.options(after=["write-child"], key="later")("same")  # the child's result is given before
+        await check.options(key="final")("same", doc={"unit": "same", "text": "first"})  # equal to the child's output
+
+    rep = pipeline(tmp_path, Agent()).run(flow)
+    assert rep.ok
+    assert plan(rep)["final"]["given_from"] == (["write-child"] if awaits else [])

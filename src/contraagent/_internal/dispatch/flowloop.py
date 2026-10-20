@@ -45,9 +45,10 @@ An asynchronous generator that flow code starts during `drain()` is finalized on
 loop: `drain()` puts in the loop's own `sys.set_asyncgen_hooks` while it runs, and
 `close_asyncgens()` closes the ones still open, as `shutdown_asyncgens` does.
 
-Each ready callback also carries a cause: the keys of the task results that led to it.
+Each ready callback also carries a cause: what led to it, a value the driver gives and
+reads (contraagent's driver: the task results that led to it), `()` when nothing did.
 `call_soon` gives a callback the cause of the callback running now, or, outside
-`drain()`, the cause of `caused_by(keys)` around the code that completes a future (the
+`drain()`, the cause of `caused_by(cause)` around the code that completes a future (the
 driver, giving a result). Before a callback runs, `on_run(context, cause)` returns the
 cause of the callbacks it schedules; without `on_run`, its own. Since every callback of
 a Future or a Task goes through `call_soon`, the cause follows each future, done
@@ -92,8 +93,8 @@ class MakeTask(Protocol):
     def __call__(self, coro: Any, /, *, name: str | None = None, context: contextvars.Context | None = None) -> asyncio.Task[Any]: ...
 
 
-#: The keys of the task results that led to a callback (see the module docstring).
-Cause = tuple[str, ...]
+#: What led to a callback, as the driver gives it; `()` when nothing did (see the module docstring).
+Cause = object
 
 
 class OnRun(Protocol):

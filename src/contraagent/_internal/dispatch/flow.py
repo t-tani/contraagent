@@ -372,8 +372,8 @@ class FlowCall:
     _context: contextvars.Context | None = field(default=None, init=False, repr=False)
     # The keys of the results that reached it since it last resumed, in the order they came.
     _reached: dict[str, None] = field(default_factory=dict[str, None], init=False, repr=False)
-    # The keys of every result that reached it, its parent's when it was created, and those of
-    # the flow calls it started that ended (`FlowDriver.received`).
+    # The keys of every result that reached it, its parent's when it was created, and what the
+    # flow calls whose end it awaited had received (`FlowDriver.received`).
     _received: set[str] = field(default_factory=set[str], init=False, repr=False)
     # It is being cancelled by the driver: it ends `closed`, whatever it ends with.
     _closing: bool = field(default=False, init=False, repr=False)
@@ -575,7 +575,7 @@ class FlowDriver:
             self.done[key] = result
             self._open.discard(key)
             self._creators.pop(key, None)
-        with self._loop.caused_by((key,)):
+        with self._loop.caused_by(_Led((key,), frozenset((key,)))):
             for fut in self._waiters.pop(key, ()):
                 if not fut.done():  # one whose flow call was cancelled is done
                     fut.set_result(result)
@@ -637,8 +637,11 @@ class FlowDriver:
         """The keys of the results that reached `call` (its causal past): every result that
         resumed it or reached it in a callback (as for its frontier, but from its start, not
         only its last resume), what its parent had received when it created `call`, and what
-        each flow call `call` started had received when that one ended. With no flow call (a
-        flow that does not wait), every result given so far."""
+        each flow call whose end `call` observed (awaited directly, through `gather` or a
+        `TaskGroup`, or in a done callback in its context) had received. A flow call it
+        started and never awaited gives it nothing, and neither does one that had already
+        ended when `call` awaited it (as for the frontier: the await does not resume `call`). With no flow call (a flow that does not
+        wait), every result given so far."""
         if call is None:
             return frozenset(self.done)
         return frozenset(call._received)
@@ -749,7 +752,7 @@ class FlowDriver:
         if result is not None and call is not None:  # given before: a resume by its key, at once
             call.frontier, call._reached = (key,), {}
             call._received.add(key)
-            self._loop.set_cause(call.frontier)
+            self._loop.set_cause(_Led(call.frontier, frozenset(call._received)))
         if result is None:
             fut: asyncio.Future[TaskResult] = self._loop.create_future()
             self._waiters.setdefault(key, []).append(fut)
@@ -785,19 +788,22 @@ class FlowDriver:
         raise asyncio.CancelledError
 
     def _on_run(self, context: contextvars.Context, cause: Cause) -> Cause:
-        """`FlowLoop`'s `on_run`: the keys of `cause` reach the flow call the callback runs in.
-        A callback in the flow call's own context is a step of it: it resumes, its frontier
-        becomes what reached it, and what the step schedules has its frontier as cause."""
+        """`FlowLoop`'s `on_run`: what led to the callback (a `_Led`) reaches the flow call the
+        callback runs in: its keys reach its frontier, its past what the flow call received. A
+        callback in the flow call's own context is a step of it: it resumes, its frontier
+        becomes what reached it, and what the step schedules is led by its frontier and all it
+        received."""
         call = context.get(_call)
         if call is None:
             return cause
-        call._reached.update(dict.fromkeys(cause))
-        call._received.update(cause)
+        led = cause if isinstance(cause, _Led) else _Led()
+        call._reached.update(dict.fromkeys(led.keys))
+        call._received |= led.past
         if context is call._context:  # its Task runs every step in this context, and nothing else does
             last = ((sys.maxsize,), 0)  # a key queued elsewhere: after, in the order it came
             call.frontier = tuple(sorted(call._reached, key=lambda key: self._queued_keys.get(key, last)))
             call._reached = {}
-            return call.frontier
+            return _Led(call.frontier, frozenset(call._received))
         return cause
 
     def _slow(self, context: contextvars.Context | None, elapsed: float) -> None:
@@ -979,8 +985,6 @@ class FlowDriver:
         call.value = value
         call.error = error
         call.ended_at = time.time()
-        if call.parent is not None:  # what it received reaches its parent with what it returns
-            call.parent._received |= call._received
         if state == "returned":
             try:
                 self._used.update(self._holds(value))
@@ -1028,6 +1032,16 @@ class FlowDriver:
             self._queue.cancel(key)
         else:
             self._to_cancel.append(key)
+
+
+@dataclass(frozen=True)
+class _Led:
+    """What led to a callback of the flow loop (its `Cause`): `keys`, the results that reached
+    it, which make the frontier of the flow call it resumes; `past`, every result that had
+    reached the flow call whose step scheduled it (`FlowDriver.received`)."""
+
+    keys: tuple[str, ...] = ()
+    past: frozenset[str] = frozenset()
 
 
 class _Wait(collections.abc.Coroutine[Any, Any, Any]):
