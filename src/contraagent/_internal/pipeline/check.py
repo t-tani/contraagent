@@ -123,7 +123,7 @@ class CheckReport:
 def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs: dict[str, Any]) -> CheckReport:
     report = CheckReport()
     with tempfile.TemporaryDirectory(prefix="check-", dir=temp_root()) as tmp:
-        graph = Graph(Path(tmp) / "out", max_passes=pipeline.max_passes)
+        graph = Graph(Path(tmp) / "out", max_passes=pipeline.max_passes, cwd=pipeline.cwd)
         driver = FlowDriver(waits_for=graph.waits_for, answer=graph.answer, on_flow_call=graph.on_flow_call)
         graph.driver = driver
         name = f"{getattr(flow, '__module__', '')}.{getattr(flow, '__qualname__', repr(flow))}"

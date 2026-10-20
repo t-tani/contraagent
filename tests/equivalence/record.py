@@ -87,6 +87,7 @@ FLOWS = [
     Flow("demo", "tasks", "docs_one_review", {"units": UNITS}, config=True),
     Flow("demo", "tasks", "docs", {"units": DEMO_UNITS}, config=True, scenario="demo"),
     Flow("demo", "tasks", "docs_one_review", {"units": DEMO_UNITS}, config=True, scenario="demo"),
+    Flow("input_file", "flow", "reports", {"topics": UNITS}),
     Flow("implementations", "flow", "review_all", {"units": {"api": "python", "worker": "go"}}),
     Flow("light", "flow", "items", {"titles": {"n1": "A patch for the login server", "n2": "Our new plan"}}),
     Flow("mcp", "flow", "ask_all", {"questions": {"papers": "Which paper measures the cache?"}}),

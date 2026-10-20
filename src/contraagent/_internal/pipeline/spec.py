@@ -34,6 +34,7 @@ from typing import Any, Literal, ParamSpec, Protocol, Self, overload
 from pydantic import BaseModel, RootModel, TypeAdapter, ValidationError
 from typing_extensions import TypeVar  # a default (PEP 696) before Python 3.13
 
+from contraagent._internal.contracts.input_file import ROOT
 from contraagent._internal.contracts.pointers import schema_error, syntax_error
 from contraagent._internal.contracts.rows import is_rows, rows_file, rows_model
 from contraagent._internal.contracts.validators import Validator, validator_name
@@ -652,8 +653,9 @@ def agent_task(
     `params`: the task's params model, a pydantic model: a task call passes an instance of
     it (`task(unit, Params(...))`), and the agent gets its fields as JSON in its call file
     (`params`), with the model's JSON Schema (`params_json_schema`) beside them, so each
-    field's `Field(description=...)` tells the agent what it is; never in the prompt.
-    Without it the task takes no params (`task(unit)`), and is typed `AgentTask[None, Out]`.
+    field's `Field(description=...)` tells the agent what it is; never in the prompt. A
+    large input is a field typed `InputFile`: the agent gets the file's path and hash, and
+    reads the file. Without it the task takes no params (`task(unit)`), and is typed `AgentTask[None, Out]`.
     `output`: a pydantic model (a JSON file checked against it), `str` (a text
     document) or `Rows[Row]` (rows: a JSON Lines file, each line one `Row`, which the agent
     may write one row at a time; the flow receives a `Rows`, a list of `Row`);
@@ -1184,18 +1186,20 @@ class PythonTask[**P, Out]:
             pass  # a function without source (built-in, REPL): the facts above still say what it is
         return body
 
-    def arguments(self, unit: str, kwargs: dict[str, Any]) -> dict[str, Any]:
-        """The function's arguments: `kwargs` and the unit for a `unit` parameter, each checked and converted against its parameter's
-        annotation (`_ParamTypes`). `InvalidInput` when one does not match."""
+    def arguments(self, unit: str, kwargs: dict[str, Any], *, cwd: Path | None = None) -> dict[str, Any]:
+        """The function's arguments: `kwargs` and the unit for a `unit` parameter, each
+        checked and converted against its parameter's annotation (`_ParamTypes`); an input
+        file's relative path is made absolute under `cwd`, the working directory. `InvalidInput`
+        when one does not match."""
         if "unit" in inspect.signature(self.fn).parameters:
             kwargs = {**kwargs, "unit": unit}
-        return self._param_types.convert(kwargs)
+        return self._param_types.convert(kwargs, cwd)
 
-    def invoke(self, unit: str, kwargs: dict[str, Any]) -> Any:
+    def invoke(self, unit: str, kwargs: dict[str, Any], *, cwd: Path | None = None) -> Any:
         """Call the function with its `arguments`; `InvalidInput` before the call when one
         does not match its annotation."""
         fn: Callable[..., Any] = self.fn  # its arguments are bound by name (`arguments`)
-        return fn(**self.arguments(unit, kwargs))
+        return fn(**self.arguments(unit, kwargs, cwd=cwd))
 
 
 class _ParamTypes:
@@ -1230,10 +1234,12 @@ class _ParamTypes:
                 ) from None
         return self._adapters
 
-    def convert(self, kwargs: dict[str, Any]) -> dict[str, Any]:
-        """`kwargs` with each annotated argument validated and converted; `InvalidInput`
-        naming each parameter whose argument does not match."""
+    def convert(self, kwargs: dict[str, Any], cwd: Path | None = None) -> dict[str, Any]:
+        """`kwargs` with each annotated argument validated and converted, an input file's
+        relative path made absolute under `cwd`; `InvalidInput` naming each parameter whose
+        argument does not match."""
         adapters = self.adapters()
+        context = {ROOT: cwd} if cwd is not None else None
         out: dict[str, Any] = {}
         errors: list[str] = []
         for name, value in kwargs.items():
@@ -1242,7 +1248,7 @@ class _ParamTypes:
                 out[name] = value
                 continue
             try:
-                out[name] = adapter.validate_python(value)
+                out[name] = adapter.validate_python(value, context=context)
             except ValidationError as exc:
                 errors += _param_errors(name, exc)
         if errors:
@@ -1339,7 +1345,9 @@ def python_task(
     (no positional-only parameter, `*args` or `**kwargs`, which raise here), each a param
     but the one named `unit`, which takes the task's unit; each annotation is a type
     pydantic has a JSON Schema for, since a task is given JSON
-    (`Annotated[T, Field(description=...)]` documents one). Its return annotation is its output: a pydantic model (the schema),
+    (`Annotated[T, Field(description=...)]` documents one); a parameter annotated
+    `InputFile` is given a file by its path, checked against the hash its task call took.
+    Its return annotation is its output: a pydantic model (the schema),
     any JSON-able type (kept as a JSON file), or None (no output). A function that could do
     only part of its work returns `Partial(value, reason=)` (annotated `-> Out | Partial[Out]`):
     `value` is its output as usual, the task finishes ok with stop `partial`, and a resume

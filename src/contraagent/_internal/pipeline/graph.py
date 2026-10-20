@@ -58,6 +58,10 @@ is numbered:
   task's unit and params; the SHA-256 of the JSON of what it returned is part of the
   fingerprint. A task whose function raised or returned what is not JSON is refused
   (`refusal`);
+* an input file among its params (`InputFile`, at any depth) is hashed at the task call
+  (`bind`), which refuses one outside the working directory and the run's `out/`; its
+  params hold the file's path and hash. A task whose input file no longer has that
+  content when it is about to start is refused (`refusal`);
 * a resume skips a task whose journal row matches its fingerprint only when its output
   file still reads under its output schema (`output_reads`); else the task runs again.
 """
@@ -87,6 +91,7 @@ from pydantic import BaseModel, RootModel, ValidationError
 from pydantic_core import PydanticSerializationError, to_jsonable_python
 
 from contraagent._internal.contracts.contract import OutputContract, check_file
+from contraagent._internal.contracts.input_file import BINDINGS, Bound, InputFile, bind, changed
 from contraagent._internal.contracts.rows import is_rows, row_of, rows_text
 from contraagent._internal.dispatch.flow import TaskFailed, result_or_raise
 from contraagent._internal.dispatch.flowloop import not_flow_code
@@ -163,6 +168,21 @@ class Pending[Out]:
     def path(self) -> Path | None:
         """The output file, or None for a task with no output."""
         return self._node.output_path
+
+    def input_file(self) -> InputFile:
+        """The task's output file as an input file, to give another task: a long text
+        output by its path and hash instead of its text. Its task call hashes the file, so
+        the flow awaits this task first. ValueError for a task with no output file, one that
+        has not finished, or one that did not succeed."""
+        path = self._node.output_path
+        if path is None:
+            raise ValueError(f"{self.key} has no output file to give as an input file")
+        result = self.result
+        if result is None:
+            raise ValueError(f"{self.key} has not finished: await it before you give its output file as an input file")
+        if not result.ok:
+            raise ValueError(f"{self.key} ended {result.stop}: its output file is not given as an input file")
+        return InputFile(path)
 
     @property
     def origin(self) -> Origin | None:
@@ -248,6 +268,8 @@ class Node:
     parts: dict[str, str] = field(default_factory=dict)
     #: Why its outside state could not be worked out when it last started; empty when it could.
     outside_error: str = ""
+    #: The input files among its params, as its task call hashed them.
+    input_files: tuple[Bound, ...] = ()
     task: Task | None = field(default=None, repr=False)
 
     @property
@@ -295,10 +317,13 @@ class Graph:
     `stub`: in a stub run, the stub agent that plays its Python tasks (`StubAgent.play_python`)
     but the kinds it executes (`StubAgent.plays`); None runs every function.
     `run_id`: the run's id, for the stub's record of what it played.
+    `cwd`: the working directory (`Pipeline(cwd=)`), which an input file's path is under
+    (`InputFile`); default: this process's.
     """
 
-    def __init__(self, out_dir: Path, *, max_passes: int = MAX_PASSES) -> None:
+    def __init__(self, out_dir: Path, *, max_passes: int = MAX_PASSES, cwd: Path | None = None) -> None:
         self.out_dir = Path(out_dir)
+        self.cwd = Path(os.path.abspath(cwd)) if cwd is not None else Path.cwd()
         self.max_passes = max_passes
         self.nodes: list[Node] = []
         self.results: dict[str, TaskResult] = {}
@@ -413,7 +438,7 @@ class Graph:
                 problems = self.check_credential(spec.kind, credential)
                 if problems:
                     raise ValueError(f"{key}: credential={credential!r}: {'; '.join(problems)}")
-            params, fingerprinted = _params_json(spec, unit, params)
+            params, fingerprinted, files = _params_json(spec, unit, params, lambda file: bind(file, self.cwd, self.out_dir))
             claims = _expand_claims(spec, unit, key, params)  # before the key is taken: a raise leaves no gap in ~n
             out, writer = None, None
             if _writes_output(spec):
@@ -439,7 +464,7 @@ class Graph:
                 flow=frames,
                 created_from=call.frontier if call is not None else (),
                 flow_call=call_id,
-                given_from=self._given_from(params),
+                given_from=self._given_from(params, files),
             )
             filled = {"unit": glob.escape(unit or base), "key": glob.escape(base), "kind": spec.kind}
             node = Node(
@@ -456,6 +481,7 @@ class Graph:
                 credential=credential,
                 cancellable=cancellable,
                 fingerprinted=fingerprinted,
+                input_files=files,
             )
             node.at_start = getattr(spec, "outside_state", None) is not None or getattr(spec, "output_of", None) is not None
             node.fingerprint = self._fingerprint(node)
@@ -503,10 +529,15 @@ class Graph:
         return _file_digest(node.output_path)
 
     def refusal(self, task: Task) -> str:
-        """Why `task` cannot run: its outside state could not be worked out when it was about
-        to start (`starting`); empty when it could."""
+        """Why `task` cannot run, as it is about to: its outside state could not be worked
+        out (`starting`), or an input file among its params no longer has the content its
+        task call hashed; empty when it can run."""
         node = self._by_key.get(task.key)
-        return node.outside_error if node is not None else ""
+        if node is None:
+            return ""
+        if node.outside_error:
+            return node.outside_error
+        return next((why for bound in node.input_files if (why := changed(bound))), "")
 
     def output_reads(self, task: Task) -> bool:
         """Whether `task`'s output file reads under its current output schema, as the flow
@@ -671,14 +702,15 @@ class Graph:
                 raise ValueError(message)
         self._named[id(spec)] = spec
 
-    def _given_from(self, params: dict[str, Any]) -> tuple[str, ...]:
+    def _given_from(self, params: dict[str, Any], files: Sequence[Bound] = ()) -> tuple[str, ...]:
         """The keys of the tasks whose outputs the flow received so far and are among `params`
         (the JSON of a task call's params), in the order the tasks were created. A value of
         the params, at any depth, counts when its JSON is that of a whole output, or of one
         whole item of an output that is a list (a Rows); a value that counts is not looked
         into further. A field or a text taken out of an output, or a value built from it,
-        counts for nothing."""
-        keys: set[str] = set()
+        counts for nothing. An input file among `files` that is a task's output file counts
+        for that task."""
+        keys: set[str] = {key for bound in files if (key := self._writers.get(bound.real)) is not None}
         todo = list(params.values())
         while todo:
             value = todo.pop()
@@ -696,7 +728,9 @@ class Graph:
         """See the module docstring: the digest of each part of the task's work (`Node.parts`,
         named as `Task.fingerprint_parts`), and the fingerprint of them. `definition`: its
         declaration's digest; `params`: the JSON of its params, a Python task's defaults
-        filled in; `outside`: its outside state, for a task that declares one, once it is
+        filled in; `input_files`: the path and hash of each input file among its params,
+        which the params hold too, so a resume tells a changed file from a divergence;
+        `outside`: its outside state, for a task that declares one, once it is
         worked out (`starting`; before, and when it could not be, empty); `output_of`: the
         file it fills in, for an `output_of` task, as it was when the task was about to start
         (before, empty), which stands for the task that wrote it last."""
@@ -704,6 +738,9 @@ class Graph:
         if id(spec) not in self._digests:
             self._digests[id(spec)] = spec.digest()
         parts = {"definition": self._digests[id(spec)], "params": hashlib.sha256(node.fingerprinted.encode()).hexdigest()}
+        if node.input_files:
+            files = sorted([bound.shown, bound.sha256] for bound in node.input_files)
+            parts["input_files"] = hashlib.sha256(_canonical(files).encode()).hexdigest()
         if getattr(spec, "outside_state", None) is not None:
             parts["outside"] = node.outside
         if getattr(spec, "output_of", None) is not None:
@@ -754,14 +791,14 @@ class Graph:
             partial = None
             if self.stub is not None and self.stub.plays(node.spec.kind):
                 params = copy.deepcopy(node.params)
-                node.spec.arguments(node.unit, params)  # a stub run refuses what a run refuses
+                node.spec.arguments(node.unit, params, cwd=self.cwd)  # a stub run refuses what a run refuses
                 rows = is_rows(schema)
                 json_schema = row_of(schema).model_json_schema() if node.output_path is not None and schema is not None else None
                 has_output, value = self.stub.play_python(self.run_id, node.key, node.spec.kind, node.unit, params, json_schema, rows=rows)
                 if not has_output:
                     return None
             else:
-                value = node.spec.invoke(node.unit, copy.deepcopy(node.params))
+                value = node.spec.invoke(node.unit, copy.deepcopy(node.params), cwd=self.cwd)
                 if isinstance(value, Partial):
                     partial, value = value, value.value
             # A Python task is given an output path only when it declares an output schema.
@@ -963,22 +1000,69 @@ def _refuse_pendings(kind: str, params: dict[str, Any]) -> None:
             )
 
 
-def _params_json(spec: Any, unit: str, params: dict[str, Any] | BaseModel) -> tuple[dict[str, Any], str]:
-    """The params of a task call as JSON, and the text of the JSON its fingerprint holds:
-    an agent task's instance of its params model as the JSON of its fields, checked again
-    under the model, so a value set on the instance after it was made is checked too; a
-    Python task's arguments as given, and for its fingerprint with the defaults of the
-    function's parameters filled in. TypeError for a `Pending` among them, a value that is
-    not JSON, or an instance whose JSON does not validate under its model."""
+def _input_files(value: Any, seen: set[int] | None = None) -> Iterator[InputFile]:
+    """Each `InputFile` in `value`, at any depth (`_inside`)."""
+    if isinstance(value, InputFile):
+        yield value
+        return
+    if isinstance(value, (str, bytes, int, float, type(None))):
+        return
+    seen = set() if seen is None else seen
+    if id(value) in seen:
+        return
+    seen.add(id(value))
+    for _, inner in _inside(value):
+        yield from _input_files(inner, seen)
+
+
+def _bound_files(kind: str, params: dict[str, Any], hashed: Callable[[InputFile], Bound]) -> dict[Path, Bound]:
+    """The input files among `params`, by the path each holds, hashed (`bind`). ValueError,
+    naming the task, for one outside the working directory or that names no file."""
+    out: dict[Path, Bound] = {}
+    for file in _input_files(params):
+        if file.path not in out:
+            try:
+                out[file.path] = hashed(file)
+            except ValueError as exc:
+                raise ValueError(f"{kind}(): {exc}") from None
+    return out
+
+
+def _input_file_json(bindings: dict[Path, Bound]) -> Callable[[Any], Any]:
+    """`to_jsonable_python`'s fallback: an input file as its task call hashed it; any other
+    value it has no JSON for is refused as before."""
+
+    def fallback(value: Any) -> Any:
+        if isinstance(value, InputFile) and value.path in bindings:
+            return bindings[value.path].json()
+        raise PydanticSerializationError(f"Unable to serialize unknown type: {type(value)}")
+
+    return fallback
+
+
+def _params_json(
+    spec: Any, unit: str, params: dict[str, Any] | BaseModel, hashed: Callable[[InputFile], Bound]
+) -> tuple[dict[str, Any], str, tuple[Bound, ...]]:
+    """The params of a task call as JSON, the text of the JSON its fingerprint holds, and
+    the input files among them: an agent task's instance of its params model as the JSON
+    of its fields, checked again under the model, so a value set on the instance after it
+    was made is checked too; a Python task's arguments as given, and for its fingerprint
+    with the defaults of the function's parameters filled in. Each input file is hashed
+    here (`hashed`) and is its path and hash in the JSON. TypeError for a `Pending` among
+    them, a value that is not JSON, or an instance whose JSON does not validate under its
+    model; ValueError for an input file outside the working directory."""
     kind = spec.kind
+    fields = dict(params) if isinstance(params, BaseModel) else params
+    _refuse_pendings(kind, fields)
+    bindings = _bound_files(kind, fields, hashed)
+    context = {BINDINGS: bindings}
     if isinstance(params, BaseModel):
         model = type(params)
-        _refuse_pendings(kind, dict(params))
-        for name, value in dict(params).items():  # JSON mode would write a NaN or an infinity as null
+        for name, value in fields.items():  # JSON mode would write a NaN or an infinity as null
             if (where := _non_finite(value, name)) is not None:
                 raise TypeError(f"{kind}(): params hold a value that is not JSON: {where} is not a finite number")
         try:
-            dumped = params.model_dump(mode="json", by_alias=False, warnings="error")
+            dumped = params.model_dump(mode="json", by_alias=False, warnings="error", context=context)
         except PydanticSerializationError as exc:
             raise TypeError(f"{kind}(): params hold a value that is not JSON or not of its field's type: {exc}") from None
         try:
@@ -986,11 +1070,10 @@ def _params_json(spec: Any, unit: str, params: dict[str, Any] | BaseModel) -> tu
         except ValidationError as exc:
             raise TypeError(f"{kind}(): params do not validate under {model.__name__}: {_errors(exc)}") from None
     else:
-        _refuse_pendings(kind, params)
         given = {}
         for name, value in params.items():
             try:
-                given[name] = to_jsonable_python(value)
+                given[name] = to_jsonable_python(value, context=context, fallback=_input_file_json(bindings))
             except PydanticSerializationError:
                 raise TypeError(
                     f"{kind}(): {name} is a {type(value).__name__}, which is not JSON; a task is given JSON values "
@@ -1004,7 +1087,7 @@ def _params_json(spec: Any, unit: str, params: dict[str, Any] | BaseModel) -> tu
         defaults = _defaults(spec, params if isinstance(params, dict) else {})
         if defaults:
             text = _canonical({**defaults, **given})
-    return given, text
+    return given, text, tuple(bindings.values())
 
 
 def _defaults(spec: Any, params: dict[str, Any]) -> dict[str, Any]:
