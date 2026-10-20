@@ -28,10 +28,9 @@ to 0.1 seconds (half a minute at the default scale). The figures carry the noise
 real sleeps and threads: a few percent between two runs of the same seed.
 
 The scenarios are listed in `SCENARIOS`: the demo's flows (`docs`, an async flow with
-a review loop per unit, and `docs_one_review`, which does not wait, so the queue knows
-each task's successors early: it orders the same tasks with `after=` and gives them
-values of the same shape in place of the outputs, which a flow that does not wait
-cannot pass on; copied here without the demo's command validators,
+a review loop per unit, and `docs_one_review`, one review per unit; up to 0.6.2
+`docs_one_review` did not wait, so the queue knew each task's successors early, and
+`results/0.6.2.json` measured it so; copied here without the demo's command validators,
 which start a Python process each and would hold a slot for minutes at this scale),
 the analysis example as it is (nested flows, the `heavy` claim), and synthetic flows:
 chains of different lengths on two slots, fan-out and join, a claim every second unit
@@ -272,16 +271,16 @@ def report(summaries: list[Summary]) -> str:
     return "\n".join(f"{s.unit}: {len(s.points)} points" for s in summaries)
 
 
-def docs_one_review(units: list[str]):
-    summaries = []
-    for u in units:
-        placeholder = Summary(unit=u, points=["parses a config file", "validates it", "reports errors"])
-        summary = summarize.options(after=[prepare(u)])(u, SummarizeParams(prepared=Prepared(unit=u, words=12)))
-        figures = score.options(after=[summary])(u, summary=placeholder)
-        review.options(after=[summary, figures])(u, ReviewParams(summary=placeholder, score=Score(points=3, words=7)))
-        write_note.options(after=[summary])(u, NoteParams(summary=placeholder))
-        summaries.append(summary)
-    return report.options(after=summaries)(summaries=[Summary(unit=u, points=[]) for u in units])
+async def one_review(unit: str) -> Summary:
+    summary = await summarize(unit, SummarizeParams(prepared=await prepare(unit)))
+    figures = await score(unit, summary=summary)
+    await asyncio.gather(review(unit, ReviewParams(summary=summary, score=figures)), write_note(unit, NoteParams(summary=summary)))
+    return summary
+
+
+async def docs_one_review(units: list[str]):
+    done = await asyncio.gather(*[one_review(u) for u in units], return_exceptions=True)
+    return await report(summaries=[s for s in done if isinstance(s, Summary)])
 
 
 async def review_loop(unit: str):
@@ -511,7 +510,7 @@ SCENARIOS: list[Scenario] = [
     ),
     Scenario(
         "demo-one-review",
-        "`docs_one_review`: the same tasks as `demo`, created without waiting, so each task's successors are known early; "
+        "`docs_one_review`: the same tasks as `demo`, one review per unit (up to 0.6.2 created without waiting); "
         "the note does not wait for the review",
         lambda: (docs_one_review, {"units": DEMO_UNITS}),
         3,
@@ -566,9 +565,8 @@ SCENARIOS: list[Scenario] = [
 
 def _figures(scenario: Scenario, stub: SlowStub, report: Any, scale: float) -> dict[str, Any]:
     timed = sorted(stub.timed, key=lambda launch: launch.start)
-    if not timed:
-        return {"makespan": 0.0, "launches": 0}
-    first, last = timed[0].start, max(launch.end for launch in timed)
+    # A run that launched nothing (every agent task deferred) has every figure, each 0 but its counts.
+    first, last = (timed[0].start, max(launch.end for launch in timed)) if timed else (0.0, 0.0)
     makespan = (last - first) / scale
     busy = sum((launch.end - launch.start) / scale for launch in timed)
     out: dict[str, Any] = {

@@ -17,13 +17,16 @@ TOOL = Path(__file__).resolve().parents[1] / "benchmarks" / "schedule.py"
 def bench(tmp_path: Path, *args: str) -> dict:
     out = tmp_path / "result"
     command = [sys.executable, str(TOOL), "run", "--out", str(out), "--seeds", "1", *args]
-    subprocess.run(command, check=True, capture_output=True, timeout=900)
+    proc = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=900)
+    assert proc.returncode == 0, proc.stdout[-2000:] + proc.stderr[-2000:]
     assert out.with_name(f"{out.name}.md").read_text(encoding="utf-8").startswith("# Scheduling benchmark")
     return json.loads(out.with_name(f"{out.name}.json").read_text(encoding="utf-8"))
 
 
 def test_a_scenario_runs_twice_and_reports_its_figures(tmp_path):
-    result = bench(tmp_path, "--scenarios", "demo-deadline", "--scale", "0.02", "--jobs", "1")
+    # One minute of agent work in 0.1 s: the run's deadline (15 minutes) is 1.5 s, well past what
+    # starting a run and its first Python task take on a slow runner, so agent tasks launch.
+    result = bench(tmp_path, "--scenarios", "demo-deadline", "--scale", "0.1", "--jobs", "1")
     runs = result["scenarios"]["demo-deadline"]["runs"]
     for run in ("first", "second"):
         (figures,) = runs[run]
