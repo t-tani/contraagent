@@ -112,7 +112,7 @@ def run_all():
 
     def live():
         for name, task in tasks.items():
-            handles[name] = task(name, path=f"in/{name}.md")
+            handles[name] = task(name, Doc(path=f"in/{name}.md"))
 
     report = Pipeline(ws / "pipeline.toml", runs_dir=ws / "runs", cwd=ws, max_concurrent=2, log=print).run(live)
     mon = Monitor(ws / "runs")

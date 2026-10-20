@@ -147,20 +147,26 @@ A schema cannot say everything. A rule it cannot express is a **validator**: a
 function that takes the file's path and its value and returns a list of errors
 (None or an empty list when the file passes).
 
-::code{file="examples/tutorial/tasks.py" from="def short_summary(" to="triage = agent_task("}
+::code{file="examples/tutorial/tasks.py" from="def short_summary(" to="class TriageParams("}
 
 ## 3. Declare the agent task
 
-`agent_task` declares the interface: the kind's name, the plugin and role that
-implement it, the output model, the validators, and a default budget. Every
-kind needs `max_turns` and `timeout_s`, here or in the config, so that no
+What a task is given is its **params**, and a pydantic model declares them too: each
+field is one param, and its `description` reaches the agent beside the value, in the
+JSON Schema of the params.
+
+::code{file="examples/tutorial/tasks.py" from="class TriageParams(" to="class PlanParams("}
+
+`agent_task` declares the interface: the kind's name, the params model, the plugin
+and role that implement it, the output model, the validators, and a default budget.
+Every kind needs `max_turns` and `timeout_s`, here or in the config, so that no
 agent runs without a limit.
 
 ::code{file="examples/tutorial/tasks.py" from="triage = agent_task(" to="plan_fix = agent_task("}
 
 Note what is not here: no prompt. What the agent should do is in the plugin
-(step 4). What it should do it *with* is in the task's params, which you give
-when the flow calls the task (step 6).
+(step 4). What it should do it *with* is in the task's params, an instance of
+`TriageParams` that the flow gives when it calls the task (step 6).
 
 `plugin="plugins/triage"` is relative to `tasks.py`. The import fails until
 the plugin exists and defines the role `triager`.
@@ -203,8 +209,10 @@ your process.
 
 A flow is a function that calls the tasks. The first argument of a task call is
 the **unit**, what the kind is applied to: here the report's name. One kind on one
-unit is one **task** (`triage · login-timeout`). The keyword arguments are its
-params.
+unit is one **task** (`triage · login-timeout`). The second argument is its params,
+an instance of its params model. A type checker (mypy, pyright) knows the model of
+each task, so a misspelled field or a value of another type is found before anything
+runs. A Python task is called as its function is.
 
 ::code{file="examples/tutorial/tasks.py" from="def report_path(" to="async def triage_one("}
 
@@ -244,10 +252,10 @@ uv run contraagent run tasks.py:triage_all --stub --kwargs '{"reports": ["login-
 
 ```
 4 tasks created:
-  triage · login-timeout | completed | triage_all (line 63)
-  triage · csv-export | completed | triage_all (line 63)
-  triage · dark-mode | completed | triage_all (line 63)
-  write_table | completed | triage_all (line 64)
+  triage · login-timeout | completed | triage_all (line 72)
+  triage · csv-export | completed | triage_all (line 72)
+  triage · dark-mode | completed | triage_all (line 72)
+  write_table | completed | triage_all (line 73)
 ✓ 4/4 tasks done in 1.3s; run in runs/triage_all-stub
 ```
 
@@ -337,9 +345,12 @@ and plain Python decides what runs next. A task call does not wait by itself:
 `await` waits.
 
 Add a model and a task for the fix plan, and a role `agents/planner.md` in the
-same plugin:
+same plugin. A planner is given the report and its triage: its params model extends
+`TriageParams`, so the report is declared once.
 
 ::code{file="examples/tutorial/tasks.py" from="class FixPlan(" to="def short_summary("}
+
+::code{file="examples/tutorial/tasks.py" from="class PlanParams(" to="triage = agent_task("}
 
 ::code{file="examples/tutorial/tasks.py" from="plan_fix = agent_task(" to="@python_task"}
 

@@ -19,6 +19,15 @@ class Verdict(BaseModel):
     same: bool
 
 
+class Titles(BaseModel):
+    first: str
+    second: str
+
+
+class Title(BaseModel):
+    first: str
+
+
 ROLE = (
     "---\nname: judge\ndescription: Judges whether two titles name one subject.\ntools: Read\n---\n\n"
     "- Answer whether the two titles name one subject.\n"
@@ -36,7 +45,15 @@ def plugin(tmp_path):
 
 def judge_task(plugin, **kw):
     return agent_task(
-        "judge", plugin=plugin, output=Verdict, output_from="message", tools=(), max_turns=2, timeout_s=60, **{"model": "m", **kw}
+        "judge",
+        plugin=plugin,
+        output=Verdict,
+        params=Titles,
+        output_from="message",
+        tools=(),
+        max_turns=2,
+        timeout_s=60,
+        **{"model": "m", **kw},
     )
 
 
@@ -47,7 +64,7 @@ def run(tmp_path, flow, stub):
 def test_the_call_is_in_the_prompt_and_the_role_is_the_system_prompt(plugin, tmp_path):
     judge = judge_task(plugin)
     stub = StubAgent({"judge": {"same": True}})
-    report = run(tmp_path, lambda: judge("a", first="Acme patches VPN", second="VPN flaw fixed by Acme"), stub)
+    report = run(tmp_path, lambda: judge("a", Titles(first="Acme patches VPN", second="VPN flaw fixed by Acme")), stub)
     assert report.ok, report.failed
     [launch] = stub.launches
     prompt = launch.launch.prompt
@@ -63,7 +80,7 @@ def test_the_call_is_in_the_prompt_and_the_role_is_the_system_prompt(plugin, tmp
 def test_claude_code_gets_no_tools_and_the_role_as_its_system_prompt(plugin, tmp_path):
     judge = judge_task(plugin)
     stub = StubAgent({"judge": {"same": False}})
-    run(tmp_path, lambda: judge("a", first="x", second="y"), stub)
+    run(tmp_path, lambda: judge("a", Titles(first="x", second="y")), stub)
     argv = ClaudeBackend().argv(stub.launches[0].launch)
     assert "--system-prompt=- Answer whether the two titles name one subject." in argv  # one element: it starts with `-`
     assert argv[argv.index("--tools") + 1] == "" and argv[argv.index("--setting-sources") + 1] == ""
@@ -86,7 +103,7 @@ def test_a_message_that_fails_its_checks_goes_back_to_the_same_session(plugin, t
 
     judge = judge_task(plugin, validators=[agrees])
     stub = StubAgent({"judge": [{"same": False}, {"same": True}]})
-    report = run(tmp_path, lambda: judge("a", first="x", second="y"), stub)
+    report = run(tmp_path, lambda: judge("a", Titles(first="x", second="y")), stub)
     assert report.ok, report.failed
     first, fix = stub.launches_of("judge-a")
     assert (first.resumed, fix.resumed) == (False, True)
@@ -96,10 +113,17 @@ def test_a_message_that_fails_its_checks_goes_back_to_the_same_session(plugin, t
 
 def test_a_task_with_no_plugin_has_its_instructions_as_its_system_prompt(tmp_path):
     judge = agent_task(
-        "judge", instructions="You judge two titles.", output=Verdict, output_from="message", tools=(), max_turns=2, timeout_s=60
+        "judge",
+        instructions="You judge two titles.",
+        output=Verdict,
+        params=Title,
+        output_from="message",
+        tools=(),
+        max_turns=2,
+        timeout_s=60,
     )
     stub = StubAgent({"judge": {"same": True}})
-    run(tmp_path, lambda: judge("a", first="x"), stub)
+    run(tmp_path, lambda: judge("a", Title(first="x")), stub)
     launch = stub.launches[0].launch
     assert launch.system_prompt == "You judge two titles."
     assert "You judge two titles." not in launch.prompt and '"first": "x"' in launch.prompt
@@ -120,7 +144,10 @@ def test_tools_are_checked_where_they_are_declared(plugin, tmp_path):
     (common / "skills" / "s" / "SKILL.md").write_text("---\nname: s\ndescription: d\n---\nx\n")
     with pytest.raises(TypeError, match="loads no skill"):
         judge_task(plugin, skills_from=[common])
-    light, full = judge_task(plugin), agent_task("judge", plugin=plugin, output=Verdict, output_from="message", max_turns=2, timeout_s=60)
+    light, full = (
+        judge_task(plugin),
+        agent_task("judge", plugin=plugin, output=Verdict, params=Titles, output_from="message", max_turns=2, timeout_s=60),
+    )
     assert "tools" in light.differences(full) and light.digest() != full.digest()
 
 

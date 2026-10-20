@@ -76,7 +76,11 @@ def test_the_example_is_the_first_of_examples_at_every_part_of_the_schema():
     assert example(Outer.model_json_schema()) == ({"tag": "T-1", "item": {"id": "ghi", "score": 3}, "count": 4}, [])
 
 
-find = agent_task("find", instructions="Find items in params.path.", output=Found, max_turns=5, timeout_s=60, retries=0)
+class FindParams(BaseModel):
+    path: str
+
+
+find = agent_task("find", instructions="Find items in params.path.", output=Found, params=FindParams, max_turns=5, timeout_s=60, retries=0)
 tag = agent_task("tag", instructions="Tag the unit.", output=Tagged, max_turns=5, timeout_s=60, retries=0)
 calls: list[str] = []
 
@@ -94,7 +98,7 @@ def publish(found: list[Found]) -> None:
 
 async def flow(units: list[str]):
     paths = await asyncio.gather(*[fetch(u) for u in units])
-    found = await asyncio.gather(*[find(u, path=p) for u, p in zip(units, paths, strict=True)])
+    found = await asyncio.gather(*[find(u, FindParams(path=p)) for u, p in zip(units, paths, strict=True)])
     kept = [f for f in found if f.verdict == "keep"]
     await publish(found=kept)
     return len(kept)
@@ -152,7 +156,7 @@ def test_a_kind_name_holds_no_pattern_character():
         with pytest.raises(TypeError, match=r"holds no \*, \? or \["):
             agent_task(name, instructions="Write it.")
         with pytest.raises(TypeError, match=r"holds no \*, \? or \["):
-            python_task(name=name)(lambda unit: None)
+            python_task(kind=name)(lambda unit: None)
 
 
 def test_the_cli_executes_every_python_task_with_a_star(tmp_path, monkeypatch, capsys):
@@ -281,7 +285,9 @@ mislabeled = agent_task("mislabeled", instructions="Write a note.", output=Annot
 
 
 def test_check_reports_an_example_that_fails_its_own_schema():
-    report = Pipeline(PipelineConfig({}), backends=StubAgent().backends()).check(lambda: [bad("a"), mislabeled("a"), find("a")])
+    report = Pipeline(PipelineConfig({}), backends=StubAgent().backends()).check(
+        lambda: [bad("a"), mislabeled("a"), find("a", FindParams(path="a.md"))]
+    )
     assert not report.ok
     assert [e for e in report.errors if "example" in e] == [
         "bad: output BadExample: its example does not pass its own schema: items: List should have at least 1 item after validation, not 0",
@@ -314,20 +320,31 @@ def names_its_module(path, review: ModuleReview, *, params: dict) -> list[str]:
     return [] if review.module == params["module"] else [f"module: {params['module']!r} expected, got {review.module!r}"]
 
 
+class ReviewParams(BaseModel):
+    module: str
+    path: str
+
+
 reviewed = agent_task(
-    "reviewed", instructions="Review a module.", output=ModuleReview, validators=[names_its_module], max_turns=5, timeout_s=60
+    "reviewed",
+    instructions="Review a module.",
+    output=ModuleReview,
+    params=ReviewParams,
+    validators=[names_its_module],
+    max_turns=5,
+    timeout_s=60,
 )
 
 
 @python_task
-def tally(module: str) -> ModuleReview:
+def tally(unit: str, module: str) -> ModuleReview:
     raise AssertionError("played, not run")
 
 
 def test_an_example_names_each_task_call_s_unit_and_params(tmp_path):
     def flow(modules: list[str]):
         for m in modules:
-            reviewed(m, module=m, path=f"src/{m}.py")
+            reviewed(m, ReviewParams(module=m, path=f"src/{m}.py"))
             tally(m, module=m)
 
     stub = StubAgent(default=writes_example())

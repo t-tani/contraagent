@@ -1,5 +1,7 @@
 """A user's type checker infers the public types: `tests/typing/public_types.py` passes
-`mypy --strict` and pyright `strict` (the repository's own pyright mode is `standard`)."""
+`mypy --strict` and pyright `strict` (the repository's own pyright mode is `standard`), and
+refuses each line marked `# type: ignore[...]`: both checkers report an ignore that
+silences nothing."""
 
 import json
 import subprocess
@@ -19,7 +21,7 @@ def test_mypy_strict_infers_the_public_types(tmp_path: Path):
 
 def test_pyright_strict_infers_the_public_types(tmp_path: Path):
     config = tmp_path / "pyrightconfig.json"
-    config.write_text(json.dumps({"typeCheckingMode": "strict", "pythonVersion": "3.12"}))
+    config.write_text(json.dumps({"typeCheckingMode": "strict", "pythonVersion": "3.12", "reportUnnecessaryTypeIgnoreComment": "error"}))
     pyright = Path(sys.executable).with_name("pyright")
     command = [str(pyright), "--project", str(config), "--pythonpath", sys.executable, str(CHECKED)]
     done = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)

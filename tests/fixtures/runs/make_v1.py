@@ -37,7 +37,13 @@ class Review(BaseModel):
     findings: list[Finding] = Field(default_factory=list)
 
 
-review = agent_task("review", instructions="Review the file in params.path.", output=Review, max_turns=5, timeout_s=60, retries=0)
+class ReviewParams(BaseModel):
+    path: str
+
+
+review = agent_task(
+    "review", instructions="Review the file in params.path.", params=ReviewParams, output=Review, max_turns=5, timeout_s=60, retries=0
+)
 
 
 @python_task
@@ -55,7 +61,7 @@ async def flow(units: list[str]):
     reviews = []
     for unit, path in zip(units, paths, strict=True):
         try:
-            reviews.append(await review(unit, path=path))
+            reviews.append(await review(unit, ReviewParams(path=path)))
         except Exception:
             continue
     return await summary(reviews=reviews)

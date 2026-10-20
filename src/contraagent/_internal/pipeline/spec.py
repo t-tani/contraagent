@@ -1,15 +1,16 @@
 """Declaring tasks: what a pipeline's flow function calls.
 
-* `agent_task(...)` declares an agent task's *interface*: its parameters, its
+* `agent_task(...)` declares an agent task's *interface*: its params model, its
   output, its budget. Its implementation is a plugin (`contraagent.plugins`).
 * `@python_task` turns a Python function into a Python task.
 
-Both are called like functions inside a flow run by `Pipeline.run`; a call
-queues a task and returns a `Pending` reference to its future output, which
-can be passed to another task as a parameter (that is how dependencies are
-written). A task's call options (`key`, `after`, `priority`, an agent task's
-`credential`, `cancellable`) are not keywords of the call: `task.options(...)` returns
-the same task with them, and calling that is the task call.
+Both are called inside a flow run by `Pipeline.run`: an agent task with its unit and an
+instance of its params model (`summarize(unit, SummarizeParams(...))`), a Python task as
+its function. A call queues a task and returns a `Pending` reference to its future
+output, which an async flow awaits for the output. A task's call options (`key`,
+`after`, `priority`, an agent task's `credential`, `cancellable`) are not arguments of
+the call: `task.options(...)` returns the same task with them, and calling that is the
+task call.
 """
 
 from __future__ import annotations
@@ -28,10 +29,10 @@ import typing
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
-from typing import Any, Literal, Protocol, Self, TypeVar, overload
+from typing import Any, Literal, ParamSpec, Protocol, Self, overload
 
-from pydantic import BaseModel, ConfigDict, RootModel, TypeAdapter, ValidationError
-from pydantic.errors import PydanticSchemaGenerationError
+from pydantic import BaseModel, RootModel, TypeAdapter, ValidationError
+from typing_extensions import TypeVar  # a default (PEP 696) before Python 3.13
 
 from contraagent._internal.contracts.pointers import schema_error, syntax_error
 from contraagent._internal.contracts.rows import is_rows, rows_file, rows_model
@@ -45,7 +46,13 @@ from contraagent._internal.plugins import Plugin, PluginError
 from contraagent._internal.plugins.plugin import body
 from contraagent._internal.routing.config import TASK_KEYS, ConfigError, PipelineConfig
 
-Out = TypeVar("Out")
+#: An agent task's params model, None when `agent_task` is given none.
+ParamsT = TypeVar("ParamsT", bound=BaseModel | None, default=None)
+#: An agent task's output, None when `agent_task` is given none.
+OutT = TypeVar("OutT", default=None)
+#: A Python task's parameters and output, in `@python_task(...)`'s decorator.
+_P = ParamSpec("_P")
+_Out = TypeVar("_Out")
 
 
 class OutsideState(Protocol):
@@ -135,11 +142,13 @@ _NO_OPTIONS = _CallOptions()
 
 
 @dataclass(frozen=True, eq=False)
-class AgentTask[Out]:
-    """An agent task's interface. Build one with `agent_task`."""
+class AgentTask[ParamsT: BaseModel | None, Out]:
+    """An agent task's interface. Build one with `agent_task`. `ParamsT` is its params
+    model (None for a task declared without one), `Out` its output (None for none)."""
 
     kind: str
     output: type | None
+    #: Its params model (`agent_task(params=)`); None for a task that takes no params.
     params: type[BaseModel] | None
     plugin: Plugin | None
     role: str | None
@@ -163,7 +172,7 @@ class AgentTask[Out]:
     #: JSON pointers to the parts of the output file a launch must keep (`agent_task(preserve=)`).
     preserve: tuple[str, ...] = ()
     #: The task declaration whose output file this kind writes (`agent_task(output_of=)`).
-    output_of: AgentTask[Any] | PythonTask[Any] | None = None
+    output_of: AgentTask[Any, Any] | PythonTask[..., Any] | None = None
     #: The base kind of an implementation kind (`agent_task(implementations=)`); empty for any other.
     base_kind: str = ""
     #: The function that returns its outside state, which its fingerprint covers (`agent_task(outside_state=)`).
@@ -171,7 +180,7 @@ class AgentTask[Out]:
     #: Its call options (`options`); none for a declaration.
     _options: _CallOptions = dataclasses.field(default=_NO_OPTIONS, init=False, repr=False)
     #: The declaration `options` made it from; None for a declaration itself.
-    _declaration: AgentTask[Any] | None = dataclasses.field(default=None, init=False, repr=False)
+    _declaration: AgentTask[Any, Any] | None = dataclasses.field(default=None, init=False, repr=False)
 
     #: Who executes it (`Task.executor`): a coding agent.
     executor = "agent"
@@ -207,6 +216,15 @@ class AgentTask[Out]:
         return {}
 
     @property
+    def params_json_schema(self) -> dict[str, Any]:
+        """The JSON Schema of its params, as the call file carries it (`params_json_schema`):
+        its params model's, with each field's description and constraints; for a task that
+        takes no params, an object with no properties."""
+        if self.params is None:
+            return {"type": "object", "properties": {}}
+        return self.params.model_json_schema()
+
+    @property
     def light(self) -> bool:
         """A light launch (`tools=()`): no tools, the role as the system prompt, the call in the prompt."""
         return self.tools == ()
@@ -233,7 +251,7 @@ class AgentTask[Out]:
         its `outside_state` function and, for a light launch, that it has no tools."""
         return _digest(self._defined())
 
-    def differences(self, other: AgentTask[Any]) -> list[str]:
+    def differences(self, other: AgentTask[Any, Any]) -> list[str]:
         """What `other`, a declaration of the same kind, declares otherwise: the parts of the
         digest, the plugin, `skills_from`, `config`, `requires`, `claims`, `output_name`,
         `rerun_on_resume` and `base_kind`. None:
@@ -275,27 +293,83 @@ class AgentTask[Out]:
             **({"outside_state": _function_name(self.outside_state)} if self.outside_state is not None else {}),
         }
 
-    def __call__(self, unit: str = "", **params: Any) -> Pending[Out]:
-        """Queue this task for `unit`, with its call options (`options`). `params` are
-        values, copied as JSON here (through the params model, when the task declares one):
-        a `Pending` among them, at any depth, a value that is not JSON, or params the model
-        does not validate raise TypeError, and so does a call option given as a keyword
-        (`key=`) that is no field of the params model: `options` gives it. To give a task
+    @overload
+    def __call__(self: AgentTask[None, Out], unit: str = "", /) -> Pending[Out]: ...
+    @overload
+    def __call__(self, params: ParamsT, /) -> Pending[Out]: ...
+    @overload
+    def __call__(self, unit: str, params: ParamsT, /) -> Pending[Out]: ...
+    def __call__(self, *args: Any, **keywords: Any) -> Pending[Out]:
+        """Queue this task, with its call options (`options`): `task(unit, params)`, or
+        `task(params)` for a task with no unit; a task declared without a params model is
+        called `task(unit)` or `task()`. The unit is a string, empty when left out. `params`
+        is an instance of the task's params model itself (`agent_task(params=)`), not of a
+        subclass, whose fields the model's JSON Schema does not describe. It is copied as
+        JSON here and checked again under the model, so a value set on it after it was
+        made is checked too; a `Pending` in it, at any depth, a value that is not JSON, or
+        a value the model does not take raise TypeError. So does a call that gives params
+        to a task without a model, leaves them out of a task with one, or gives keywords:
+        a params model holds the params, `options` the call options. To give a task
         another task's output, await that task in an async def flow and pass the value."""
-        _refuse_call_options(self.kind, params, set(self.params.model_fields) if self.params is not None else set(), python=False)
-        if self.params is not None:
-            _check_param_names(self.kind, self.params, params)
+        unit, params = self._called(args, keywords)
         o = self._options
         return current_graph().add(
             declaration_of(self),
             unit=unit,
-            params=params,
+            params=params if params is not None else {},
             key=o.key,
             after=o.after,
             priority=o.priority,
             credential=o.credential,
             cancellable=o.cancellable,
         )
+
+    def _called(self, args: tuple[Any, ...], keywords: dict[str, Any]) -> tuple[str, BaseModel | None]:
+        """The unit and the params of a call `task(*args, **keywords)`; TypeError, saying
+        how to write it, for a call this task does not take."""
+        model = self.params
+        shape = f"{self.kind}(unit, {model.__name__}(...))" if model is not None else f"{self.kind}(unit)"
+        if keywords:
+            _refuse_call_options(self.kind, keywords, set(), python=False)
+            names = ", ".join(f"{k}=" for k in keywords)
+            if model is None:
+                raise TypeError(
+                    f"{self.kind}(...): {names}: this task declares no params model, so it takes no params; declare one "
+                    f"(agent_task({self.kind!r}, params=..., ...)) and pass an instance of it (contraagent docs tasks)"
+                )
+            raise TypeError(
+                f"{self.kind}(...): {names}: an agent task takes its params as one instance of its params model, "
+                f"not as keywords: {shape} (contraagent docs tasks)"
+            )
+        if len(args) > 2:
+            raise TypeError(f"{self.kind}(...) takes a unit and its params, not {len(args)} arguments: {shape}")
+        unit: Any = ""
+        params: Any = None
+        if len(args) == 2:
+            unit, params = args
+        elif len(args) == 1 and (isinstance(args[0], str) or (model is None and not isinstance(args[0], BaseModel))):
+            unit = args[0]
+        elif len(args) == 1:
+            params = args[0]
+        if not isinstance(unit, str):
+            raise TypeError(f"{self.kind}(...): the unit is a string, not {unit!r}: {shape}")
+        if model is None:
+            if params is not None:
+                raise TypeError(
+                    f"{self.kind}(...): this task declares no params model, so it takes no params; declare one "
+                    f"(agent_task({self.kind!r}, params=..., ...)) and pass an instance of it (contraagent docs tasks)"
+                )
+            return unit, None
+        if params is None:
+            raise TypeError(f"{self.kind}(...) takes its params, an instance of {model.__name__}: {shape}")
+        if type(params) is not model:
+            if isinstance(params, model):
+                raise TypeError(
+                    f"{self.kind}(...): params is a {type(params).__name__}, a subclass of {model.__name__}; give a "
+                    f"{model.__name__} itself: the task's JSON Schema describes the fields of {model.__name__} only"
+                )
+            raise TypeError(f"{self.kind}(...): params is {type(params).__name__}, and this task takes a {model.__name__}: {shape}")
+        return unit, params
 
     def options(
         self,
@@ -333,11 +407,11 @@ class AgentTask[Out]:
 
 
 @overload
-def agent_task[Out](
+def agent_task(
     kind: str,
     *,
-    output: type[Out],
-    params: type[BaseModel] | None = None,
+    output: type[OutT] | None = None,
+    params: type[ParamsT] | None = None,
     plugin: str | Path | None = None,
     skills_from: Sequence[str | Path] = (),
     role: str | None = None,
@@ -352,7 +426,7 @@ def agent_task[Out](
     tools: Sequence[str] | None = None,
     rerun_on_resume: bool = False,
     preserve: Sequence[str] = (),
-    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
+    output_of: AgentTask[Any, Any] | PythonTask[..., Any] | None = None,
     implementations: None = None,
     outside_state: OutsideState | None = None,
     agent: str | None = None,
@@ -376,15 +450,15 @@ def agent_task[Out](
     partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
-) -> AgentTask[Out]: ...
+) -> AgentTask[ParamsT, OutT]: ...
 
 
 @overload
 def agent_task(
     kind: str,
     *,
-    output: None = None,
-    params: type[BaseModel] | None = None,
+    output: Any,  # a text output, `Annotated[str, Field(examples=[...])]`, is not a type
+    params: type[ParamsT] | None = None,
     plugin: str | Path | None = None,
     skills_from: Sequence[str | Path] = (),
     role: str | None = None,
@@ -399,7 +473,7 @@ def agent_task(
     tools: Sequence[str] | None = None,
     rerun_on_resume: bool = False,
     preserve: Sequence[str] = (),
-    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
+    output_of: AgentTask[Any, Any] | PythonTask[..., Any] | None = None,
     implementations: None = None,
     outside_state: OutsideState | None = None,
     agent: str | None = None,
@@ -423,15 +497,15 @@ def agent_task(
     partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
-) -> AgentTask[None]: ...
+) -> AgentTask[ParamsT, str]: ...
 
 
 @overload
 def agent_task(
     kind: str,
     *,
-    output: Any,  # `Annotated[str, Field(examples=[...])]` is not a type
-    params: type[BaseModel] | None = None,
+    output: type[OutT] | None = None,
+    params: type[ParamsT] | None = None,
     plugin: str | Path | None = None,
     skills_from: Sequence[str | Path] = (),
     role: str | None = None,
@@ -446,54 +520,7 @@ def agent_task(
     tools: Sequence[str] | None = None,
     rerun_on_resume: bool = False,
     preserve: Sequence[str] = (),
-    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
-    implementations: None = None,
-    outside_state: OutsideState | None = None,
-    agent: str | None = None,
-    model: str | None = None,
-    effort: str | None = None,
-    credential: str | None = None,
-    model_failover: bool | None = None,
-    fallbacks: Sequence[Mapping[str, Any]] | None = None,
-    safety_stop_failover: Sequence[Literal["response", "tool"]] | None = None,
-    disallowed_tools: Sequence[str] | None = None,
-    max_turns: int | None = None,
-    timeout_s: float | None = None,
-    max_budget_usd: float | None = None,
-    stall_s: float | None = None,
-    context_budget: int | None = None,
-    context_warn_pct: int | None = None,
-    max_denials: int | None = None,
-    max_concurrent: int | None = None,
-    retries: int | None = None,
-    retry_backoff_base: float | None = None,
-    partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
-    keep_failed_changes: bool | None = None,
-    max_corrections: int | None = None,
-) -> AgentTask[Any]: ...
-
-
-@overload
-def agent_task[Out](
-    kind: str,
-    *,
-    output: type[Out],
-    params: type[BaseModel] | None = None,
-    plugin: str | Path | None = None,
-    skills_from: Sequence[str | Path] = (),
-    role: str | None = None,
-    instructions: str | None = None,
-    validators: Sequence[Validator] = (),
-    output_name: str | None = None,
-    output_from: Literal["file", "message"] = "file",
-    unwrap: bool = False,
-    requires: Sequence[str] = (),
-    claims: Sequence[str] = (),
-    changes: Sequence[str] = (),
-    tools: Sequence[str] | None = None,
-    rerun_on_resume: bool = False,
-    preserve: Sequence[str] = (),
-    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
+    output_of: AgentTask[Any, Any] | PythonTask[..., Any] | None = None,
     implementations: Mapping[str, str | Path],
     outside_state: OutsideState | None = None,
     agent: str | None = None,
@@ -517,15 +544,15 @@ def agent_task[Out](
     partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
-) -> Mapping[str, AgentTask[Out]]: ...
+) -> Implementations[ParamsT, OutT]: ...
 
 
 @overload
 def agent_task(
     kind: str,
     *,
-    output: None = None,
-    params: type[BaseModel] | None = None,
+    output: Any,  # a text output, `Annotated[str, Field(examples=[...])]`, is not a type
+    params: type[ParamsT] | None = None,
     plugin: str | Path | None = None,
     skills_from: Sequence[str | Path] = (),
     role: str | None = None,
@@ -540,7 +567,7 @@ def agent_task(
     tools: Sequence[str] | None = None,
     rerun_on_resume: bool = False,
     preserve: Sequence[str] = (),
-    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
+    output_of: AgentTask[Any, Any] | PythonTask[..., Any] | None = None,
     implementations: Mapping[str, str | Path],
     outside_state: OutsideState | None = None,
     agent: str | None = None,
@@ -564,15 +591,14 @@ def agent_task(
     partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
-) -> Mapping[str, AgentTask[None]]: ...
+) -> Implementations[ParamsT, str]: ...
 
 
-@overload
 def agent_task(
     kind: str,
     *,
-    output: Any,  # `Annotated[str, Field(examples=[...])]` is not a type
-    params: type[BaseModel] | None = None,
+    output: Any = None,  # a type, or `Annotated[str, Field(examples=[...])]`, which is not one
+    params: Any = None,  # a pydantic model, checked here
     plugin: str | Path | None = None,
     skills_from: Sequence[str | Path] = (),
     role: str | None = None,
@@ -587,53 +613,7 @@ def agent_task(
     tools: Sequence[str] | None = None,
     rerun_on_resume: bool = False,
     preserve: Sequence[str] = (),
-    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
-    implementations: Mapping[str, str | Path],
-    outside_state: OutsideState | None = None,
-    agent: str | None = None,
-    model: str | None = None,
-    effort: str | None = None,
-    credential: str | None = None,
-    model_failover: bool | None = None,
-    fallbacks: Sequence[Mapping[str, Any]] | None = None,
-    safety_stop_failover: Sequence[Literal["response", "tool"]] | None = None,
-    disallowed_tools: Sequence[str] | None = None,
-    max_turns: int | None = None,
-    timeout_s: float | None = None,
-    max_budget_usd: float | None = None,
-    stall_s: float | None = None,
-    context_budget: int | None = None,
-    context_warn_pct: int | None = None,
-    max_denials: int | None = None,
-    max_concurrent: int | None = None,
-    retries: int | None = None,
-    retry_backoff_base: float | None = None,
-    partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
-    keep_failed_changes: bool | None = None,
-    max_corrections: int | None = None,
-) -> Mapping[str, AgentTask[Any]]: ...
-
-
-def agent_task[Out](
-    kind: str,
-    *,
-    output: type[Out] | Any | None = None,  # Any: `Annotated[str, Field(examples=[...])]` has no type
-    params: type[BaseModel] | None = None,
-    plugin: str | Path | None = None,
-    skills_from: Sequence[str | Path] = (),
-    role: str | None = None,
-    instructions: str | None = None,
-    validators: Sequence[Validator] = (),
-    output_name: str | None = None,
-    output_from: Literal["file", "message"] = "file",
-    unwrap: bool = False,
-    requires: Sequence[str] = (),
-    claims: Sequence[str] = (),
-    changes: Sequence[str] = (),
-    tools: Sequence[str] | None = None,
-    rerun_on_resume: bool = False,
-    preserve: Sequence[str] = (),
-    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
+    output_of: AgentTask[Any, Any] | PythonTask[..., Any] | None = None,
     implementations: Mapping[str, str | Path] | None = None,
     outside_state: OutsideState | None = None,
     agent: str | None = None,
@@ -657,7 +637,7 @@ def agent_task[Out](
     partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
-) -> AgentTask[Out] | Mapping[str, AgentTask[Out]]:
+) -> AgentTask[Any, Any] | Implementations[Any, Any]:
     """Declare an agent task.
 
     `kind`: the name of its class of work; it holds no `*`, `?` or `[`, which a pattern of
@@ -669,14 +649,18 @@ def agent_task[Out](
     loads too, after its own plugin's: skills several tasks share. Such a plugin holds
     skills only; its agents, settings, tools and hooks would act on every task that
     loads it, so a plugin with any of them is refused here.
-    `params`: a pydantic model the task's parameters must satisfy (default: any
-    JSON values). They reach the agent in its call file, never in the prompt.
+    `params`: the task's params model, a pydantic model: a task call passes an instance of
+    it (`task(unit, Params(...))`), and the agent gets its fields as JSON in its call file
+    (`params`), with the model's JSON Schema (`params_json_schema`) beside them, so each
+    field's `Field(description=...)` tells the agent what it is; never in the prompt.
+    Without it the task takes no params (`task(unit)`), and is typed `AgentTask[None, Out]`.
     `output`: a pydantic model (a JSON file checked against it), `str` (a text
     document) or `Rows[Row]` (rows: a JSON Lines file, each line one `Row`, which the agent
     may write one row at a time; the flow receives a `Rows`, a list of `Row`);
     `Annotated[str, Field(examples=[...])]` is a text document with an example
     (the model's own example: `model_config = ConfigDict(json_schema_extra={"examples": [...]})`),
-    which a stub run writes (`contraagent.testing.writes_example`). `validators` add checks the file must pass beyond its schema
+    typed as `str`; any other `Annotated` output raises here. A stub run writes the example
+    (`contraagent.testing.writes_example`). `validators` add checks the file must pass beyond its schema
     (`contraagent.Validator`: a Python function, `CommandValidator(["textlint", ...])`); a
     Python validator of rows is given the `Rows`.
     `requires`: traits the credential it runs under must carry (`["zdr"]` for a
@@ -686,8 +670,9 @@ def agent_task[Out](
     `claims`: the names each of its tasks holds while it runs; one task holds a name at
     a time, unless `claim_capacity` (`Pipeline(claim_capacity=)`, `[defaults.claim_capacity]`)
     allows more. A claim is a template: `{unit}`, `{kind}`, `{key}` (the task's key, `~n`
-    included) and `{params.<name>}`, a parameter of the call (a list gives one name per
-    element; an empty list raises at the call). So
+    included) and `{params.<name>}`, a field of the params model, which raises here when
+    the model has no such field (a list gives one name per element; an empty list raises at
+    the call). So
     `["topic:{unit}"]` runs one task at a time on each topic, whatever its kind, and
     `["topic:{params.topics}"]` holds every topic a task names. A task that claims nothing
     runs beside any other.
@@ -751,7 +736,7 @@ def agent_task[Out](
     "go": "plugins/review-go"}` (plugin directories, relative as `plugin` is; it takes the place
     of `plugin`). Each is a kind of its own, `<kind>-<name>` (`review-go`), with that plugin
     and every other argument given here; `kind` is their **base kind**. A name is letters,
-    digits and `_`. It returns a mapping of agent tasks by name: `review["go"](unit)`.
+    digits and `_`. It returns the agent tasks by name (`Implementations`): `review["go"](unit, params)`.
     Each implementation kind takes the `[tasks.<kind>]` table of the base kind, then its own
     `[tasks.<kind>-<name>]` table key by key (its `fallbacks` replace the base kind's); the
     monitor draws its tasks in the base kind's group, unless `Monitor(groups=)` lists the kind.
@@ -840,6 +825,11 @@ def agent_task[Out](
         rows = rows_model(output)
     except TypeError as exc:
         raise TypeError(f"agent_task({kind!r}): output {exc}") from None
+    if typing.get_origin(output) is typing.Annotated and not is_text(output):
+        raise TypeError(
+            f"agent_task({kind!r}): an Annotated output is a text output with an example, Annotated[str, Field(examples=[...])], "
+            f"not {output!r}; a model's example is the model's own (model_config = ConfigDict(json_schema_extra=...))"
+        )
     if output is not None and rows is None and not is_text(output) and not (isinstance(output, type) and issubclass(output, BaseModel)):
         raise TypeError(f"agent_task({kind!r}): output must be a pydantic model, str or Rows[Model], not {output!r}")
     if params is not None and not (isinstance(params, type) and issubclass(params, BaseModel)):
@@ -879,7 +869,7 @@ def agent_task[Out](
         raise TypeError(f"agent_task({kind!r}): changes holds only patterns that leave paths out (`!`); give one that covers paths")
     if keep_failed_changes and not changes:
         raise TypeError(f"agent_task({kind!r}): keep_failed_changes keeps the files under changes=; give the patterns, or drop it")
-    checked_claims = _checked_claims(f"agent_task({kind!r})", claims)
+    checked_claims = _checked_claims(f"agent_task({kind!r})", claims, _model_fields(params))
     _check_outside_state(f"agent_task({kind!r})", outside_state, rerun_on_resume)
     loaded = Plugin.load(_relative_to(base, plugin)) if plugin is not None else None
     shared = tuple(Plugin.load(_relative_to(base, p)) for p in ([skills_from] if isinstance(skills_from, (str, Path)) else skills_from))
@@ -945,12 +935,13 @@ def _checked_implementations(kind: str, implementations: Any, plugin: Any, instr
     return dict(implementations)
 
 
-class Implementations[Out](Mapping[str, AgentTask[Out]]):
+class Implementations[ParamsT: BaseModel | None, Out](Mapping[str, AgentTask[ParamsT, Out]]):
     """One step declared with several implementations (`agent_task(implementations=)`): an
-    agent task per implementation, by name. `review["go"]` is the kind `review-go`; call it as
-    any agent task (`await review["go"](unit)`). `kind` is their base kind."""
+    agent task per implementation, by name, each typed as the step (`AgentTask[ParamsT, Out]`).
+    `review["go"]` is the kind `review-go`; call it as any agent task
+    (`await review["go"](unit, params)`). `kind` is their base kind."""
 
-    def __init__(self, kind: str, tasks: Mapping[str, AgentTask[Out]]) -> None:
+    def __init__(self, kind: str, tasks: Mapping[str, AgentTask[ParamsT, Out]]) -> None:
         self.kind = kind
         self._tasks = dict(tasks)
 
@@ -959,7 +950,7 @@ class Implementations[Out](Mapping[str, AgentTask[Out]]):
         """The implementation kinds, in the order declared (`review-python`, `review-go`)."""
         return [t.kind for t in self._tasks.values()]
 
-    def __getitem__(self, name: str) -> AgentTask[Out]:
+    def __getitem__(self, name: str) -> AgentTask[ParamsT, Out]:
         try:
             return self._tasks[name]
         except KeyError:
@@ -1035,11 +1026,13 @@ def _checked_tools(kind: str, tools: Sequence[str] | None) -> tuple[str, ...] | 
 
 
 @dataclass(frozen=True, eq=False)
-class PythonTask[Out]:
-    """A Python function as a task. Build one with `@python_task`. Its kind is its name."""
+class PythonTask[**P, Out]:
+    """A Python function as a task. Build one with `@python_task`. It is called as its
+    function is (`P`, its parameters), and its output is `Out`."""
 
-    fn: Callable[..., Out]
-    name: str
+    fn: Callable[P, Any]
+    #: Its kind: the function's name, unless `python_task(kind=)` names another.
+    kind: str
     output_schema: type[BaseModel] | None
     validators: tuple[Validator, ...]
     claims: tuple[str, ...] = ()
@@ -1058,7 +1051,7 @@ class PythonTask[Out]:
     #: Its call options (`options`); none for a declaration.
     _options: _CallOptions = dataclasses.field(default=_NO_OPTIONS, init=False, repr=False)
     #: The declaration `options` made it from; None for a declaration itself.
-    _declaration: PythonTask[Any] | None = dataclasses.field(default=None, init=False, repr=False)
+    _declaration: PythonTask[..., Any] | None = dataclasses.field(default=None, init=False, repr=False)
 
     #: Who executes it (`Task.executor`): this process, in Python.
     executor = "python"
@@ -1066,28 +1059,26 @@ class PythonTask[Out]:
     output_format = "json"
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_param_types", _ParamTypes(self.fn))  # once, at declaration
+        object.__setattr__(self, "_param_types", _ParamTypes(self.kind, self.fn))  # once, at declaration
         if is_rows(self.output_schema):
             object.__setattr__(self, "output_format", "jsonl")
 
-    @property
-    def kind(self) -> str:
-        return self.name
-
-    def __call__(self, unit: str = "", **kwargs: Any) -> Pending[Out]:
-        """Queue this Python task for `unit`, with its call options (`options`); the function
-        runs with `kwargs`, copied as JSON here (a `Pending` among them, at any depth, or a
-        value that is not JSON raises TypeError) and converted to its parameters'
-        annotations. A function with a `unit` parameter is given the unit too. A call the
-        function could not take (a keyword it has no parameter for, a required parameter
-        left out) raises TypeError here, and so does a call option given
-        as a keyword (`key=`) that the function has no parameter for: `options` gives it."""
-        self._check_call(unit, kwargs)
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Pending[Out]:
+        """Queue this Python task, with its call options (`options`). It is called as its
+        function is: the arguments are bound to the function's parameters, and the one named
+        `unit`, a string, is the task's unit (a function without it makes tasks with no
+        unit). The rest are its params, copied as JSON here (a `Pending` among them, at any
+        depth, or a value that is not JSON raises TypeError) and converted to their
+        parameters' annotations when the task runs. A call the function could not take (a
+        keyword it has no parameter for, a required parameter left out) raises TypeError
+        here, and so does a call option given as a keyword (`key=`) that the function has
+        no parameter for: `options` gives it."""
+        unit, params = self._bound(args, kwargs)
         o = self._options
         return current_graph().add(
             declaration_of(self),
             unit=unit,
-            params=kwargs,
+            params=params,
             key=o.key,
             after=o.after,
             priority=o.priority,
@@ -1110,19 +1101,30 @@ class PythonTask[Out]:
         )
         return _with_options(self, made)
 
-    def _check_call(self, unit: str, kwargs: dict[str, Any]) -> None:
-        """TypeError when the function could not be called with `kwargs` (and the unit, for a
-        `unit` parameter), as `invoke` would call it."""
-        try:
-            signature = inspect.signature(self.fn)
-        except (TypeError, ValueError):  # a callable with no signature to read
-            return
+    def _bound(self, args: tuple[Any, ...], kwargs: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+        """The unit and the params of a call `task(*args, **kwargs)`: the arguments bound to
+        the function's parameters, the one named `unit` taken out. TypeError when the function
+        could not be called so, and, at the first call, when its annotations do not resolve."""
+        signature = inspect.signature(self.fn)  # read at declaration (`_checked_signature`), so it reads
         _refuse_call_options(self.kind, kwargs, set(signature.parameters), python=True)
-        given = {**kwargs, "unit": unit} if unit and "unit" not in kwargs and "unit" in signature.parameters else kwargs
         try:
-            signature.bind(**given)
+            bound = signature.bind(*args, **kwargs)
         except TypeError as exc:
-            raise TypeError(f"{self.kind}(...): the function cannot take this call: {exc} (contraagent docs tasks, Python tasks)") from None
+            hint = ""
+            if "unit" not in signature.parameters and args and isinstance(args[0], str):
+                hint = "; a Python task is given its unit through a parameter named unit (def f(unit: str, ...))"
+            raise TypeError(
+                f"{self.kind}(...): the function cannot take this call: {exc}{hint} (contraagent docs tasks, Python tasks)"
+            ) from None
+        params = dict(bound.arguments)
+        unit: Any = ""
+        if "unit" in signature.parameters:
+            default = signature.parameters["unit"].default
+            unit = params.pop("unit") if "unit" in params else (default if default is not inspect.Parameter.empty else "")
+            if not isinstance(unit, str):
+                raise TypeError(f"{self.kind}(...): unit is the task's unit, a string, not {unit!r}")
+        self._param_types.adapters()
+        return unit, params
 
     def digest(self) -> str:
         """A digest of what defines this kind of task, part of each task's fingerprint: the
@@ -1185,41 +1187,47 @@ class PythonTask[Out]:
     def arguments(self, unit: str, kwargs: dict[str, Any]) -> dict[str, Any]:
         """The function's arguments: `kwargs` and the unit for a `unit` parameter, each checked and converted against its parameter's
         annotation (`_ParamTypes`). `InvalidInput` when one does not match."""
-        if unit and "unit" not in kwargs and "unit" in inspect.signature(self.fn).parameters:
+        if "unit" in inspect.signature(self.fn).parameters:
             kwargs = {**kwargs, "unit": unit}
         return self._param_types.convert(kwargs)
 
     def invoke(self, unit: str, kwargs: dict[str, Any]) -> Any:
         """Call the function with its `arguments`; `InvalidInput` before the call when one
         does not match its annotation."""
-        return self.fn(**self.arguments(unit, kwargs))
+        fn: Callable[..., Any] = self.fn  # its arguments are bound by name (`arguments`)
+        return fn(**self.arguments(unit, kwargs))
 
 
 class _ParamTypes:
     """A Python task's parameters as types: one pydantic `TypeAdapter` per annotated
-    parameter, built once, when the task is declared. `convert` validates each argument
-    in pydantic's lax mode and gives the converted value: a dict given to a model
-    parameter becomes the model, a list of dicts given to `list[Model]` a list of models,
-    `"3"` given to `int` 3. An unannotated parameter, or one annotated `Any`, takes its
-    argument as it is; so does every parameter of a function whose annotations do not
-    resolve. A class pydantic has no schema for is checked with `isinstance`. Annotations
-    that name a type defined after the function resolve at the first call instead."""
+    parameter, built once. `convert` validates each argument in pydantic's lax mode and
+    gives the converted value: a dict given to a model parameter becomes the model, a list
+    of dicts given to `list[Model]` a list of models, `"3"` given to `int` 3. An
+    unannotated parameter, or one annotated `Any`, takes its argument as it is. A Python
+    task is given JSON, so an annotation pydantic has no JSON Schema for raises TypeError
+    where the task is declared. Annotations that name a type defined after the function
+    resolve at the first call instead; one that names what is not defined then (a type
+    imported under `if TYPE_CHECKING:` only) raises TypeError at that call."""
 
-    def __init__(self, fn: Callable[..., Any]) -> None:
+    def __init__(self, kind: str, fn: Callable[..., Any]) -> None:
+        self._kind = kind
         self._fn = fn
         self._adapters: dict[str, TypeAdapter[Any]] | None = None
         try:
-            self._adapters = _param_adapters(fn)
+            self._adapters = _param_adapters(kind, fn)
         except NameError:  # a type defined later in its module: resolved at the first call
             pass
 
     def adapters(self) -> dict[str, TypeAdapter[Any]]:
-        """The adapters by parameter name."""
+        """The adapters by parameter name. TypeError when an annotation does not resolve."""
         if self._adapters is None:
             try:
-                self._adapters = _param_adapters(self._fn)
-            except Exception:  # annotations that do not resolve take every argument as it is
-                self._adapters = {}
+                self._adapters = _param_adapters(self._kind, self._fn)
+            except NameError as exc:
+                raise TypeError(
+                    f"{self._kind}(...): an annotation of {_function_name(self._fn)} names {exc.name}, which is not defined "
+                    "when the task is called; import it where Python runs it, not under `if TYPE_CHECKING:` only"
+                ) from None
         return self._adapters
 
     def convert(self, kwargs: dict[str, Any]) -> dict[str, Any]:
@@ -1243,38 +1251,43 @@ class _ParamTypes:
         return out
 
 
-def _param_adapters(fn: Callable[..., Any]) -> dict[str, TypeAdapter[Any]]:
-    """A `TypeAdapter` per annotated named parameter of `fn` (not `Any`). `NameError` when an
-    annotation names a type not defined yet."""
-    hints = typing.get_type_hints(fn)
-    try:
-        params = inspect.signature(fn).parameters.values()
-    except (TypeError, ValueError):
-        return {}
-    named = (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+def _param_adapters(kind: str, fn: Callable[..., Any]) -> dict[str, TypeAdapter[Any]]:
+    """A `TypeAdapter` per annotated parameter of `fn` (not `Any`). `NameError` when an
+    annotation names a type not defined yet; TypeError for one pydantic has no JSON
+    Schema for."""
+    hints = typing.get_type_hints(fn, include_extras=True)
     adapters: dict[str, TypeAdapter[Any]] = {}
-    for p in params:
+    for p in inspect.signature(fn).parameters.values():
         ann = hints.get(p.name, Any)
-        if p.kind not in named or ann is Any:
+        if ann is Any:
             continue
-        adapter = _adapter(ann)
-        if adapter is not None:
-            adapters[p.name] = adapter
+        try:
+            adapter: TypeAdapter[Any] = TypeAdapter(ann)
+            adapter.json_schema()
+        except Exception:
+            raise TypeError(
+                f"python_task({kind!r}): parameter {p.name} is annotated {ann!r}, which has no JSON Schema; a Python task "
+                "is given JSON values: annotate it with a JSON type (str, int, a list, a dict) or a pydantic model"
+            ) from None
+        adapters[p.name] = adapter
     return adapters
 
 
-def _adapter(ann: Any) -> TypeAdapter[Any] | None:
-    """A `TypeAdapter` for `ann`; for a class pydantic has no schema for, an `isinstance`
-    check; None when it can build neither (the argument is taken as it is)."""
+def _checked_signature(owner: str, fn: Callable[..., Any]) -> inspect.Signature:
+    """The signature of a Python task's function: named parameters only, since each one is
+    a param by its name. TypeError for a positional-only parameter, `*args` or `**kwargs`."""
     try:
-        return TypeAdapter(ann)
-    except PydanticSchemaGenerationError:
-        try:
-            return TypeAdapter(ann, config=ConfigDict(arbitrary_types_allowed=True))
-        except Exception:
-            return None
-    except Exception:
-        return None
+        signature = inspect.signature(fn)
+    except (TypeError, ValueError):
+        raise TypeError(f"{owner}: takes a function whose signature Python can read, not {fn!r}") from None
+    for p in signature.parameters.values():
+        if p.kind is inspect.Parameter.POSITIONAL_ONLY:
+            raise TypeError(f"{owner}: parameter {p.name} is positional-only; a Python task's params are named: drop the /")
+        if p.kind is inspect.Parameter.VAR_POSITIONAL:
+            raise TypeError(f"{owner}: *{p.name}: a Python task's params are named; give each its own parameter, or take one list")
+        if p.kind is inspect.Parameter.VAR_KEYWORD:
+            raise TypeError(f"{owner}: **{p.name}: a Python task's params are named; give each its own parameter, or take one dict")
+    return signature
 
 
 def _param_errors(name: str, exc: ValidationError) -> list[str]:
@@ -1290,13 +1303,13 @@ def _param_errors(name: str, exc: ValidationError) -> list[str]:
 # tasks' output, what a flow receives at `await` and what `Pending.output` reads, is the
 # value, an `Out`. The first overload is for a function that always returns `Partial`.
 @overload
-def python_task[Out](fn: Callable[..., Partial[Out]], /) -> PythonTask[Out]: ...
+def python_task[**P, Out](fn: Callable[P, Partial[Out]], /) -> PythonTask[P, Out]: ...
 @overload
-def python_task[Out](fn: Callable[..., Out | Partial[Out]], /) -> PythonTask[Out]: ...
+def python_task[**P, Out](fn: Callable[P, Out | Partial[Out]], /) -> PythonTask[P, Out]: ...
 @overload
 def python_task(
     *,
-    name: str | None = None,
+    kind: str | None = None,
     validators: Sequence[Validator] = (),
     claims: Sequence[str] = (),
     rerun_on_resume: bool = False,
@@ -1304,14 +1317,14 @@ def python_task(
     retry_on: tuple[type[Exception], ...] = (),
     output_name: str | None = None,
     outside_state: OutsideState | None = None,
-) -> Callable[[Callable[..., Out | Partial[Out]]], PythonTask[Out]]: ...
+) -> Callable[[Callable[_P, _Out | Partial[_Out]]], PythonTask[_P, _Out]]: ...
 
 
 def python_task(
     fn: Callable[..., Any] | None = None,
     /,
     *,
-    name: str | None = None,
+    kind: str | None = None,
     validators: Sequence[Validator] = (),
     claims: Sequence[str] = (),
     rerun_on_resume: bool = False,
@@ -1319,9 +1332,14 @@ def python_task(
     retry_on: tuple[type[Exception], ...] = (),
     output_name: str | None = None,
     outside_state: OutsideState | None = None,
-) -> PythonTask[Any] | Callable[[Callable[..., Any]], PythonTask[Any]]:
-    """Turn a function into a Python task of kind `name` (default: the function's
-    name; no `*`, `?` or `[`, as for `agent_task`). Its return annotation is its output: a pydantic model (the schema),
+) -> PythonTask[..., Any] | Callable[[Callable[..., Any]], PythonTask[..., Any]]:
+    """Turn a function into a Python task of kind `kind` (default: the function's
+    name; no `*`, `?` or `[`, as for `agent_task`). A task call calls it as the function is
+    called (`PythonTask[P, Out]` keeps its parameters' types): its parameters are named
+    (no positional-only parameter, `*args` or `**kwargs`, which raise here), each a param
+    but the one named `unit`, which takes the task's unit; each annotation is a type
+    pydantic has a JSON Schema for, since a task is given JSON
+    (`Annotated[T, Field(description=...)]` documents one). Its return annotation is its output: a pydantic model (the schema),
     any JSON-able type (kept as a JSON file), or None (no output). A function that could do
     only part of its work returns `Partial(value, reason=)` (annotated `-> Out | Partial[Out]`):
     `value` is its output as usual, the task finishes ok with stop `partial`, and a resume
@@ -1342,11 +1360,12 @@ def python_task(
     `retry_on` with `retries=0`, raises here. A function that needs a server restores it
     itself at its start, so a fresh attempt finds it running."""
 
-    def wrap(f: Callable[..., Out]) -> PythonTask[Out]:
-        kind = name or f.__name__
-        owner = f"python_task({kind!r})"
-        _check_kind(owner, kind)
-        checked = _checked_claims(owner, claims)
+    def wrap(f: Callable[..., Any]) -> PythonTask[..., Any]:
+        named = kind or f.__name__
+        owner = f"python_task({named!r})"
+        _check_kind(owner, named)
+        signature = _checked_signature(owner, f)
+        checked = _checked_claims(owner, claims, set(signature.parameters) - {"unit"})
         tries, on = checked_retries(owner, retries, retry_on)
         _check_outside_state(owner, outside_state, rerun_on_resume)
         if output_name is not None:
@@ -1354,7 +1373,7 @@ def python_task(
         schema = _output_schema_of(f)
         return PythonTask(
             fn=f,
-            name=kind,
+            kind=named,
             output_schema=schema,
             validators=tuple(validators),
             claims=checked,
@@ -1440,13 +1459,13 @@ def _type_name(t: type) -> str:
 CALL_OPTIONS = ("key", "after", "priority", "credential", "cancellable")
 
 
-def declaration_of[T: AgentTask[Any] | PythonTask[Any]](task: T) -> T:
+def declaration_of[T: AgentTask[Any, Any] | PythonTask[..., Any]](task: T) -> T:
     """The declaration of `task`: itself, or the one `options` made it from."""
     # `options` sets `_declaration` to a task of the same class as the copy.
     return task._declaration if task._declaration is not None else task  # pyright: ignore[reportReturnType]
 
 
-def _with_options[T: AgentTask[Any] | PythonTask[Any]](task: T, options: _CallOptions) -> T:
+def _with_options[T: AgentTask[Any, Any] | PythonTask[..., Any]](task: T, options: _CallOptions) -> T:
     """`task` with `options`: a shallow copy that refers to the same declaration, so nothing
     the declaration built (a Python task's parameter types) is built again."""
     made = copy.copy(task)
@@ -1511,9 +1530,10 @@ def _checked_credential(where: str, credential: Any) -> str:
     return credential
 
 
-def _checked_claims(owner: str, claims: Sequence[str]) -> tuple[str, ...]:
+def _checked_claims(owner: str, claims: Sequence[str], params: set[str] | None) -> tuple[str, ...]:
     """`claims` as declared, checked: each a non-empty template naming only `{unit}`, `{key}`,
-    `{kind}` and `{params.<name>}`."""
+    `{kind}` and `{params.<name>}`, `<name>` one of `params` (the task's params by name; None
+    for a task that takes none)."""
     if isinstance(claims, str):
         raise TypeError(f"{owner}: claims must be a list of names, not the string {claims!r}")
     out = tuple(claims)
@@ -1531,7 +1551,22 @@ def _checked_claims(owner: str, claims: Sequence[str]) -> tuple[str, ...]:
                 raise ValueError(f"{owner}: claim {claim!r}: {{{field}}} takes no format or conversion")
             if field not in ("unit", "key", "kind") and not PARAM_FIELD.fullmatch(field):
                 raise ValueError(f"{owner}: claim {claim!r} names {field}; it may name unit, key, kind and params.<name>")
+            name = field.removeprefix("params.")
+            if field.startswith("params.") and name not in (params or set()):
+                has = f"its params are {', '.join(sorted(params))}" if params else "it takes no params"
+                raise ValueError(f"{owner}: claim {claim!r} names params.{name}, and {has}")
     return out
+
+
+def _model_fields(model: type[BaseModel] | None) -> set[str] | None:
+    """The names a params model's JSON gives its fields: each field's name, and its alias
+    when it has one. None for no model."""
+    if model is None:
+        return None
+    names = set(model.model_fields)
+    for f in model.model_fields.values():
+        names |= {a for a in (f.alias, f.serialization_alias) if a}
+    return names
 
 
 def _check_kind(owner: str, kind: object) -> None:
@@ -1598,14 +1633,6 @@ def _check_changes_pattern(kind: str, pattern: str) -> None:
         raise ValueError(f"agent_task({kind!r}): changes pattern {pattern!r} names {', '.join(unknown)}; it may name unit, key and kind")
     if _rooted(pattern) or ".." in PureWindowsPath(pattern).parts:
         raise ValueError(f"agent_task({kind!r}): changes pattern {pattern!r} is not inside the working directory")
-
-
-def _check_param_names(kind: str, model: type[BaseModel], params: dict[str, Any]) -> None:
-    unknown = sorted(set(params) - set(model.model_fields))
-    missing = sorted(n for n, f in model.model_fields.items() if f.is_required() and n not in params)
-    if unknown or missing:
-        bits = ([f"unknown {', '.join(unknown)}"] if unknown else []) + ([f"missing {', '.join(missing)}"] if missing else [])
-        raise TypeError(f"{kind}(): parameters do not match {model.__name__}: {'; '.join(bits)}")
 
 
 def _caller_dir() -> Path | None:

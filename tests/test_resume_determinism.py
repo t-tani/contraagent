@@ -31,6 +31,15 @@ class Report(BaseModel):
     items: list[Item]
 
 
+class Order(BaseModel):
+    order: str
+
+
+class Reading(BaseModel):
+    doc: Doc
+    note: str
+
+
 def pipeline(tmp_path, agent, log=None, **kw) -> Pipeline:
     return Pipeline(None, runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path, log=log or (lambda line: None), **kw)
 
@@ -62,13 +71,17 @@ def doc_task(kind: str, instructions: str = "Write."):
     return agent_task(kind, instructions=instructions, output=Doc, max_turns=3, timeout_s=30)
 
 
+def doc_task_of[P: BaseModel](kind: str, params: type[P]):
+    return agent_task(kind, instructions="Write.", params=params, output=Doc, max_turns=3, timeout_s=30)
+
+
 # --- the order the results of skipped tasks are given in ------------------------------------
 
 
 def in_finishing_order():
     """A flow whose params depend on the order its tasks finish in: `y` is called with the
     higher priority, so with one slot it finishes first."""
-    write, report = doc_task("write"), doc_task("report")
+    write, report = doc_task("write"), doc_task_of("report", Order)
 
     async def flow():
         order: list[str] = []
@@ -78,7 +91,7 @@ def in_finishing_order():
             order.append(unit)
 
         await asyncio.gather(one("x", 0), one("y", 2))
-        await report("r", order=",".join(order))
+        await report("r", Order(order=",".join(order)))
 
     return flow
 
@@ -99,11 +112,11 @@ def test_a_resume_gives_the_skipped_results_in_the_order_the_journal_recorded_th
 
 def reading(state: dict[str, str]):
     """`check` is given the output of `write` the flow received, and a note from `state`."""
-    write, check = doc_task("write", state.get("instructions", "Write.")), doc_task("check")
+    write, check = doc_task("write", state.get("instructions", "Write.")), doc_task_of("check", Reading)
 
     async def flow():
         doc = await write("u")
-        await check("u", doc=doc, note=state["note"])
+        await check("u", Reading(doc=doc, note=state["note"]))
 
     return flow
 

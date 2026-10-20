@@ -148,7 +148,7 @@ def run_all(ws):
 
     def live():
         for task, unit in tasks.values():
-            handles[unit] = task(unit, path=f"in/{unit}.md")
+            handles[unit] = task(unit, Doc(path=f"in/{unit}.md"))
 
     pipeline = Pipeline(
         ws / "pipeline.toml",
@@ -451,6 +451,11 @@ class Verdict(BaseModel):
     note: str
 
 
+class ReviseParams(BaseModel):
+    summary: Summary
+    verdict: Verdict
+
+
 brief = agent_task(
     "brief",
     instructions=f"Summarize the document at params.path. Never use the word '{WORD}'.",
@@ -462,6 +467,7 @@ brief = agent_task(
 revise = agent_task(
     "revise",
     instructions="Rewrite params.summary as params.verdict.note asks. Keep its unit.",
+    params=ReviseParams,
     output=Summary,
     max_turns=12,
     timeout_s=300,
@@ -470,6 +476,7 @@ revise = agent_task(
 revise_changed = agent_task(
     "revise",
     instructions="Rewrite params.summary as params.verdict.note asks. Keep its unit and its points.",
+    params=ReviseParams,
     output=Summary,
     max_turns=12,
     timeout_s=300,
@@ -477,7 +484,7 @@ revise_changed = agent_task(
 
 
 @python_task
-def check(summary: Summary) -> Verdict:
+def check(unit: str, summary: Summary) -> Verdict:
     """Approves a summary whose `summary` field contains the word WORD."""
     ok = WORD in summary.summary.lower()
     return Verdict(approved=ok, note="" if ok else f"Add the word '{WORD}' to the summary field, once.")
@@ -490,12 +497,12 @@ def report(summaries: list[Summary]) -> list[str]:
 
 async def review_loop(unit: str, revise_task):
     """One unit: a brief (keyed), then revise until the check approves."""
-    summary = await brief.options(key=f"brief-{unit}-short")(unit, path=f"in/{unit}.md")
+    summary = await brief.options(key=f"brief-{unit}-short")(unit, Doc(path=f"in/{unit}.md"))
     while True:
         verdict = await check(unit, summary=summary)
         if verdict.approved:
             return summary
-        summary = await revise_task(unit, summary=summary, verdict=verdict)
+        summary = await revise_task(unit, ReviseParams(summary=summary, verdict=verdict))
 
 
 async def review_docs(units: list[str], revise_task):

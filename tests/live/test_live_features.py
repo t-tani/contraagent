@@ -158,6 +158,10 @@ class Written(BaseModel):
     topic: str
 
 
+class Subject(BaseModel):
+    subject: str
+
+
 class Effect:
     def snapshot(self, task):
         return None
@@ -211,6 +215,7 @@ def test_changes_are_journaled_and_a_failed_attempt_leaves_none(ws, agent):
         instructions="Create the file topics/${unit}/note.md with one sentence about ${subject}. "
         "Then write the output: the path of that file as `topic`.",
         output=Written,
+        params=Subject,
         changes=["topics/{unit}/**"],
         max_turns=10,
         timeout_s=300,
@@ -229,7 +234,7 @@ def test_changes_are_journaled_and_a_failed_attempt_leaves_none(ws, agent):
     )
 
     def flow():
-        write(f"w-{agent}", subject="tea")
+        write(f"w-{agent}", Subject(subject="tea"))
         stall(f"s-{agent}")
 
     report = pipeline(ws, scopes=[scope], enrichers=[Effect()], row_extras=lambda r: r.payload if isinstance(r.payload, dict) else {}).run(
@@ -257,6 +262,21 @@ class Verdict(BaseModel):
     relevant: bool
 
 
+class Rewrite(BaseModel):
+    path: str
+    rule: str
+
+
+class Merge(BaseModel):
+    topics: list[str]
+    first: str
+    second: str
+
+
+class Source(BaseModel):
+    path: str
+
+
 def spans(lines: list[str]) -> dict[str, tuple[int, int]]:
     """Each task's (start, end) as positions in the progress lines, which are in the order
     the queue started and ended the tasks."""
@@ -274,15 +294,30 @@ def overlap(s: dict[str, tuple[int, int]], a: str, b: str) -> bool:
 def test_claims_keep_writes_to_one_topic_apart_and_leave_the_rest_parallel(ws, agent):
     rewrite = "Rewrite the file ${path} so that it ${rule}. Then write the output: that path as `topic`."
     style = agent_task(
-        f"style_{agent}", instructions=rewrite, output=Written, claims=["topic:{unit}"], max_turns=10, timeout_s=300, **route(agent)
+        f"style_{agent}",
+        instructions=rewrite,
+        output=Written,
+        params=Rewrite,
+        claims=["topic:{unit}"],
+        max_turns=10,
+        timeout_s=300,
+        **route(agent),
     )
     terms = agent_task(
-        f"terms_{agent}", instructions=rewrite, output=Written, claims=["topic:{unit}"], max_turns=10, timeout_s=300, **route(agent)
+        f"terms_{agent}",
+        instructions=rewrite,
+        output=Written,
+        params=Rewrite,
+        claims=["topic:{unit}"],
+        max_turns=10,
+        timeout_s=300,
+        **route(agent),
     )
     merge = agent_task(
         f"merge_{agent}",
         instructions="Append the text of the files ${second} to the file ${first}. Then write the output: ${first} as `topic`.",
         output=Written,
+        params=Merge,
         claims=["topic:{params.topics}"],
         max_turns=10,
         timeout_s=300,
@@ -292,6 +327,7 @@ def test_claims_keep_writes_to_one_topic_apart_and_leave_the_rest_parallel(ws, a
         f"triage_{agent}",
         instructions="Read the file ${path}. Is it about tea? Write the output.",
         output=Verdict,
+        params=Source,
         max_turns=6,
         timeout_s=300,
         **route(agent),
@@ -299,11 +335,11 @@ def test_claims_keep_writes_to_one_topic_apart_and_leave_the_rest_parallel(ws, a
     d = f"claims-{agent}"
 
     def flow():
-        style("alpha", path=f"{d}/alpha.md", rule="uses short sentences")
-        terms("alpha", path=f"{d}/alpha.md", rule="says 'green tea' for every tea")
-        style("beta", path=f"{d}/beta.md", rule="uses short sentences")
-        triage("alpha", path=f"{d}/alpha.md")
-        merge.options(key=f"merge-{agent}")("alpha", topics=["alpha", "beta"], first=f"{d}/alpha.md", second=f"{d}/beta.md")
+        style("alpha", Rewrite(path=f"{d}/alpha.md", rule="uses short sentences"))
+        terms("alpha", Rewrite(path=f"{d}/alpha.md", rule="says 'green tea' for every tea"))
+        style("beta", Rewrite(path=f"{d}/beta.md", rule="uses short sentences"))
+        triage("alpha", Source(path=f"{d}/alpha.md"))
+        merge.options(key=f"merge-{agent}")("alpha", Merge(topics=["alpha", "beta"], first=f"{d}/alpha.md", second=f"{d}/beta.md"))
 
     (ws / d).mkdir(exist_ok=True)
     for name in ("alpha", "beta"):
@@ -568,6 +604,10 @@ class Classified(BaseModel):
     promo: bool
 
 
+class Item(BaseModel):
+    title: str
+
+
 CLASSIFIER = """---
 name: classifier
 description: Classifies one news item.
@@ -593,13 +633,13 @@ def classifier_plugin(ws: Path) -> Path:
 @pytest.mark.parametrize("agent", AGENTS)
 def test_a_light_launch_is_one_call_with_no_tools(ws, agent):
     plugin = classifier_plugin(ws)
-    common = dict(plugin=plugin, output=Classified, output_from="message", max_turns=6, timeout_s=300, **route(agent))
+    common = dict(plugin=plugin, output=Classified, params=Item, output_from="message", max_turns=6, timeout_s=300, **route(agent))
     light = agent_task(f"classify_light_{agent}", tools=(), **common)
     full = agent_task(f"classify_full_{agent}", **common)  # the same judgement with the agent's tools
 
     def flow():
-        light("item", title=ITEM)
-        full("item", title=ITEM)
+        light("item", Item(title=ITEM))
+        full("item", Item(title=ITEM))
 
     report = pipeline(ws, max_concurrent=1).run(flow, run_id=f"light-{agent}")
     show(report)

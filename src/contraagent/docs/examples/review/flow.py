@@ -26,11 +26,27 @@ class Verdict(BaseModel):
     note: str = Field(description="what to change, when not approved")
 
 
-summarize = agent_task("summarize", instructions="Summarize the document at params.path.", output=Summary, max_turns=10, timeout_s=300)
+class SummarizeParams(BaseModel):
+    path: str = Field(description="the document to summarize, relative to the working directory")
+
+
+class ReviewParams(BaseModel):
+    summary: Summary = Field(description="the summary to review")
+
+
+class ReviseParams(BaseModel):
+    summary: Summary = Field(description="the summary to revise")
+    verdict: Verdict = Field(description="the review that did not approve it")
+
+
+summarize = agent_task(
+    "summarize", params=SummarizeParams, instructions="Summarize the document at params.path.", output=Summary, max_turns=10, timeout_s=300
+)
 # A verdict needs no tool: the reviewer's final message is its output (no turn spent on a Write).
 # A verdict is short: one correction round is enough to fix its form (default: 3).
 review = agent_task(
     "review",
+    params=ReviewParams,
     instructions="Review params.summary.",
     output=Verdict,
     output_from="message",
@@ -39,7 +55,12 @@ review = agent_task(
     timeout_s=300,
 )
 revise = agent_task(
-    "revise", instructions="Revise params.summary as params.verdict.note says.", output=Summary, max_turns=10, timeout_s=300
+    "revise",
+    params=ReviseParams,
+    instructions="Revise params.summary as params.verdict.note says.",
+    output=Summary,
+    max_turns=10,
+    timeout_s=300,
 )
 
 
@@ -50,12 +71,12 @@ def report(summaries: list[Summary]) -> str:
 
 async def review_loop(unit: str):
     """One unit: summarize, then revise until the review approves (review-<unit>, review-<unit>~2, ...)."""
-    summary = await summarize(unit, path=f"inputs/{unit}.md")
+    summary = await summarize(unit, SummarizeParams(path=f"inputs/{unit}.md"))
     while True:
-        verdict = await review(unit, summary=summary)
+        verdict = await review(unit, ReviewParams(summary=summary))
         if verdict.approved:
             return summary
-        summary = await revise(unit, summary=summary, verdict=verdict)
+        summary = await revise(unit, ReviseParams(summary=summary, verdict=verdict))
 
 
 async def docs(units: list[str]):

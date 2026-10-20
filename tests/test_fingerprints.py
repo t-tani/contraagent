@@ -15,6 +15,10 @@ class Doc(BaseModel):
     text: str
 
 
+class Given(BaseModel):
+    doc: Doc
+
+
 def pipeline(tmp_path, agent):
     return Pipeline(None, runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path, log=lambda line: None)
 
@@ -25,12 +29,18 @@ def tasks(instructions: str = "Write."):
     return write, check
 
 
+def check_given():
+    """`check` as it is declared when it is given a document."""
+    return agent_task("check", instructions="Check.", params=Given, output=Doc, max_turns=3, timeout_s=30)
+
+
 def passing_on(instructions: str = "Write."):
     """`check` is given the output of `write` the flow received."""
-    write, check = tasks(instructions)
+    write, _ = tasks(instructions)
+    check = check_given()
 
     async def flow():
-        await check("u", doc=await write("u"))
+        await check("u", Given(doc=await write("u")))
 
     return flow
 

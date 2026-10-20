@@ -21,8 +21,13 @@ class Classified(BaseModel):
     promo: bool = Field(description="true when the item advertises a product or a service")
 
 
+class ItemParams(BaseModel):
+    title: str = Field(description="the news item's title")
+
+
 classify = agent_task(
     "classify",
+    params=ItemParams,
     instructions="You classify one news item: its category, and whether it is promotional.",
     output=Classified,
     output_from="message",
@@ -35,4 +40,4 @@ classify = agent_task(
 def items(titles: dict[str, str]):
     """Classify every item at once."""
     for unit, title in titles.items():
-        classify(unit, title=title)
+        classify(unit, ItemParams(title=title))
