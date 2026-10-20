@@ -65,9 +65,11 @@ reads the cumulative done-by-key record, because a journal records keys and a
 dependency means "this work is done", not "this particular launch finished".
 `skip(task)` (resume) is asked once per queued task; a task it accepts finishes
 as `skipped` without launching. A task whose fingerprint is complete only when it
-starts (`Task.fingerprint_at_start`) is asked when it is about to start, its
-dependencies done, after the runner gave the task as it starts (`.starting(task)`,
-below); a retry of it is not asked again.
+starts (`Task.fingerprint_at_start`) is asked as soon as its dependencies are done (when
+it is queued, or when the last of them finishes), with the task as the runner gives it
+as it starts (`.starting(task)`, below): before it waits for a slot, a claim or a cap,
+and before a deadline defers it, so a resume never waits for a slot, or defers, to skip
+work. A task it does not skip is given again as it starts when it starts.
 
 Every task the queue accepts finishes exactly once, through `follow_up`: with
 its last attempt's result, as `skipped`, or as `deferred` (not launched by the
@@ -322,6 +324,7 @@ class WorkQueue:
         self._done: dict[str, TaskResult] = {}  # by .id
         self._done_keys: set[str] = set()  # by .key: what `after` checks
         self._attempt: dict[str, int] = {}
+        self._asked: set[str] = set()  # by .id: the tasks `skip` was asked about before they started
         self._not_before: dict[str, float] = {}
         self._throttled_until = 0.0
         self._consec_throttled = 0
@@ -369,6 +372,7 @@ class WorkQueue:
             return True
         self._queued.append(task)
         self._added += 1
+        self._skip_startable([task])
         if self._wake is not None:
             self._wake.set()
         return True
@@ -633,7 +637,7 @@ class WorkQueue:
             self._ready_since.pop(task.id, None)
             if task.fingerprint_at_start:
                 task = self._starting(task)
-                if self._skip is not None and task.id not in self._attempt and self._skip(task):
+                if self._skip is not None and task.id not in self._asked and task.id not in self._attempt and self._skip(task):
                     self._settle(TaskResult.skipped(task))
                     continue
             attempt = self._attempt.get(task.id, 0) + 1
@@ -641,6 +645,26 @@ class WorkQueue:
             self.on_event("start", task, attempt=attempt, running=len(self._running) + 1, slots=self.slots())
             self._occupy(task)
             self._running[loop.run_in_executor(pool, self.runner.run, task)] = task
+
+    def _skip_startable(self, tasks: Iterable[Task]) -> None:
+        """Ask `skip` about each of `tasks` whose fingerprint is complete only when it starts
+        (`Task.fingerprint_at_start`), that is queued, not asked before, and whose
+        dependencies are done: given as it starts (`starting`), it finishes as `skipped` at
+        once when `skip` accepts it; else it stays queued."""
+        if self._skip is None:
+            return
+        now = time.monotonic()
+        for task in tasks:
+            if not task.fingerprint_at_start or task.id in self._asked or task.id in self._attempt:
+                continue
+            if not self._startable(task, now) or not any(t.id == task.id for t in self._queued):
+                continue
+            self._asked.add(task.id)
+            started = self._starting(task)
+            if self._skip(started):
+                self._queued = [t for t in self._queued if t.id != task.id]
+                self._ready_since.pop(task.id, None)
+                self._settle(TaskResult.skipped(started))
 
     def _defer_late(self, memo: dict[str, float], now: float) -> bool:
         """In a time box's endgame, before its deadline: defer each task that could start
@@ -782,8 +806,10 @@ class WorkQueue:
             follow_ups = self.follow_up(res)
         except Exception as exc:  # one callback must not stop the queue
             self.on_event("note", task, follow_up_failed=repr(exc)[:300])
-            return
+            follow_ups = []
         self.extend(follow_ups)
+        if res.stop != STOP_DUPLICATE_KEY:  # its key is done: what waited for it may be skipped now
+            self._skip_startable(self._successors.get(task.key, ()))
 
     async def _sleep_until_retry(self) -> bool:
         """Wait for the next retry time when retries are pending (a task added from
