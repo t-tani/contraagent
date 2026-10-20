@@ -39,7 +39,7 @@ from contraagent._internal.dispatch.queue import (
     WorkQueue,
 )
 from contraagent._internal.dispatch.records import DeferralCause, Frame, QuotaReading, Rest, RestEvent, TimeBoxRecord
-from contraagent._internal.dispatch.task import STOP_PARTIAL, Task, TaskResult, TimeBox, kind_name
+from contraagent._internal.dispatch.task import STOP_PARTIAL, Task, TaskResult, TimeBox, fingerprint_of, kind_name
 from contraagent._internal.errors import ContraagentError
 from contraagent._internal.execution import teardown as _teardown
 from contraagent._internal.execution.adapter import TaskAdapter
@@ -74,18 +74,56 @@ THROTTLE_ON = frozenset({Stop.RATE_LIMITED.value})
 #: Why a resume runs a task again whose journal row matches it (`resume_skip`).
 UNREAD = "its output no longer reads under its output schema"
 
+#: Why a resume runs a task again that fills in another task's file (`output_of`) when the
+#: file is not as the task, or a task after it that fills it in, left it.
+REFILL = "the file it fills in (output_of) is not as the earlier attempts left it"
 
-def finished_before(row: dict[str, Any] | None, task: Task) -> bool:
+#: How the rerun reason of a divergence starts (`rerun_reason`).
+DIVERGENCE = "divergence"
+
+
+def finished_before(row: dict[str, Any] | None, task: Task, fingerprint: str | None = None) -> bool:
     """Whether `row`, its key's last journal row, shows `task` finished: ok and not
-    `partial`, with the task's fingerprint. What a resume skips; never a task that reruns
-    on resume (`Task.rerun_on_resume`)."""
+    `partial`, with the task's fingerprint (`fingerprint`, when given, in its place). What a
+    resume skips; never a task that reruns on resume (`Task.rerun_on_resume`)."""
     if task.rerun_on_resume or row is None or row.get("stop") == STOP_PARTIAL:
         return False
-    return bool(row.get("ok")) and row.get("fingerprint", "") == task.fingerprint
+    return bool(row.get("ok")) and row.get("fingerprint", "") == (task.fingerprint if fingerprint is None else fingerprint)
+
+
+def _left_by(rows: Iterable[Mapping[str, Any]]) -> dict[str, set[str]]:
+    """For the tasks that fill in another task's file (`output_of`): each digest a file had
+    before such a task started, with the digests the task left it with."""
+    out: dict[str, set[str]] = {}
+    for row in rows:
+        parts = row.get("fingerprint_parts") or {}
+        if "output_of" in parts and row.get("output_of_after"):
+            out.setdefault(str(parts["output_of"]), set()).add(str(row["output_of_after"]))
+    return out
+
+
+def _as_left(row: Mapping[str, Any], now: str, left_by: Mapping[str, set[str]]) -> bool:
+    """Whether a file that a task fills in (`output_of`), whose digest is `now`, is as the
+    task's last attempt (`row`) left it, or as a task after it that fills it in left it."""
+    first = str(row.get("output_of_after") or "")
+    seen: set[str] = set()
+    todo = [first] if first else []
+    while todo:
+        digest = todo.pop()
+        if digest in seen:
+            continue
+        if digest == now:
+            return True
+        seen.add(digest)
+        todo.extend(left_by.get(digest, ()))
+    return False
 
 
 def resume_skip(
-    last: Mapping[str, dict[str, Any]], reruns: dict[str, str] | None = None, reads: Callable[[Task], bool] | None = None
+    last: Mapping[str, dict[str, Any]],
+    reruns: dict[str, str] | None = None,
+    reads: Callable[[Task], bool] | None = None,
+    warn: Callable[[str], None] | None = None,
 ) -> Callable[[Task], bool]:
     """What a resume skips, given each key's last journal row: a task `finished_before`,
     unless it waits for a task that runs again because its last result was `partial`, or
@@ -93,42 +131,116 @@ def resume_skip(
     placeholder, which a fingerprint does not show when the flow passed the output on
     without receiving it. `reads(task)`: whether the task's output still reads under its
     output schema; one that does not runs again. Asked once per task, as it is queued (a
-    task whose fingerprint is complete only when it starts, then). A task an earlier
-    attempt finished (its last row ok) that is not skipped goes into `reruns`, with why it
-    runs again (`rerun_reason`)."""
+    task whose fingerprint is complete only when it starts, once the tasks it waits for
+    are done). A task an earlier attempt finished (its last row ok) that is not skipped
+    goes into `reruns`, with why it runs again (`rerun_reason`); `warn(line)` is told of
+    each divergence.
+
+    A task that fills in another task's file (`output_of`) holds the file's digest as it
+    is about to start in its fingerprint (`output_of` of `Task.fingerprint_parts`). The
+    file then holds what the earlier attempts left in it, not what the task found there:
+    when it is as the task's last attempt left it, or as a task after it that fills it in
+    left it (journal `output_of_after`), the part is the one its journal row recorded,
+    the digest of the file before the task started. A file that is not (changed by hand,
+    or written again by a task before it) runs the task again (`REFILL`)."""
     again: set[str] = set()
+    skipped: set[str] = set()
+    left_by = _left_by(last.values())
 
     def skip(task: Task) -> bool:
         row = last.get(task.key)
         waits = [k for k in task.after if k in again]
         if waits or (row is not None and row.get("stop") == STOP_PARTIAL):
             again.add(task.key)
-        finished = not waits and finished_before(row, task)
+        fingerprint = None
+        refill = False
+        if row is not None and "output_of" in task.fingerprint_parts:
+            recorded = (row.get("fingerprint_parts") or {}).get("output_of")
+            if recorded is not None and _as_left(row, task.fingerprint_parts["output_of"], left_by):
+                parts = {**task.fingerprint_parts, "output_of": str(recorded)}
+                fingerprint = fingerprint_of(task.kind, task.unit, task.key, parts)
+            else:
+                refill = True
+        finished = not waits and not refill and finished_before(row, task, fingerprint)
         unread = finished and reads is not None and not reads(task)
-        skipped = finished and not unread
-        if not skipped and row is not None and row.get("ok") and reruns is not None:
-            reruns[task.key] = UNREAD if unread else rerun_reason(row, task, waits[0] if waits else "")
-        return skipped
+        if finished and not unread:
+            skipped.add(task.key)
+            return True
+        if row is not None and row.get("ok") and reruns is not None:
+            if unread:
+                why = UNREAD
+            elif refill and not task.rerun_on_resume and row.get("stop") != STOP_PARTIAL and not waits:
+                why = REFILL
+            else:
+                why = rerun_reason(row, task, waits[0] if waits else "", skipped)
+            reruns[task.key] = why
+            if warn is not None and why.startswith(DIVERGENCE):
+                warn(f"[resume] {task.key}: {why}")
+        return False
 
     return skip
 
 
-def rerun_reason(row: Mapping[str, Any], task: Task, waits_for: str = "") -> str:
+def rerun_reason(row: Mapping[str, Any], task: Task, waits_for: str = "", skipped: Iterable[str] | None = None) -> str:
     """Why a resume runs `task` again although its last journal row, `row`, is ok: it is
     declared `rerun_on_resume`; its last result was `partial`; it waits for `waits_for`, a
-    task that runs again for one of these; its outside state changed; or another part of its
-    fingerprint did."""
+    task that runs again for one of these; its outside state changed; or other parts of its
+    fingerprint did, each named (from the row's `fingerprint_parts`).
+
+    A divergence: its params changed although every task it was given an output of
+    (`output:<key>`) or created from (`Origin.created_from`) is in `skipped`, the keys this
+    resume skipped. The flow gave other params for the same outputs: its code takes
+    another path on a clock, randomness or outside state, or the code itself changed."""
     if task.rerun_on_resume:
         return "its kind is declared rerun_on_resume"
     if row.get("stop") == STOP_PARTIAL:
         return "its last result was partial"
     if waits_for:
         return f"it waits for {waits_for}, which runs again"
-    if task.outside and row.get("outside") and task.outside != row["outside"]:
+    if task.outside and row.get("outside") and task.outside != row["outside"] and _changed(row, task) in ([], ["outside"]):
         return "its outside state changed"
     if task.fingerprint_at_start and not task.outside and row.get("outside"):
         return "its outside state could not be worked out"
-    return "its fingerprint changed: its params, its definition or what it waits for"
+    if not row.get("fingerprint_parts") or not task.fingerprint_parts:
+        return "its fingerprint changed: its params, its definition or what it waits for"
+    changed = _changed(row, task)
+    if not changed:
+        return "its fingerprint changed: its kind or its unit"
+    named = ", ".join(_part_name(part) for part in changed)
+    if "params" in changed and skipped is not None:
+        done = set(skipped)
+        given = [part.removeprefix("output:") for part in task.fingerprint_parts if part.startswith("output:")]
+        created = task.origin.created_from if task.origin is not None else ()
+        if all(k in done for k in (*given, *created)):
+            return (
+                f"{DIVERGENCE}: the flow gave it other params for the same outputs, every task it was given "
+                f"or created from skipped (a clock, randomness, outside state or changed flow code); changed: {named}"
+            )
+    return f"its fingerprint changed: {named}"
+
+
+def _changed(row: Mapping[str, Any], task: Task) -> list[str]:
+    """The names of the parts of `task`'s fingerprint whose digest differs from `row`'s, a
+    part either of them lacks included, in a stable order."""
+    before: Mapping[str, Any] = row.get("fingerprint_parts") or {}
+    now = task.fingerprint_parts
+    order = {"definition": 0, "params": 1, "outside": 4, "output_of": 5}
+    names = [n for n in {**before, **now} if before.get(n) != now.get(n)]
+    return sorted(names, key=lambda n: (order.get(n, 2 if n.startswith("output:") else 3), n))
+
+
+def _part_name(part: str) -> str:
+    """A part of a fingerprint (`Task.fingerprint_parts`) as a rerun reason names it."""
+    if part.startswith("output:"):
+        return f"the output of {part.removeprefix('output:')} it reads"
+    if part.startswith("after:"):
+        return f"{part.removeprefix('after:')}, which it waits for"
+    return {
+        "definition": "its definition",
+        "params": "its params",
+        "outside": "its outside state",
+        "output_of": "the file it fills in (output_of)",
+    }.get(part, part)
 
 
 def _name_of(fn: Callable[..., Any]) -> str:
@@ -614,7 +726,7 @@ class Run:
         is sized by this host.
         """
         if skip is None and resume:
-            skip = resume_skip(self.journal.last_rows(), self.journal.reruns)
+            skip = resume_skip(self.journal.last_rows(), self.journal.reruns, warn=lambda line: self._log(logging.WARNING, line))
         q = WorkQueue(
             runner,
             follow_up=follow_up,

@@ -53,7 +53,12 @@ turn. That is the flows' quiescence, exact by construction. `follow_up` only kee
 result. The drain gives the kept results to the flow code one at a time, in the order
 they came, and after each one lets the flow calls run until every one waits again. So
 the steps of the flow calls run in the order the results are given, whatever thread or
-callback of the event loop ran meanwhile, and every step follows from one result. A
+callback of the event loop ran meanwhile, and every step follows from one result. On
+a resume (`replay`), the results of skipped tasks are given before the results of tasks
+that ran, and of those that have come, the one the journal of the run's earlier attempts
+recorded first is given first. So a flow whose code depends on the order its tasks
+finish in (`as_completed`, a list it appends to as each await returns) takes on a
+resume the path it took. A
 clock, a thread or I/O that flow code asks the flow loop for raises TypeError at its
 `await`; a future of another event loop raises asyncio's RuntimeError there.
 
@@ -129,6 +134,7 @@ import collections
 import collections.abc
 import contextlib
 import contextvars
+import heapq
 import inspect
 import itertools
 import logging
@@ -136,7 +142,7 @@ import re
 import sys
 import time
 import warnings
-from collections.abc import Awaitable, Callable, Coroutine, Generator, Iterable, Iterator
+from collections.abc import Awaitable, Callable, Coroutine, Generator, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from types import CodeType, FrameType, GeneratorType
 from typing import Any, Literal, NoReturn, Protocol
@@ -145,7 +151,7 @@ from contraagent._internal.dispatch.code import flow_code
 from contraagent._internal.dispatch.entry import run_sync
 from contraagent._internal.dispatch.flowloop import DRAIN_CODE, Cause, FlowLoop
 from contraagent._internal.dispatch.queue import GRACE_S, SLACK_SHARE, WorkQueue
-from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, Task, TaskResult, TimeBox
+from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, STOP_SKIPPED, Task, TaskResult, TimeBox
 
 _logger = logging.getLogger(__name__)
 
@@ -339,6 +345,10 @@ class FlowDriver:
     top flow (a coroutine), `driver.attach(queue)` with `follow_up=driver.follow_up` on
     the queue, `await queue.run_async()`, then `await driver.finish()`. Where no event
     loop runs, `settle_here()` and `finish_here()` drive the flows on the calling thread.
+
+    `replay`, on a resume: each task key's place in the journal of the run's earlier
+    attempts (the index of its last journal row); the results of skipped tasks are given
+    to the flow code in that order (see the module docstring).
     """
 
     def __init__(
@@ -349,6 +359,7 @@ class FlowDriver:
         on_flow_call: OnFlowCall | None = None,
         past_grace: Callable[[], bool] | None = None,
         slow_step_s: float = 1.0,
+        replay: Mapping[str, int] | None = None,
     ) -> None:
         self._waits_for = waits_for or _task_itself
         self._answer = answer or (lambda item, result: result)
@@ -357,6 +368,9 @@ class FlowDriver:
         #: `past_hard_stop` when none is given.
         self.past_grace: Callable[[], bool] | None = past_grace
         self.slow_step_s = slow_step_s
+        # Each key's place in the journal of the run's earlier attempts: the order in which the
+        # results of skipped tasks are given (see the module docstring).
+        self._replay: Mapping[str, int] = replay or {}
         #: Every flow call, by id, in start order.
         self.calls: dict[str, FlowCall] = {}
         #: Every result seen, by task key.
@@ -375,6 +389,9 @@ class FlowDriver:
         self._outbox: list[Task] = []
         # The results not yet given to the flow code, in the order they came.
         self._results: collections.deque[TaskResult] = collections.deque()
+        # The results of skipped tasks not yet given, by their key's place in `replay`.
+        self._replayed: list[tuple[int, int, TaskResult]] = []
+        self._arrived = itertools.count()
         self._queue: WorkQueue | None = None
         self._main: asyncio.AbstractEventLoop | None = None
         self._driving = False
@@ -456,8 +473,13 @@ class FlowDriver:
     def follow_up(self, result: TaskResult) -> list[Task]:
         """`WorkQueue`'s `follow_up`: keep the result for the flow code, which receives it at
         the next drain, when the queue next settles (one result at a time, in the order they
-        came). Queues nothing itself: an empty list."""
-        self._results.append(result)
+        came; a skipped task's on a resume, in the order of `replay`). Queues nothing itself:
+        an empty list."""
+        place = self._replay.get(result.task.key) if result.stop == STOP_SKIPPED else None
+        if place is not None:
+            heapq.heappush(self._replayed, (place, next(self._arrived), result))
+        else:
+            self._results.append(result)
         if self._waiters.get(result.task.key) and self._queue is not None and self._main is not None and not self._wake_due:
             # A wait of the queue that has begun ends, so that the next pass settles.
             self._wake_due = True
@@ -480,8 +502,8 @@ class FlowDriver:
         """Let the flow code run until it waits, then give it the results that came, one at a
         time, letting it run until it waits again after each."""
         self._loop.drain()
-        while self._results:
-            self._give(self._results.popleft())
+        while self._replayed or self._results:
+            self._give(heapq.heappop(self._replayed)[2] if self._replayed else self._results.popleft())
             self._loop.drain()
 
     async def settle(self) -> bool:
@@ -537,7 +559,7 @@ class FlowDriver:
     async def _drained(self) -> None:
         """Run the flows (`_run_flows`) from a plain callback of the running event loop (from
         Python 3.14 a drain inside a Task step raises), and wait for it to end."""
-        if not self._loop.ready() and not self._results:
+        if not self._loop.ready() and not self._results and not self._replayed:
             return
         main = asyncio.get_running_loop()
         ended: asyncio.Future[None] = main.create_future()
@@ -567,7 +589,7 @@ class FlowDriver:
     def _close_stuck(self) -> bool:
         """When the flows are quiescent and no task queued here is still to give its result,
         close every flow call still running: nothing will answer any of them. Whether it did."""
-        if not self._running or self._loop.ready() or self._results or self._open:
+        if not self._running or self._loop.ready() or self._results or self._replayed or self._open:
             return False
         for call in self.calls.values():
             if call.state == "running" and call.task is not None and not call.task.done():
