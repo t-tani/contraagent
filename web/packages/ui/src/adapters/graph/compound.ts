@@ -344,7 +344,8 @@ function assemble(ix: FlowIndex, focus: readonly string[], inside: readonly Flow
       const sk = `${s.id}\u0000${to}\u0000${type}`;
       (stubs.get(sk) ?? stubs.set(sk, { ...s, to, type, tasks: new Set() }).get(sk))?.tasks.add(t.n.key);
     };
-    for (const dep of t.n.after ?? []) link(dep, 'after');
+    // A task given another's output is drawn after it, as a task that waits for it (`given_from`).
+    for (const dep of new Set([...(t.n.after ?? []), ...(t.n.given_from ?? [])])) link(dep, 'after');
     for (const dep of t.from) link(dep, 'created');
   }
   for (const n of nodes) n.inOrder = inOrder.has(n.id);
