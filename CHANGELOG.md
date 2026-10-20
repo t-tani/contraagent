@@ -10,6 +10,12 @@ The changes not released yet are the fragments in [`changelog.d/`](changelog.d/)
 
 <!-- towncrier release notes start -->
 
+## [0.6.1] - 2026-10-20
+
+### Fixed
+
+- A Python task annotated `-> Out | Partial[Out]` is a `PythonTask[Out]`, so a type checker knows that `await` on its task call, and its `Pending.output`, give an `Out`, as they do when the flow runs. It was `PythonTask[Out | Partial[Out]]`, and every `await` on such a task had to remove `Partial` from the type. A function that always returns `Partial[Out]` is a `PythonTask[Out]` too.
+
 ## [0.6.0] - 2026-10-20
 
 ### Added
@@ -41,6 +47,7 @@ The changes not released yet are the fragments in [`changelog.d/`](changelog.d/)
 - Two workers that check the same credential at the same moment now record its rests in the order they judged them: `rests.jsonl` no longer shows a rest that begins after the reading that ended it, and the quota rule is called for one account at a time.
 - `contraagent run` keeps Python's handling of SIGPIPE: a write to a coding agent whose input pipe has closed is an error that its launch handles, where before it ended the run at once, with no teardown.
 - A file rewritten at the same size within one tick of the file system's clock (about 16 ms on NTFS) now counts as rewritten: a task's `changes` list it as modified, a `fresh` output passes its check, and a recording run names it among its undeclared changes. A file whose modification time is recent when a task starts keeps the digest of its content, and the comparison after the task reads it. `Before` has a new field, `digest`.
+
 ## [0.5.0] - 2026-10-18
 
 ### Added
