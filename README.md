@@ -189,7 +189,7 @@ and adds what a pipeline of them needs.
   run's end stops. Each kind also has its own limit of tasks that run at once.
 - A task whose input is missing does not start, and its recorded cause names the
   earlier task. On resume, a task's `fingerprint`, a digest of its parameters, its
-  definition and the outputs it received, decides whether it runs again.
+  definition and the content of the outputs it reads, decides whether it runs again.
 - The documentation, the docstrings of the typed public API and the messages of
   `contraagent check` are written for the coding agent that writes the pipeline, so
   it needs no source code of contraagent. `contraagent check` reports every problem
