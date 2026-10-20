@@ -1,18 +1,37 @@
 """Fixtures shared by the test modules, and what the whole test process does alike."""
 
 import os
+import shutil
+import tempfile
 from pathlib import Path
 
 import pytest
 
 
+@pytest.hookimpl(tryfirst=True)  # before pytest's tmpdir plugin reads --basetemp
 def pytest_configure(config) -> None:
     """A retried attempt does not wait out its backoff here: the wait is random and seconds
     long, and what it is (`backoff_s`) has a test of its own. Subprocesses (the docs' example
-    tests) keep the real wait."""
+    tests) keep the real wait.
+
+    Each session has a temporary root of its own, unless `--basetemp` names one. pytest's
+    shared root, `<temp dir>/pytest-of-<user>`, is cleaned by every session that ends: it
+    removes the old directories of other sessions there, and two sessions that end at once
+    can remove the same one. The one that loses that race warns, which fails the session
+    after every test passed. A pytest-xdist worker is given a directory under its
+    controller's root; the controller removes the root at the end (`pytest_unconfigure`)."""
     from contraagent.engine import RetryingRunner
 
     RetryingRunner.backoff = staticmethod(lambda base, attempt: 0.0)
+    if config.option.basetemp is None and not hasattr(config, "workerinput"):
+        config.option.basetemp = config._contraagent_basetemp = tempfile.mkdtemp(prefix="contraagent-pytest-")
+
+
+def pytest_unconfigure(config) -> None:
+    """The controller removes the session's own temporary root (`pytest_configure`)."""
+    root = getattr(config, "_contraagent_basetemp", None)
+    if root is not None:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 @pytest.hookimpl(tryfirst=True)  # before xdist reads the groups
