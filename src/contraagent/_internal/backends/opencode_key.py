@@ -120,7 +120,12 @@ def go_reading(body: object, key: str = "") -> QuotaReading | None:
 
 def _get(url: str, key: str, timeout: float) -> object:
     req = urllib.request.Request(url, headers={"accept": "application/json", "authorization": f"Bearer {key}", "user-agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    try:
+        r = urllib.request.urlopen(req, timeout=timeout)
+    except urllib.error.HTTPError as refused:
+        refused.close()  # the error holds the open response; nothing else would close it
+        raise
+    with r:
         return json.loads(r.read())
 
 
