@@ -9,7 +9,12 @@ show the one path a user imports it from.
 A class's annotations are strings (`from __future__ import annotations`) that resolve in
 the module that defines it; `typing.get_type_hints` and pydantic look them up in the
 module `__module__` names. So before a class moves, its own annotations, and its
-dataclass fields' types, are resolved where they were written.
+dataclass fields' types, are resolved where they were written. This stays safe while
+every reader of annotations (`inspect.get_annotations`, and on 3.14 `annotationlib` in
+each format) gives the dict put in their place, and a pydantic model rebuilt after the move
+resolves each field to the same type; `tests/test_public_api.py` checks both on each
+Python version CI runs. A class whose annotations are not in its `__dict__` (a
+`NamedTuple` on 3.14, which keeps an `__annotate__` function) is left as it is.
 
 A name that leaves a public module stays readable there for a deprecation period: the
 module sets `__getattr__ = migration(__name__, moved={...}, removed={...})`. A moved name

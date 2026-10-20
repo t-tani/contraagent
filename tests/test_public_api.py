@@ -444,6 +444,50 @@ def test_published_classes_keep_their_annotations_and_pickle():
     assert pickle.loads(pickle.dumps(result)) == result
 
 
+PUBLISHED_ANNOTATIONS = """
+import importlib, inspect, sys
+import pydantic
+modules = [importlib.import_module(m) for m in sys.argv[1:]]
+classes = {id(o): o for m in modules for o in (getattr(m, n) for n in m.__all__) if isinstance(o, type)}
+read = []
+if sys.version_info >= (3, 14):
+    import annotationlib
+    read.append(lambda c: annotationlib.get_annotations(c, format=annotationlib.Format.FORWARDREF))
+    read.append(lambda c: annotationlib.get_annotations(c, format=annotationlib.Format.VALUE))
+read.append(inspect.get_annotations)
+read_alike = rebuilt = 0
+for cls in classes.values():
+    # A class `publish` replaced the annotations of (a NamedTuple on 3.14 keeps an `__annotate__` instead).
+    if "__annotations__" in cls.__dict__:
+        for get in read:
+            assert get(cls) == cls.__dict__["__annotations__"], cls.__qualname__
+        read_alike += 1
+    if issubclass(cls, pydantic.BaseModel) and cls.__module__.startswith("contraagent"):
+        before = {name: field.annotation for name, field in cls.model_fields.items()}
+        assert cls.model_rebuild(force=True) is not False, cls.__qualname__
+        assert {name: field.annotation for name, field in cls.model_fields.items()} == before, cls.__qualname__
+        rebuilt += 1
+print(read_alike, rebuilt)
+"""
+
+
+def test_published_annotations_read_alike_and_a_model_rebuilds_after_publish():
+    """`publish` replaces a class's string annotations with the values they name and moves
+    its `__module__` to a public module. That stays safe while (1) every way of reading
+    annotations (`inspect.get_annotations`; on 3.14 `annotationlib.get_annotations` in each
+    format, PEP 649/749) gives the replaced dict, and (2) a pydantic model rebuilt after the
+    move (`model_rebuild`, which looks names up in the module `__module__` names) still
+    resolves every field to the same type. A fresh interpreter, so no rebuild touches the
+    classes the other tests use. (A rebuild of a model that holds a self-referencing one,
+    `Procs` and its `ProcNode`, names that model's `$defs` entry twice in its JSON Schema:
+    the old reference carries the module the model had before `publish`. Nothing in
+    contraagent rebuilds a published model.)"""
+    out = subprocess.run([sys.executable, "-c", PUBLISHED_ANNOTATIONS, *PUBLIC], capture_output=True, text=True, timeout=120)
+    assert out.returncode == 0, out.stderr
+    read_alike, rebuilt = map(int, out.stdout.split())
+    assert read_alike > 50 and rebuilt > 50
+
+
 IMPORT_WITHOUT_EXTRAS = """
 import importlib.util, sys
 sys.path.insert(0, sys.argv[1])
