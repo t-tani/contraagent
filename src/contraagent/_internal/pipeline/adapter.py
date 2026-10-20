@@ -1,25 +1,24 @@
 """`SpecAdapter`: the `TaskAdapter` a pipeline hands its runner, built from `agent_task` declarations.
 
-For each agent task it writes the call file (parameters, output contract)
-just before launch, points the CLI at the task's plugin and role, and declares
-the contracts the runner checks after the turn: the upstream outputs it reads,
-and the output it must leave behind with its validators.
+For each agent task it writes the call file (its params, copied as JSON at the task
+call, and its output contract) just before launch, points the CLI at the task's plugin
+and role, and declares the contract the runner checks after the turn: the output it
+must leave behind with its validators.
 """
 
 from __future__ import annotations
 
+import copy
 import json
 import string
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from pydantic_core import to_jsonable_python
-
 from contraagent._internal.backends import plugin_files
 from contraagent._internal.backends.base import Backend, exit_dir, safe_label
 from contraagent._internal.contracts.calls import CallFile, CallOutput, call_prompt, inline_prompt, schema_ref_of
-from contraagent._internal.contracts.contract import InputContract, OutputContract
+from contraagent._internal.contracts.contract import OutputContract
 from contraagent._internal.contracts.validators import CommandValidator
 from contraagent._internal.dispatch.task import Task
 from contraagent._internal.execution.adapter import McpServers, TaskAdapter
@@ -69,11 +68,7 @@ class SpecAdapter(TaskAdapter):
     def call(self, task: Task) -> CallFile:
         node = self._node(task)
         spec = node.spec
-        params = node.resolved_params()
-        if spec.params is not None:
-            params = spec.params.model_validate(params).model_dump(mode="json")
-        else:
-            params = to_jsonable_python(params)
+        params = copy.deepcopy(node.params)
         output = None
         if node.output_path is not None:
             schema = spec.output_schema
@@ -190,9 +185,6 @@ class SpecAdapter(TaskAdapter):
 
     def output_contracts(self, task: Task) -> list[OutputContract]:
         return self._node(task).output_contracts(params=lambda: self.call(task).params, call=self.call_path(task))
-
-    def input_contracts(self, task: Task) -> list[InputContract]:
-        return self._node(task).input_contracts()
 
     def definition(self, task: Task) -> dict:
         spec = self._node(task).spec

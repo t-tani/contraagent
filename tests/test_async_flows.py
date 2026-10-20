@@ -19,7 +19,6 @@ from contraagent import (
     RoutingError,
     TaskDeferred,
     TaskFailed,
-    TextOutput,
     TooManyPasses,
     agent_task,
     python_task,
@@ -120,9 +119,9 @@ def test_the_review_loop_converges_at_pass_2_and_the_report_joins_every_unit(tmp
     assert rep.value.splitlines() == ["a: 1 points", "b: 2 points"]  # the top flow call's return value
     plan = {r["key"]: r for r in plan_rows(rep)}
     # a received output passed on is the dependency, as a Pending is
-    assert plan["review-b~2"]["after"] == ["revise-b"]
-    assert plan["revise-b"]["after"] == ["summarize-b", "review-b"]
-    assert plan["python:report"]["after"] == ["summarize-a", "revise-b"]  # through each child's return value
+    assert plan["review-b~2"]["given_from"] == ["revise-b"]
+    assert plan["revise-b"]["given_from"] == ["summarize-b", "review-b"]
+    assert plan["python:report"]["given_from"] == ["summarize-a", "revise-b"]  # through each child's return value
     # the loop's review is in its pass 1, then 2; revise in pass 1
     assert (passes(plan["review-b"]), passes(plan["review-b~2"]), passes(plan["revise-b"])) == ([1], [2], [1])
     # created from: the keys of the results that reached the flow call before it created the task
@@ -168,7 +167,7 @@ def test_two_runs_of_the_same_flow_record_the_same_structure_and_fingerprints(tm
 def test_a_static_flow_keeps_its_keys_and_files_and_is_flow_call_0(tmp_path):
     def flow(units):
         for u in units:
-            review(u, summary=summarize(u, path=u))
+            review.options(after=[summarize(u, path=u)])(u, summary={"unit": u, "points": ["p"]})
 
     rep = pipeline(tmp_path, stub()).run(flow, units=["a", "b"])
     assert rep.ok and sorted(rep.results) == ["review-a", "review-b", "summarize-a", "summarize-b"]
@@ -179,6 +178,7 @@ def test_a_static_flow_keeps_its_keys_and_files_and_is_flow_call_0(tmp_path):
     assert row["flow"][0]["file"] == __file__
     calls = flow_call_rows(rep)
     assert [(c["id"], c["event"], c.get("state")) for c in calls] == [("0", "start", None), ("0", "end", "returned")]
+    assert calls[1]["unawaited"] == ["review-a", "review-b"]  # each summarize is ordered before its review
     assert calls[0]["function"] == f"{__name__}.{flow.__qualname__}" and calls[0]["parent"] is None and calls[0]["flow"] == []
     rows = journal_rows(rep)
     assert {r["flow_call"] for r in rows} == {"0"} and all(len(r["fingerprint"]) == 64 for r in rows)
@@ -228,7 +228,7 @@ def test_nesting_at_any_depth_records_the_whole_flow_path(tmp_path):
     names = [f["function"].rpartition(".")[2] for f in plan["review-a"]["flow"]]
     assert names == ["top", "middle", "leaf_review"]
     assert [f["function"].rpartition(".")[2] for f in plan["summarize-a"]["flow"]] == ["top", "middle", "leaf"]
-    assert plan["review-a"]["after"] == ["summarize-a"]
+    assert plan["review-a"]["given_from"] == ["summarize-a"]
 
 
 # --- shapes ---------------------------------------------------------------------
@@ -259,10 +259,10 @@ def test_a_branch_and_a_fan_out_sized_by_a_result(tmp_path):
         "write_doc-big",
     ]
     doc, none = rep.value
-    assert doc == "# 3\n" and isinstance(doc, TextOutput) and none is None
+    assert doc == "# 3\n" and type(doc) is str and none is None
     plan = {r["key"]: r for r in plan_rows(rep)}
     assert all(plan[f"summarize-big-{i}"]["flow"][-1]["loops"] == [] for i in range(3))  # a fan-out, not a loop
-    assert plan["write_doc-big"]["after"] == ["summarize-big-0", "summarize-big-1", "summarize-big-2"]
+    assert plan["write_doc-big"]["given_from"] == ["summarize-big-0", "summarize-big-1", "summarize-big-2"]
     assert plan["summarize-big-0"]["after"] == []  # a list of str a Python task returned: values, not files
 
 
@@ -292,9 +292,9 @@ def test_a_python_task_in_the_loop_and_text_outputs_passed_on(tmp_path):
     assert rep.ok, rep.failed
     plan = {r["key"]: r for r in plan_rows(rep)}
     assert [passes(plan[k]) for k in ("python:count-u", "python:count-u~2", "python:count-u~3")] == [[1], [2], [3]]
-    assert plan["python:count-u~3"]["after"] == ["revise-u~2"]
+    assert plan["python:count-u~3"]["given_from"] == ["revise-u~2"]
     assert (rep.run_dir / "out/count/u~3.json").read_text() == "3"
-    assert plan["write_doc-v"]["after"] == ["write_doc-u"]  # the text output, recognized
+    assert plan["write_doc-v"]["given_from"] == ["write_doc-u"]  # the text output, recognized
     [launch] = agent.launches_of("write_doc-v")
     assert launch.params == {"doc": "# doc\n", "title": "# built here\n"}
 
@@ -310,7 +310,7 @@ def test_a_task_with_no_output_answers_none(tmp_path):
 # --- failures at the await -------------------------------------------------------
 
 
-def test_failed_and_refused_tasks_raise_task_failed_at_the_await(tmp_path):
+def test_a_failed_task_raises_task_failed_at_the_await(tmp_path):
     seen = {}
 
     async def flow():
@@ -318,16 +318,11 @@ def test_failed_and_refused_tasks_raise_task_failed_at_the_await(tmp_path):
             await summarize("a", path="x")
         except TaskFailed as exc:
             seen["failed"] = (exc.stop, exc.key, exc.item.key)
-        s = summarize("b", path="x")  # not awaited: review waits for it and is refused
-        try:
-            await review("b", summary=s)
-        except TaskFailed as exc:
-            seen["refused"] = (exc.stop, exc.key)
         return "went on"
 
-    agent = stub(**{"summarize-a": fails(), "summarize-b": fails()})
+    agent = stub(**{"summarize-a": fails()})
     rep = pipeline(tmp_path, agent).run(flow)
-    assert seen == {"failed": ("error", "summarize-a", "summarize-a"), "refused": ("invalid_input", "review-b")}
+    assert seen == {"failed": ("error", "summarize-a", "summarize-a")}
     assert rep.value == "went on" and not rep.flow_errors and not rep.ok  # failed tasks still fail the run
 
 
@@ -601,7 +596,7 @@ def test_awaits_deliver_typed_answers_and_gather_keeps_their_order(tmp_path):
     rep = pipeline(tmp_path, stub(write_doc="# d\n")).run(flow)
     summary, n, doc = rep.value
     assert isinstance(summary, Summary) and summary.points == ["a"]
-    assert n == 1 and doc == "# d\n" and isinstance(doc, TextOutput)
+    assert n == 1 and doc == "# d\n" and type(doc) is str
 
 
 def test_the_frontier_is_the_union_a_gather_received_whatever_order_its_tasks_end_in(tmp_path):

@@ -1813,7 +1813,7 @@
               }
             ],
             "title": "Dependency",
-            "description": "`dependency_deferred`: the key of the deferred task whose output it reads"
+            "description": "`dependency_deferred` (releases before 0.7): the key of the deferred task whose output it read"
           }
         },
         "type": "object",
@@ -1821,7 +1821,7 @@
           "cause"
         ],
         "title": "DeferralCause",
-        "description": "Why a task was deferred, as data (`Deferral.cause`). `cause`: `deadline`,\n`grace_window` (past the deadline's grace window), `cannot_finish` (`need_s`, `left_s`),\n`dependency_not_queued`, `dependency_deferred` (a task whose output it reads was\ndeferred: `dependency`), `rest` (the credential of every hop it could take rests:\n`rests`), or a runner's own name. A field a cause does not have is left unset, and\n`deferred.jsonl` records only the fields set."
+        "description": "Why a task was deferred, as data (`Deferral.cause`). `cause`: `deadline`,\n`grace_window` (past the deadline's grace window), `cannot_finish` (`need_s`, `left_s`),\n`dependency_not_queued`, `dependency_deferred` (written by releases before 0.7: a task\nwhose output it read was deferred, `dependency`), `rest` (the credential of every hop it could take rests:\n`rests`), or a runner's own name. A field a cause does not have is left unset, and\n`deferred.jsonl` records only the fields set."
       },
       "DefinitionFile": {
         "properties": {
@@ -2165,6 +2165,14 @@
               }
             ],
             "description": "its own deadline, for a flow call started through `time_box`; else null"
+          },
+          "unawaited": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unawaited",
+            "description": "for a top flow call that ended: the keys of the tasks created in it or in the flow calls it started that nothing awaited, waited for with `after=` or returned; they ran all the same"
           }
         },
         "additionalProperties": false,
@@ -4100,6 +4108,14 @@
             ],
             "title": "Flow Call",
             "description": "the id of the flow call that created it; null for a task with no origin"
+          },
+          "given_from": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Given From",
+            "description": "keys of the tasks whose outputs it was given in its params, found by their content among its params; shown only, never part of its fingerprint"
           },
           "base_kind": {
             "type": "string",

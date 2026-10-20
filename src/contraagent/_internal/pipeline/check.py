@@ -24,10 +24,9 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import GeneratorType
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, TypeAdapter, ValidationError
-from pydantic_core import to_jsonable_python
 
 from contraagent._internal.backends.base import temp_root
 from contraagent._internal.contracts.calls import schema_ref_of
@@ -41,7 +40,7 @@ from contraagent._internal.errors import ContraagentError, did_you_mean
 from contraagent._internal.execution.pipeline_files import writing_into
 from contraagent._internal.execution.services import env_clashes
 from contraagent._internal.pipeline.adapter import SpecAdapter
-from contraagent._internal.pipeline.graph import Graph, Node, Pending, kind_clash
+from contraagent._internal.pipeline.graph import Graph, Node, kind_clash
 from contraagent._internal.pipeline.reach import reachable
 from contraagent._internal.platform import envvars
 from contraagent._internal.routing.plan import RoutingError, RoutingPlan, check_task_tables
@@ -165,7 +164,6 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     keys = {n.key for n in graph.nodes}
     report.add("tasks", [f"{n.key}: after={dep!r} names no task of this run" for n in graph.nodes for dep in n.after if dep not in keys])
     agent_specs = {kind: spec for kind, spec in specs.items() if spec.executor == "agent"}
-    report.add("tasks", [e for n in graph.nodes if n.spec.executor == "agent" for e in _param_errors(n)])
     report.add("tasks", _outside_state_errors(graph))
     report.add("contracts", _schema_errors(agent_specs) + _example_errors(specs) + _validator_errors(list(specs.values())))
     report.add("plugins", _plugin_errors(agent_specs) + _mcp_errors(pipeline, graph, Path(tmp)))
@@ -306,46 +304,12 @@ def _own_code(filename: str) -> bool:
     return not filename.startswith("<") and not any(path.is_relative_to(p) for p in _NOT_OWN)
 
 
-def _param_errors(node: Node) -> list[str]:
-    """Parameters that would be refused when the call file is written, checked now.
-
-    With no `Pending` among them they are validated as the run will: the whole
-    `params` model, its constraints and validators. A value that holds a
-    `Pending` is known only at run time: the other fields are then checked one by
-    one against their annotation and constraints, without model validators.
-    """
-    model = node.spec.params
-    if model is not None and not any(_holds_pending(v) for v in node.params.values()):
-        try:
-            model.model_validate(node.params)
-        except ValidationError as exc:
-            return [f"{node.key}: param {'.'.join(map(str, e['loc'])) or '-'}: {e['msg']}" for e in exc.errors()]
-        return []
-    errs: list[str] = []
-    for name, value in node.params.items():
-        if _holds_pending(value):
-            continue
-        try:
-            if model is not None and name in model.model_fields:
-                info = model.model_fields[name]
-                field_type: Any = Annotated[info.annotation, info]  # the annotation with its constraints
-                TypeAdapter(field_type).validate_python(value)
-            else:
-                to_jsonable_python(value)
-        except ValidationError as exc:
-            errs += [f"{node.key}: param {name}: {e['msg']}" for e in exc.errors()]
-        except Exception as exc:  # not JSON-able, or an annotation TypeAdapter cannot take
-            errs.append(f"{node.key}: param {name}: {exc}")
-    return errs
-
-
 def _outside_state_errors(graph: Graph) -> list[str]:
     """Each created task's `outside_state`, called as the run will call it when the task
-    starts, for the tasks whose params are known now (none waits for another task's output):
-    what it raises, or a value that is not JSON (`Graph.starting`)."""
+    starts: what it raises, or a value that is not JSON (`Graph.starting`)."""
     errs: list[str] = []
     for node in graph.nodes:
-        if getattr(node.spec, "outside_state", None) is None or any(_holds_pending(v) for v in node.params.values()):
+        if getattr(node.spec, "outside_state", None) is None:
             continue
         task = graph.starting(graph.task_of(node))
         if why := graph.refusal(task):
@@ -354,31 +318,20 @@ def _outside_state_errors(graph: Graph) -> list[str]:
 
 
 def _mcp_errors(pipeline: Pipeline, graph: Graph, run_dir: Path) -> list[str]:
-    """`Pipeline(mcp_servers=)` called for each agent task created whose params are known
-    now (none waits for another task's output): what it raises, or a value that is no
-    table of servers."""
+    """`Pipeline(mcp_servers=)` called for each agent task created: what it raises, or a
+    value that is no table of servers."""
     if pipeline.mcp_servers is None:
         return []
     adapter = SpecAdapter("check", run_dir, pipeline.cwd, mcp_servers=pipeline.mcp_servers)
     errs: list[str] = []
     for node in graph.nodes:
-        if node.spec.executor != "agent" or node.spec.light or any(_holds_pending(v) for v in node.params.values()) or _param_errors(node):
+        if node.spec.executor != "agent" or node.spec.light:
             continue
         try:
             adapter.mcp_servers_of(graph.task_of(node))
         except Exception as exc:
             errs.append(f"{node.key}: mcp_servers: {where(exc)}{type(exc).__name__}: {exc}")
     return errs
-
-
-def _holds_pending(value: Any) -> bool:
-    if isinstance(value, Pending):
-        return True
-    if isinstance(value, (list, tuple, set)):
-        return any(_holds_pending(v) for v in value)
-    if isinstance(value, dict):
-        return any(_holds_pending(v) for v in value.values())
-    return False
 
 
 def _schema_errors(specs: dict[str, Any]) -> list[str]:

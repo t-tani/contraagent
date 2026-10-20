@@ -361,22 +361,24 @@ async def hands_on(unit):
     return late(unit)  # not waited for: created past the deadline, deferred
 
 
-def test_a_task_that_reads_a_deferred_output_is_deferred_too(tmp_path, clock):
+def test_a_deferred_input_raises_task_deferred_and_its_reader_is_never_created(tmp_path, clock):
     spent[:] = [clock]
+    raised = []
 
     async def flow(unit):
-        text = await time_box(hands_on(unit), deadline_s=0.15)
-        echo(unit, text=text)  # outside the box; its input never comes
-        publish.options(after=[text])(unit)  # only ordered after it: it launches
+        late_call = await time_box(hands_on(unit), deadline_s=0.15)
+        publish.options(after=[late_call])(unit)  # only ordered after it: it launches
+        try:
+            echo(unit, text=await late_call)  # outside the box; its input never comes
+        except TaskDeferred as exc:
+            raised.append(exc.key)
 
     report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, log=lambda line: None).run(flow, unit="a")
     assert report.ok and not report.failed
-    assert sorted(r.task.key for r in report.deferred) == ["python:echo-a", "python:late-a"]
+    assert raised == ["python:late-a"]
+    assert [r.task.key for r in report.deferred] == ["python:late-a"] and "python:echo-a" not in report.results
     assert report.results["python:publish-a"].ok
-    echoed = report.results["python:echo-a"]
-    assert echoed.cause is not None and echoed.cause.cause == "dependency_deferred" and echoed.cause.dependency == "python:late-a"
-    by_key = {r["key"]: r for r in rows(report.run_dir / "deferred.jsonl")}
-    assert by_key["python:echo-a"]["cause"] == {"cause": "dependency_deferred", "dependency": "python:late-a"}
+    assert all(r["cause"]["cause"] != "dependency_deferred" for r in rows(report.run_dir / "deferred.jsonl"))
 
 
 def test_contraagent_run_exits_0_when_its_tasks_were_deferred_and_the_flow_caught_it(tmp_path, capsys, monkeypatch):

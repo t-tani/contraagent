@@ -413,6 +413,11 @@ class FlowCallNode(Closed):
         "it passes through; null for an exception of flow code's own",
     )
     time_box: TimeBoxRecord | None = Field(None, description="its own deadline, for a flow call started through `time_box`; else null")
+    unawaited: list[str] = Field(
+        default_factory=list,
+        description="for a top flow call that ended: the keys of the tasks created in it or in the flow calls it started "
+        "that nothing awaited, waited for with `after=` or returned; they ran all the same",
+    )
 
 
 class PlanNode(PlanRow):

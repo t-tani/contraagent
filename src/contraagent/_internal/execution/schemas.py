@@ -132,10 +132,10 @@ class JournalRow(RecordModel):
     #: A digest of what defines the task's work (`Task.fingerprint`): what a resume compares.
     fingerprint: str = ""
     #: The digest of each part of what the fingerprint covers, by the part's name
-    #: (`Task.fingerprint_parts`): `definition`, `params`, `output:<key>` (an output it reads),
-    #: `after:<key>` (a task it only waits for), `outside`, `output_of` (the file it fills in, as
-    #: it was when the attempt started). What a resume names when it runs the task again; empty
-    #: in a run of an earlier release.
+    #: (`Task.fingerprint_parts`): `definition`, `params`, `outside`, `output_of` (the file it
+    #: fills in, as it was when the attempt started); a run of 0.6 also has `output:<key>` (an
+    #: output it read) and `after:<key>` (a task it only waited for). What a resume names when
+    #: it runs the task again; empty in a run of an earlier release.
     fingerprint_parts: dict[str, str] = Field(default_factory=dict)
     #: The SHA-256 of the outside state its fingerprint covered when the attempt started
     #: (`agent_task(outside_state=)`); empty for a task that declares none.
@@ -260,6 +260,11 @@ class PlanRow(RecordModel):
         "and the one in which it created the task",
     )
     flow_call: str | None = Field(None, description="the id of the flow call that created it; null for a task with no origin")
+    given_from: list[str] = Field(
+        default_factory=list,
+        description="keys of the tasks whose outputs it was given in its params, found by their content among its params; "
+        "shown only, never part of its fingerprint",
+    )
     base_kind: str = Field(
         "",
         description="an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty",
@@ -275,8 +280,9 @@ class FlowCallRow(RecordModel):
     """One line of `runs/<run>/flow_calls.jsonl`. `event` `start`: `parent`, `function`,
     `flow` (the flow path where the parent created it; empty for a top flow call) and, for a
     flow call started through `time_box`, `time_box`; `end`: `state` (`returned`, `raised`,
-    `closed`) and `error` (`"<type>: <message>"` or null), and for one that `raised`,
-    `raised_at` and `raised_by` when known. A row holds only its event's fields."""
+    `closed`) and `error` (`"<type>: <message>"` or null), for one that `raised`,
+    `raised_at` and `raised_by` when known, and for a top flow call `unawaited` when it
+    created a task nothing used. A row holds only its event's fields."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(serialize_by_alias=True)
 
@@ -298,6 +304,12 @@ class FlowCallRow(RecordModel):
         None,
         description="the key of the failed task the exception is (`TaskFailed.key`, the first one in an exception group), "
         "the same in every flow call it passes through; absent for an exception of flow code's own",
+    )
+    unawaited: list[str] | None = Field(
+        None,
+        description="for a top flow call: the keys of the tasks created in it or in the flow calls it started that no flow "
+        "call awaited, no task waits for with `after=` and no flow call returned, in creation order; they ran all the same. "
+        "Absent when there is none",
     )
 
     def to_dict(self) -> dict[str, Any]:

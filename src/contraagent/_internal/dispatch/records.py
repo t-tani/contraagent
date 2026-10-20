@@ -405,8 +405,8 @@ class RestEvent(Rest):
 class DeferralCause(RecordModel):
     """Why a task was deferred, as data (`Deferral.cause`). `cause`: `deadline`,
     `grace_window` (past the deadline's grace window), `cannot_finish` (`need_s`, `left_s`),
-    `dependency_not_queued`, `dependency_deferred` (a task whose output it reads was
-    deferred: `dependency`), `rest` (the credential of every hop it could take rests:
+    `dependency_not_queued`, `dependency_deferred` (written by releases before 0.7: a task
+    whose output it read was deferred, `dependency`), `rest` (the credential of every hop it could take rests:
     `rests`), or a runner's own name. A field a cause does not have is left unset, and
     `deferred.jsonl` records only the fields set."""
 
@@ -420,7 +420,9 @@ class DeferralCause(RecordModel):
         description="`deadline`, `grace_window`, `cannot_finish`: the flow call whose time box it is; null for the run's deadline",
     )
     rests: tuple[SkippedHop, ...] = Field(default=(), description="`rest`: each hop passed over and why its credential rests")
-    dependency: str | None = Field(default=None, description="`dependency_deferred`: the key of the deferred task whose output it reads")
+    dependency: str | None = Field(
+        default=None, description="`dependency_deferred` (releases before 0.7): the key of the deferred task whose output it read"
+    )
 
     def to_dict(self) -> dict[str, Any]:
         """The cause as `deferred.jsonl` records it: the fields set."""

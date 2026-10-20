@@ -54,7 +54,7 @@ checked JSON file behind, for example:
 | 3 | declare an agent task: what it is given, what it leaves, what it may spend | `agent_task` |
 | 4 | write how the agent does the task, outside your Python code | a plugin, a role |
 | 5 | leave to code what code can do | `@python_task` |
-| 6 | connect the tasks | a flow, `Pending` |
+| 6 | connect the tasks | an `async def` flow, `Pending`, `await` |
 | 7 | find mistakes before you spend anything | `contraagent check`, a stub run, the monitor |
 | 8 | choose the coding agent and model, run, resume | `pipeline.toml`, `contraagent run` |
 | 9 | decide what runs next from a result | an `async def` flow, `await`, `asyncio.gather` |
@@ -201,17 +201,19 @@ your process.
 
 ## 6. Write the flow
 
-A flow is a plain function that calls the tasks. The first argument of a task
-call is the **unit**, what the kind is applied to: here the report's name. One
-kind on one unit is one **task** (`triage · login-timeout`). The keyword
-arguments are its params.
+A flow is a function that calls the tasks. The first argument of a task call is
+the **unit**, what the kind is applied to: here the report's name. One kind on one
+unit is one **task** (`triage · login-timeout`). The keyword arguments are its
+params.
 
-::code{file="examples/tutorial/tasks.py" from="def report_path(" to="def triage_one("}
+::code{file="examples/tutorial/tasks.py" from="def report_path(" to="async def triage_one("}
 
 Calling a task in a flow does not run it. It returns a `Pending`, a reference
-to the task's future output. Passing a `Pending` to another task is the
-dependency: `write_table` waits for every triage and receives their checked
-outputs. The three triages depend on nothing, so they run at the same time.
+to the task's future output. A task is given values, so a flow that gives one task
+another's output is an `async def` function: `await` waits for the task and gives
+its checked output, and the flow passes that value on. `asyncio.gather` awaits the
+three triages at once: they depend on nothing, so they run at the same time.
+`write_table` is then given their outputs.
 
 ## 7. Check it, and run it without a model
 
@@ -224,9 +226,12 @@ uv run contraagent check tasks.py:triage_all --kwargs '{"reports": ["login-timeo
 ```
 
 ```
-✓ 4 tasks, 2 kinds: triage 3, write_table 1
+✓ 3 tasks, 1 kind: triage 3; later kinds: write_table
   triage: claude/(the agent default model) effort=medium max_turns=10 timeout_s=300
 ```
+
+`write_table` is a later kind: the flow creates it only once the triages are done,
+and a check gives no task an output. Its declaration is checked all the same.
 
 A **stub run** goes further: it runs the whole flow with a stub agent in place
 of every task. Each output is its model's example, or for a model with none (as
@@ -326,10 +331,10 @@ triages run again, then the table that reads them. Or give a new run id with
 
 ## 9. Decide on results
 
-`triage_all` creates every task at the start. A flow that decides what to do
-from an output is an `async def` function: it awaits a task call and receives the
-task's checked output there. Plain Python then decides what runs next. A task
-call does not wait by itself: `await` waits.
+`triage_all` treats every report the same way. A flow can also decide what to do
+from an output: it awaits a task call, receives the task's checked output there,
+and plain Python decides what runs next. A task call does not wait by itself:
+`await` waits.
 
 Add a model and a task for the fix plan, and a role `agents/planner.md` in the
 same plugin:

@@ -56,8 +56,8 @@ def inputs(tmp_path, monkeypatch):
 def test_the_flow_checks_clean():
     report = Pipeline(HERE / "pipeline.toml", backends=StubAgent().backends()).check(docs, units=UNITS)
     assert report.ok, report
-    assert report.kinds == {"prepare": 5, "summarize": 5}  # what the flow creates before its first wait
-    assert {"score", "review", "revise", "write_note", "report"} <= set(report.later_kinds)  # what its code reaches
+    assert report.kinds == {"prepare": 5}  # what the flow creates before its first wait
+    assert {"summarize", "score", "review", "revise", "write_note", "report"} <= set(report.later_kinds)  # what its code reaches
 
 
 def test_the_flow_runs_on_the_stub(inputs):
@@ -66,7 +66,7 @@ def test_the_flow_runs_on_the_stub(inputs):
 
     stops = {k: r.stop for k, r in report.results.items()}
     assert stops["python:prepare-zeta"] == "error"  # its input is malformed
-    assert stops["summarize-zeta"] == "invalid_input"  # refused before launch: zeta's review loop ends there
+    assert "summarize-zeta" not in stops  # zeta's review loop ends at the await of its prepare
     assert not any(launch.unit == "zeta" for launch in agent.launches)
     assert [launch.model for launch in agent.launches_of("summarize-beta")] == ["primary-model", "fallback-model"]
     assert [launch.resumed for launch in agent.launches_of("summarize-delta")] == [False, True]  # sent back by `three_points`
@@ -83,7 +83,10 @@ def test_the_report_covers_the_approved_summaries(inputs):
     assert report.value == "alpha: 3 points"  # the flow's return value: what the report task returned
 
 
-def test_the_flow_without_waiting_refuses_what_a_failure_feeds(inputs):
+def test_a_unit_that_fails_stops_only_its_own_review(inputs):
     report = Pipeline(HERE / "pipeline.toml", runs_dir=inputs / "runs", backends=stub().backends()).run(docs_one_review, units=UNITS)
     stops = {k: r.stop for k, r in report.results.items()}
-    assert {stops[k] for k in ("summarize-zeta", "review-zeta", "write_note-zeta", "python:report")} == {"invalid_input"}
+    assert stops["python:prepare-zeta"] == "error"
+    assert not any(k.endswith("-zeta") for k in stops if k != "python:prepare-zeta")  # its flow call stops there
+    assert stops["python:report"] == "completed"
+    assert "zeta" not in report.value and "alpha: 3 points" in report.value

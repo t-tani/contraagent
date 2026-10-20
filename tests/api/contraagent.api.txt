@@ -136,7 +136,7 @@ class CredentialError(ContraagentError)
 
 class DeferralCause(RecordModel)
     cause: str
-    dependency: str | None = Field(default=None, description='`dependency_deferred`: the key of the deferred task whose output it reads')
+    dependency: str | None = Field(default=None, description='`dependency_deferred` (releases before 0.7): the key of the deferred task whose output it read')
     flow_call: str | None = Field(default=None, description="`deadline`, `grace_window`, `cannot_finish`: the flow call whose time box it is; null for the run's deadline")
     left_s: float | None = Field(default=None, description='`cannot_finish`: the time left before the deadline, in seconds')
     model_config: ConfigDict = ConfigDict(frozen=True)
@@ -188,10 +188,12 @@ class Origin
         flow: tuple[Frame, ...] = (),
         created_from: tuple[str, ...] = (),
         flow_call: str = '0',
+        given_from: tuple[str, ...] = (),
     ) -> None
     created_from: tuple[str, ...] = ()
     flow: tuple[Frame, ...] = ()
     flow_call: str = '0'
+    given_from: tuple[str, ...] = ()
 
 class OtherModel(RecordModel)
     cache_creation: int = 0
@@ -578,8 +580,6 @@ class TaskResult
 
 class TaskScope(Protocol)
     def __call__(self, task: Task, /) -> AbstractContextManager[None]
-
-class TextOutput(str)
 
 @dataclass(frozen=True)
 class TimeBox
@@ -2045,11 +2045,14 @@ class FlowCall
         raised_by: str | None = None,
         time_box: TimeBox | None = None,
         started_at: float = time.time(),
+        ended_at: float | None = None,
+        unawaited: tuple[str, ...] = (),
         recorded: bool = False,
         task: asyncio.Task[Any] | None = None,
         coro: Any = None,
     ) -> None
     coro: Any = field(default=None, repr=False)
+    ended_at: float | None = None
     error: BaseException | None = None
     frontier: tuple[str, ...] = ()
     function: str = ''
@@ -2063,6 +2066,7 @@ class FlowCall
     state: FlowState = 'running'
     task: asyncio.Task[Any] | None = field(default=None, repr=False)
     time_box: TimeBox | None = None
+    unawaited: tuple[str, ...] = ()
     value: Any = field(default=None, repr=False)
 
 class FlowDriver
@@ -2072,6 +2076,7 @@ class FlowDriver
         waits_for: WaitsFor | None = None,
         answer: Answer | None = None,
         on_flow_call: OnFlowCall | None = None,
+        holds: Holds | None = None,
         past_grace: Callable[[], bool] | None = None,
         slow_step_s: float = 1.0,
         replay: Mapping[str, int] | None = None,
@@ -2095,6 +2100,7 @@ class FlowDriver
     slow_step_s
     def start(self, flow: Coroutine[Any, Any, Any]) -> FlowCall
     def time_boxes(self, call: FlowCall | None) -> tuple[TimeBox, ...]
+    def unawaited(self, value: Any = None) -> tuple[str, ...]
     def wait(self, item: Any) -> Coroutine[Any, Any, Any]
 
 class FollowUp(Protocol)
@@ -2104,6 +2110,9 @@ class HistoryEntry(RecordModel)
     at: datetime
     model_config: ConfigDict = ConfigDict(validate_assignment=True)
     name: str
+
+class Holds(Protocol)
+    def __call__(self, value: Any, /) -> Iterable[str]
 
 class Inflight(RecordModel)
     item_ids: list[str] = Field(default_factory=list)
@@ -2398,6 +2407,8 @@ class Run
         started_at: float | None = None,
         raised_at: Frame | None = None,
         raised_by: str | None = None,
+        unawaited: Sequence[str] = (),
+        ended_at: float | None = None,
     ) -> None
     def rows(self) -> list[dict[str, Any]]
     run_group: str
@@ -3126,6 +3137,7 @@ class FlowCallNode(Closed)
     raised_by: str | None = Field(None, description="for one that raised: the key of the failed task the exception is, the same in every flow call it passes through; null for an exception of flow code's own")
     state: FlowState
     time_box: TimeBoxRecord | None = Field(None, description='its own deadline, for a flow call started through `time_box`; else null')
+    unawaited: list[str] = Field(default_factory=list, description='for a top flow call that ended: the keys of the tasks created in it or in the flow calls it started that nothing awaited, waited for with `after=` or returned; they ran all the same')
 
 class HostSummary(Closed)
     host_id: str
@@ -3341,6 +3353,7 @@ class PlanNode(PlanRow)
     executor: Executor = 'agent'
     flow: list[Frame] = Field(default_factory=list, description='the flow path: frames of flow code that created it, outermost first')
     flow_call: str | None = Field(None, description='the id of the flow call that created it; null for a task with no origin')
+    given_from: list[str] = Field(default_factory=list, description='keys of the tasks whose outputs it was given in its params, found by their content among its params; shown only, never part of its fingerprint')
     group: str
     key: str
     kind: str

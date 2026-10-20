@@ -10,6 +10,8 @@ then reads the files the lookup found.
 
 from __future__ import annotations
 
+import asyncio
+
 from pydantic import BaseModel
 
 from contraagent import agent_task, python_task
@@ -60,6 +62,11 @@ summarize = agent_task(
 )
 
 
-def topics(names: list[str]):
-    for name in names:
-        summarize(name, sources=find_sources(name))
+async def topic(name: str) -> None:
+    """One topic: its sources, then its summary."""
+    await summarize(name, sources=await find_sources(name))
+
+
+async def topics(names: list[str]):
+    """Every topic at once (a flow call each): a topic that fails stops only its own."""
+    await asyncio.gather(*[topic(name) for name in names], return_exceptions=True)

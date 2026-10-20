@@ -119,7 +119,7 @@ def test_the_example_goes_on_past_a_partial_lookup_and_a_resume_runs_only_it_aga
         "python:find_sources-caching": "skipped",
         "summarize-caching": "skipped",
         "python:find_sources-queues": "completed",
-        "summarize-queues": "completed",  # it waits for the lookup that ran again
+        "summarize-queues": "completed",  # it is given the lookup's new output
     }
     assert json.loads((out / "queues.json").read_text())["paths"] == ["notes/queues.md"]
     assert not second.partial
@@ -130,7 +130,7 @@ def test_a_resume_runs_a_partial_lookup_again_while_it_stays_partial(tmp_path, m
     run()
     again = run(resume=True)
     assert again.results["python:find_sources-queues"].stop == "partial"
-    assert again.results["summarize-queues"].stop == "completed"
+    assert again.results["summarize-queues"].stop == "skipped"  # given the same placeholder: nothing to do again
     assert again.results["summarize-caching"].stop == "skipped"
 
 

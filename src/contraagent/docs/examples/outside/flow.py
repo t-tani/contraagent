@@ -9,6 +9,7 @@ tasks of the topics again once the file changed, and skips them while it did not
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 from pathlib import Path
@@ -56,6 +57,11 @@ summarize = agent_task(
 )
 
 
-def topics(names: list[str]):
-    for name in names:
-        summarize(name, counts=count_open(name))
+async def topic(name: str) -> None:
+    """One topic: its open items counted, then its summary."""
+    await summarize(name, counts=await count_open(name))
+
+
+async def topics(names: list[str]):
+    """Every topic at once (a flow call each): a topic that fails stops only its own."""
+    await asyncio.gather(*[topic(name) for name in names], return_exceptions=True)

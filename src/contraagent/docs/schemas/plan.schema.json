@@ -154,6 +154,14 @@
       "description": "the id of the flow call that created it; null for a task with no origin",
       "title": "Flow Call"
     },
+    "given_from": {
+      "description": "keys of the tasks whose outputs it was given in its params, found by their content among its params; shown only, never part of its fingerprint",
+      "items": {
+        "type": "string"
+      },
+      "title": "Given From",
+      "type": "array"
+    },
     "base_kind": {
       "default": "",
       "description": "an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty",

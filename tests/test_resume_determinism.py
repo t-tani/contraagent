@@ -128,7 +128,7 @@ def test_a_changed_input_is_named(tmp_path):
     state["instructions"], agent.text = "Write more.", "second"
     rep = pipeline(tmp_path, agent).run(reading(state), run_id="r", resume=True)
     assert rep.ok and keys(agent) == ["write-u", "check-u"]
-    assert reruns(rep)["check-u"] == "its fingerprint changed: the output of write-u it reads"
+    assert reruns(rep)["check-u"] == "its fingerprint changed: its params"  # the output it is given is part of them
 
 
 def test_changed_params_for_the_same_outputs_are_a_divergence_and_a_warning(tmp_path):
@@ -152,7 +152,7 @@ def test_changed_params_beside_a_changed_input_are_no_divergence(tmp_path):
     agent.launches.clear()
     state["instructions"], state["note"], agent.text = "Write more.", "b", "second"
     rep = pipeline(tmp_path, agent).run(reading(state), run_id="r", resume=True)
-    assert reruns(rep)["check-u"] == "its fingerprint changed: its params, the output of write-u it reads"
+    assert reruns(rep)["check-u"] == "its fingerprint changed: its params"  # write-u ran again: no divergence
 
 
 # --- a file an output_of task fills in ---------------------------------------------------------

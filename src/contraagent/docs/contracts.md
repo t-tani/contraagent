@@ -264,9 +264,16 @@ runs it before it stops:
 
 ## Inputs
 
-A task that receives another task's result (a `Pending`) reads that task's file
-as an **input contract**: checked before launch, and a task whose input fails is
-refused (`invalid_input`) rather than run on nothing. An input fails when its file is
-missing or off its schema, or when the task that wrote it did not succeed: an output its
-validators rejected (`invalid_output`) meets its schema and is still refused, its reason
-`input from <key> ended <stop>`. A `partial` result succeeded: its output is read.
+A task is given values, not files. Another task's output reaches it through the
+flow, which awaits that task, receives the checked output at the `await` and passes it
+on (see [Tasks](tasks.md#flows-that-depend-on-results)). An output that did not pass its
+checks raises `TaskFailed` there, so no task is ever given it: an output its validators
+rejected (`invalid_output`) meets its schema and still raises. A `partial` result
+succeeded: the flow receives its output. The params themselves are checked at the task
+call: an agent task's under its params model, a Python task's against its parameters'
+annotations as it starts (`invalid_input`).
+
+An **input contract** (`InputContract`) is a file a task reads, checked before launch,
+for a runner built on the engine (`TaskAdapter.input_contracts`): a file that is
+missing or off its schema refuses the task (`invalid_input`) rather than run it on
+nothing.

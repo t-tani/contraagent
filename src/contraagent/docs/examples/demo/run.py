@@ -17,8 +17,8 @@ Open http://127.0.0.1:8787 while it runs. With the demo agent:
   approve: its summary is revised, scored and reviewed again (pass 2);
 * `epsilon`'s `score` is partial: its word counter is unavailable, so its figures are a
   placeholder; the review runs on them, and a resume would score it again;
-* `zeta`'s `prepare` raises: its summary is refused before launch, so its review
-  loop ends there, and the report covers the other units.
+* `zeta`'s `prepare` raises: its review loop ends at the `await` of it, so its
+  summary is never created, and the report covers the other units.
 """
 
 from __future__ import annotations

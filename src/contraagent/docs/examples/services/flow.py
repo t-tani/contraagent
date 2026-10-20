@@ -10,6 +10,7 @@ agent task that claims `index` too: its coding agent finds the address in
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import threading
@@ -95,10 +96,15 @@ def index_server(name: str) -> Iterator[str]:
 CLAIM_CAPACITY = {"index": 4}
 
 
-def topics(names: list[str]):
-    for name in names:
-        summarize(name, sources=find_sources(name))
-    review("all", topics=names)
+async def topic(name: str) -> None:
+    """One topic: its sources, then its summary."""
+    await summarize(name, sources=await find_sources(name))
+
+
+async def topics(names: list[str]):
+    """The review of every topic, and every topic at once (a flow call each): a topic that
+    fails stops only its own."""
+    await asyncio.gather(review("all", topics=names), *[topic(name) for name in names], return_exceptions=True)
 
 
 def pipeline(**options: Any) -> Pipeline:
