@@ -3,6 +3,7 @@ import type { LayeredGraphStrings } from '@contraagent/elements/graph';
 import type { MarkMatrixStrings } from '@contraagent/elements/matrix';
 import { msg, str } from '@lit/localize';
 import { listText } from '../../../words/format.js';
+import { lineageWord } from '../../../words/lineage.js';
 
 /**
  * Every word of the graph (`up`: Escape's hint without a selection, '' at the top;
@@ -29,8 +30,9 @@ export function graphStrings(up: boolean, functions: boolean): Omit<LayeredGraph
     stubTip: msg('Outside this layer'),
     more: (n) => msg(str`+${n}`),
     badge: msg('number of passes'),
-    solidEdge: msg('waits for output'),
-    dashedEdge: msg('created after result'),
+    solidEdge: lineageWord('given_from'),
+    dottedEdge: lineageWord('after'),
+    dashedEdge: lineageWord('created_from'),
     cycle: msg('next pass'),
     drill: msg('has a level below'),
     open: msg('Show inside'),
@@ -38,7 +40,8 @@ export function graphStrings(up: boolean, functions: boolean): Omit<LayeredGraph
     iconNames: { agent: msg('agent task'), python: msg('Python task') },
     nameHeader: functions ? msg('Kind or function') : msg('Kind'),
     statusHeader: msg('Status', { id: 'status', desc: 'The status of a task: done, failed, not started' }),
-    solidHeader: msg('Waits for'),
+    solidHeader: msg('Given output of'),
+    dottedHeader: msg('Runs after'),
     dashedHeader: msg('Created after'),
     laterHeader: msg('Later tasks'),
     none: msg('none', { id: 'none', desc: 'An empty value' }),

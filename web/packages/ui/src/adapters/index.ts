@@ -20,3 +20,4 @@ export { compound, chooseOpen, doi, interest, notable, placeKey, placeStats, tow
 export { LOOP_SEGMENT, type FlowBox, type GraphNode, type LayerGraph, type LayerMark, type LayerModel, type LoopBox } from './graph/types.js';
 export * from './transcript/index.js';
 export * from './preflight.js';
+export * from './forecast.js';

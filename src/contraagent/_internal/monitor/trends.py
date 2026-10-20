@@ -145,6 +145,14 @@ def run_files(source: RunSource, run: str, infos: dict[str, Any] | None = None) 
     """A run's `run.json` and its `signature`: what its digest depends on (its logs' sizes,
     and when it started and finished). `infos` keeps each run's `run.json` by its `stat`,
     so an unchanged one is not read again: a period over hundreds of runs asks for each."""
+    info = run_info(source, run, infos)
+    sizes = {log: source.size(run, log) for log in DIGEST_LOGS}
+    return info, {**sizes, "started_at": info.get("started_at", ""), "finished_at": info.get("finished_at", "")}
+
+
+def run_info(source: RunSource, run: str, infos: dict[str, Any] | None = None) -> dict[str, Any]:
+    """A run's `run.json`, {} for none. `infos` keeps each run's `run.json` by its `stat`,
+    so an unchanged one is not read again."""
     st = source.stat(run, layout.RUN_INFO)
     held = (infos or {}).get(run)
     if st is not None and held is not None and held[0] == st:
@@ -153,9 +161,7 @@ def run_files(source: RunSource, run: str, infos: dict[str, Any] | None = None) 
         info = source.info(run)
         if infos is not None and st is not None:
             infos[run] = (st, info)
-    sizes = {log: source.size(run, log) for log in DIGEST_LOGS}
-    info = info if isinstance(info, dict) else {}
-    return info, {**sizes, "started_at": info.get("started_at", ""), "finished_at": info.get("finished_at", "")}
+    return info if isinstance(info, dict) else {}
 
 
 def digest(source, run: str) -> dict[str, Any]:

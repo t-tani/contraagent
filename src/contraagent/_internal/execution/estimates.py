@@ -33,6 +33,10 @@ queue measures along the tasks already queued after it). A tail key with no
 sample takes its kind's wall times, plus `after_s` or the task's `tail_s`. With
 neither, there is no chance to give (None).
 
+The same reading gives the monitor its forecast: `run_shape` counts a run's tasks by
+tail key, with their wall time and cost, and `latest_finished` finds the run of the same
+flow to read. The schedule never reads them.
+
 Samples:
 
 * only the `RECENT_RUNS` most recent runs of the runs directory are read (by
@@ -59,7 +63,7 @@ from __future__ import annotations
 import statistics
 import threading
 from collections import deque
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -325,3 +329,57 @@ def recent_runs(source: DirectorySource, recent: int = RECENT_RUNS) -> list[str]
         at = parse_iso(row.get("ts")) or datetime.fromtimestamp(st.mtime_ns / 1e9, tz=UTC)
         written.append((at, run))
     return [run for _, run in sorted(written)[-recent:]]
+
+
+def run_shape(plan: list[dict[str, Any]], journal: list[dict[str, Any]], loop_cap: int = LOOP_CAP) -> dict[TailKey, dict[str, Any]]:
+    """A run's tasks by tail key: for each, the kind and base kind of its first task
+    (`kind`, `base_kind`, '' for none), how many tasks it has (`tasks`, one per key of
+    `plan`), their wall time (`wall_s`, every attempt's) and their cost (`cost_usd`,
+    every attempt's that reported one; None when none did). `plan` and `journal` are the
+    rows of its `plan.jsonl` and `journal.jsonl`."""
+    walls: dict[str, float] = {}
+    costs: dict[str, float] = {}
+    for e in journal:
+        key = e.get("key")
+        if not isinstance(key, str):
+            continue
+        walls[key] = walls.get(key, 0.0) + float(e.get("wall_s") or 0)
+        if e.get("cost_usd") is not None:
+            costs[key] = costs.get(key, 0.0) + float(e["cost_usd"])
+    shape: dict[TailKey, dict[str, Any]] = {}
+    seen: set[str] = set()
+    for r in plan:
+        key = r.get("key")
+        if not isinstance(key, str) or key in seen:
+            continue
+        seen.add(key)
+        part = shape.setdefault(
+            row_tail_key(r, loop_cap),
+            {"kind": str(r.get("kind") or ""), "base_kind": str(r.get("base_kind") or ""), "tasks": 0, "wall_s": 0.0, "cost_usd": None},
+        )
+        part["tasks"] += 1
+        part["wall_s"] += walls.get(key, 0.0)
+        if key in costs:
+            part["cost_usd"] = (part["cost_usd"] or 0.0) + costs[key]
+    return shape
+
+
+def latest_finished(run: str, infos: Mapping[str, Mapping[str, Any]]) -> str | None:
+    """The run a forecast of `run` reads: of the other runs whose `run.json` names the same
+    flow (`flow`), the one that finished last before `run` started; None when `run`'s
+    `run.json` names no flow, or no such run finished. `infos` holds each run's `run.json`
+    by its run id, `run` among them."""
+    info = infos.get(run) or {}
+    flow, started = info.get("flow"), parse_iso(info.get("started_at"))
+    if not isinstance(flow, str) or not flow or started is None:
+        return None
+    best: tuple[datetime, str] | None = None
+    for other, o in infos.items():
+        if other == run:
+            continue
+        finished = parse_iso(o.get("finished_at"))
+        if o.get("flow") != flow or finished is None or finished > started:
+            continue
+        if best is None or (finished, other) > best:
+            best = (finished, other)
+    return best[1] if best is not None else None

@@ -822,6 +822,7 @@ class Graph:
                 definition=node.spec.definition(),
                 retries=node.spec.retries,
                 retry_on=node.spec.retry_on,
+                params=copy.deepcopy(node.params),
             ),
         )
 

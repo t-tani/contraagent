@@ -12,6 +12,8 @@ import { doneOf, exceptions, executorWord, neighbours, notDone, stateWord, taskS
 import { executorIcon } from '../../../words/executor.js';
 import { fmtDur, kindUnit, listText, usd } from '../../../words/format.js';
 import { deadlineAtText, passCount, passLabel, passSpread, passesRan, timeBoxFacts, timeBoxTip } from '../../../words/index.js';
+import { stoppedAt, stoppedHere } from '../../../words/flow-calls.js';
+import { taskChip } from '../../shared/task-chip.js';
 import { primary, select, tasksOf } from './actions.js';
 import type { PipelineHost } from './host.js';
 
@@ -39,7 +41,8 @@ function inspect(h: PipelineHost, s: Selected) {
   if (s.type === 'node') {
     const n = s.node;
     const c = n.counts;
-    const { waits, after, feeds } = neighbours(n, h.graph);
+    const { given, order, created, feeds } = neighbours(n, h.graph);
+    const earlier = edgeRows(row, list, given, order, created);
     const states = exceptions(n, h.live).map(([cls, t]) => html`<div class=${cls}>${t}</div>`);
     if (n.type === 'flow') {
       return html`<h4 title=${n.name}>${innerIcon()}${n.label}</h4>
@@ -48,8 +51,7 @@ function inspect(h: PipelineHost, s: Selected) {
           ${row(msg('Flow calls'), n.calls)}
           ${n.timeBox ? row(msg('Deadline'), html`<span title=${timeBoxTip()}>${timeBoxFacts(n.timeBox)}</span>`) : nothing}
           ${row(msg('Tasks', { id: 'tasks', desc: 'A count of tasks' }), html`${doneOf(c)}${states}`)}
-          ${row(msg('Waits for'), list(waits))}
-          ${after.length ? row(msg('Created after'), list(after)) : nothing}
+          ${earlier}
           ${row(msg('Later tasks'), list(feeds))}
         </dl>
         <div class="acts">${link(msg(str`Inside ${n.label}`), () => primary(h, s), true)}${clear}</div>`;
@@ -59,8 +61,7 @@ function inspect(h: PipelineHost, s: Selected) {
       <dl>
         ${n.kinds.length > 1 ? row(msg('Kinds'), listText(n.kinds)) : nothing}
         ${row(msg('Tasks', { id: 'tasks', desc: 'A count of tasks' }), html`${doneOf(c)}${states}`)}
-        ${row(msg('Waits for'), list(waits))}
-        ${after.length ? row(msg('Created after'), list(after)) : nothing}
+        ${earlier}
         ${row(msg('Later tasks'), list(feeds))}
       </dl>
       <div class="acts">${link(msg(str`Tasks of ${n.label}`), () => primary(h, s), true)}${clear}</div>`;
@@ -82,6 +83,7 @@ function inspect(h: PipelineHost, s: Selected) {
         ${m.deadlineAt ? row(msg('Deadline'), html`<span title=${timeBoxTip()}>${deadlineAtText(m.deadlineAt)}</span>`) : nothing}
         ${c ? row(msg('Tasks', { id: 'tasks', desc: 'A count of tasks' }), html`${doneOf(c)}${notDone(c, h.live).map((t) => html`<div>${t}</div>`)}`) : nothing}
         ${m.error !== undefined ? row(msg('Error'), html`<span class="err">${m.error || msg('Flow call stopped with an error')}</span>`) : nothing}
+        ${stopRow(h, row, m.key)}
       </dl>
       <div class="acts">${link(msg(str`Inside ${shortName(m.flow)}`), () => primary(h, s), true)}${clear}</div>`;
   }
@@ -97,8 +99,46 @@ function inspect(h: PipelineHost, s: Selected) {
       ${row(msg('Attempts'), ran.length || msg('none', { id: 'none', desc: 'An empty value' }))}
       ${row(msg('Time'), ran.length ? fmtDur(wall) : msg('none', { id: 'none', desc: 'An empty value' }))}
       ${row(msg('Cost'), costs.length ? usd(costs.reduce((a, x) => a + x, 0)) : '—')}
+      ${task ? stoppedRow(h, row, task.key) : nothing}
     </dl>
     <div class="acts">${link(msg('Task detail'), () => primary(h, s), true)}${node.kinds.length === 1
         ? link(msg(str`Tasks of ${node.label}`), () => tasksOf(h, node))
         : nothing}${clear}</div>`;
+}
+
+/**
+ * The nodes a node comes after, one row per lineage it has: given their output, run after
+ * them (order only), created after their results; "Given output of: none" when it has none.
+ */
+function edgeRows(
+  row: (dt: string, dd: unknown) => unknown,
+  list: (xs: string[]) => string,
+  given: string[],
+  order: string[],
+  created: string[],
+) {
+  const none = !given.length && !order.length && !created.length;
+  return html`${given.length || none ? row(msg('Given output of'), list(given)) : nothing}
+    ${order.length ? row(msg('Runs after'), list(order)) : nothing}
+    ${created.length ? row(msg('Created after'), list(created)) : nothing}`;
+}
+
+/** A flow call's mark that raised: where it stopped and the failed task it stopped for, which opens. */
+function stopRow(h: PipelineHost, row: (dt: string, dd: unknown) => unknown, id: string) {
+  const call = h.plan.flow_calls?.find((f) => f.id === id);
+  if (!call || call.state !== 'raised') return nothing;
+  const by = call.raised_by ? h.links.byKey.get(call.raised_by) : undefined;
+  const name = by ? kindUnit(by) : (call.raised_by ?? '');
+  const text = stoppedHere(call, name, h.run);
+  if (!text) return nothing;
+  return row(msg('Stopped', { id: 'flow-call-stopped', desc: 'Where a flow call stopped, and the failure that stopped it' }), html`<div>${text}</div>${call.raised_by
+    ? html`<div class="down">${taskChip(h.el, name, by ?? { key: call.raised_by })}</div>`
+    : nothing}`);
+}
+
+/** A task's mark whose failure stopped flow calls (`raised_by`): each, with where it stopped. */
+function stoppedRow(h: PipelineHost, row: (dt: string, dd: unknown) => unknown, key: string) {
+  const calls = (h.plan.flow_calls ?? []).filter((f) => f.raised_by === key);
+  if (!calls.length) return nothing;
+  return row(msg('Stopped', { id: 'flow-call-stopped', desc: 'Where a flow call stopped, and the failure that stopped it' }), calls.map((f) => html`<div>${stoppedAt(f, h.run)}</div>`));
 }

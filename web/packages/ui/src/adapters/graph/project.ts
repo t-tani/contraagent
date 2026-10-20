@@ -8,7 +8,7 @@
 // The same rule applies at every depth. Nodes whose call sites sit in the same
 // loop of the layer's function are drawn in one loop box, a nested loop's box
 // inside it; each box counts its own loop's passes (`flow[].loops[].pass`). Edges
-// are the tasks' `after` (data) and `created_from` (created after those results),
+// are the tasks' `given_from` (data), `after` (order only) and `created_from` (created after those results),
 // projected onto the layer's nodes; an edge from a task outside the layer is an
 // incoming stub. Inside each node, one mark per unit, in the same unit order
 // everywhere in the layer.
@@ -19,7 +19,7 @@ import { isPython, type FlowCallNode, type Plan, type PlanNode, type TaskState, 
 import type { Arrangement, EdgeStyle, GraphShape } from '@contraagent/elements/graph';
 import { boxChain, cmpPasses, indexOf, instanceOf, loopsAt, passesAt, placeOf, push, shortName, startsWith, type FlowIndex, type FlowTask } from './flow-index.js';
 import { worstOf, worstState } from './states.js';
-import { LOOP_SEGMENT, type GraphNode, type LayerGraph, type LayerMark, type LayerModel, type LoopBox, type NodeCounts } from './types.js';
+import { EDGE_TYPES, LOOP_SEGMENT, type EdgeType, type GraphNode, type LayerGraph, type LayerMark, type LayerModel, type LoopBox, type NodeCounts } from './types.js';
 
 /** Who runs a kind node's tasks: a coding agent, Python, or both (`mixed`). */
 function executorOf(ns: readonly PlanNode[]): 'agent' | 'python' | 'mixed' {
@@ -231,8 +231,8 @@ export function projectTasks(ix: FlowIndex, path: readonly string[], inside: rea
   // Edges, projected onto the layer's nodes; from outside it, stubs. An edge whose
   // every task joins a later pass of a loop around both ends goes back to the next pass.
   const inOrder = new Set<string>();
-  const pairs = new Map<string, { from: string; to: string; type: 'after' | 'created'; tasks: Set<string>; samePass: boolean }>();
-  const stubs = new Map<string, { id: string; label: string; to: string; type: 'after' | 'created'; tasks: Set<string> }>();
+  const pairs = new Map<string, { from: string; to: string; type: EdgeType; tasks: Set<string>; samePass: boolean }>();
+  const stubs = new Map<string, { id: string; label: string; to: string; type: EdgeType; tasks: Set<string> }>();
   const outside = (o: FlowTask): { id: string; label: string } => {
     let c = 0;
     while (c < d && o.path[c] === path[c]) c++;
@@ -241,10 +241,10 @@ export function projectTasks(ix: FlowIndex, path: readonly string[], inside: rea
   };
   for (const t of inside) {
     const to = nodeOfKey.get(t.n.key) as string;
-    const link = (dep: string, type: 'after' | 'created') => {
+    const link = (dep: string, type: EdgeType) => {
       const from = nodeOfKey.get(dep);
       if (from === to) {
-        if (type === 'after') inOrder.add(to);
+        if (type !== 'created') inOrder.add(to);
         return;
       }
       if (from !== undefined) {
@@ -266,19 +266,19 @@ export function projectTasks(ix: FlowIndex, path: readonly string[], inside: rea
       const k = `${s.id}\u0000${to}\u0000${type}`;
       (stubs.get(k) ?? stubs.set(k, { ...s, to, type, tasks: new Set() }).get(k))?.tasks.add(t.n.key);
     };
-    // A task given another's output is drawn after it, as a task that waits for it (`given_from`).
-    for (const dep of new Set([...(t.n.after ?? []), ...(t.n.given_from ?? [])])) link(dep, 'after');
+    for (const dep of t.n.given_from ?? []) link(dep, 'given');
+    for (const dep of t.n.after ?? []) link(dep, 'after');
     for (const dep of t.from) link(dep, 'created');
   }
-  // A created_from edge is drawn only where no after edge joins the same two. In the order
+  // An edge is drawn only where no stronger one joins the same two (`EDGE_TYPES`). In the order
   // of their ends, not of the tasks that made them: the same plan draws the same graph,
   // whichever of its tasks ran first.
   const byEnds = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
   const all = [...pairs.values()]
-    .filter((e) => e.type === 'after' || !pairs.has(`${e.from}\u0000${e.to}\u0000after`))
+    .filter((e) => !stronger(e.type).some((x) => pairs.has(`${e.from}\u0000${e.to}\u0000${x}`)))
     .sort((x, y) => byEnds(`${x.from}\u0000${x.to}\u0000${x.type}`, `${y.from}\u0000${y.to}\u0000${y.type}`));
   const stubList = [...stubs.values()]
-    .filter((s) => s.type === 'after' || !stubs.has(`${s.id}\u0000${s.to}\u0000after`))
+    .filter((s) => !stronger(s.type).some((x) => stubs.has(`${s.id}\u0000${s.to}\u0000${x}`)))
     .sort((x, y) => byEnds(`${x.id}\u0000${x.to}\u0000${x.type}`, `${y.id}\u0000${y.to}\u0000${y.type}`));
 
   const boxes: LoopBox[] = [...boxParent.keys()].map((id) => {
@@ -333,8 +333,11 @@ export function projectTasks(ix: FlowIndex, path: readonly string[], inside: rea
   };
 }
 
-/** How an edge of the layer is drawn: an `after` edge solid, a `created` one dashed. */
-export const edgeStyle = (type: 'after' | 'created'): EdgeStyle => (type === 'after' ? 'solid' : 'dashed');
+/** How an edge of the layer is drawn: a `given` edge solid (data), an `after` one dotted (order only), a `created` one dashed. */
+export const edgeStyle = (type: EdgeType): EdgeStyle => (type === 'given' ? 'solid' : type === 'after' ? 'dotted' : 'dashed');
+
+/** The edge types stronger than `type`: one of them joining the same two leaves `type` undrawn. */
+export const stronger = (type: EdgeType): readonly EdgeType[] => EDGE_TYPES.slice(0, EDGE_TYPES.indexOf(type));
 
 /** What `arrange` reads of a layer: its nodes in their loop boxes, the boxes (each a loop: it cycles), and the links. */
 export function shapeOf(m: LayerModel): GraphShape {

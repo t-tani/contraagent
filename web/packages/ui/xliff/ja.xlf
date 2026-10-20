@@ -1574,21 +1574,9 @@
   <source><x id="0" equiv-text="${x.label}"/> in the loop</source>
   <target>ループ内の <x id="0" equiv-text="${x.label}"/></target>
 </trans-unit>
-<trans-unit id="sa0a6e71350fd953b">
-  <source>waits for output</source>
-  <target>出力を待つ</target>
-</trans-unit>
-<trans-unit id="sd798aaccd0308806">
-  <source>created after result</source>
-  <target>結果を受けて作成</target>
-</trans-unit>
 <trans-unit id="sed7bd1552ea928f8">
   <source>Kind or function</source>
   <target>種別または関数</target>
-</trans-unit>
-<trans-unit id="s06ac9901d5ec124e">
-  <source>Waits for</source>
-  <target>依存先</target>
 </trans-unit>
 <trans-unit id="sa434ad4d2100f245">
   <source>Created after</source>
@@ -1879,7 +1867,7 @@
   <target>依存先タスク</target>
 </trans-unit>
 <trans-unit id="h5665d16ae525ca0b">
-  <source>Output of <x id="0" equiv-text="${taskLink(c, u)}"/></source>
+  <source>Output of <x id="0" equiv-text="${taskLink(c, writer ?? { key: f.writer, kind: f.writer, unit: '' })}"/></source>
   <target><x id="0" equiv-text="${this.link(u)}"/> の出力</target>
 </trans-unit>
 <trans-unit id="s0b7f9dcca2fb294a">
@@ -2834,12 +2822,8 @@
   <source>An earlier task was not run</source>
   <target>依存先タスクが実行されなかった</target>
 </trans-unit>
-<trans-unit id="s08f830c89607bf9e">
-  <source>Waits for: <x id="0" equiv-text="${listText(waits)}"/></source>
-  <target>依存先: <x id="0" equiv-text="${listText(waits)}"/></target>
-</trans-unit>
 <trans-unit id="s0b05cbe8c9314a2b">
-  <source>Created after: <x id="0" equiv-text="${listText(after)}"/></source>
+  <source>Created after: <x id="0" equiv-text="${listText(created)}"/></source>
   <target>作成元: <x id="0" equiv-text="${listText(after)}"/></target>
 </trans-unit>
 <trans-unit id="sf067ec3ce4af8ebe">
@@ -3147,10 +3131,6 @@
   <source>created, kept after the failed attempt</source>
   <target>作成、試行の失敗後も保持</target>
 </trans-unit>
-<trans-unit id="s4f0b2143a5fc9bf2">
-  <source>Ran again after a resume: <x id="0" equiv-text="${node.rerun}"/></source>
-  <target>再開後に再実行: <x id="0" equiv-text="${node.rerun}"/></target>
-</trans-unit>
 <trans-unit id="s6e4da2972d0c2e38">
   <source>No selection</source>
   <target>未選択</target>
@@ -3261,6 +3241,174 @@
   <source>cancelled</source>
   <note from="lit-localize">The status of a task that was stopped, or never started, because no part of the pipeline waited for its result any longer (cancelled)</note>
   <target>取り消し</target>
+</trans-unit>
+<trans-unit id="s0a99b40429080168">
+  <source>Given output of: <x id="0" equiv-text="${listText(given)}"/></source>
+  <target>入力元: <x id="0" equiv-text="${listText(given)}"/></target>
+</trans-unit>
+<trans-unit id="sd201d977e9a204cb">
+  <source>Runs after: <x id="0" equiv-text="${listText(order)}"/></source>
+  <target>順序のみの依存先: <x id="0" equiv-text="${listText(order)}"/></target>
+</trans-unit>
+<trans-unit id="sbbe1ac88d71c2fec">
+  <source>Given output of</source>
+  <target>入力元</target>
+</trans-unit>
+<trans-unit id="s91d2138e1db80125">
+  <source>Runs after</source>
+  <target>順序のみの依存先</target>
+</trans-unit>
+<trans-unit id="sd406591b0914aab7">
+  <source>Checked files it reads</source>
+  <target>読み込むファイル（検証あり）</target>
+</trans-unit>
+<trans-unit id="s2c0c7686db4c5c18">
+  <source>Param <x id="0" equiv-text="${f.param}"/></source>
+  <target>パラメータ <x id="0" equiv-text="${f.param}"/></target>
+</trans-unit>
+<trans-unit id="s14c898307fc12ee3">
+  <source>This failure stopped <x id="0" equiv-text="${fn}"/> at <x id="1" equiv-text="${where}"/></source>
+  <target>この失敗で <x id="0" equiv-text="${fn}"/> が <x id="1" equiv-text="${where}"/> で停止</target>
+</trans-unit>
+<trans-unit id="sb24e2c9c9f983470">
+  <source>This failure stopped <x id="0" equiv-text="${fn}"/></source>
+  <target>この失敗で <x id="0" equiv-text="${fn}"/> が停止</target>
+</trans-unit>
+<trans-unit id="sfbb84dc71ed5b92e">
+  <source>Stopped at <x id="0" equiv-text="${where}"/> by the failure of <x id="1" equiv-text="${by}"/></source>
+  <target><x id="1" equiv-text="${by}"/> の失敗により <x id="0" equiv-text="${where}"/> で停止</target>
+</trans-unit>
+<trans-unit id="s552a2945ecbbf679">
+  <source>Stopped by the failure of <x id="0" equiv-text="${by}"/></source>
+  <target><x id="0" equiv-text="${by}"/> の失敗により停止</target>
+</trans-unit>
+<trans-unit id="s33fc35415f8b1c49">
+  <source>Stopped at <x id="0" equiv-text="${where}"/></source>
+  <target><x id="0" equiv-text="${where}"/> で停止</target>
+</trans-unit>
+<trans-unit id="sfa069139277176df">
+  <source>1 task not awaited</source>
+  <target>待たれなかったタスク 1 件</target>
+</trans-unit>
+<trans-unit id="s31ad37e9f51902fd">
+  <source><x id="0" equiv-text="${n}"/> tasks not awaited</source>
+  <target>待たれなかったタスク <x id="0" equiv-text="${n}"/> 件</target>
+</trans-unit>
+<trans-unit id="s1d4bd752f1174aaf">
+  <source>Tasks whose result no flow awaited, ordered a task after or returned (unawaited); they ran for their output files and changes</source>
+  <target>どのフローも結果を待たず、after= にも渡さず、戻り値にも含めなかったタスク（unawaited）。出力ファイルと変更のために実行された</target>
+</trans-unit>
+<trans-unit id="s4cd75aa2c080e64a">
+  <source>1 more task expected (forecast)</source>
+  <target>あと 1 件の見込み（forecast）</target>
+</trans-unit>
+<trans-unit id="sfa29dd1ad553ce38">
+  <source><x id="0" equiv-text="${n}"/> more tasks expected (forecast)</source>
+  <target>あと <x id="0" equiv-text="${n}"/> 件の見込み（forecast）</target>
+</trans-unit>
+<trans-unit id="sfefeb008c3ce14ef">
+  <source>Forecast: 1 more task</source>
+  <target>見込み: あと 1 タスク</target>
+</trans-unit>
+<trans-unit id="s6f5367f58dce0037">
+  <source>Forecast: <x id="0" equiv-text="${f.remaining}"/> more tasks</source>
+  <target>見込み: あと <x id="0" equiv-text="${f.remaining}"/> タスク</target>
+</trans-unit>
+<trans-unit id="se7bc5096d48d4c1c">
+  <source><x id="0" equiv-text="${fmtDur(f.wall_s)}"/> of task time</source>
+  <target>タスクの所要時間 <x id="0" equiv-text="${fmtDur(f.wall_s)}"/></target>
+</trans-unit>
+<trans-unit id="s1725258e65a9f38f">
+  <source>Tasks this run is expected to create and has not yet, from the run <x id="0" equiv-text="${f.earlier_run}"/> of the same flow (forecast)</source>
+  <target>同じフローの実行 <x id="0" equiv-text="${f.earlier_run}"/> から見込んだ、この実行がまだ作成していないタスク（forecast）</target>
+</trans-unit>
+<trans-unit id="s25f66969239538c1">
+  <source>Not in the plan yet: <x id="0" equiv-text="${listText(items.map((x) =&gt; `${x.group} +${x.remaining}`))}"/></source>
+  <target>まだ登録されていない種別: <x id="0" equiv-text="${listText(items.map((x) =&gt; `${x.group} +${x.remaining}`))}"/></target>
+</trans-unit>
+<trans-unit id="s3fda7269dc9d47ba">
+  <source>Its output is in the params of the later task (given_from)</source>
+  <target>このタスクの出力が後続タスクのパラメータに含まれる（given_from）</target>
+</trans-unit>
+<trans-unit id="se6982e1c5d0986ac">
+  <source>The later task waits for it and is not given its output (after)</source>
+  <target>後続タスクはこのタスクの完了を待つが、出力は受け取らない（after）</target>
+</trans-unit>
+<trans-unit id="s8c563da286fe5cb7">
+  <source>Its result reached the flow call just before the flow call created the later task (created_from)</source>
+  <target>このタスクの結果を受け取った直後に、フロー呼び出しが後続タスクを作成した（created_from）</target>
+</trans-unit>
+<trans-unit id="s2df66a4e587b3718">
+  <source>same content at the start</source>
+  <target>開始時も同じ内容</target>
+</trans-unit>
+<trans-unit id="sca175b60e0f8cc35">
+  <source>changed before the start</source>
+  <target>開始前に変更された</target>
+</trans-unit>
+<trans-unit id="sfc4c7372f2d13e91">
+  <source>outside state</source>
+  <target>外部の状態</target>
+</trans-unit>
+<trans-unit id="s782db3652547623c">
+  <source>the file it fills in</source>
+  <target>書き足す対象のファイル</target>
+</trans-unit>
+<trans-unit id="s5cb32dedd20156b7">
+  <source>divergence</source>
+  <target>分岐</target>
+</trans-unit>
+<trans-unit id="s64a9094d5926ab69">
+  <source>The flow gave other params for the same outputs of the tasks before it (divergence): a clock, randomness, outside state or changed flow code</source>
+  <target>前のタスクの出力は同じなのに、フローが別のパラメータを渡した（divergence）。時刻、乱数、外部の状態、フローのコードの変更による</target>
+</trans-unit>
+<trans-unit id="s048f821b3dc73ec2">
+  <source>Ran again after a resume</source>
+  <target>再開後に再実行</target>
+</trans-unit>
+<trans-unit id="sd5c13f0d5d88c035">
+  <source>Changed: <x id="0" equiv-text="${listText(r.changed.map(fingerprintPartWord))}"/></source>
+  <target>変更: <x id="0" equiv-text="${listText(r.changed.map(fingerprintPartWord))}"/></target>
+</trans-unit>
+<trans-unit id="part-definition">
+  <source>definition</source>
+  <target>定義</target>
+  <note from="lit-localize">A part of what defines a task: its instructions, role, schemas, validators or source</note>
+</trans-unit>
+<trans-unit id="part-input-files">
+  <source>input files</source>
+  <target>入力ファイル</target>
+  <note from="lit-localize">A part of what defines a task: the files given to it by path and hash</note>
+</trans-unit>
+<trans-unit id="part-params">
+  <source>params</source>
+  <target>パラメータ</target>
+  <note from="lit-localize">A part of what defines a task: what it was given (params)</note>
+</trans-unit>
+<trans-unit id="edge-after">
+  <source>runs after</source>
+  <target>完了を待つ</target>
+  <note from="lit-localize">An edge of the pipeline graph: the later task waits for the earlier task and is not given its output (order only)</note>
+</trans-unit>
+<trans-unit id="edge-created">
+  <source>created after result</source>
+  <target>結果を受けて作成</target>
+  <note from="lit-localize">An edge of the pipeline graph: the later task was created after the earlier task's result (created_from)</note>
+</trans-unit>
+<trans-unit id="edge-given">
+  <source>given output</source>
+  <target>出力を受け取る</target>
+  <note from="lit-localize">An edge of the pipeline graph: the later task was given the earlier task's output (given_from)</note>
+</trans-unit>
+<trans-unit id="input-file-not-checked">
+  <source>not checked</source>
+  <target>未確認</target>
+  <note from="lit-localize">An input file whose task has not started: its content was not compared yet</note>
+</trans-unit>
+<trans-unit id="flow-call-stopped">
+  <source>Stopped</source>
+  <target>停止</target>
+  <note from="lit-localize">Where a flow call stopped, and the failure that stopped it</note>
 </trans-unit>
 </body>
 </file>

@@ -1,6 +1,6 @@
-import type { JournalRow, Plan } from '@contraagent/api';
+import type { Forecast, JournalRow, Plan } from '@contraagent/api';
 import '@contraagent/elements/graph/define';
-import { NARROW, arrange, extentOf, type CaeLayeredGraph, type GraphInput, type GraphOrder } from '@contraagent/elements/graph';
+import { NARROW, arrange, extentOf, type CaeLayeredGraph, type EdgeStyle, type GraphInput, type GraphOrder, type LitMarks } from '@contraagent/elements/graph';
 import type { MarkMatrixInput } from '@contraagent/elements/matrix';
 import type { StateStyles } from '@contraagent/elements/primitives';
 import { localized, msg } from '@lit/localize';
@@ -12,16 +12,16 @@ import { related, taskLinks, type TaskLinks } from '../../adapters/graph/highlig
 import { graphInput, matrixFromPlan } from '../../adapters/graph/input.js';
 import { autoLayer, parentLayer, resolveLayer, splitLayer } from '../../adapters/graph/layer.js';
 import type { MatrixSort, PassMatrix } from '../../adapters/graph/matrix.js';
-import { arranged, project, type Projection } from '../../adapters/graph/project.js';
+import { arranged, edgeStyle, project, type Projection } from '../../adapters/graph/project.js';
 import { markSel, parseSelection } from '../../adapters/graph/selection.js';
-import type { LayerGraph, LayerMark } from '../../adapters/graph/types.js';
+import { EDGE_TYPES, type LayerGraph, type LayerMark } from '../../adapters/graph/types.js';
 import { taskStateStyles } from '../../adapters/graph/words.js';
 import { emit } from '../../core/events.js';
 import { getLocale } from '../../core/i18n.js';
 import { flushMemory, RememberedSet } from '../../core/memory.js';
 import { executorIcon } from '../../words/executor.js';
 import { go, leavePasses, open, primary, select, tasksOf } from './pipeline-graph/actions.js';
-import { crumbs, missingLine, openControls, type OpenMode } from './pipeline-graph/crumbs.js';
+import { crumbs, forecastNote, missingLine, openControls, unawaitedLine, type OpenMode } from './pipeline-graph/crumbs.js';
 import type { PipelineHost } from './pipeline-graph/host.js';
 import { inspector } from './pipeline-graph/inspector.js';
 import { outline, outlineTree, type OutlineHost, type OutlineItem } from './pipeline-graph/outline.js';
@@ -115,6 +115,7 @@ export class CaPipelineGraph extends LitElement {
   static override styles = graphStyles;
   static override properties = {
     plan: { attribute: false },
+    forecast: { attribute: false },
     journal: { attribute: false },
     run: {},
     live: { type: Boolean },
@@ -130,6 +131,8 @@ export class CaPipelineGraph extends LitElement {
   };
 
   plan: Plan = { nodes: [], groups: [] };
+  /** The run's forecast (`Forecast`): a kind node shows the tasks it is expected to have beyond its own; null for none. */
+  forecast: Forecast | null = null;
   /** The finished attempts: they tell why a task did not start. */
   journal: JournalRow[] = [];
   /** The run id: paths in a cause are shown relative to it. */
@@ -195,7 +198,7 @@ export class CaPipelineGraph extends LitElement {
   private wide = true;
   private readonly oh: OutlineHost = this.outlineHost();
   /** What a hovered or selected mark lights, for this layer. */
-  private lights: (key: string) => ReadonlySet<string> = () => new Set();
+  private lights: (key: string) => LitMarks = () => new Set();
   /** After this update, the focus goes into the new layer: on the item it came from (`cameFrom`), else the first. */
   private refocus = false;
   private cameFrom = '';
@@ -265,7 +268,7 @@ export class CaPipelineGraph extends LitElement {
       this.prevOrder = this.orders.get(path.join('/'));
     }
     const locale = getLocale();
-    const words = structure || changed.has('journal') || changed.has('live') || locale !== this.locale;
+    const words = structure || changed.has('journal') || changed.has('live') || changed.has('forecast') || locale !== this.locale;
     if (words || changed.has('sort')) this.build(words, locale);
   }
 
@@ -275,7 +278,7 @@ export class CaPipelineGraph extends LitElement {
     if (!model) return;
     const proj = this.proj;
     const { path, loop } = splitLayer(this.segments);
-    const x = { plan: this.plan, journal: this.journal, run: this.run, live: this.live, links: this.links };
+    const x = { plan: this.plan, journal: this.journal, run: this.run, live: this.live, links: this.links, forecast: this.forecast };
     if (words) {
       this.locale = locale;
       this.states = taskStateStyles(this.live);
@@ -451,7 +454,7 @@ export class CaPipelineGraph extends LitElement {
         .renderIcon=${renderIcon} .iconStyles=${iconStyles}
         @cae-select=${this.onSelect} @cae-activate=${this.onActivate} @cae-drill=${this.onDrill} @cae-view-change=${this.onView} @cae-toggle=${this.onToggle}
         @cae-sort=${(e: CustomEvent<{ id: string }>) => (this.sort = e.detail.id as MatrixSort)}>
-      <div slot="crumbs">${crumbs(this.h, splitLayer(this.segments).loop ? null : openControls(this.openMode(), (m) => this.setMode(m)))}${missingLine(this.missing)}</div>
+      <div slot="crumbs">${crumbs(this.h, splitLayer(this.segments).loop ? null : openControls(this.openMode(), (m) => this.setMode(m)))}${missingLine(this.missing)}${this.segments.join('/') === this.auto.join('/') ? html`${forecastNote(this.plan, this.forecast)}${unawaitedLine(this.h)}` : nothing}</div>
       ${s ? inspector(this.h, s) : nothing}
     </cae-layered-graph>`;
   }
@@ -587,19 +590,27 @@ const renderIcon = (name: string) => executorIcon(name === 'python');
 
 /**
  * What a hovered or selected mark lights in a layer: for a unit (or the key of a mark
- * without one), the marks of the tasks joined to its tasks upstream or downstream.
+ * without one), the marks of the tasks joined to its tasks upstream or downstream, each
+ * with the style of the edge of its link (a mark of several tasks, the strongest), none
+ * for a mark of the unit's own tasks.
  */
-function lightsOf(plan: Plan, links: TaskLinks, g: LayerGraph): (key: string) => ReadonlySet<string> {
+function lightsOf(plan: Plan, links: TaskLinks, g: LayerGraph): (key: string) => LitMarks {
   const marks: [string, LayerMark][] = g.nodes.flatMap((n) =>
     [...n.units, ...n.single].filter((m): m is LayerMark => m !== null).map((m): [string, LayerMark] => [markSel(n.id, m), m]),
   );
   const keyOf = new Map(marks.map(([id, m]) => [id, m.key]));
-  const memo = new Map<string, ReadonlySet<string>>();
+  const memo = new Map<string, LitMarks>();
   return (key) => {
     const had = memo.get(key);
     if (had) return had;
     const on = related(plan.nodes, links, keyOf.get(key) ?? key);
-    const lit = new Set(marks.filter(([, m]) => m.keys.some((k) => on.has(k))).map(([id]) => id));
+    const lit = new Map<string, EdgeStyle | null>();
+    for (const [id, m] of marks) {
+      const types = m.keys.filter((k) => on.has(k)).map((k) => on.get(k) ?? null);
+      if (!types.length) continue;
+      const strongest = EDGE_TYPES.find((t) => types.includes(t));
+      lit.set(id, types.includes(null) || !strongest ? null : edgeStyle(strongest));
+    }
     memo.set(key, lit);
     return lit;
   };

@@ -11,6 +11,7 @@ Endpoints (all GET; response models in `api.py`):
   /api/runs/<run>/plan               Plan: the queued tasks: nodes, dependencies, states, groups
   /api/runs/<run>/definitions        list[TaskDefinition]: what defined each kind of task
   /api/runs/<run>/outputs            Outputs: the contracts tasks must satisfy: file, model, status, content
+  /api/runs/<run>/forecast           Forecast: the tasks the run is expected to create and has not yet, from an earlier run
   /api/runs/<run>/cursor             CursorView: stage, completed stages, each unit's step
   /api/runs/<run>/procs              Procs: live process tree
   /api/runs/<run>/task/<key>         TaskDetail: one task: its journal rows, live launches, stream name
@@ -21,7 +22,7 @@ Panels, a domain's own code, run on threads of their own (`PANEL_WORKERS`), so a
 one never holds the other endpoints back; the views a run feed sends are read off the
 event loop.
   /api/openapi.json                  this contract as OpenAPI (also `openapi.json` here)
-  /events?run=<run>                  SSE, RunEvent: journal / procs / plan / outputs / cursor / panel:<name>,
+  /events?run=<run>                  SSE, RunEvent: journal / procs / plan / outputs / forecast / cursor / panel:<name>,
                                      and `ready` once the first round (the journal replay) is out
   /events/stream?run=&key=<key>      SSE, StreamMessage: one transcript, tailed live; `id:` is the line
                                      offset after each message, `Last-Event-ID` or `from=N` resumes there
@@ -230,6 +231,10 @@ async def run_feed(monitor: Monitor, run: str, is_disconnected: Callable[[], Awa
         if outs != sigs.get("outputs"):
             sigs["outputs"] = outs
             yield {"event": "outputs", "data": outs}
+        forecast = serialize(VIEWS["forecast"].model, await off(monitor.forecast, run))
+        if forecast != sigs.get("forecast"):
+            sigs["forecast"] = forecast
+            yield {"event": "forecast", "data": forecast}
         cursor = await off(monitor.cursor, run)
         cur = "null" if cursor is None else serialize(VIEWS["cursor"].model, cursor)
         if cur != sigs.get("cursor"):

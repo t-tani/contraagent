@@ -59,7 +59,7 @@ const legendMark = (h: GraphHost, state: string, badge?: string) => {
 
 /**
  * What the view shows that needs a word: the states of the marks shown, a badge when a
- * mark shows one, the icons the host names, the edge styles when both are drawn, a
+ * mark shows one, the icons the host names, the edge styles when another than solid is drawn, a
  * cluster's return, and the mark of an item with an inner view.
  */
 function legend(h: GraphHost, mx: MarkMatrixInput | null) {
@@ -74,12 +74,15 @@ function legend(h: GraphHost, mx: MarkMatrixInput | null) {
   const shown = marks.filter((m): m is { state: string; badge: string | undefined } => m !== null);
   const present = new Set(shown.map((m) => m.state));
   const badge = shown.some((m) => m.badge);
-  const dashed = !mx && !flat && [...g.edges, ...g.stubs].some((e) => e.style === 'dashed');
+  const styles = new Set(!mx && !flat ? [...g.edges, ...g.stubs].map((e) => e.style) : []);
+  const edgeStyles = styles.size > 1 || (styles.size === 1 && !styles.has('solid')) ? (['solid', 'dotted', 'dashed'] as const).filter((s) => styles.has(s)) : [];
   const icons = new Set(mx ? mx.head.flat().flatMap((c) => c.icons ?? []) : g.nodes.flatMap((n) => n.icons ?? []));
   const cycles = !mx && !flat && g.clusters.some((c) => c.cycle);
   const inner = !mx && ((!flat && g.clusters.some((c) => c.drill)) || g.nodes.some((n) => n.drill));
   const first = Object.keys(h.states)[0] ?? '';
-  const line = (dash: boolean) => svg`<svg width="22" height="8" aria-hidden="true"><path d="M1,4 H21" stroke-dasharray=${dash ? '5 4' : 'none'}></path></svg>`;
+  const line = (style: 'solid' | 'dotted' | 'dashed') =>
+    svg`<svg width="22" height="8" aria-hidden="true"><path class=${style} d="M1,4 H21" stroke-dasharray=${style === 'dashed' ? '5 4' : style === 'dotted' ? '0.1 4' : 'none'}></path></svg>`;
+  const edgeWord = { solid: h.words.solidEdge, dotted: h.words.dottedEdge, dashed: h.words.dashedEdge };
   const items: LegendItem[] = [
     ...Object.entries(h.states)
       .filter(([s]) => present.has(s))
@@ -88,12 +91,7 @@ function legend(h: GraphHost, mx: MarkMatrixInput | null) {
     ...Object.entries(h.words.iconNames)
       .filter(([name]) => icons.has(name))
       .map(([name, label]) => ({ label, icon: h.renderIcon(name) })),
-    ...(dashed
-      ? [
-          { label: h.words.solidEdge, icon: line(false) },
-          { label: h.words.dashedEdge, icon: line(true) },
-        ]
-      : []),
+    ...edgeStyles.map((s) => ({ label: edgeWord[s], icon: line(s) })),
     ...(cycles
       ? [
           {
