@@ -137,10 +137,10 @@ reference to the task's future output:
 the command line, with the arguments `contraagent check` takes, and exits 1 when a
 task or the flow failed. A program calls `Pipeline.run`, which returns a
 `RunReport`. Async code (an `async def` function, a notebook) calls
-`await Pipeline.run_async(...)` instead: it runs the flow on the running event loop and
-returns the same report, and `Pipeline.run` raises `RuntimeError` there. One event
-loop runs one run at a time: a second `run_async` on a loop that runs one raises an
-error. The `RunReport` holds `ok`, `failed`, `deferred`, the results by task key,
+`await Pipeline.run_async(...)` instead: it schedules the run's tasks on the running
+event loop, runs the flow from there, and returns the same report, and `Pipeline.run`
+raises `RuntimeError` there. One event loop runs one run at a time: a second
+`run_async` on a loop that runs one raises an error. The `RunReport` holds `ok`, `failed`, `deferred`, the results by task key,
 `flow_errors`, and `value`, whatever the flow returned (a `Pending` in it reads its
 task's output); its docstring lists every field. A deferred task (not launched: past
 a deadline, or on a resting credential) is in `deferred`, with its cause, and is no
@@ -260,8 +260,8 @@ summary could not be made (`zeta`) ends its loop there.
 - Work at the same time is plain asyncio; contraagent adds no functions of its
   own for it. `await asyncio.gather(a, b)` waits for every item and receives the
   outputs in order, each with its own type. An item may be a task call or a child
-  flow, `sub(...)`: an asyncio Task whose coroutine is flow code is a flow call of
-  its own, beside the others, and what it returns is its item.
+  flow, `sub(...)`: every asyncio Task that flow code starts for a coroutine is a
+  flow call of its own, beside the others, and what it returns is its item.
   `asyncio.TaskGroup` and `asyncio.create_task` start flow calls in the same way.
 - Passing a received output on to another task is the dependency, as passing
   the task call is: the second review waits for the revision and reads its file.
@@ -288,8 +288,8 @@ summary could not be made (`zeta`) ends its loop there.
 - Cancelling a flow call never cancels the agent tasks it created: they run to
   their end, and their results are in the run. A flow call is cancelled when a
   sibling in its `asyncio.TaskGroup` fails, when its time box is past its grace
-  window, or when the run ends before it returns; `flow_calls.jsonl` records it
-  `closed`.
+  window, when it waits for what nothing will answer (see below), or when the run
+  ends before it returns; `flow_calls.jsonl` records it `closed`.
 - A task's output file is its kind's `output_name` under the run's `out/`: a
   path template with `{kind}`, `{unit}` and `{key}`, `{unit}` being the key for a
   task call given `key=`, so tasks of one kind and one unit with different keys
@@ -324,14 +324,35 @@ summary could not be made (`zeta`) ends its loop there.
 - An exception in a flow before its first task is queued is raised by
   `Pipeline.run`. After it, the tasks already queued still run, and the
   exception is in `RunReport.flow_errors`: `ok` is False and `contraagent run`
-  exits 1.
+  exits 1. A top flow call closed because it waited for what nothing would
+  answer is there too.
 
-Flow code runs between two `await`s on the event loop that schedules every task: a
-step that takes more than a second is logged, and heavy work belongs in a Python
-task. Flow code does no I/O either: no file, network or subprocess call, through an
-async client or not. I/O belongs in a Python task: the run records its output, and a
-resume skips it. Flow code does not start another run or event loop: `Pipeline.run`
-and `asyncio.run` raise inside a flow. A resumed run runs the flow again from the
+Flow code runs on an event loop of contraagent's own, on the thread of the event loop
+that schedules every task. This loop has no clock, no threads and no I/O, so an
+`await` that needs one of them raises `TypeError` at that line, and the message says
+what to write instead. `asyncio.sleep(5)`, `asyncio.wait_for(..., timeout=5)` and
+`asyncio.timeout(5)` need a clock. `asyncio.to_thread` and `run_in_executor` need a
+thread. A socket, a subprocess, a file read through an async client and the async API
+of another library need I/O. A future of another event loop raises asyncio's
+`RuntimeError`. Waiting, polling and I/O belong in a Python task: the run records its
+output, and a resume skips it. A deadline over part of a flow is a time box (see
+[A deadline over part of a flow](#a-deadline-over-part-of-a-flow-time-boxes)).
+`asyncio.sleep(0)` and `asyncio.timeout(None)` need no clock, and they work.
+
+A flow waits for task calls and for flow calls, with `await`, `asyncio.gather` and
+`asyncio.TaskGroup`. It does not use `asyncio.wait`, `asyncio.as_completed`,
+`asyncio.shield`, `asyncio.Queue` or `asyncio.Event`. They run, but a branch on what
+finished first takes another path on a resume, and an `Event` that no flow code sets
+waits forever. A branch that tolerates failures uses `gather(...,
+return_exceptions=True)`, or a child flow call for each item. When a flow call still
+waits while no task is queued or running and every other flow call waits too, nothing
+will answer it. The run then closes it at once: `flow_calls.jsonl` records it
+`closed`, its error names the line where it waits, and a top flow call closed this
+way is in `RunReport.flow_errors`.
+
+A step of flow code between two `await`s that takes more than a second is logged:
+heavy work belongs in a Python task. Flow code does not start another run or event
+loop: `Pipeline.run` and `asyncio.run` raise inside a flow. A resumed run runs the flow again from the
 start and answers each skipped task with its output, so the flow must create the
 same tasks for the same outputs: a random choice or the clock belongs in a Python
 task too.

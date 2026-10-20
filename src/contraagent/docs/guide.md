@@ -85,9 +85,15 @@ for another port).
   a warning, and mypy and pyright report it too.
 - Flow code must take the same path for the same outputs, or a resumed run
   creates different tasks: a random choice or the clock belongs in a Python task.
-- Flow code between two `await`s runs on the event loop that schedules every
-  task: heavy work there stalls the run, and belongs in a Python task. So does
-  I/O, also through an async client: files, network, subprocesses.
+- Flow code between two `await`s runs on the thread of the event loop that
+  schedules every task: heavy work there stalls the run, and belongs in a Python
+  task. So do waiting and I/O: flow code runs on an event loop with no clock, no
+  threads and no I/O, so `asyncio.sleep(5)`, `asyncio.timeout(5)`,
+  `asyncio.to_thread` and an async client raise `TypeError` at their `await`.
+- A flow awaits task calls and flow calls, with `await`, `asyncio.gather` and
+  `asyncio.TaskGroup`; not `asyncio.Event`, `Queue`, `wait` or `as_completed`. A
+  flow call that waits for what nothing will answer is closed once no task is
+  left to run, with an error that names the line where it waits.
 - Flow code does not call `Pipeline.run` or `asyncio.run`: both raise inside a
   flow. Async code outside a flow runs a pipeline with
   `await Pipeline(config).run_async(flow, ...)`.
