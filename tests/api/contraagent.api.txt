@@ -42,11 +42,11 @@ class AgentTask[Out]
     def options(
         self,
         *,
-        key: str | None | KEEP = KEEP,
-        after: Sequence[Pending[Any] | str] | KEEP = KEEP,
-        priority: float | KEEP = KEEP,
-        credential: str | None | KEEP = KEEP,
-        cancellable: bool | KEEP = KEEP,
+        key: str | None | Literal[_Keep.KEEP] = _Keep.KEEP,
+        after: Sequence[Pending[Any] | str] | Literal[_Keep.KEEP] = _Keep.KEEP,
+        priority: float | Literal[_Keep.KEEP] = _Keep.KEEP,
+        credential: str | None | Literal[_Keep.KEEP] = _Keep.KEEP,
+        cancellable: bool | Literal[_Keep.KEEP] = _Keep.KEEP,
     ) -> Self
     output: type | None
     @property output_format: str | None
@@ -366,10 +366,10 @@ class PythonTask[Out]
     def options(
         self,
         *,
-        key: str | None | KEEP = KEEP,
-        after: Sequence[Pending[Any] | str] | KEEP = KEEP,
-        priority: float | KEEP = KEEP,
-        cancellable: bool | KEEP = KEEP,
+        key: str | None | Literal[_Keep.KEEP] = _Keep.KEEP,
+        after: Sequence[Pending[Any] | str] | Literal[_Keep.KEEP] = _Keep.KEEP,
+        priority: float | Literal[_Keep.KEEP] = _Keep.KEEP,
+        cancellable: bool | Literal[_Keep.KEEP] = _Keep.KEEP,
     ) -> Self
     output_format = 'json'
     output_name: str = DEFAULT_OUTPUT_NAME

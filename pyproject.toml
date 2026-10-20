@@ -11,7 +11,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Tomoaki Tani" }]
 requires-python = ">=3.12"
-dependencies = ["pydantic>=2.11,<3", "psutil>=7.2.2,<8", "typing-extensions>=4.14,<5"]
+dependencies = ["pydantic>=2.11,<3", "psutil>=7.2.2,<8"]
 keywords = ["coding-agent", "claude", "llm", "agents", "pipeline", "orchestration", "supervisor", "failover", "monitoring"]
 # No "License ::" classifier: PEP 639 forbids it next to a `license` expression.
 classifiers = [

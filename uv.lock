@@ -163,7 +163,6 @@ source = { editable = "." }
 dependencies = [
     { name = "psutil" },
     { name = "pydantic" },
-    { name = "typing-extensions" },
 ]
 
 [package.optional-dependencies]
@@ -209,7 +208,6 @@ requires-dist = [
     { name = "psycopg", extras = ["binary"], marker = "extra == 'hub'", specifier = ">=3.2" },
     { name = "pydantic", specifier = ">=2.11,<3" },
     { name = "sse-starlette", marker = "extra == 'monitor'", specifier = ">=3.0" },
-    { name = "typing-extensions", specifier = ">=4.14,<5" },
     { name = "uvicorn", marker = "extra == 'monitor'", specifier = ">=0.29" },
     { name = "zstandard", marker = "extra == 'hub'", specifier = ">=0.25" },
 ]

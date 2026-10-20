@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import enum
 import hashlib
 import inspect
 import json
@@ -31,7 +32,6 @@ from typing import Any, Literal, Protocol, Self, TypeVar, overload
 
 from pydantic import BaseModel, ConfigDict, RootModel, TypeAdapter, ValidationError
 from pydantic.errors import PydanticSchemaGenerationError
-from typing_extensions import Sentinel
 
 from contraagent._internal.contracts.pointers import schema_error, syntax_error
 from contraagent._internal.contracts.rows import is_rows, rows_file, rows_model
@@ -84,8 +84,15 @@ def output_format_of(output: Any) -> str:
     return "jsonl" if rows_model(output) is not None else "json"
 
 
-#: The default of each argument of `options`: an option not given keeps the value it had.
-KEEP = Sentinel("KEEP")
+class _Keep(enum.Enum):
+    """The default of each argument of `options`: an option not given keeps the value it
+    had. A one-member enum, so a type checker knows `Literal[_Keep.KEEP]` and narrows it
+    away with `is`."""
+
+    KEEP = "keep"
+
+    def __repr__(self) -> str:
+        return "KEEP"
 
 
 @dataclass(frozen=True)
@@ -104,22 +111,22 @@ class _CallOptions:
         self,
         where: str,
         *,
-        key: str | None | KEEP,
-        after: Sequence[Pending[Any] | str] | KEEP,
-        priority: float | KEEP,
-        credential: str | None | KEEP,
-        cancellable: bool | KEEP,
+        key: str | None | Literal[_Keep.KEEP],
+        after: Sequence[Pending[Any] | str] | Literal[_Keep.KEEP],
+        priority: float | Literal[_Keep.KEEP],
+        credential: str | None | Literal[_Keep.KEEP],
+        cancellable: bool | Literal[_Keep.KEEP],
     ) -> _CallOptions:
-        """These options with each one given (not `KEEP`) replaced, checked; `where` names
+        """These options with each one given (not `_Keep.KEEP`) replaced, checked; `where` names
         the call in an error."""
-        if cancellable is not KEEP and not isinstance(cancellable, bool):
+        if cancellable is not _Keep.KEEP and not isinstance(cancellable, bool):
             raise TypeError(f"{where}(...): cancellable must be True or False, not {cancellable!r}")
         return _CallOptions(
-            key=self.key if key is KEEP else _checked_key(where, key),
-            after=self.after if after is KEEP else _checked_after(where, after),
-            priority=self.priority if priority is KEEP else _checked_priority(where, priority),
-            credential=self.credential if credential is KEEP else _checked_credential(where, credential),
-            cancellable=self.cancellable if cancellable is KEEP else cancellable,
+            key=self.key if key is _Keep.KEEP else _checked_key(where, key),
+            after=self.after if after is _Keep.KEEP else _checked_after(where, after),
+            priority=self.priority if priority is _Keep.KEEP else _checked_priority(where, priority),
+            credential=self.credential if credential is _Keep.KEEP else _checked_credential(where, credential),
+            cancellable=self.cancellable if cancellable is _Keep.KEEP else cancellable,
         )
 
 
@@ -289,11 +296,11 @@ class AgentTask[Out]:
     def options(
         self,
         *,
-        key: str | None | KEEP = KEEP,
-        after: Sequence[Pending[Any] | str] | KEEP = KEEP,
-        priority: float | KEEP = KEEP,
-        credential: str | None | KEEP = KEEP,
-        cancellable: bool | KEEP = KEEP,
+        key: str | None | Literal[_Keep.KEEP] = _Keep.KEEP,
+        after: Sequence[Pending[Any] | str] | Literal[_Keep.KEEP] = _Keep.KEEP,
+        priority: float | Literal[_Keep.KEEP] = _Keep.KEEP,
+        credential: str | None | Literal[_Keep.KEEP] = _Keep.KEEP,
+        cancellable: bool | Literal[_Keep.KEEP] = _Keep.KEEP,
     ) -> Self:
         """This task with call options: calling what it returns is a task call of this task,
         its declaration the same (one kind, one digest), so `summarize.options(key="k")(unit)`
@@ -1084,16 +1091,16 @@ class PythonTask[Out]:
     def options(
         self,
         *,
-        key: str | None | KEEP = KEEP,
-        after: Sequence[Pending[Any] | str] | KEEP = KEEP,
-        priority: float | KEEP = KEEP,
-        cancellable: bool | KEEP = KEEP,
+        key: str | None | Literal[_Keep.KEEP] = _Keep.KEEP,
+        after: Sequence[Pending[Any] | str] | Literal[_Keep.KEEP] = _Keep.KEEP,
+        priority: float | Literal[_Keep.KEEP] = _Keep.KEEP,
+        cancellable: bool | Literal[_Keep.KEEP] = _Keep.KEEP,
     ) -> Self:
         """This task with call options, as `AgentTask.options`: `key`, `after`, `priority`
         and `cancellable`. A Python task runs no coding agent, so it has no credential. A
         cancelled Python task that is running runs to its end: a thread cannot be stopped."""
         made = self._options.given(
-            f"{self.kind}.options", key=key, after=after, priority=priority, credential=KEEP, cancellable=cancellable
+            f"{self.kind}.options", key=key, after=after, priority=priority, credential=_Keep.KEEP, cancellable=cancellable
         )
         return _with_options(self, made)
 
