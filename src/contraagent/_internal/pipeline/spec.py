@@ -1191,8 +1191,13 @@ def _param_errors(name: str, exc: ValidationError) -> list[str]:
     return lines
 
 
+# A function that may return `Partial(value, ...)` is annotated `-> Out | Partial[Out]`: its
+# tasks' output, what a flow receives at `await` and what `Pending.output` reads, is the
+# value, an `Out`. The first overload is for a function that always returns `Partial`.
 @overload
-def python_task[Out](fn: Callable[..., Out], /) -> PythonTask[Out]: ...
+def python_task[Out](fn: Callable[..., Partial[Out]], /) -> PythonTask[Out]: ...
+@overload
+def python_task[Out](fn: Callable[..., Out | Partial[Out]], /) -> PythonTask[Out]: ...
 @overload
 def python_task(
     *,
@@ -1204,7 +1209,7 @@ def python_task(
     retry_on: tuple[type[Exception], ...] = (),
     output_name: str | None = None,
     outside_state: OutsideState | None = None,
-) -> Callable[[Callable[..., Out]], PythonTask[Out]]: ...
+) -> Callable[[Callable[..., Out | Partial[Out]]], PythonTask[Out]]: ...
 
 
 def python_task(
