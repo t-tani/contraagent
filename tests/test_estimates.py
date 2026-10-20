@@ -1,10 +1,11 @@
-"""`JournalEstimates`: a kind's median wall time, and the tail after a task, from recent runs and this one."""
+"""`JournalEstimates`: a kind's median wall time, the tail after a task and the finish chance, from recent runs and this one."""
 
 import json
 import os
+import random
 
 from contraagent import Frame, Loop, Origin, Pipeline, Task
-from contraagent._internal.execution.estimates import run_tails
+from contraagent._internal.execution.estimates import SAMPLES, run_tails
 from contraagent._internal.pipeline.graph import Graph
 from contraagent.docs.examples.review import flow as example
 from contraagent.engine import JournalEstimates
@@ -69,7 +70,7 @@ def task(kind, flow=(DOCS, LOOP), passes=()):
 
 
 def test_a_tail_is_the_longest_chain_after_a_task_along_after_and_created_from():
-    tails = dict(((k, round(t, 3)) for k, t in run_tails(*review_run(review_s=4, revise_s=6))))
+    tails = dict(((k, round(t, 3)) for k, _, t in run_tails(*review_run(review_s=4, revise_s=6))))
     # after summarize: review 4 + revise 6 + review~2 4 + report 1
     assert tails[((DOCS, LOOP), "summarize", ())] == 15
     assert tails[((DOCS,), "report", ())] == 0
@@ -103,7 +104,7 @@ def test_a_chain_from_a_flow_call_that_did_not_return_is_not_sampled():
     plan += [plan_row("summarize-b", "summarize", flow_call="0.2"), plan_row("review-b", "review", after=["summarize-b"], flow_call="0.2")]
     journal = [journal_row(k, k.split("-")[0], 5) for k in ("summarize-a", "review-a", "summarize-b", "review-b")]
     calls = [{"id": "0.1", "event": "end", "state": "returned"}, {"id": "0.2", "event": "end", "state": "raised"}]
-    assert {k[1]: t for k, t in run_tails(plan, journal, calls + [{"id": "0", "event": "end", "state": "returned"}])} == {
+    assert {k[1]: t for k, _, t in run_tails(plan, journal, calls + [{"id": "0", "event": "end", "state": "returned"}])} == {
         "summarize": 5.0,
         "review": 0.0,
     }
@@ -154,7 +155,7 @@ def test_a_long_chain_costs_no_stack():
     n = 3000
     plan = [plan_row(f"t{i}", "step", after=[f"t{i - 1}"] if i else []) for i in range(n)]
     journal = [journal_row(f"t{i}", "step", 1) for i in range(n)]
-    tails = [t for _, t in run_tails(plan, journal)]
+    tails = [t for _, _, t in run_tails(plan, journal)]
     assert tails[0] == n - 1 and tails[-1] == 0
 
 
@@ -184,3 +185,69 @@ def test_a_past_run_of_an_async_flow_gives_its_first_tasks_a_tail(tmp_path):
     assert est.tail(summarize) == 4.0  # the review, then the report created from it
     review = task("review", flow=(f"{example.__name__}.docs", f"{example.__name__}.review_loop"), passes=[1])
     assert est.tail(review) == 2.0  # pass 1 of the review loop: the report
+
+
+# --- the finish chance -------------------------------------------------------------------
+
+
+def test_a_tail_sample_keeps_the_tasks_own_wall_time():
+    samples = {k: (own, tail) for k, own, tail in run_tails(*review_run(review_s=4, revise_s=6))}
+    assert samples[((DOCS, LOOP), "summarize", ())] == (10, 15)
+    assert samples[((DOCS, LOOP), "review", (1,))] == (4, 11)
+
+
+def test_the_finish_chance_is_the_share_of_samples_that_fit(tmp_path):
+    for i, (review_s, revise_s) in enumerate([(4, 6), (2, 2), (8, 30)]):
+        write_run(tmp_path, f"r{i}", *review_run(review_s, revise_s))
+    est = JournalEstimates(tmp_path)
+    summarize = task("summarize")
+    # own 10 + tail 15, 7 and 47: 25, 17 and 57
+    assert [est.finish_chance(summarize, s) for s in (16, 17, 25, 56, 57)] == [0, 1 / 3, 2 / 3, 2 / 3, 1]
+    # known work after it counts where it is longer than a sample's tail: 10 + 20, 20, 47
+    assert est.finish_chance(summarize, 30, after_s=20) == 2 / 3
+    assert est.finish_chance(summarize, 29, after_s=20) == 0
+    # a tail key with no sample: its kind's wall times (4, 2, 8, twice each) and the known work after it
+    other = task("review", flow=("other.flow",))
+    assert est.finish_chance(other, 4) == 4 / 6 and est.finish_chance(other, 5, after_s=1) == 4 / 6
+    assert est.finish_chance(task("unknown"), 1000) is None
+
+
+def test_the_finish_chance_never_falls_as_the_time_left_grows(tmp_path):
+    rng = random.Random(7)
+    for case in range(20):
+        runs = tmp_path / str(case)
+        for i in range(rng.randint(1, 4)):
+            write_run(runs, f"r{i}", *review_run(rng.uniform(1, 20), rng.uniform(1, 60)))
+        est = JournalEstimates(runs)
+        for t in (task("summarize"), task("review", passes=[1]), task("revise", flow=("other.flow",))):
+            after = rng.uniform(0, 30)
+            chances = [est.finish_chance(t, s, after_s=after) for s in range(0, 200, 3)]
+            assert all(c is not None and 0 <= c <= 1 for c in chances)
+            assert chances == sorted(chances), (case, t.kind)
+
+
+def test_each_kind_and_tail_key_keeps_its_most_recent_samples(tmp_path):
+    plan = [plan_row(f"s{i}", "summarize", flow=(DOCS,)) for i in range(SAMPLES + 50)]
+    journal = [journal_row(f"s{i}", "summarize", 1 if i < 50 else 100) for i in range(SAMPLES + 50)]
+    write_run(tmp_path, "r", plan, journal)
+    est = JournalEstimates(tmp_path)
+    s = task("summarize", flow=(DOCS,))
+    assert est.finish_chance(s, 99) == 0 and est.estimate(s) == 100  # the first 50 fell out
+    for i in range(SAMPLES):
+        est.observe_attempt(journal_row(f"n{i}", "summarize", 3))
+    est.observe_attempt(journal_row("n-last", "summarize", 5))
+    assert est.estimate(s) == 3  # this run's samples replace the past ones, bounded too
+
+
+def test_this_runs_tails_replace_the_past_ones_in_the_finish_chance(tmp_path):
+    write_run(tmp_path, "old", *review_run(4, 6))
+    est = JournalEstimates(tmp_path)
+    review = task("review", passes=[1])
+    assert est.finish_chance(review, 15) == 1  # 4 + 11
+    est.observe_plan(plan_row("review-b", "review", passes=[1], flow_call="0.1"))
+    est.observe_plan(plan_row("revise-b", "revise", after=["review-b"], created_from=["review-b"], passes=[1], flow_call="0.1"))
+    est.observe_attempt(journal_row("review-b", "review", 30))
+    est.observe_attempt(journal_row("revise-b", "revise", 50))
+    est.flow_call_ended("0.1", "returned")
+    # 30 + 50 + what the past says follows revise in pass 1 (review~2 4 and the report 1)
+    assert est.finish_chance(review, 84) == 0 and est.finish_chance(review, 85) == 1

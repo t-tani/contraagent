@@ -1,36 +1,36 @@
-# Scheduling benchmark: main (eb00a849)
+# Scheduling benchmark: main
 
 contraagent 0.6.2 on Python 3.12.9, 20 seeds, one minute of agent work run in 0.2 s. Written by `benchmarks/schedule.py`, whose docstring says what each figure means. Minutes of agent work, the median over the seeds; `worst` is the largest makespan.
 
 | scenario | run | makespan | worst | idle slot time | deferred | done by deadline | cost after deadline (USD) | would fit |
 |---|---|---|---|---|---|---|---|---|
-| demo | first | 36.31 | 52.93 | 15.82 | 0.0 | - | - | - |
-| demo | second | 39.14 | 51.68 | 20.24 | 0.0 | - | - | - |
-| demo-one-review | first | 35.81 | 55.62 | 11.79 | 0.0 | - | - | - |
-| demo-one-review | second | 36.84 | 56.54 | 12.85 | 0.0 | - | - | - |
-| demo-loop | first | 45.82 | 61.92 | 21.71 | 0.0 | - | - | - |
-| demo-loop | second | 45.98 | 59.14 | 20.91 | 0.0 | - | - | - |
-| demo-deadline | first | 18.23 | 30.84 | 10.8 | 5.5 | 35.31 | 0.46 | 0.0 |
-| demo-deadline | second | 16.99 | 33.96 | 7.58 | 7.0 | 34.3 | 0.43 | 4.0 |
-| demo-one-review-deadline | first | 29.57 | 44.39 | 14.94 | 15.5 | 34.54 | 2.32 | 0.0 |
-| demo-one-review-deadline | second | 29.71 | 44.25 | 12.14 | 15.0 | 34.31 | 2.32 | 0.0 |
-| analysis | first | 41.67 | 79.11 | 46.44 | 0.0 | - | - | - |
-| analysis | second | 43.25 | 78.63 | 52.3 | 0.0 | - | - | - |
-| chains | first | 63.52 | 72.71 | 7.15 | 0.0 | - | - | - |
-| chains | second | 62.72 | 72.93 | 6.45 | 0.0 | - | - | - |
-| fan-in | first | 45.33 | 51.08 | 13.93 | 0.0 | - | - | - |
-| fan-in | second | 43.14 | 50.96 | 7.99 | 0.0 | - | - | - |
-| claims | first | 46.34 | 63.66 | 30.55 | 0.0 | - | - | - |
-| claims | second | 43.78 | 66.06 | 19.01 | 0.0 | - | - | - |
-| competing | first | 43.8 | 65.75 | 20.91 | 0.0 | - | - | - |
-| competing | second | 42.96 | 65.52 | 15.82 | 0.0 | - | - | - |
-| time-box | first | 34.59 | 60.49 | 13.73 | 6.0 | 61.37 | 1.31 | 1.5 |
-| time-box | second | 32.35 | 61.67 | 8.74 | 6.0 | 60.05 | 1.32 | 1.5 |
+| demo | first | 35.27 | 50.99 | 9.34 | 0.0 | - | - | - |
+| demo | second | 38.06 | 51.84 | 18.95 | 0.0 | - | - | - |
+| demo-one-review | first | 34.2 | 50.24 | 5.2 | 0.0 | - | - | - |
+| demo-one-review | second | 34.91 | 49.22 | 12.19 | 0.0 | - | - | - |
+| demo-loop | first | 42.83 | 59.07 | 13.38 | 0.0 | - | - | - |
+| demo-loop | second | 42.89 | 54.83 | 14.68 | 0.0 | - | - | - |
+| demo-deadline | first | 22.07 | 30.17 | 10.27 | 5.0 | 35.84 | 1.08 | 2.0 |
+| demo-deadline | second | 19.45 | 33.3 | 6.28 | 5.0 | 37.81 | 0.65 | 5.0 |
+| demo-one-review-deadline | first | 20.19 | 35.25 | 7.71 | 6.0 | 34.31 | 0.85 | 2.0 |
+| demo-one-review-deadline | second | 28.7 | 41.41 | 12.0 | 8.0 | 37.27 | 1.68 | 1.0 |
+| analysis | first | 40.71 | 76.87 | 43.56 | 0.0 | - | - | - |
+| analysis | second | 41.18 | 76.22 | 44.45 | 0.0 | - | - | - |
+| chains | first | 60.61 | 70.79 | 4.37 | 0.0 | - | - | - |
+| chains | second | 61.36 | 70.42 | 4.04 | 0.0 | - | - | - |
+| fan-in | first | 43.15 | 49.26 | 9.19 | 0.0 | - | - | - |
+| fan-in | second | 42.06 | 48.99 | 3.38 | 0.0 | - | - | - |
+| claims | first | 44.84 | 62.62 | 26.91 | 0.0 | - | - | - |
+| claims | second | 43.0 | 65.14 | 18.14 | 0.0 | - | - | - |
+| competing | first | 43.08 | 61.42 | 14.75 | 0.0 | - | - | - |
+| competing | second | 40.56 | 63.61 | 10.25 | 0.0 | - | - | - |
+| time-box | first | 34.1 | 60.31 | 10.0 | 6.0 | 63.1 | 1.49 | 0.5 |
+| time-box | second | 34.83 | 60.54 | 13.68 | 5.0 | 65.03 | 1.53 | 1.0 |
 
 ## Scenarios
 
 - `demo`: `docs`: async, a review loop per unit, every review approving; 8 units, 3 slots.
-- `demo-one-review`: `docs_one_review`: the same tasks as `demo`, created without waiting, so each task's successors are known early; the note does not wait for the review.
+- `demo-one-review`: `docs_one_review`: the same tasks as `demo`, one review per unit (up to 0.6.2 created without waiting); the note does not wait for the review.
 - `demo-loop`: `demo` with reviews that send the summary back (35% of first reviews, 20% of later ones).
 - `demo-deadline`: `demo` under a run deadline of 15 minutes (60% of its median work over the slots), `write_note` and `report` finishing kinds.
 - `demo-one-review-deadline`: `demo-one-review` under the same deadline.
