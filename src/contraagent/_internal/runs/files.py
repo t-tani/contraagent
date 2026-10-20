@@ -6,7 +6,8 @@
 * `read_lines` (by line number) and `lines_at` (by byte offset, for a reader that keeps
   its place): a log's **complete** lines. A line is complete when its newline is written;
   a last line without one is still being written, and no reader sees it until it is
-  complete. `seek_line` turns a line number into a byte offset.
+  complete. `seek_line` turns a line number into a byte offset; `last_line` reads the
+  last complete line from the end.
 * `parse_rows`, `read_rows`: the JSON objects of a log's lines; a line that does not
   parse, or is not an object, is skipped.
 
@@ -200,6 +201,29 @@ def lines_at(
     with open(path, "rb") as f:
         raw, end = _take(f, start, max_bytes, max_lines)
     return _decode(raw), end
+
+
+def last_line(path: str | os.PathLike[str]) -> str | None:
+    """The last complete line of the log `path`, without its newline, read backwards from
+    the end a block at a time; None when it has no complete line. OSError when the log
+    cannot be read."""
+    with open(path, "rb") as f:
+        pos = f.seek(0, os.SEEK_END)
+        buf = b""
+        end: int | None = None  # where the last complete line's newline is, in `buf`
+        while pos > 0:
+            step = min(BLOCK, pos)
+            pos -= step
+            f.seek(pos)
+            buf = f.read(step) + buf
+            end = buf.rfind(b"\n") if end is None else end + step
+            if end < 0:
+                end = None
+                continue
+            start = buf.rfind(b"\n", 0, end)
+            if start >= 0:
+                return _decode([buf[start + 1 : end]])[0]
+        return _decode([buf[:end]])[0] if end is not None else None
 
 
 def seek_line(path: str | os.PathLike[str], n: int) -> tuple[int, int]:

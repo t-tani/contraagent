@@ -32,6 +32,7 @@ from pydantic.errors import PydanticSchemaGenerationError
 from contraagent._internal.contracts.pointers import schema_error, syntax_error
 from contraagent._internal.contracts.rows import is_rows, rows_file, rows_model
 from contraagent._internal.contracts.validators import Validator, validator_name
+from contraagent._internal.dispatch.code import flow_code
 from contraagent._internal.dispatch.python_task import InvalidInput, checked_retries
 from contraagent._internal.dispatch.task import GLOB_CHARACTERS, Partial
 from contraagent._internal.dispatch.templates import PARAM_FIELD
@@ -1486,10 +1487,19 @@ def _check_param_names(kind: str, model: type[BaseModel], params: dict[str, Any]
 
 
 def _caller_dir() -> Path | None:
-    """The directory of the file that called `agent_task` (None from a REPL)."""
+    """The directory of the file that called `agent_task`: the module of the innermost
+    frame of flow code on the stack (`code.flow_code`: neither contraagent's own code, its
+    shipped examples excepted, nor the standard library), so a call that reaches
+    `agent_task` through contraagent itself (`implementations=`) or through the standard
+    library is placed by the user's file. None when that module has no file (a REPL,
+    `exec`). A function of the user's own that calls `agent_task` for others is such a
+    file: from another directory, a caller passes it an absolute path
+    (`Path(__file__).parent / "plugins/x"`)."""
     frame = inspect.currentframe()
-    caller = frame.f_back.f_back if frame and frame.f_back else None
-    file = caller.f_globals.get("__file__") if caller else None
+    caller = frame.f_back if frame is not None else None
+    while caller is not None and not flow_code(caller.f_code.co_filename):
+        caller = caller.f_back
+    file = caller.f_globals.get("__file__") if caller is not None else None
     return Path(file).resolve().parent if file else None
 
 

@@ -43,10 +43,13 @@ class PosixLocks:
         self._f: Any = fcntl_module
 
     def try_lock(self, fd: int) -> bool:
+        """False only when another open file holds the lock (`EWOULDBLOCK`, which Python
+        raises as `BlockingIOError`). Any other `OSError` is raised: a file system with no
+        `flock` (`ENOLCK` on some NFS mounts) is not a lock someone else holds."""
         try:
             self._f.flock(fd, self._f.LOCK_EX | self._f.LOCK_NB)
             return True
-        except OSError:
+        except BlockingIOError:
             return False
 
     def lock(self, fd: int) -> None:

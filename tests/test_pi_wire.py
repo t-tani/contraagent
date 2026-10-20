@@ -11,8 +11,9 @@ from pathlib import Path
 import pytest
 
 from contraagent._internal.backends.omp.wire import normalize_event
-from contraagent._internal.backends.pi.wire import PiTraceReader
+from contraagent._internal.backends.pi.wire import SHARED_LOGIN, PiTraceReader
 from contraagent.backends import Launch, Stop, normalize_stream_line
+from contraagent.config import ApiKey, Secret
 
 FIXTURES = Path(__file__).parent / "fixtures" / "pi"
 VERSIONS = sorted(p.parent.name for p in FIXTURES.glob("*/json.jsonl"))
@@ -72,7 +73,17 @@ def test_a_spent_quota_is_a_rate_limit_whatever_its_status():
 def test_a_provider_refusal_is_read_from_the_last_assistant_message(message, stop):
     """pi exits 0 after a refusal: the message says how the launch ended."""
     result = read(refusal(message))
-    assert result.stop == stop and result.stderr_tail == message
+    assert result.stop == stop and result.stderr_tail.splitlines()[0] == message
+
+
+def test_an_auth_failure_on_a_pi_login_names_a_pi_the_user_runs_as_a_cause():
+    """A launch's agent directory and the user's own lock a refresh apart (`agent_dir`)."""
+    on_login = read(refusal("401 token expired"))
+    assert on_login.stderr_tail == f"401 token expired\n{SHARED_LOGIN}"
+    reader = PiTraceReader()
+    reader.feed(refusal("401 invalid x-api-key"))
+    keyed = Launch(prompt="x", label="t", model="anthropic/claude-haiku-5-5", credential=ApiKey(provider="anthropic", key=Secret("env:K")))
+    assert reader.result(keyed, "pi", exit_code=0, killed=None).stderr_tail == "401 invalid x-api-key"
 
 
 def test_a_refusal_pi_retried_past_is_not_the_outcome():

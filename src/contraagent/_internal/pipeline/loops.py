@@ -37,6 +37,24 @@ within it, to the flow call whose code is running, and are dropped when that
 flow call ends. The tool id is freed when the last counter stops. With no free
 tool id nothing is counted and every pass is None.
 
+**Conditions** under which this stays safe, each held by a test (`tests/test_passes.py`):
+
+* Another tool holds ids 3 and 4: nothing is counted, every pass is None, and the run
+  goes on as any other.
+* `DISABLE` stays on a location after the tool id is freed, on 3.12 to 3.14 alike
+  (`clear_tool_id` on 3.14 does not undo it). So the last counter to stop calls
+  `sys.monitoring.restart_events()` after freeing the id: a tool that takes the id later
+  receives every `JUMP`. It turns the locations every tool disabled back on, once; each
+  tool's callback disables them again on their next event, which costs a call per
+  location and changes nothing they report.
+* The callback finds the jumping frame as its caller's frame (`inspect.currentframe()`
+  and its `f_back`), as CPython runs a callback on top of the frame whose event it
+  reports, and as coverage.py relies on too. On another implementation (or with no
+  `sys.monitoring`) the tool is not taken and nothing is counted.
+* The analysis of a code object is kept only while the code object lives (`_codes` is a
+  `weakref.WeakKeyDictionary`), so code made anew by `exec` at each call does not make
+  it grow.
+
 Cost: about 1 µs per back edge in flow code; nothing per back edge elsewhere
 after the first.
 """
@@ -51,6 +69,7 @@ import inspect
 import sys
 import textwrap
 import threading
+import weakref
 from collections.abc import Callable, Iterator
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -90,7 +109,7 @@ class _Code:
 
 
 _NONE = _Code()
-_codes: dict[CodeType, _Code] = {}
+_codes: weakref.WeakKeyDictionary[CodeType, _Code] = weakref.WeakKeyDictionary()
 _whiles: set[tuple[str, int]] = set()  # (file, line) of each `while` loop of the code analysed
 _bounds: dict[tuple[str, int], int] = {}  # (file, line) of a `while` loop -> its function's `max_passes(n)`
 
@@ -375,13 +394,21 @@ def counting(counter: LoopCounter) -> Iterator[LoopCounter]:
         _release()
 
 
+def _monitoring() -> Any:
+    """`sys.monitoring` where the callback can find the jumping frame (CPython); None
+    elsewhere, and nothing is counted."""
+    return getattr(sys, "monitoring", None) if sys.implementation.name == "cpython" else None
+
+
 def _acquire() -> None:
     global _users, _tool
     with _lock:
         _users += 1
         if _users > 1:
             return
-        mon = sys.monitoring
+        mon = _monitoring()
+        if mon is None:
+            return
         for tool in TOOL_IDS:
             try:
                 mon.use_tool_id(tool, TOOL_NAME)
@@ -403,6 +430,7 @@ def _release() -> None:
         mon.set_events(_tool, 0)
         mon.register_callback(_tool, mon.events.JUMP, None)
         mon.free_tool_id(_tool)
+        mon.restart_events()  # the locations this tool disabled: on again for the id's next holder
         _tool = None
 
 
@@ -414,6 +442,7 @@ def _on_jump(code: CodeType, src: int, dst: int) -> object:
     if line is None:
         return sys.monitoring.DISABLE  # never a back edge of flow code: not reported again
     counter = _active.get()
-    if counter is not None:
-        counter._back_edge(sys._getframe(1), info, line)
+    here = inspect.currentframe()
+    if counter is not None and here is not None and here.f_back is not None:
+        counter._back_edge(here.f_back, info, line)  # CPython runs the callback on top of the jumping frame
     return None

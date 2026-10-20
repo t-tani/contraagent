@@ -254,7 +254,7 @@ class CodexBackend(ResumeById, Backend):
         """The launch's own temporary directory, `<temp_root>/codex-<label>-<random>`: its
         `TMPDIR` and the sandbox's one writable root besides the cwd. `exchange` makes it
         (owner-only) and removes it when the launch ends, however it ends."""
-        token = vars(self).setdefault("_tmp_token", secrets.token_hex(6))
+        token = self._once("_tmp_token", lambda: secrets.token_hex(6))
         return temp_root() / f"codex-{safe_label(launch.label)}-{token}"
 
     def real_home(self) -> str:
