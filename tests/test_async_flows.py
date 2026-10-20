@@ -125,7 +125,7 @@ def test_the_review_loop_converges_at_pass_2_and_the_report_joins_every_unit(tmp
     assert plan["python:report"]["after"] == ["summarize-a", "revise-b"]  # through each child's return value
     # the loop's review is in its pass 1, then 2; revise in pass 1
     assert (passes(plan["review-b"]), passes(plan["review-b~2"]), passes(plan["revise-b"])) == ([1], [2], [1])
-    # created from: the keys the flow call had received
+    # created from: the keys of the results that reached the flow call before it created the task
     assert plan["review-b~2"]["created_from"] == ["revise-b"]
     assert plan["python:report"]["created_from"] == ["review-a", "review-b~2"]
     # each unit's loop is its own flow call; the report is the top's
@@ -528,15 +528,16 @@ def test_resume_after_pass_1_launches_only_pass_2_onward_and_a_changed_param_rer
     assert [launch.key for launch in agent.launches] == ["summarize-u"]
 
 
-def test_resume_reads_numbered_outputs_and_an_off_contract_one_fails_at_the_await(tmp_path):
+def test_resume_runs_again_a_task_whose_output_no_longer_reads(tmp_path):
     rep = pipeline(tmp_path, stub({"u": 2})).run(example.review_loop, "u", run_id="r")
     assert rep.ok
     (rep.run_dir / "out/revise/u.json").write_text("{}")
     agent = stub({"u": 2})
     again = pipeline(tmp_path, agent).run(example.review_loop, "u", run_id="r", resume=True)
-    [call] = again.flow_errors
-    assert isinstance(call.error, TaskFailed) and call.error.stop == "invalid_output" and call.error.key == "revise-u"
-    assert agent.launches == []
+    assert again.ok and again.flow_errors == []
+    assert [launch.key for launch in agent.launches] == ["revise-u"]
+    rows = [json.loads(line) for line in (again.run_dir / "journal.jsonl").read_text().splitlines()]
+    assert [r["rerun"] for r in rows if r["key"] == "revise-u"][-1] == "its output no longer reads under its output schema"
 
 
 def test_a_resumed_chain_of_skipped_tasks_uses_no_recursion(tmp_path):
