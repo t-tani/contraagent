@@ -34,8 +34,8 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import time
-import traceback
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -64,6 +64,8 @@ from contraagent._internal.routing.config import PipelineConfig
 from contraagent._internal.routing.kind_config import KindConfig
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import write_document
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -161,8 +163,8 @@ class PythonTaskRunner:
             d = self._run_dir / layout.DEFINITIONS
             d.mkdir(parents=True, exist_ok=True)
             write_document(d / f"{layout.file_name(str(task.kind))}.json", json.dumps({"kind": task.kind, **definition}, default=str))
-        except OSError:  # a definition the monitor cannot show must not fail the task
-            pass
+        except OSError as exc:  # a definition the monitor cannot show must not fail the task
+            _logger.warning("[error] %s/%s.json not written: %r", (self._run_dir / layout.DEFINITIONS).as_posix(), task.kind, exc)
 
     def _attempts(self, task: Task, outs: list[Any], ins: list[Any]) -> TaskResult:
         """Run an attempt, and another after an exception of the task's `retry_on`, up to
@@ -179,7 +181,7 @@ class PythonTaskRunner:
                 try:
                     self._on_failed_attempt(res)
                 except Exception:  # a journal write must not fail the task
-                    traceback.print_exc()
+                    _logger.warning("[error] %s: on_failed_attempt raised; the attempt's result stands", task.key, exc_info=True)
             time.sleep(RetryingRunner.backoff(KindConfig.retry_backoff_base, attempt))
             attempt += 1
 
