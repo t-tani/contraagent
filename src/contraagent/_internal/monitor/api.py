@@ -531,6 +531,45 @@ class Plan(Closed):
     )
 
 
+# --- forecast ----------------------------------------------------------------
+
+
+class ForecastEntry(Closed):
+    """The tasks of one tail key in the earlier run the forecast reads, and how many of them
+    this run has created. A tail key is the flow path's function names, the kind, and the
+    passes of the loops around it, each capped at 3."""
+
+    kind: str = Field(description="the kind of the earlier run's first task of it")
+    group: str = Field(description="the group its kind is drawn in (`PlanGroup.id`)")
+    flow: list[str] = Field(description="the function names of its flow path, outermost first")
+    passes: list[int | None] = Field(
+        description="the passes of the loops around it, outermost first, each capped at 3 (3: the third pass and later); "
+        "null for a loop whose pass was not recorded"
+    )
+    expected: int = Field(description="the tasks of it the earlier run created")
+    created: int = Field(description="the tasks of it this run has created")
+    remaining: int = Field(description="`expected` less `created`, never below 0")
+    wall_s: float = Field(description="the wall time of the `remaining` tasks, at the earlier run's mean per task (every attempt counted)")
+    cost_usd: float | None = Field(
+        description="the cost of the `remaining` tasks in USD, at the earlier run's mean per task; null when the earlier run reported none"
+    )
+
+
+class Forecast(Closed):
+    """The tasks the run is expected to create and has not yet, with their wall time and
+    cost, from the run of the same flow that finished last before it started (`run.json`
+    `flow`). A display only: the schedule never reads it, and a run that creates fewer or
+    more tasks than the earlier run is no error."""
+
+    flow: str = Field(description="`module.qualname` of the run's top flow (`run.json` `flow`); empty for a run of an earlier release")
+    earlier_run: str = Field(description="the run it reads; empty when no run of the same flow finished before this one started")
+    earlier_finished_at: str = Field(description="when the earlier run finished, ISO 8601; empty when there is none")
+    entries: list[ForecastEntry] = Field(description="by tail key, in the order the earlier run created the first task of each")
+    remaining: int = Field(description="the entries' `remaining`, summed")
+    wall_s: float = Field(description="the entries' `wall_s`, summed")
+    cost_usd: float | None = Field(description="the entries' `cost_usd`, summed; null when none has one")
+
+
 # --- outputs (contracts) -----------------------------------------------------
 
 
@@ -583,6 +622,17 @@ class ContractSpec(Open):
     errors: list[str] = Field(default_factory=list)
 
 
+class InputFileParam(Closed):
+    """An input file among a task's params: its place in the params, its path and the
+    SHA-256 of its content taken at the task call."""
+
+    param: str = Field(description="its place in the params: the param's name, then a list's index or a field's name (`notes/0`)")
+    path: str = Field(
+        description="as the params hold it: relative to the run's working directory, or absolute for an output file outside it"
+    )
+    sha256: str
+
+
 class ContractRecord(Open):
     """What one task declared it reads and leaves behind (`contracts/<key>.json`)."""
 
@@ -591,11 +641,16 @@ class ContractRecord(Open):
     unit: str = ""
     executor: Executor = "agent"
     params: dict[str, str | int | float | bool] = Field(
-        default_factory=dict,
-        description="the task's params that are strings, numbers or booleans; an earlier task's output is one of `inputs`",
+        default_factory=dict, description="the task's params that are strings, numbers or booleans"
     )
     outputs: list[ContractSpec] = Field(default_factory=list)
-    inputs: list[ContractSpec] = Field(default_factory=list)
+    inputs: list[ContractSpec] = Field(
+        default_factory=list,
+        description="its input contracts (`InputContract`, from a `TaskAdapter` of the engine), checked before it starts",
+    )
+    input_files: list[InputFileParam] = Field(
+        default_factory=list, description='the input files among its params (`{"path", "sha256"}`), in the order of its params'
+    )
 
 
 class OutputTally(Closed):
@@ -780,26 +835,58 @@ class TaskLaunch(Closed):
     cmd: str = Field(description="the full command line, cut at 600 characters")
 
 
+#: How a task is joined to an earlier one, by the plan row of the later: `given_from`, it was
+#: given the earlier one's output in its params; `after`, it waits for the earlier one and
+#: was not given its output (order only); `created_from`, its flow call created it after the
+#: earlier one's result reached it.
+Lineage = Literal["given_from", "after", "created_from"]
+
+
 class UpstreamTask(Closed):
+    """An earlier task: one this task was given from, waits for, or was created from."""
+
     key: str
     kind: str
     unit: str
     executor: Executor
     outputs: list[ContractSpec]
+    lineage: list[Lineage] = Field(
+        default_factory=list, description="how this task is joined to it, in the order `given_from`, `after`, `created_from`"
+    )
 
 
 class DownstreamTask(Closed):
+    """A later task: one given from this task, waiting for it, or created from it."""
+
     key: str
     kind: str
     unit: str
     executor: Executor
+    lineage: list[Lineage] = Field(
+        default_factory=list, description="how it is joined to this task, in the order `given_from`, `after`, `created_from`"
+    )
+
+
+#: An input file's check as the task was about to start: `passed`, it had the content its
+#: task call hashed; `refused`, it did not (it was gone or changed: the task did not start,
+#: `invalid_input`); `not_checked`, the task has not started.
+InputFileCheck = Literal["passed", "refused", "not_checked"]
+
+
+class TaskInputFile(InputFileParam):
+    """An input file of the task, with the task whose output file it is and its check."""
+
+    writer: str | None = Field(None, description="the key of the task it was given from whose output file it is; null for another file")
+    check: InputFileCheck
+    reason: str = Field("", description="for one `refused`: why, as the refusal names it; else empty")
 
 
 class TaskIO(Closed):
     """The task's params, what it reads and leaves behind, and its neighbours in the plan."""
 
     params: dict[str, Any]
-    inputs: list[ContractSpec]
+    inputs: list[ContractSpec] = Field(description="its input contracts (`ContractRecord.inputs`)")
+    input_files: list[TaskInputFile] = Field(default_factory=list, description="the input files among its params")
     outputs: list[ContractSpec]
     executor: Executor
     upstream: list[UpstreamTask]
@@ -1369,6 +1456,13 @@ class OutputsMessage(Closed):
     data: Outputs
 
 
+class ForecastMessage(Closed):
+    """The forecast, sent when it changed: a task the run creates takes one off it."""
+
+    event: Literal["forecast"]
+    data: Forecast
+
+
 class CursorMessage(Closed):
     """The resume cursor, or null for a run that keeps none."""
 
@@ -1406,7 +1500,7 @@ class StreamMessage(Closed):
 
 
 #: One message of `/events?run=`.
-RunEvent = JournalMessage | ProcsMessage | PlanMessage | OutputsMessage | CursorMessage | PanelMessage | ReadyMessage
+RunEvent = JournalMessage | ProcsMessage | PlanMessage | OutputsMessage | ForecastMessage | CursorMessage | PanelMessage | ReadyMessage
 
 # Models that name a later one are built now, in this module's names.
 for _model in (AccountQuota, RunSummary, Hosts, Trends, _Process):

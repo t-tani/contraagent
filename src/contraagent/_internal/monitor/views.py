@@ -4,7 +4,7 @@ Each `View` in `VIEWS` is answered three ways from the same `read` and `model`:
 
 * the HTTP endpoint `/api/runs/<run>/<name>` (`server.create_app`; `doc` is its description);
 * the run feed's `<name>` event, sent when its value changed (`server.run_feed`, for the
-  views the feed sends: the journal row by row, `procs`, `plan`, `outputs`, `cursor`);
+  views the feed sends: the journal row by row, `procs`, `plan`, `outputs`, `forecast`, `cursor`);
 * the export's `data/runs/<run>/<name>.json` (`export.export`, for the views with `export`).
 
 `serialize` is how each of them is written: checked against its model, the keys the
@@ -59,6 +59,13 @@ VIEWS: dict[str, View] = {
             lambda m, run: m.outputs(run),
             api.Outputs,
             "Every declared output/input contract: its file, the model it must satisfy, its status.",
+        ),
+        View(
+            "forecast",
+            lambda m, run: m.forecast(run),
+            api.Forecast,
+            "The tasks the run is expected to create and has not yet, from the run of the same flow that finished last "
+            "before it started; a display only.",
         ),
         View("definitions", lambda m, run: m.definitions(run), list[api.TaskDefinition], "What defined each kind of task in this run."),
         View("cursor", lambda m, run: m.cursor(run) or {}, api.CursorView, "The resume cursor; `{}` when the run keeps none."),

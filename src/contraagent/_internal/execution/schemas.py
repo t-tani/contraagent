@@ -370,6 +370,11 @@ class RunInfo(RecordModel):
         None, description="by credential, the quota caps of each that has one"
     )
     quota_rule: str | None = Field(None, description="the quota rule's `module.qualname`; empty without one")
+    flow: str | None = Field(
+        None,
+        description="`module.qualname` of the run's top flow (`Pipeline.run(flow)`): the runs of one flow, which the monitor's "
+        "forecast compares; absent in a run of an earlier release",
+    )
     preflight: PreflightRecord | None = Field(None, description="what the run's preflight did")
 
 

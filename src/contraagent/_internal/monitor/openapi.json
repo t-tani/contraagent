@@ -419,6 +419,46 @@
         }
       }
     },
+    "/api/runs/{run}/forecast": {
+      "get": {
+        "summary": "Api Forecast",
+        "description": "The tasks the run is expected to create and has not yet, from the run of the same flow that finished last before it started; a display only.",
+        "operationId": "api_forecast_api_runs__run__forecast_get",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Forecast"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/runs/{run}/definitions": {
       "get": {
         "summary": "Api Definitions",
@@ -1388,7 +1428,7 @@
             },
             "type": "object",
             "title": "Params",
-            "description": "the task's params that are strings, numbers or booleans; an earlier task's output is one of `inputs`"
+            "description": "the task's params that are strings, numbers or booleans"
           },
           "outputs": {
             "items": {
@@ -1402,7 +1442,16 @@
               "$ref": "#/components/schemas/ContractSpec"
             },
             "type": "array",
-            "title": "Inputs"
+            "title": "Inputs",
+            "description": "its input contracts (`InputContract`, from a `TaskAdapter` of the engine), checked before it starts"
+          },
+          "input_files": {
+            "items": {
+              "$ref": "#/components/schemas/InputFileParam"
+            },
+            "type": "array",
+            "title": "Input Files",
+            "description": "the input files among its params (`{\"path\", \"sha256\"}`), in the order of its params"
           }
         },
         "additionalProperties": true,
@@ -1869,6 +1918,19 @@
               "python"
             ],
             "title": "Executor"
+          },
+          "lineage": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "given_from",
+                "after",
+                "created_from"
+              ]
+            },
+            "type": "array",
+            "title": "Lineage",
+            "description": "how it is joined to this task, in the order `given_from`, `after`, `created_from`"
           }
         },
         "additionalProperties": false,
@@ -1879,7 +1941,8 @@
           "unit",
           "executor"
         ],
-        "title": "DownstreamTask"
+        "title": "DownstreamTask",
+        "description": "A later task: one given from this task, waiting for it, or created from it."
       },
       "DroppedRoute": {
         "properties": {
@@ -2185,6 +2248,172 @@
         ],
         "title": "FlowCallNode",
         "description": "One flow call (`flow_calls.jsonl`): one run of an async flow (the top flow, or an asyncio Task\nits code created), or the flow itself."
+      },
+      "Forecast": {
+        "properties": {
+          "flow": {
+            "type": "string",
+            "title": "Flow",
+            "description": "`module.qualname` of the run's top flow (`run.json` `flow`); empty for a run of an earlier release"
+          },
+          "earlier_run": {
+            "type": "string",
+            "title": "Earlier Run",
+            "description": "the run it reads; empty when no run of the same flow finished before this one started"
+          },
+          "earlier_finished_at": {
+            "type": "string",
+            "title": "Earlier Finished At",
+            "description": "when the earlier run finished, ISO 8601; empty when there is none"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastEntry"
+            },
+            "type": "array",
+            "title": "Entries",
+            "description": "by tail key, in the order the earlier run created the first task of each"
+          },
+          "remaining": {
+            "type": "integer",
+            "title": "Remaining",
+            "description": "the entries' `remaining`, summed"
+          },
+          "wall_s": {
+            "type": "number",
+            "title": "Wall S",
+            "description": "the entries' `wall_s`, summed"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd",
+            "description": "the entries' `cost_usd`, summed; null when none has one"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "flow",
+          "earlier_run",
+          "earlier_finished_at",
+          "entries",
+          "remaining",
+          "wall_s",
+          "cost_usd"
+        ],
+        "title": "Forecast",
+        "description": "The tasks the run is expected to create and has not yet, with their wall time and\ncost, from the run of the same flow that finished last before it started (`run.json`\n`flow`). A display only: the schedule never reads it, and a run that creates fewer or\nmore tasks than the earlier run is no error."
+      },
+      "ForecastEntry": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "the kind of the earlier run's first task of it"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group",
+            "description": "the group its kind is drawn in (`PlanGroup.id`)"
+          },
+          "flow": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Flow",
+            "description": "the function names of its flow path, outermost first"
+          },
+          "passes": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Passes",
+            "description": "the passes of the loops around it, outermost first, each capped at 3 (3: the third pass and later); null for a loop whose pass was not recorded"
+          },
+          "expected": {
+            "type": "integer",
+            "title": "Expected",
+            "description": "the tasks of it the earlier run created"
+          },
+          "created": {
+            "type": "integer",
+            "title": "Created",
+            "description": "the tasks of it this run has created"
+          },
+          "remaining": {
+            "type": "integer",
+            "title": "Remaining",
+            "description": "`expected` less `created`, never below 0"
+          },
+          "wall_s": {
+            "type": "number",
+            "title": "Wall S",
+            "description": "the wall time of the `remaining` tasks, at the earlier run's mean per task (every attempt counted)"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd",
+            "description": "the cost of the `remaining` tasks in USD, at the earlier run's mean per task; null when the earlier run reported none"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "group",
+          "flow",
+          "passes",
+          "expected",
+          "created",
+          "remaining",
+          "wall_s",
+          "cost_usd"
+        ],
+        "title": "ForecastEntry",
+        "description": "The tasks of one tail key in the earlier run the forecast reads, and how many of them\nthis run has created. A tail key is the flow path's function names, the kind, and the\npasses of the loops around it, each capped at 3."
+      },
+      "ForecastMessage": {
+        "additionalProperties": false,
+        "description": "The forecast, sent when it changed: a task the run creates takes one off it.",
+        "properties": {
+          "event": {
+            "const": "forecast",
+            "title": "Event",
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Forecast"
+          }
+        },
+        "required": [
+          "event",
+          "data"
+        ],
+        "title": "ForecastMessage",
+        "type": "object"
       },
       "Frame": {
         "properties": {
@@ -2716,6 +2945,33 @@
         ],
         "title": "Info",
         "description": "What the UI shows before a run is picked: the title, the panel tabs to offer,\nand the version of this contract."
+      },
+      "InputFileParam": {
+        "properties": {
+          "param": {
+            "type": "string",
+            "title": "Param",
+            "description": "its place in the params: the param's name, then a list's index or a field's name (`notes/0`)"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "as the params hold it: relative to the run's working directory, or absolute for an output file outside it"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "param",
+          "path",
+          "sha256"
+        ],
+        "title": "InputFileParam",
+        "description": "An input file among a task's params: its place in the params, its path and the\nSHA-256 of its content taken at the task call."
       },
       "JournalMessage": {
         "additionalProperties": false,
@@ -4722,6 +4978,9 @@
             "$ref": "#/components/schemas/OutputsMessage"
           },
           {
+            "$ref": "#/components/schemas/ForecastMessage"
+          },
+          {
             "$ref": "#/components/schemas/CursorMessage"
           },
           {
@@ -5895,7 +6154,16 @@
               "$ref": "#/components/schemas/ContractSpec"
             },
             "type": "array",
-            "title": "Inputs"
+            "title": "Inputs",
+            "description": "its input contracts (`ContractRecord.inputs`)"
+          },
+          "input_files": {
+            "items": {
+              "$ref": "#/components/schemas/TaskInputFile"
+            },
+            "type": "array",
+            "title": "Input Files",
+            "description": "the input files among its params"
           },
           "outputs": {
             "items": {
@@ -5939,6 +6207,61 @@
         ],
         "title": "TaskIO",
         "description": "The task's params, what it reads and leaves behind, and its neighbours in the plan."
+      },
+      "TaskInputFile": {
+        "properties": {
+          "param": {
+            "type": "string",
+            "title": "Param",
+            "description": "its place in the params: the param's name, then a list's index or a field's name (`notes/0`)"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "as the params hold it: relative to the run's working directory, or absolute for an output file outside it"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "writer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Writer",
+            "description": "the key of the task it was given from whose output file it is; null for another file"
+          },
+          "check": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "refused",
+              "not_checked"
+            ],
+            "title": "Check"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "for one `refused`: why, as the refusal names it; else empty",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "param",
+          "path",
+          "sha256",
+          "check"
+        ],
+        "title": "TaskInputFile",
+        "description": "An input file of the task, with the task whose output file it is and its check."
       },
       "TaskLaunch": {
         "properties": {
@@ -7523,6 +7846,19 @@
             },
             "type": "array",
             "title": "Outputs"
+          },
+          "lineage": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "given_from",
+                "after",
+                "created_from"
+              ]
+            },
+            "type": "array",
+            "title": "Lineage",
+            "description": "how this task is joined to it, in the order `given_from`, `after`, `created_from`"
           }
         },
         "additionalProperties": false,
@@ -7534,7 +7870,8 @@
           "executor",
           "outputs"
         ],
-        "title": "UpstreamTask"
+        "title": "UpstreamTask",
+        "description": "An earlier task: one this task was given from, waits for, or was created from."
       },
       "ValidationError": {
         "properties": {
