@@ -213,6 +213,35 @@ def test_the_credentials_example_runs_the_restricted_document_as_its_call_s_cred
     assert [(h["model"], h["credential"]) for h in rows["summarize-plan"]["hops"]] == [("claude-opus-5-5", "team")]
 
 
+def test_the_demo_check_counts_no_slow_step_for_contraagents_own_work(monkeypatch, caplog):
+    """A slow step is flow code's own time (`FlowLoop.slow_s`): the work contraagent does for
+    a task call is left out, however long it takes (on a busy machine, a cold process). Here
+    each task call takes ten seconds of contraagent's work, on the flow loop's clock."""
+    import time
+    from types import SimpleNamespace
+
+    from contraagent import Pipeline
+    from contraagent._internal.dispatch import flowloop
+    from contraagent._internal.pipeline import origin
+    from contraagent.docs.examples.demo.tasks import docs as demo_flow
+    from contraagent.testing import StubAgent
+
+    offset = [0.0]
+    monkeypatch.setattr(flowloop, "time", SimpleNamespace(monotonic=lambda: time.monotonic() + offset[0]))
+    frames_here = origin.frames_here
+
+    def slow_frames_here(*args, **kwargs):
+        offset[0] += 10.0
+        return frames_here(*args, **kwargs)
+
+    monkeypatch.setattr(origin, "frames_here", slow_frames_here)
+    with caplog.at_level("WARNING", logger="contraagent"):
+        report = Pipeline(EXAMPLES / "demo" / "pipeline.toml", backends=StubAgent().backends()).check(demo_flow, units=["alpha", "beta"])
+    assert report.ok, report
+    assert offset[0] >= 40  # each task call of the first steps took its ten seconds
+    assert "heavy work belongs in a Python task" not in caplog.text
+
+
 def test_the_demo_plugin_is_clean():
     assert Plugin.load(EXAMPLES / "demo" / "plugins" / "docs").lint() == []
 
