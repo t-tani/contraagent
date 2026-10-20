@@ -529,10 +529,10 @@ class Graph:
             self._produced[id(value)] = (value, item)
         return value
 
-    def flow_call_started(self, call: FlowCall) -> tuple[Frame, ...]:
+    def flow_call_created(self, call: FlowCall) -> tuple[Frame, ...]:
         """The flow path where a child flow call was created: its parent's frames where its
         code created the Task, with their loops' passes (empty for a top flow call). The
-        child's tasks' flow paths start with it."""
+        child's tasks' flow paths start with it (`flow_path`)."""
         parent = call.parent
         if parent is None:
             return ()
@@ -544,17 +544,21 @@ class Graph:
         self._prefix[call.id] = frames
         return frames
 
+    def flow_path(self, call: FlowCall) -> tuple[Frame, ...]:
+        """The flow path where `call` was created (`flow_call_created`)."""
+        return self._prefix.get(call.id, ())
+
     def flow_call_ended(self, call: FlowCall) -> None:
         """Forget the passes counted in a flow call's frames."""
         self.loops.drop(call)
 
     def on_flow_call(self, event: str, call: FlowCall) -> None:
-        """A `FlowDriver` `on_flow_call`: the flow path of a child flow call, checked
-        against `max_passes` (`TooManyPasses` fails the child, and its parent receives it
-        where it awaits the child)."""
-        if event == "start":
-            self.check_passes(self.flow_call_started(call), f"flow call {call.id} ({call.function})", call.id)
-        else:
+        """A `FlowDriver` `on_flow_call`: the flow path of a child flow call as it is created,
+        checked against `max_passes` (`TooManyPasses` fails the child, and its parent
+        receives it where it awaits the child)."""
+        if event == "create":
+            self.check_passes(self.flow_call_created(call), f"flow call {call.id} ({call.function})", call.id)
+        elif event == "end":
             self.flow_call_ended(call)
 
     def check_passes(self, frames: tuple[Frame, ...], what: str, call_id: str) -> None:

@@ -71,7 +71,8 @@ def test_it_runs_end_to_end_and_records_its_structure(tmp_path):
     # Three layers of flow calls: analyse (0), analyse_bundle (0.N), analyse_file (0.N.M).
     assert plan["python:summary"]["flow_call"] == "0"
     assert plan["classify-east-0"]["flow_call"] == "0.1" and plan["python:report-east"]["flow_call"] == "0.1"
-    assert plan["parse_csv-east-0"]["flow_call"] == "0.1.1" and plan["parse_json-east-1"]["flow_call"] == "0.1.2"
+    # The Tasks around the two `classify` calls gathered first take 0.1.1 and 0.1.2, and leave no record.
+    assert plan["parse_csv-east-0"]["flow_call"] == "0.1.3" and plan["parse_json-east-1"]["flow_call"] == "0.1.4"
     names = [f["function"].rsplit(".", 1)[1] for f in plan["propose-east-0-id"]["flow"]]
     assert names == ["analyse", "analyse_bundle", "analyse_file"]
 

@@ -685,3 +685,113 @@ def test_one_run_per_event_loop_at_a_time(tmp_path):
 
     assert asyncio.run(main()).value == 1
     assert not (tmp_path / "runs" / "second").exists()
+
+
+def test_a_flow_that_awaits_a_clock_or_a_thread_fails_at_that_await(tmp_path):
+    async def flow():
+        first = await summarize("a", path="a")
+        try:
+            await asyncio.to_thread(len, "x")
+        except TypeError as exc:
+            thread = str(exc)
+        await asyncio.sleep(1)  # not caught: it ends the flow
+        return first, thread
+
+    rep = pipeline(tmp_path, stub()).run(flow)
+    assert not rep.ok and sorted(rep.results) == ["summarize-a"]
+    [top] = rep.flow_errors
+    assert isinstance(top.error, TypeError) and "needs a clock" in str(top.error) and "time_box()" in str(top.error)
+    [row] = [r for r in flow_call_rows(rep) if r["event"] == "end"]
+    assert row["state"] == "raised" and "needs a clock" in row["error"]
+
+
+def test_a_flow_that_waits_for_what_nothing_answers_ends_the_run_with_the_place(tmp_path):
+    never = asyncio.Event()
+
+    async def flow():
+        await summarize("a", path="a")
+        await never.wait()
+
+    started = time.monotonic()
+    rep = pipeline(tmp_path, stub()).run(flow)  # no deadline: it would have waited forever
+    assert time.monotonic() - started < 60
+    assert not rep.ok and rep.value is None
+    [top] = rep.flow_errors
+    assert top.state == "closed" and isinstance(top.error, RuntimeError)
+    assert f"waits at {__file__}:{flow.__code__.co_firstlineno + 2}" in str(top.error)
+    [row] = [r for r in flow_call_rows(rep) if r["event"] == "end"]
+    assert row["state"] == "closed" and "for what nothing will answer" in row["error"]
+
+
+def test_run_async_drives_the_flows_from_a_loop_of_the_callers_own(tmp_path):
+    async def flow():
+        a, b = await asyncio.gather(summarize("a", path="a"), summarize("b", path="b"))
+        return a.unit + b.unit
+
+    async def main():
+        loop = asyncio.get_running_loop()
+        report = await pipeline(tmp_path, stub()).run_async(flow)
+        assert asyncio.get_running_loop() is loop
+        return report
+
+    rep = asyncio.run(main())
+    assert rep.ok and rep.value == "ab"
+
+
+def test_a_flow_call_is_on_record_once_it_creates_something(tmp_path):
+    async def helper(pending):
+        return await pending  # waits for its parent's task call: no record
+
+    async def sub(u):
+        return await summarize(u, path=u)  # creates a task: on record
+
+    async def flow():
+        first = summarize("a", path="a")
+        await asyncio.gather(first, summarize("b", path="b"))  # 0.1 and 0.2 wait only
+        await asyncio.create_task(helper(first))  # 0.3
+        done = await asyncio.gather(sub("c"))  # 0.4
+        follow = await write_doc("d", path="d")
+        return done, follow
+
+    rep = pipeline(tmp_path, stub(write_doc=lambda launch: "text")).run(flow)
+    assert rep.ok
+    rows = flow_call_rows(rep)
+    assert [r["id"] for r in rows if r["event"] == "start"] == ["0", "0.4"]
+    assert [r["id"] for r in rows if r["event"] == "end"] == ["0.4", "0"]
+    plan = {r["key"]: r for r in plan_rows(rep)}
+    assert {key: r["flow_call"] for key, r in plan.items()} == {
+        "summarize-a": "0",
+        "summarize-b": "0",
+        "summarize-c": "0.4",
+        "write_doc-d": "0",
+    }
+    # What the Tasks that left no record received reached the flow all the same.
+    assert plan["write_doc-d"]["created_from"] == ["summarize-c"]
+
+
+def test_a_task_failure_passing_through_a_flow_call_puts_it_on_no_record(tmp_path):
+    async def passes(pending):
+        return await pending  # the task's TaskFailed passes through unchanged
+
+    async def own(pending):
+        try:
+            await pending
+        except TaskFailed as exc:
+            raise ValueError(f"no summary: {exc.key}") from exc
+
+    async def flow():
+        bad = summarize("a", path="a")
+        caught = []
+        for awaited in (asyncio.gather(bad), asyncio.create_task(passes(bad)), asyncio.create_task(own(bad))):
+            try:
+                await awaited  # 0.1 (asyncio's Task around the task call), 0.2, 0.3
+            except (TaskFailed, ValueError) as exc:
+                caught.append(type(exc).__name__)
+        return caught
+
+    rep = pipeline(tmp_path, stub(**{"summarize-a": fails()})).run(flow)
+    assert rep.value == ["TaskFailed", "TaskFailed", "ValueError"]
+    rows = flow_call_rows(rep)
+    assert [r["id"] for r in rows if r["event"] == "start"] == ["0", "0.3"]
+    [end] = [r for r in rows if r["event"] == "end" and r["id"] == "0.3"]
+    assert end["state"] == "raised" and end["error"] == "ValueError: no summary: summarize-a"

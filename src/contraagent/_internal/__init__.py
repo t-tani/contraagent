@@ -19,8 +19,9 @@ Layers, bottom up (each imports only the ones above it in this list):
                 `RunSource` (where runs are read from) and `Liveness`
 * `dispatch/`   the domain-free `Task`/`TaskResult` envelope and the schedulers:
                 `WorkQueue` (claims, caps, retry, throttle, deadline, bottom level, priority)
-                and `FlowDriver` (async flows over it); `make_python_task`; `records`: the
-                facts a run records (hops, rests, deferral causes, flow paths), one type each
+                and `FlowDriver` (async flows over it, on its `FlowLoop`); `make_python_task`;
+                `records`: the facts a run records (hops, rests, deferral causes, flow
+                paths), one type each
 * `backends/`   one coding-agent CLI behind `Backend`: one `Launch` in, one `LaunchResult` out
 * `contracts/`  `OutputContract`/`InputContract` (`contract`): files checked by pydantic and
                 `validators`; `run_until_valid` resumes the session until they hold;

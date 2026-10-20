@@ -1,8 +1,7 @@
 """`FlowDriver`: runs async flows over a `WorkQueue`, one flow call per asyncio Task of flow code.
 
 A flow that waits for outputs is an `async def` function (an async flow). It waits
-with `await` on the running event loop; at this level it waits for a `Task` through
-`driver.wait`:
+with `await`; at this level it waits for a `Task` through `driver.wait`:
 
     async def flow():
         res = await driver.wait(Task("survey", unit="a"))      # one task: its answer
@@ -11,22 +10,54 @@ with `await` on the running event loop; at this level it waits for a `Task` thro
         rest = await helper(res)                                  # the same flow call
         part = await time_box(per_unit(u), deadline_s=600)       # a flow call with its own deadline
 
-A **flow call** is one asyncio Task whose coroutine is flow code (`code.flow_code`): the
-top flow passed to `start()` (ids `"0"`, `"1"`, ... in start order), or a Task that flow
-code creates (`asyncio.gather` of coroutines, `asyncio.create_task`,
-`asyncio.TaskGroup.create_task`, `time_box`), whose id is `"<parent>.<n>"`, numbered
-from 1 in creation order within the parent. A Task asyncio makes around an awaitable
-that is not flow code (`gather` wrapping what `wait` returns) is no flow call and takes
-no number. So the same flow code gives the same ids in every run, whatever order its
-tasks finish in. `await helper()` runs in the same flow call. The flow call whose code
-runs is a context variable (`current`). Each flow call is reported through
-`on_flow_call("start" | "end", call)`; its `state` is `running` until it `returned`,
-`raised` or was `closed` (cancelled).
+Flow code runs on an event loop of the driver's own, its `FlowLoop` (`flowloop.py`):
+a queue of ready callbacks with no clock, no threads and no I/O. A flow call is one
+asyncio Task on it: the top flow passed to `start()` (ids `"0"`, `"1"`, ... in start
+order), or a Task created while a flow call's code runs (`asyncio.gather`,
+`asyncio.create_task`, `asyncio.TaskGroup.create_task`, `time_box`), whose id is
+`"<parent>.<n>"`, numbered from 1 in creation order within the parent. Every Task
+takes a number, the one asyncio makes around a task call that `gather` is given too
+(`ensure_future` wraps an awaitable that is no coroutine in one); since the flow loop
+runs its callbacks in the order they come, the same flow code gives the same ids in
+every run, whatever order its tasks finish in. `await helper()` runs in the same flow
+call. The flow call whose code runs is a context variable (`current`).
 
-The driver numbers flow calls through a task factory on the event loop
-(`loop.set_task_factory`), set by `driving()` for as long as it drives flows and put
-back after. One driver drives the flows of one event loop at a time: a second raises
-RuntimeError.
+A flow call is on record only once it does something a run shows: it creates a task
+(`add`, a task call) or a flow call, or it ends with an error of its own (one that is
+not what `answer` raised at an await of a task, passing through unchanged: that task's
+own record says it) or the error the driver closed it with; a top flow call is on
+record from its start. So a Task that only awaits a task already created
+(asyncio's around `gather(task_call)`, or a helper that awaits its parent's task call)
+and ends otherwise leaves no record, and the ids on record may skip numbers. Each flow
+call is reported through `on_flow_call(event, call)`: `"create"` when its Task is
+created, `"start"` when it is put on record (its `started_at` is still its creation),
+`"end"` when it ends (`call.recorded` says whether it is on record). Its `state` is
+`running` until it `returned`, `raised` or was `closed` (cancelled). What it receives
+reaches its parent when it ends, on record or not.
+
+Why every Task counts: `asyncio.ensure_future`, which `gather` calls on each item,
+wraps an awaitable that is neither a future nor a coroutine (a task call) in a Task of
+a coroutine of asyncio's own. Telling that Task from a flow call's would take asyncio's
+internal names or a look at frames, and making a task call pass for a coroutine or a
+future would make it claim a protocol it does not keep. So the driver tells no Task
+apart: the numbers stay deterministic, and the record shows what a flow call did.
+`wait()` returns a coroutine that keeps the protocol (`send`, `throw`, `close`), used
+once, so `gather` hands it to the loop as any coroutine.
+
+Flow code runs only when the driver drains the flow loop (`settle`, `finish`): from a
+plain callback of the event loop that `driving()` runs on, never inside one of its Task
+steps, or on a thread where no event loop runs (`settle_here`, `finish_here`, for
+`contraagent check`). When the drain ends, no callback is ready: every flow call waits
+for a task's result, which only the driver gives, or for a flow call that waits in
+turn. That is the flows' quiescence, exact by construction. `follow_up` only completes
+the futures that wait for a result; the flow code they wake runs at the next drain, so
+the steps of the flow calls run in the order the results are given, whatever thread
+or callback of the event loop ran meanwhile. A clock, a thread or I/O that flow code
+asks the flow loop for raises TypeError at its `await`; a future of another event loop
+raises asyncio's RuntimeError there.
+
+The event loop of `driving()` keeps nothing of the driver: no task factory. One driver
+drives the flows of one event loop at a time: a second raises RuntimeError.
 
 What a wait means is set by callbacks, so a typed layer plugs in without changing
 the driver:
@@ -47,7 +78,8 @@ Rules:
   whether or not anything awaits it.
 * `done[key]` holds every result the driver has seen: a task whose key is done is
   answered at once, without queueing it again; tasks with the same key wait for one
-  result (one future per key, created when it is first awaited).
+  result. Each `await` waits on a future of its own, so cancelling one flow call that
+  waits for a key leaves the others waiting for it.
 * A deferred task (`TaskResult.stop == "deferred"`) is answered like any other result
   before `past_grace()`; after it, the waiting flow call is cancelled (closed), and so
   is a parent that awaits it. The tasks a cancelled flow call created are not
@@ -64,12 +96,17 @@ Rules:
   with its parent's.
 * The queue does not end while a flow call runs (`settle`, its `between_passes`): it
   waits for the tasks the flow calls create, within the run's deadline.
+* A flow call that still waits once the flows are quiescent, while no task the driver
+  queued is still to give its result, waits for what nothing will answer (an
+  `asyncio.Event` nobody sets, a `Queue` nobody fills): `settle` closes it, its `error`
+  a RuntimeError that names where it waits.
 * `finish()` cancels every flow call still running once the queue has run (recorded
-  `closed`).
+  `closed`), and every other Task on the flow loop.
 
-Flow code runs on the event loop's thread; a step longer than `slow_step_s` (between
-two waits of one flow call) is logged. Nothing here knows what a task does or what its
-output is: that is `answer`'s business.
+Flow code runs on the thread of the event loop that drives it; a callback of the flow
+loop longer than `slow_step_s` (a step of one flow call between two waits) is logged,
+and so is a drain that runs that long in all. Nothing here knows what a task does or
+what its output is: that is `answer`'s business.
 """
 
 from __future__ import annotations
@@ -82,32 +119,22 @@ import inspect
 import itertools
 import logging
 import re
-import sys
 import time
 import warnings
-import weakref
 from collections.abc import Awaitable, Callable, Coroutine, Generator, Iterable, Iterator
 from dataclasses import dataclass, field, replace
 from types import CodeType, FrameType, GeneratorType
-from typing import Any, Literal, NoReturn, Protocol, cast
+from typing import Any, Literal, NoReturn, Protocol
 
-from contraagent._internal.dispatch.code import flow_code, loop_runner
+from contraagent._internal.dispatch.code import flow_code
 from contraagent._internal.dispatch.entry import run_sync
+from contraagent._internal.dispatch.flowloop import DRAIN_CODE, FlowLoop
 from contraagent._internal.dispatch.queue import GRACE_S, SLACK_SHARE, WorkQueue
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, Task, TaskResult, TimeBox
 
 _logger = logging.getLogger(__name__)
 
 FlowState = Literal["running", "returned", "raised", "closed"]
-
-#: How many event loop iterations in a row with no flow activity end `settle`.
-QUIET_ITERATIONS = 3
-
-#: The longest `settle` lets the flow calls run before it returns.
-SETTLE_S = 5.0
-
-#: The longest `finish` waits for the flow calls it cancelled to end.
-FINISH_S = 5.0
 
 _TOPIC = "(contraagent docs tasks)"
 
@@ -127,8 +154,10 @@ class Answer(Protocol):
 
 
 class OnFlowCall(Protocol):
-    """`on_flow_call(event, call)`: a flow call started (`event` `"start"`) or ended
-    (`"end"`, its `state` and `value` or `error` set)."""
+    """`on_flow_call(event, call)`: a flow call was created (`event` `"create"`, before its
+    code runs), was put on record (`"start"`, at the first thing it does that a run shows),
+    or ended (`"end"`, its `state` and `value` or `error` set; `call.recorded` says whether
+    a `"start"` came)."""
 
     def __call__(self, event: str, call: FlowCall, /) -> None: ...
 
@@ -239,9 +268,11 @@ class FlowCall:
     parent's `(file, line)` where it created the Task; None for a top flow.
     `frontier`: the keys whose results it received when it was last resumed.
     `value`: what it returned; `error`: what it raised (or what cancelling it
-    raised). `time_box`: its own deadline, when it was started through
-    `time_box`; `started_at` (`time.time()`): when it started. `task`: its
-    asyncio Task."""
+    raised, or, for one closed because it waited for what nothing would answer,
+    the RuntimeError that says where it waited). `time_box`: its own deadline,
+    when it was started through `time_box`; `started_at` (`time.time()`): when it
+    started. `recorded`: whether it is on record (`on_flow_call("start")` came:
+    see the module docstring). `task`: its asyncio Task."""
 
     id: str
     parent: FlowCall | None = field(default=None, repr=False)
@@ -253,6 +284,7 @@ class FlowCall:
     error: BaseException | None = None
     time_box: TimeBox | None = None
     started_at: float = field(default_factory=time.time)
+    recorded: bool = False
     task: asyncio.Task[Any] | None = field(default=None, repr=False)
     #: Its coroutine (the flow code the Task runs).
     coro: Any = field(default=None, repr=False)
@@ -262,16 +294,20 @@ class FlowCall:
     # The results its frontier holds: (order, n, key), the order that of the wait or the
     # child flow call that gave it, so its frontier follows their order, not their timing.
     _received: list[tuple[int, int, str]] = field(default_factory=list, init=False, repr=False)
+    # The keys of its frontier, received since its code last ran.
+    _in_frontier: set[str] = field(default_factory=set, init=False, repr=False)
     # Its place among the waits and flow calls of its parent (creation order).
     _order: int = field(default=0, init=False, repr=False)
     # It is being cancelled by the driver: it ends `closed`, whatever it ends with.
     _closing: bool = field(default=False, init=False, repr=False)
+    # Why the driver closes it, when it waits for what nothing answers: its `error` then.
+    _stopped: BaseException | None = field(default=None, init=False, repr=False)
 
 
 #: The flow call whose code runs.
 _call: contextvars.ContextVar[FlowCall | None] = contextvars.ContextVar("contraagent_flow_call", default=None)
 
-#: The driver that drives the flows of each event loop.
+#: The driver of each event loop it drives: the event loop of `driving()`, and its flow loop.
 _drivers: dict[asyncio.AbstractEventLoop, FlowDriver] = {}
 
 
@@ -284,13 +320,13 @@ def _driver_here() -> FlowDriver | None:
 
 
 class FlowDriver:
-    """Drives flow calls on the running event loop over one `WorkQueue` (see the module
-    docstring).
+    """Drives flow calls on its flow loop over one `WorkQueue` (see the module docstring).
 
     `run(queue, *flows)` (or `await run_async(queue, *flows)`) is the whole cycle. Wired
     by hand, on the event loop: `with driver.driving():`, `driver.start(flow)` for each
     top flow (a coroutine), `driver.attach(queue)` with `follow_up=driver.follow_up` on
-    the queue, `await queue.run_async()`, then `await driver.finish()`.
+    the queue, `await queue.run_async()`, then `await driver.finish()`. Where no event
+    loop runs, `settle_here()` and `finish_here()` drive the flows on the calling thread.
     """
 
     def __init__(
@@ -313,21 +349,23 @@ class FlowDriver:
         self.calls: dict[str, FlowCall] = {}
         #: Every result seen, by task key.
         self.done: dict[str, TaskResult] = {}
-        # Flow events so far (a flow call started or ended, a task added, a wait begun or
-        # answered): `settle` runs the event loop until it stops changing.
-        self._activity = 0
+        # The event loop flow code runs on.
+        self._loop = FlowLoop(make_task=self._make_task, on_slow=self._slow, slow_s=slow_step_s)
         self._tops = itertools.count()
         self._running = 0
-        self._futures: dict[str, asyncio.Future[TaskResult]] = {}  # by task key
+        self._waiters: dict[str, list[asyncio.Future[TaskResult]]] = {}  # by task key, one per await
         self._queued_keys: set[str] = set()
+        self._open: set[str] = set()  # keys queued whose result has not come
+        # What `answer` raised at an await, by id (kept alive): a task's outcome, not a flow call's own.
+        self._outcomes: dict[int, BaseException] = {}
         self._outbox: list[Task] = []
         self._queue: WorkQueue | None = None
+        self._main: asyncio.AbstractEventLoop | None = None
+        self._driving = False
+        self._wake_due = False
         self._next: _Next | None = None
         self._made: FlowCall | None = None
-        self._previous: Any = None
         self._orders = itertools.count()
-        # The place of each Task that is no flow call, created by a flow call's code.
-        self._task_order: weakref.WeakKeyDictionary[asyncio.Task[Any], int] = weakref.WeakKeyDictionary()
 
     # --- the cycle -----------------------------------------------------------
 
@@ -337,7 +375,7 @@ class FlowDriver:
         return run_sync(lambda: self.run_async(queue, *flows), called="FlowDriver.run()", instead="await driver.run_async(...)")
 
     async def run_async(self, queue: WorkQueue, *flows: Coroutine[Any, Any, Any]) -> dict[str, Any]:
-        """Start every flow on the running event loop, run `queue` until no task is queued or
+        """Start every flow, run `queue` on the running event loop until no task is queued or
         running and no flow call runs, cancel what is left; the queue's summary. Sets the
         queue's `follow_up`, and `past_grace` to its `past_hard_stop` unless one was given."""
         with self.driving():
@@ -352,31 +390,39 @@ class FlowDriver:
 
     @contextlib.contextmanager
     def driving(self) -> Iterator[FlowDriver]:
-        """Drive the flows of the running event loop until the block ends: its task factory
-        numbers the flow calls. RuntimeError when another driver drives this event loop's
-        flows (one run per event loop at a time)."""
-        loop = asyncio.get_running_loop()
-        if loop in _drivers:
+        """Drive flows until the block ends: from the running event loop (`settle`,
+        `finish`), or, where none runs, from this thread (`settle_here`, `finish_here`).
+        RuntimeError when another driver drives the running event loop's flows (one run
+        per event loop at a time), or when flow code calls it."""
+        try:
+            main: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
+        except RuntimeError:
+            main = None
+        if (main is not None and main in _drivers) or self._driving:
             raise RuntimeError(SECOND_RUN)
-        _drivers[loop] = self
-        self._previous = loop.get_task_factory()
-        loop.set_task_factory(self._factory)  # pyright: ignore[reportArgumentType]
+        self._main, self._driving = main, True
+        self._loop.slow_s = self.slow_step_s
+        _drivers[self._loop] = self
+        if main is not None:
+            _drivers[main] = self
         try:
             yield self
         finally:
-            loop.set_task_factory(self._previous)
-            del _drivers[loop]
+            if main is not None:
+                del _drivers[main]
+            del _drivers[self._loop]
+            self._main, self._driving = None, False
 
     def start(self, flow: Coroutine[Any, Any, Any]) -> FlowCall:
-        """Start a top flow call: a coroutine of flow code, run as an asyncio Task. Inside
-        `driving()`."""
+        """Start a top flow call: a coroutine of flow code, run as an asyncio Task of the flow
+        loop (its code runs at the next drain). Inside `driving()`."""
         if isinstance(flow, GeneratorType):
             raise generator_flow_error(flow.__qualname__)
         if not inspect.iscoroutine(flow):
             raise TypeError(f"a flow call is a coroutine (a call of an async def function), not {type(flow).__name__}")
-        if _driver_here() is not self:
+        if not self._driving:
             flow.close()
-            raise RuntimeError("FlowDriver.start() runs inside driving(), on its event loop")
+            raise RuntimeError("FlowDriver.start() runs inside driving()")
         self._create(_Next(flow, top=True))
         assert self._made is not None
         return self._made
@@ -393,27 +439,39 @@ class FlowDriver:
         queue.extend(out)
 
     def follow_up(self, result: TaskResult) -> list[Task]:
-        """`WorkQueue`'s `follow_up`: record the result and answer what waits for it (the
-        flow code runs when the queue next waits). Queues nothing itself: an empty list."""
+        """`WorkQueue`'s `follow_up`: record the result and complete the futures that wait for
+        it (the flow code they wake runs at the next drain, when the queue next settles).
+        Queues nothing itself: an empty list."""
         key = result.task.key
         if result.stop != STOP_DUPLICATE_KEY:  # the key's own result is still to come
             self.done[key] = result
-        fut = self._futures.pop(key, None)
-        if fut is not None and not fut.done():
-            fut.set_result(result)
+            self._open.discard(key)
+        answered = False
+        for fut in self._waiters.pop(key, ()):
+            if not fut.done():  # one whose flow call was cancelled is done
+                fut.set_result(result)
+                answered = True
+        if answered and self._queue is not None and self._main is not None and not self._wake_due:
+            # A wait of the queue that has begun ends, so that the next pass settles.
+            self._wake_due = True
+            self._main.call_soon(self._wake_queue)
         return []
 
     async def settle(self) -> bool:
-        """Let the flow calls run until each waits for a task (or for something else): until
-        `QUIET_ITERATIONS` iterations of the event loop in a row see no flow activity, at most
-        `SETTLE_S`. Whether a flow call still runs."""
-        if not self._running:
-            return False
-        quiet, end = 0, time.monotonic() + SETTLE_S
-        while quiet < QUIET_ITERATIONS and time.monotonic() < end:
-            before = self._activity
-            await asyncio.sleep(0)
-            quiet = quiet + 1 if self._activity == before else 0
+        """Let the flow calls run until each waits (until the flow loop has no callback
+        ready), from a callback of the running event loop; close a flow call that waits for
+        what nothing will answer (see the module docstring). Whether a flow call still runs."""
+        await self._drained()
+        if self._close_stuck():
+            await self._drained()
+        return self._running > 0
+
+    def settle_here(self) -> bool:
+        """`settle` on this thread, where no event loop runs (`contraagent check`)."""
+        self._no_loop_here("settle_here")
+        self._loop.drain()
+        if self._close_stuck():
+            self._loop.drain()
         return self._running > 0
 
     def alive(self) -> bool:
@@ -421,19 +479,18 @@ class FlowDriver:
         return self._running > 0
 
     async def finish(self) -> None:
-        """Cancel every flow call still running and let it end (recorded `closed`). The
-        tasks they created are not cancelled."""
-        rest = [c for c in self.calls.values() if c.state == "running"]
-        tasks = [c.task for c in rest if c.task is not None and not c.task.done()]
-        for call in rest:
-            call._closing = True
-        for task in tasks:
-            task.cancel()
-        if tasks:
-            await asyncio.wait(tasks, timeout=FINISH_S)
-        for call in rest:
-            if call.state == "running":  # it would not end
-                self._end(call, "closed")
+        """Cancel every flow call still running and let it end (recorded `closed`), and every
+        other Task of the flow loop. The tasks they created are not cancelled."""
+        self._cancel_rest()
+        await self._drained()
+        self._close_rest()
+
+    def finish_here(self) -> None:
+        """`finish` on this thread, where no event loop runs (`contraagent check`)."""
+        self._no_loop_here("finish_here")
+        self._cancel_rest()
+        self._loop.drain()
+        self._close_rest()
 
     def time_boxes(self, call: FlowCall | None) -> tuple[TimeBox, ...]:
         """The time boxes over the tasks `call` creates: its own and its ancestors',
@@ -450,44 +507,103 @@ class FlowDriver:
         """The flow call whose code runs (a context variable); None outside one."""
         return _call.get()
 
+    async def _drained(self) -> None:
+        """Drain the flow loop from a plain callback of the running event loop (from Python
+        3.14 a drain inside a Task step raises), and wait for it to end."""
+        if not self._loop.ready():
+            return
+        main = asyncio.get_running_loop()
+        ended: asyncio.Future[None] = main.create_future()
+
+        def drain() -> None:
+            try:
+                self._loop.drain()
+            finally:
+                if not ended.done():
+                    ended.set_result(None)
+
+        main.call_soon(drain)
+        await ended
+
+    def _no_loop_here(self, name: str) -> None:
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        raise RuntimeError(f"FlowDriver.{name}() runs where no event loop runs; await {name.removesuffix('_here')}() there")
+
+    def _wake_queue(self) -> None:
+        self._wake_due = False
+        if self._queue is not None:
+            self._queue.wake()
+
+    def _close_stuck(self) -> bool:
+        """When the flows are quiescent and no task queued here is still to give its result,
+        close every flow call still running: nothing will answer any of them. Whether it did."""
+        if not self._running or self._loop.ready() or self._open:
+            return False
+        for call in self.calls.values():
+            if call.state == "running" and call.task is not None and not call.task.done():
+                call._closing = True
+                call._stopped = RuntimeError(_waits_forever(call))
+                call.task.cancel()
+        return True
+
+    def _cancel_rest(self) -> None:
+        for call in self.calls.values():
+            if call.state == "running":
+                call._closing = True
+        for task in asyncio.all_tasks(self._loop):
+            task.cancel()
+        self._loop.close_asyncgens()
+
+    def _close_rest(self) -> None:
+        for call in self.calls.values():
+            if call.state == "running":  # it would not end
+                self._end(call, "closed")
+
     # --- tasks -----------------------------------------------------------------
 
     def add(self, task: Task) -> None:
         """Queue a task the flow code created, held to the time boxes of the flow call that
         created it (before `attach`, it waits for the queue)."""
         call = _call.get()
-        self._activity += 1
         if call is not None:
             call._ran = True
+            self._record(call)
         self._enqueue(task, call)
 
-    async def wait(self, item: Any) -> Any:
-        """Wait for the task `waits_for(item)` gives (queued when it is not yet) to finish;
-        `answer(item, result)`. Past `past_grace()` a deferred task cancels the flow call
-        that waits (CancelledError)."""
+    def wait(self, item: Any) -> Coroutine[Any, Any, Any]:
+        """A coroutine that waits for the task `waits_for(item)` gives (queued when it is not
+        yet) and returns `answer(item, result)` once it finished; awaited once, as any
+        coroutine. Past `past_grace()` a deferred task cancels the flow call that waits
+        (CancelledError)."""
+        return _Wait(self._waiting(item))
+
+    def _waiting(self, item: Any) -> Generator[Any, None, Any]:
         task = self._waits_for(item)
         call = _call.get()
         here = asyncio.current_task()
         own = call is not None and here is call.task
-        order = self._task_order.get(here, -1) if not own and here is not None else -1
-        order = order if order >= 0 else next(self._orders)
-        self._activity += 1
+        order = next(self._orders)
         if own and call is not None:
             call._ran = True
         key = task.key
         result = self.done.get(key)
         if result is None:
-            fut = self._futures.get(key)
-            if fut is None:
-                fut = self._futures[key] = asyncio.get_running_loop().create_future()
+            fut: asyncio.Future[TaskResult] = self._loop.create_future()
+            self._waiters.setdefault(key, []).append(fut)
             self._enqueue(task, call)  # a key the queue refuses answers `fut` at once
-            result = await asyncio.shield(fut)
-            self._activity += 1
+            result = yield from fut.__await__()
         if result.stop == STOP_DEFERRED and self.past_grace is not None and self.past_grace() and call is not None:
             self._cancel(call, own)
         if call is not None:
             self._receive(call, (key,), order)
-        return self._answer(item, result)
+        try:
+            return self._answer(item, result)
+        except BaseException as exc:
+            self._outcomes[id(exc)] = exc
+            raise
 
     def _enqueue(self, task: Task, call: FlowCall | None) -> None:
         if task.key in self._queued_keys or task.key in self.done:
@@ -496,6 +612,7 @@ class FlowDriver:
         if boxes and not task.time_boxes:
             task = replace(task, time_boxes=boxes)
         self._queued_keys.add(task.key)
+        self._open.add(task.key)
         if self._queue is not None:
             self._queue.extend([task])
         else:
@@ -513,48 +630,60 @@ class FlowDriver:
         result. The frontier is in the order of those places (a `gather`'s, by position)."""
         if call._ran:
             call._received, call._ran = [], False
-        call._received += [(order, i, key) for i, key in enumerate(keys)]
-        call.frontier = tuple(dict.fromkeys(key for _, _, key in sorted(call._received)))
+        if not call._received:  # its first result since its code ran: the frontier starts anew
+            call.frontier, call._in_frontier = (), set()
+        new = [(order, i, key) for i, key in enumerate(keys)]
+        if not new:
+            return
+        if not call._received or new[0] > call._received[-1]:  # after all the others: in order as it is
+            call._received += new
+            fresh = tuple(dict.fromkeys(key for key in keys if key not in call._in_frontier))
+        else:
+            call._received = sorted(call._received + new)
+            call.frontier, call._in_frontier = (), set()
+            fresh = tuple(dict.fromkeys(key for _, _, key in call._received))
+        call.frontier += fresh
+        call._in_frontier.update(fresh)
 
-    def _stepped(self, call: FlowCall, elapsed: float) -> None:
-        """One step of `call`'s code ran for `elapsed` seconds: logged past `slow_step_s`."""
-        if elapsed > self.slow_step_s:
+    def _slow(self, context: contextvars.Context | None, elapsed: float) -> None:
+        """A callback of the flow loop ran for `elapsed` seconds (past `slow_step_s`): a step
+        of the flow call of its context; with no context, a whole drain."""
+        call = context.get(_call) if context is not None else None
+        if call is not None:
             _logger.warning(
                 "flow call %s (%s) ran %.1fs between two waits on the event loop's thread; heavy work belongs in a Python task",
                 call.id,
                 call.function,
                 elapsed,
             )
+        else:
+            _logger.warning(
+                "flow code has run %.1fs on the event loop's thread without waiting for a task; heavy work belongs in a Python task",
+                elapsed,
+            )
 
     # --- flow calls ------------------------------------------------------------
 
     def _create(self, nxt: _Next) -> asyncio.Task[Any]:
-        """Create the Task of `nxt.coro` through the event loop, so its task factory makes
-        it the flow call `nxt` says."""
+        """Create the Task of `nxt.coro` on the flow loop, as the flow call `nxt` says."""
         self._next = nxt
         try:
-            return asyncio.get_running_loop().create_task(nxt.coro)
+            return self._loop.create_task(nxt.coro)
         finally:
             self._next = None
 
-    def _factory(self, loop: asyncio.AbstractEventLoop, coro: Any, **kwargs: Any) -> asyncio.Future[Any]:
-        """The event loop's task factory while the driver drives it: a Task of flow code
-        created in a flow call is a new flow call; any other Task is made as before."""
+    def _make_task(self, coro: Any, *, name: str | None = None, context: contextvars.Context | None = None) -> asyncio.Task[Any]:
+        """`FlowLoop.create_task`: every Task is a new flow call, numbered in its parent (the
+        flow call whose code creates it), which creating it puts on record (`_record`)."""
         nxt = self._next if self._next is not None and self._next.coro is coro else None
         self._next = None
         parent = _call.get()
-        if parent is not None:
-            parent._ran = True
-            self._activity += 1
-        code = _code(coro)
-        is_flow = nxt is not None or (parent is not None and code is not None and flow_code(code.co_filename))
-        if not is_flow:
-            made = self._previous(loop, coro, **kwargs) if self._previous is not None else asyncio.Task(coro, loop=loop, **kwargs)
-            if parent is not None and isinstance(made, asyncio.Task):  # a wait it runs has this place
-                self._task_order[made] = next(self._orders)
-            return made
         if nxt is not None and nxt.top:
             parent = None
+        if parent is not None:
+            parent._ran = True
+            self._record(parent)
+        code = _code(coro)
         call_id = f"{parent.id}.{next(parent._children)}" if parent is not None else str(next(self._tops))
         call = FlowCall(
             id=call_id,
@@ -574,30 +703,46 @@ class FlowDriver:
                 finishing_kinds=frozenset(box.finishing_kinds),
                 flow_call=call.id,
             )
-        given = kwargs.pop("context", None)
-        kwargs.pop("eager_start", None)  # its code runs once it is numbered, on the loop's next turn
-        context = given.copy() if given is not None else contextvars.copy_context()
+        context = context.copy() if context is not None else contextvars.copy_context()
         context.run(_call.set, call)
         self.calls[call.id] = call
         self._running += 1
-        self._activity += 1
         self._made = call
         try:
-            self._on_flow_call("start", call)
+            self._on_flow_call("create", call)
         except Exception as error:  # the child does not run; the parent receives the error
             coro.close()
             coro = _raise(error)
+        if parent is None:  # a top flow call is always on record
+            self._record(call)
         call.coro = coro
-        task = asyncio.Task(_Timed(coro, lambda elapsed: self._stepped(call, elapsed)), loop=loop, context=context, **kwargs)
+        task = asyncio.Task(coro, loop=self._loop, name=name, context=context)
         call.task = task
         task.add_done_callback(lambda t, call=call: self._task_done(call, t))
         return task
+
+    def _shows(self, call: FlowCall, state: FlowState, error: BaseException | None) -> bool:
+        """Whether the end of `call` is something to see: an error of its own, or the error
+        the driver closed it with. A task's outcome that `answer` raised at an await and that
+        passed through unchanged is not: the task's own record says it."""
+        return error is not None and self._outcomes.get(id(error)) is not error
+
+    def _record(self, call: FlowCall) -> None:
+        """Put `call` on record (`on_flow_call("start", call)`), once: at the first thing it
+        does that a run shows. Its parent is on record already: creating it put it there."""
+        if call.recorded:
+            return
+        call.recorded = True
+        try:
+            self._on_flow_call("start", call)
+        except Exception:
+            _logger.exception("on_flow_call('start') of flow call %s raised", call.id)
 
     def _task_done(self, call: FlowCall, task: asyncio.Task[Any]) -> None:
         if call.state != "running":
             return
         if task.cancelled():
-            self._end(call, "closed")
+            self._end(call, "closed", error=call._stopped)
             return
         error = task.exception()
         if error is not None:
@@ -610,49 +755,48 @@ class FlowDriver:
         call.value = value
         call.error = error
         self._running -= 1
-        self._activity += 1
+        if self._shows(call, state, error):
+            self._record(call)
         try:
             self._on_flow_call("end", call)
         except Exception:
             _logger.exception("on_flow_call('end') of flow call %s raised", call.id)
         if call.parent is not None and state != "closed":
             self._receive(call.parent, call.frontier, call._order)
-        if self._queue is not None:
-            self._queue.wake()
+
+
+class _Wait(collections.abc.Coroutine[Any, Any, Any]):
+    """What `FlowDriver.wait` returns: a coroutine over the generator of
+    `FlowDriver._waiting`, run once, by `await` or by a Task's `send` and `throw`."""
+
+    __slots__ = ("_steps", "_used")
+
+    def __init__(self, steps: Generator[Any, Any, Any]) -> None:
+        self._steps = steps
+        self._used = False
+
+    def __await__(self) -> Generator[Any, Any, Any]:
+        if self._used:
+            raise RuntimeError("cannot reuse an awaited FlowDriver.wait(): call wait() again")
+        self._used = True
+        return self._steps
+
+    def send(self, value: Any) -> Any:
+        self._used = True
+        return self._steps.send(value)
+
+    def throw(self, typ: Any, val: Any = None, tb: Any = None) -> Any:
+        self._used = True
+        if val is None and tb is None:
+            return self._steps.throw(typ)
+        return self._steps.throw(typ, val, tb)  # pyright: ignore[reportCallIssue, reportArgumentType]
+
+    def close(self) -> None:
+        self._steps.close()
 
 
 async def _raise(error: BaseException) -> NoReturn:
     raise error
-
-
-class _Timed(collections.abc.Coroutine[Any, Any, Any]):
-    """`coro`, run by a Task step by step, giving `stepped` how long each step ran: from a
-    resumption to the next suspension, or to its end."""
-
-    def __init__(self, coro: Coroutine[Any, Any, Any], stepped: Callable[[float], None]) -> None:
-        self._coro, self._stepped = coro, stepped
-
-    def send(self, value: Any) -> Any:
-        start = time.monotonic()
-        try:
-            return self._coro.send(value)
-        finally:
-            self._stepped(time.monotonic() - start)
-
-    def throw(self, typ: Any, val: Any = None, tb: Any = None) -> Any:
-        start = time.monotonic()
-        try:
-            if val is None and tb is None:
-                return self._coro.throw(typ)
-            return self._coro.throw(typ, val, tb)  # pyright: ignore[reportCallIssue, reportArgumentType]
-        finally:
-            self._stepped(time.monotonic() - start)
-
-    def close(self) -> None:
-        self._coro.close()
-
-    def __await__(self) -> Generator[Any, None, Any]:
-        return self._coro.__await__()
 
 
 def _code(coro: Any) -> CodeType | None:
@@ -668,11 +812,12 @@ def _function(coro: Any, code: CodeType | None) -> str:
 
 def _site(parent: FlowCall) -> tuple[str, int] | None:
     """Where `parent` creates a Task: the innermost frame of flow code on the stack when its
-    own code runs, else where its coroutine waits (its `cr_await` chain)."""
+    own code runs (down to the flow loop's drain), else where its coroutine waits (its
+    `cr_await` chain)."""
     frame: FrameType | None
     if parent.task is not None and asyncio.current_task() is parent.task:
-        frame = sys._getframe(2)
-        while frame is not None and not loop_runner(frame):
+        frame = inspect.currentframe()
+        while frame is not None and frame.f_code is not DRAIN_CODE:
             if flow_code(frame.f_code.co_filename):
                 return (frame.f_code.co_filename, frame.f_lineno or frame.f_code.co_firstlineno)
             frame = frame.f_back
@@ -682,6 +827,20 @@ def _site(parent: FlowCall) -> tuple[str, int] | None:
         if flow_code(frame.f_code.co_filename):
             found = (frame.f_code.co_filename, frame.f_lineno or frame.f_code.co_firstlineno)
     return found
+
+
+def _waits_forever(call: FlowCall) -> str:
+    """Why a flow call is closed when nothing will answer what it waits for: where it waits."""
+    where = ""
+    for frame in suspended_frames(call.coro):
+        if flow_code(frame.f_code.co_filename):
+            line = frame.f_lineno or frame.f_code.co_firstlineno
+            where = f" at {frame.f_code.co_filename}:{line} ({frame.f_code.co_qualname})"
+    return (
+        f"flow call {call.id} ({call.function}) waits{where} for what nothing will answer: no task is queued or "
+        "running and every flow call waits. A flow waits for task calls and flow calls (await, asyncio.gather, "
+        f"asyncio.TaskGroup); an asyncio.Event, Queue or future that no flow code completes never ends {_TOPIC}"
+    )
 
 
 def suspended_frames(coro: Any) -> list[FrameType]:
@@ -714,39 +873,32 @@ def never_awaited() -> Iterator[list[str]]:
     """Collect, while the block runs, each coroutine that was never awaited (Python's
     RuntimeWarning "coroutine ... was never awaited", given when the coroutine is
     dropped): one line each, naming it and where it was dropped. Those warnings are
-    not shown; any other warning is, as before."""
+    not shown; any other warning is, as before: `warnings.catch_warnings` puts the
+    filters and `warnings.showwarning` back after the block."""
     found: list[str] = []
-    previous = warnings.showwarning
+    with warnings.catch_warnings():
+        previous = warnings.showwarning
 
-    def show(
-        message: Warning | str, category: type[Warning], filename: str, lineno: int, file: Any = None, line: str | None = None
-    ) -> None:
-        m = _NEVER_AWAITED.search(str(message)) if issubclass(category, RuntimeWarning) else None
-        if m is None:
-            previous(message, category, filename, lineno, file, line)
-            return
-        found.append(
-            f"coroutine {m.group(1)} was never awaited (dropped at {filename}:{lineno}): "
-            f"a call of an async def function runs only when it is awaited; write `await {m.group(1).rpartition('.')[2]}(...)`"
-        )
+        def show(
+            message: Warning | str, category: type[Warning], filename: str, lineno: int, file: Any = None, line: str | None = None
+        ) -> None:
+            m = _NEVER_AWAITED.search(str(message)) if issubclass(category, RuntimeWarning) else None
+            if m is None:
+                previous(message, category, filename, lineno, file, line)
+                return
+            found.append(
+                f"coroutine {m.group(1)} was never awaited (dropped at {filename}:{lineno}): "
+                f"a call of an async def function runs only when it is awaited; write `await {m.group(1).rpartition('.')[2]}(...)`"
+            )
 
-    warnings.filterwarnings("always", message=_NEVER_AWAITED.pattern, category=RuntimeWarning)
-    entry = warnings.filters[0]
-    warnings.showwarning = show
-    try:
+        warnings.filterwarnings("always", message=_NEVER_AWAITED.pattern, category=RuntimeWarning)
+        warnings.showwarning = show
         yield found
-    finally:
-        if warnings.showwarning is show:
-            warnings.showwarning = previous
-        with contextlib.suppress(ValueError):
-            cast(list[Any], warnings.filters).remove(entry)
-            mutated = getattr(warnings, "_filters_mutated", None)
-            if mutated is not None:
-                mutated()
 
 
 def driven_here() -> bool:
-    """Whether a driver drives the flows of the running event loop (a run runs on it)."""
+    """Whether a driver drives the flows of the running event loop (a run runs on it), or
+    the running event loop is a driver's flow loop (flow code runs)."""
     return _driver_here() is not None
 
 

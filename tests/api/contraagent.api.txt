@@ -2035,6 +2035,7 @@ class FlowCall
         error: BaseException | None = None,
         time_box: TimeBox | None = None,
         started_at: float = time.time(),
+        recorded: bool = False,
         task: asyncio.Task[Any] | None = None,
         coro: Any = None,
     ) -> None
@@ -2044,6 +2045,7 @@ class FlowCall
     function: str = ''
     id: str
     parent: FlowCall | None = field(default=None, repr=False)
+    recorded: bool = False
     site: tuple[str, int] | None = None
     started_at: float = field(default_factory=time.time)
     state: FlowState = 'running'
@@ -2069,15 +2071,17 @@ class FlowDriver
     done: dict[str, TaskResult]
     def driving(self) -> Iterator[FlowDriver]
     async def finish(self) -> None
+    def finish_here(self) -> None
     def follow_up(self, result: TaskResult) -> list[Task]
     past_grace: Callable[[], bool] | None
     def run(self, queue: WorkQueue, *flows: Coroutine[Any, Any, Any]) -> dict[str, Any]
     async def run_async(self, queue: WorkQueue, *flows: Coroutine[Any, Any, Any]) -> dict[str, Any]
     async def settle(self) -> bool
+    def settle_here(self) -> bool
     slow_step_s
     def start(self, flow: Coroutine[Any, Any, Any]) -> FlowCall
     def time_boxes(self, call: FlowCall | None) -> tuple[TimeBox, ...]
-    async def wait(self, item: Any) -> Any
+    def wait(self, item: Any) -> Coroutine[Any, Any, Any]
 
 class FollowUp(Protocol)
     def __call__(self, result: TaskResult, /) -> list[Task]
