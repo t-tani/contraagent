@@ -134,6 +134,7 @@ and the [documentation site](https://t-tani.github.io/contraagent/) print the qu
 - [Many hosts: the hub](hub.md): every host's runs in one monitor: `contraagent hub` and `contraagent relay`.
 - [Operating a hub](hub-operations.md): set up with compose, connect hosts, tokens, retention, backups, upgrades, troubleshooting.
 - [Compatibility](compatibility.md): what is public, what a release may change, deprecation, every file of a run directory and which are public, and the formats and JSON Schemas of the files a run writes and of the config file.
+- [Upgrading from 0.6 to 0.7](upgrading.md): each change a pipeline written for 0.6 makes, as the 0.6 form and the 0.7 form, the steps for a pipeline in production, and how to check the upgrade.
 
 `examples/tutorial/` is the tutorial's pipeline, finished. `examples/demo/` is a whole pipeline (its tasks, plugin, config, a test, and a
 script that runs it); `examples/review/flow.py` and `examples/analysis/flow.py`

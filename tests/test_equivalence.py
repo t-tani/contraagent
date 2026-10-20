@@ -6,12 +6,11 @@ the content of each output file, the `RunReport` counts and the flow's value. He
 same recorder runs each flow on the current tree, and every difference from the
 baseline must be one that `DIFFERENCES` allows for that flow. An allowed difference
 names the row of the migration table it comes from (`ROWS`): 0.7.0 keeps the result of
-a flow on the success path, and changes it only where a row says so.
+a flow on the success path, and changes it only where a row says so. Every allowed
+difference still occurs, so the list says exactly how 0.7.0 differs.
 
-A flow whose difference waits for a pull request still to land is in `PENDING`, a
-strict xfail: it fails once the flow matches again, so the entry is removed then. The
-0.7.0 release removes `PENDING` and checks that every entry of `DIFFERENCES` still
-occurs. A flow that 0.6.2 did not have is in `NEW`.
+A flow that 0.6.2 did not have is in `NEW`; it was recorded on 0.7.0 into
+`tests/fixtures/equivalence/0.7.0/`, and the current tree does exactly what it did there.
 """
 
 from __future__ import annotations
@@ -28,6 +27,8 @@ import pytest
 
 HERE = Path(__file__).parent
 BASELINE = HERE / "fixtures" / "equivalence" / "0.6.2"
+#: The flows that 0.7.0 added, recorded on it.
+ADDED = HERE / "fixtures" / "equivalence" / "0.7.0"
 
 
 def _recorder() -> Any:
@@ -112,25 +113,24 @@ DIFFERENCES: dict[str, list[Allowed]] = {
             "report runs over the other units.",
         ),
         Allowed(
-            ("report/failed", "report/ok", "outputs/report/*", "value"),
+            ("report/failed", "outputs/report/*", "value"),
             "pending-to-await",
-            "The refused tasks no longer count as failed, and the report over the other units is written.",
+            "The refused tasks no longer count as failed (the run is still not ok: zeta's `prepare` failed), "
+            "and the report over the other units is written.",
         ),
     ],
 }
 
-#: Flows that differ from the baseline in a way a pull request still to land allows: the
-#: flow, and which change. A strict xfail each.
-PENDING: dict[str, str] = {}
-
 #: Flows that 0.6.2's examples do not have, and why they were added.
 NEW = {
     "cancel.review": "the example of cancellable tasks: probes whose answers stop being needed (.options(cancellable=True))",
+    "cancel.review.block": "the same, where the first probe blocks the change and the probes still queued are cancelled",
     "input_file.reports": "the example of input files: a long text output given to a reviewer by its path and hash (InputFile)",
     "review.publish.approve": "the all-or-nothing example of keep going: one report only when every unit's loop got through (TaskGroup)",
 }
 
 BASELINED = sorted(p.stem for p in BASELINE.glob("*.json"))
+RECORDED_NEW = sorted(p.stem for p in ADDED.glob("*.json"))
 
 
 def differences(baseline: dict[str, Any], now: dict[str, Any]) -> list[str]:
@@ -150,25 +150,38 @@ def unexplained(flow: str, paths: list[str]) -> list[str]:
     return [p for p in paths if not any(fnmatch.fnmatchcase(p, pattern) for pattern in allowed)]
 
 
-def _param(flow: str) -> Any:
-    if flow in PENDING:
-        return pytest.param(flow, marks=pytest.mark.xfail(reason=PENDING[flow], strict=True))
-    return flow
+def unused(flow: str, paths: list[str]) -> list[str]:
+    """The allowed patterns of `flow` that match none of `paths`: a difference that no longer occurs."""
+    allowed = [pattern for a in DIFFERENCES.get(flow, []) for pattern in a.paths]
+    return [pattern for pattern in allowed if not any(fnmatch.fnmatchcase(p, pattern) for p in paths)]
 
 
-@pytest.mark.parametrize("flow", [_param(f) for f in BASELINED])
+def _now(flow: str, work: Path) -> dict[str, Any]:
+    (spec,) = [f for f in record.FLOWS if f.id == flow]
+    return record.summary(spec, work)
+
+
+@pytest.mark.parametrize("flow", BASELINED)
 def test_the_flow_does_what_it_did_on_0_6_2(flow, tmp_path):
     baseline = json.loads((BASELINE / f"{flow}.json").read_text(encoding="utf-8"))
-    (spec,) = [f for f in record.FLOWS if f.id == flow]
-    now = record.summary(spec, tmp_path)
-    left = unexplained(flow, differences(baseline, now))
+    found = differences(baseline, _now(flow, tmp_path))
+    left = unexplained(flow, found)
     assert not left, f"{flow} differs from 0.6.2 where no row of the migration table allows it: {left}"
+    gone = unused(flow, found)
+    assert not gone, f"{flow} no longer differs from 0.6.2 at {gone}: remove them from DIFFERENCES"
 
 
-def test_every_flow_has_a_baseline_or_is_new():
+@pytest.mark.parametrize("flow", RECORDED_NEW)
+def test_a_flow_added_in_0_7_0_does_what_it_did_there(flow, tmp_path):
+    baseline = json.loads((ADDED / f"{flow}.json").read_text(encoding="utf-8"))
+    found = differences(baseline, _now(flow, tmp_path))
+    assert not found, f"{flow} differs from 0.7.0: {found}"
+
+
+def test_every_flow_has_a_baseline():
     ids = [f.id for f in record.FLOWS]
     assert len(ids) == len(set(ids))
-    assert set(ids) - set(BASELINED) == set(NEW)
+    assert set(ids) - set(BASELINED) == set(NEW) == set(RECORDED_NEW)
     assert set(BASELINED) <= set(ids)
 
 
@@ -182,7 +195,6 @@ def test_every_allowed_difference_names_a_row_and_a_recorded_flow():
     for flow, allowed in DIFFERENCES.items():
         assert flow in BASELINED, flow
         assert all(a.row in ROWS and a.paths and a.why for a in allowed), flow
-    assert set(PENDING) <= set(BASELINED)
 
 
 def test_the_comparison_names_each_difference():
@@ -191,3 +203,4 @@ def test_the_comparison_names_each_difference():
     after = {**base, "tasks": {"b": {"stop": "completed"}}, "outputs": {"x": "2"}, "report": {"ok": True}, "value": 2}
     assert differences(before, after) == ["tasks/a", "tasks/b", "outputs/x", "value"]
     assert unexplained("review.docs", ["tasks/python:report", "tasks/review-alpha", "outputs/report/report.json"]) == ["tasks/review-alpha"]
+    assert unused("review.docs", ["tasks/python:report", "outputs/report/report.json"]) == ["value", "report/flow_errors"]

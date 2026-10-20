@@ -349,13 +349,6 @@ class LaunchResult:
     #: Event types the backend's reader does not know, with their counts: the coding
     #: agent sends something newer than the reader (omp's `KNOWN_EVENTS`).
     unread_events: dict[str, int] = field(default_factory=dict)
-    #: What of the launch's tokens its reader could not read ('' when it read all the coding
-    #: agent reports). `calls`: the tokens of each API call are unknown, and `usage` holds one
-    #: call with the totals the agent printed (its input is then an upper bound of
-    #: `peak_context`); for a resumed session they may also count its earlier launches. `tokens`: the launch ran and
-    #: no tokens could be read, so `usage` is empty. Codex writes each call's tokens, the
-    #: context window and the plan's usage only in its rollout file (`CodexBackend`).
-    usage_unknown: Literal["", "calls", "tokens"] = ""
     # From `system/init`: resolved model (`--agent`/fallback may change it),
     # tool count, load failures.
     init_model: str = ""
@@ -395,6 +388,13 @@ class LaunchResult:
     #: False when another attempt cannot end otherwise: the stub agent's example
     #: that failed its checks would be written again (`TaskResult.retryable`).
     retryable: bool = True
+    #: What of the launch's tokens its reader could not read ('' when it read all the coding
+    #: agent reports). `calls`: the tokens of each API call are unknown, and `usage` holds one
+    #: call with the totals the agent printed (its input is then an upper bound of
+    #: `peak_context`); for a resumed session they may also count its earlier launches. `tokens`: the launch ran and
+    #: no tokens could be read, so `usage` is empty. Codex writes each call's tokens, the
+    #: context window and the plan's usage only in its rollout file (`CodexBackend`).
+    usage_unknown: Literal["", "calls", "tokens"] = ""
 
     @property
     def peak_context(self) -> int | None:

@@ -28,6 +28,7 @@ the test names it. Rewrite it with:
 | what the CLI prints on the demo | `uv run python web/apps/docs/scripts/landing.py` |
 | the work queue, the estimates or the flow runtime | `uv run python benchmarks/schedule.py run --out benchmarks/results/main --label main` (about ten minutes; no test compares it: `compare benchmarks/results/0.6.2.json benchmarks/results/main.json` shows the change) |
 | the release the example flows are compared with | `<checkout>/.venv/bin/python tests/equivalence/record.py tests/fixtures/equivalence/<version>`, with the interpreter of a checkout of that tag (`git worktree add <checkout> <version>`, `uv sync` there); `tests/test_equivalence.py` reads it |
+| an example flow that the compared release does not have (`NEW` in `tests/test_equivalence.py`) | `uv run python tests/equivalence/record.py tests/fixtures/equivalence/0.7.0 <flow id>` |
 | the omp version | `uv run python tests/fixtures/omp/record.py` (spends a few cents), then `tests/test_omp_wire.py` |
 | the codex version | `uv run python tests/fixtures/codex/record.py` (spends a fraction of a cent), then `tests/test_codex_wire.py` |
 
