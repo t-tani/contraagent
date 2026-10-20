@@ -73,10 +73,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser(argv[0] if argv else None).parse_args(argv)
     # Windows has no SIGPIPE. The handler is put back when the command returns: a program
     # that calls `main` keeps its own.
-    sigpipe = signal.getsignal(signal.SIGPIPE) if sys.platform != "win32" else None
-    if sigpipe is not None and not args.long_running:
-        # Output piped into `head` ends quietly, as a command line tool's should.
-        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+    sigpipe = None
+    if sys.platform != "win32":
+        sigpipe = signal.getsignal(signal.SIGPIPE)
+        if not args.long_running:
+            # Output piped into `head` ends quietly, as a command line tool's should.
+            signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     try:
         return args.run(args)
     except UsageError as exc:
@@ -84,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
     except (CommandError, MissingExtra) as exc:
         print(f"{args.parser.prog}: {exc}", file=sys.stderr)
     finally:
-        if sigpipe is not None:
+        if sys.platform != "win32" and sigpipe is not None:
             signal.signal(signal.SIGPIPE, sigpipe)
     return 2
 
