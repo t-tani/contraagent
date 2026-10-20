@@ -47,7 +47,9 @@ is numbered:
 
 from __future__ import annotations
 
+import abc
 import asyncio
+import collections.abc
 import contextlib
 import dataclasses
 import glob
@@ -62,7 +64,7 @@ from collections.abc import Callable, Generator, Iterator, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from pydantic import BaseModel, RootModel
 from pydantic_core import to_jsonable_python
@@ -195,6 +197,11 @@ class Pending[Out]:
         state = "pending" if self.result is None else self.result.stop
         return f"Pending({self.key!r}, {state})"
 
+
+# A coroutine to asyncio, as what `FlowDriver.wait` returns is: `asyncio.gather` and
+# `create_task` hand a `Pending` to the flow loop as it is, which awaits it in a Task that
+# is no flow call (`FlowDriver._make_task`).
+cast(abc.ABCMeta, collections.abc.Coroutine).register(Pending)
 
 _UNSET = object()
 

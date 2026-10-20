@@ -631,3 +631,24 @@ def test_a_python_task_whose_function_takes_a_credential_parameter_is_given_it(t
     report = p.run(lambda: signed("a", credential="team"))
     assert report.ok, report.failed
     assert json.loads((report.run_dir / "out" / "signed" / "a.json").read_text())["path"] == "team"
+
+
+def test_a_flow_that_waits_for_what_nothing_answers_is_an_error():
+    async def flow():
+        await asyncio.Event().wait()
+
+    report = pipeline().check(flow)
+    assert not report.ok
+    [error] = report.errors
+    assert "flow call 0" in error and "for what nothing will answer" in error and __file__ in error
+
+
+def test_a_check_drives_the_flows_with_no_event_loop_running():
+    seen = []
+
+    async def flow():
+        seen.append(type(asyncio.get_running_loop()).__name__)
+        await example.summarize("a", path="x")
+
+    report = pipeline().check(flow)
+    assert report.ok and seen == ["FlowLoop"]

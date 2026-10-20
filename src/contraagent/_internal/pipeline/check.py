@@ -10,7 +10,6 @@ import concurrent.futures
 import contextlib
 import contextvars
 import fnmatch
-import gc
 import inspect
 import json
 import logging
@@ -143,7 +142,6 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
                 report.built = False
                 report.add("tasks", [f"flow: {where(exc)}{type(exc).__name__}: {exc}"])
                 return report
-            gc.collect()  # a coroutine that was never awaited is reported when it is collected
     report.add("tasks", [f"flow: {line}" for line in forgotten])
     # An error a flow call raised reaches the flow calls that await it: it is reported once,
     # for the flow call that raised it first (created last of them).
@@ -179,10 +177,11 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
 
 def _first_steps(flow: Callable[..., Any], args: tuple, kwargs: dict[str, Any], driver: FlowDriver) -> bool:
     """Call the flow; for an async flow, run every flow call it starts to its first wait for
-    a task, on an event loop of its own, with no task's output given (`FlowDriver.settle`).
-    Whether the flow is an async flow. A generator flow raises TypeError."""
+    a task, with no task's output given: the driver drains its flow loop on this thread,
+    where no event loop runs (`FlowDriver.settle_here`). Whether the flow is an async flow.
+    A generator flow raises TypeError."""
 
-    async def steps() -> bool:
+    def steps() -> bool:
         with driver.driving():
             value = flow(*args, **kwargs)
             if isinstance(value, GeneratorType):
@@ -192,19 +191,20 @@ def _first_steps(flow: Callable[..., Any], args: tuple, kwargs: dict[str, Any], 
                 return False
             try:
                 driver.start(value)
-                await driver.settle()
+                driver.settle_here()
             finally:
-                await driver.finish()
+                driver.finish_here()
             return True
 
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(steps())
-    # This thread's event loop runs: the check's own runs on another thread, in this context.
+        return steps()
+    # This thread's event loop runs: the check's own steps run on another thread, in this
+    # context (a drain inside a step of this loop's Task would raise from Python 3.14).
     context = contextvars.copy_context()
     with concurrent.futures.ThreadPoolExecutor(1) as pool:
-        return pool.submit(context.run, asyncio.run, steps()).result()
+        return pool.submit(context.run, steps).result()
 
 
 def _check_services(services: dict[str, Any], graph: Graph, declarations: list[Any], report: CheckReport) -> None:

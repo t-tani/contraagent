@@ -685,3 +685,54 @@ def test_one_run_per_event_loop_at_a_time(tmp_path):
 
     assert asyncio.run(main()).value == 1
     assert not (tmp_path / "runs" / "second").exists()
+
+
+def test_a_flow_that_awaits_a_clock_or_a_thread_fails_at_that_await(tmp_path):
+    async def flow():
+        first = await summarize("a", path="a")
+        try:
+            await asyncio.to_thread(len, "x")
+        except TypeError as exc:
+            thread = str(exc)
+        await asyncio.sleep(1)  # not caught: it ends the flow
+        return first, thread
+
+    rep = pipeline(tmp_path, stub()).run(flow)
+    assert not rep.ok and sorted(rep.results) == ["summarize-a"]
+    [top] = rep.flow_errors
+    assert isinstance(top.error, TypeError) and "needs a clock" in str(top.error) and "time_box()" in str(top.error)
+    [row] = [r for r in flow_call_rows(rep) if r["event"] == "end"]
+    assert row["state"] == "raised" and "needs a clock" in row["error"]
+
+
+def test_a_flow_that_waits_for_what_nothing_answers_ends_the_run_with_the_place(tmp_path):
+    never = asyncio.Event()
+
+    async def flow():
+        await summarize("a", path="a")
+        await never.wait()
+
+    started = time.monotonic()
+    rep = pipeline(tmp_path, stub()).run(flow)  # no deadline: it would have waited forever
+    assert time.monotonic() - started < 60
+    assert not rep.ok and rep.value is None
+    [top] = rep.flow_errors
+    assert top.state == "closed" and isinstance(top.error, RuntimeError)
+    assert f"waits at {__file__}:{flow.__code__.co_firstlineno + 2}" in str(top.error)
+    [row] = [r for r in flow_call_rows(rep) if r["event"] == "end"]
+    assert row["state"] == "closed" and "for what nothing will answer" in row["error"]
+
+
+def test_run_async_drives_the_flows_from_a_loop_of_the_callers_own(tmp_path):
+    async def flow():
+        a, b = await asyncio.gather(summarize("a", path="a"), summarize("b", path="b"))
+        return a.unit + b.unit
+
+    async def main():
+        loop = asyncio.get_running_loop()
+        report = await pipeline(tmp_path, stub()).run_async(flow)
+        assert asyncio.get_running_loop() is loop
+        return report
+
+    rep = asyncio.run(main())
+    assert rep.ok and rep.value == "ab"

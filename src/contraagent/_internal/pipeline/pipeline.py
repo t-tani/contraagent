@@ -24,7 +24,6 @@ task's declared defaults, an `AgentRunner` with failover and retry, and a
 
 from __future__ import annotations
 
-import gc
 import inspect
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -65,7 +64,8 @@ class RunReport:
     `TaskResult`, by key. `value`: what the flow returned, as it returned it: an async
     flow's return value, or, for a flow that does not wait, its return value, a task
     call's `Pending` included (its output is `value.output`); None when the flow raised.
-    `flow_errors`: the top flow calls that raised after their first task was queued.
+    `flow_errors`: the top flow calls that raised after their first task was queued, or
+    that were closed because they waited for what nothing would answer.
 
     `summary` is the queue's (`wall_s`, `finished`, `ok`, `by_stop`, `by_kind`,
     `deferred`) plus the attempts this call journaled (`attempt_totals`), and
@@ -86,13 +86,15 @@ class RunReport:
     #: What the flow returned, as it returned it: a `Pending` in it reads its task's checked
     #: output (`.output`).
     value: Any = None
-    #: The top flow calls that raised after their first task was queued; `.error` is the
-    #: exception (recorded in `flow_calls.jsonl` too).
+    #: The top flow calls that raised after their first task was queued, or that were closed
+    #: because they waited for what nothing would answer; `.error` is the exception (recorded
+    #: in `flow_calls.jsonl` too).
     flow_errors: list[FlowCall] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
-        """No task failed and no top flow call raised; deferred tasks do not count."""
+        """No task failed and no top flow call raised (or waited for what nothing would
+        answer); deferred tasks do not count."""
         return not self.failed and not self.flow_errors
 
     @property
@@ -463,7 +465,9 @@ class Pipeline:
         `RunReport`: the parameters, the run directory and the signal handling are
         those of `run`. Use it from an `async def` function, where `run` raises.
 
-        The flow's code and every callback run on the event loop's thread; the agents
+        The flow's code and every callback run on the event loop's thread, the flow's code
+        on an event loop of contraagent's own with no clock, no threads and no I/O
+        (`contraagent docs tasks`); the agents
         and the Python tasks' functions run on threads of the run's own pool, so the
         event loop stays free while tasks run. One event loop runs one run at a time: a
         second `run_async` while one runs on the same event loop raises RuntimeError.
@@ -633,7 +637,6 @@ class Pipeline:
                         services.close()
                     finally:
                         await driver.finish()
-                gc.collect()  # a coroutine dropped in a reference cycle is reported too
             for line in forgotten:
                 run.progress(f"[flow] {line}", warning=True)
             if driven:
@@ -651,7 +654,8 @@ class Pipeline:
             if (lost := run._journal_failure()) is not None:  # not finished: a resume runs those tasks again
                 raise lost
             run.finish()
-            errors = [c for c in driver.calls.values() if c.parent is None and c.state == "raised"]
+            # A top flow call closed with an error: it waited for what nothing would answer.
+            errors = [c for c in driver.calls.values() if c.parent is None and c.error is not None and c.state != "returned"]
             return RunReport(
                 run_id=run.run_id, run_dir=run.dir, results=dict(graph.results), summary=summary, value=value, flow_errors=errors
             )

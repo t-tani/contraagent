@@ -2066,15 +2066,17 @@ class FlowDriver
     done: dict[str, TaskResult]
     def driving(self) -> Iterator[FlowDriver]
     async def finish(self) -> None
+    def finish_here(self) -> None
     def follow_up(self, result: TaskResult) -> list[Task]
     past_grace: Callable[[], bool] | None
     def run(self, queue: WorkQueue, *flows: Coroutine[Any, Any, Any]) -> dict[str, Any]
     async def run_async(self, queue: WorkQueue, *flows: Coroutine[Any, Any, Any]) -> dict[str, Any]
     async def settle(self) -> bool
+    def settle_here(self) -> bool
     slow_step_s
     def start(self, flow: Coroutine[Any, Any, Any]) -> FlowCall
     def time_boxes(self, call: FlowCall | None) -> tuple[TimeBox, ...]
-    async def wait(self, item: Any) -> Any
+    def wait(self, item: Any) -> Awaitable[Any]
 
 class FollowUp(Protocol)
     def __call__(self, result: TaskResult, /) -> list[Task]

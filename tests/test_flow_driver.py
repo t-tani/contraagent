@@ -432,27 +432,33 @@ def test_a_thousand_children_and_a_deep_nesting_use_no_recursion():
     assert deep.calls["0"].value == 3000
 
 
-def test_the_queue_waits_for_a_flow_call_that_waits_for_something_else():
+def test_a_flow_that_awaits_a_clock_raises_type_error_there():
     driver = FlowDriver()
 
     async def flow():
-        await asyncio.sleep(0.05)  # no task queued or running meanwhile
-        return (await driver.wait(t("a-1"))).stop
+        try:
+            await asyncio.sleep(0.05)
+        except TypeError as exc:
+            return str(exc), (await driver.wait(t("a-1"))).stop
 
     _, runner, _ = drive(flow(), driver=driver)
-    assert driver.calls["0"].value == "completed" and runner.launched == ["a-1"]
+    message, stop = driver.calls["0"].value
+    assert "needs a clock" in message and "time_box()" in message and "Python task" in message
+    assert stop == "completed" and runner.launched == ["a-1"]
 
 
-def test_past_the_grace_window_the_queue_stops_waiting_for_a_flow_call():
+def test_a_flow_call_that_waits_for_what_nothing_answers_is_closed_at_once():
     driver = FlowDriver()
     never = asyncio.Event()
 
     async def flow():
         await never.wait()
 
-    q = WorkQueue(Runner(), deadline_s=0.05, grace_s=0.0)
+    q = WorkQueue(Runner())  # no deadline: nothing else would end the run
     driver.run(q, flow())
-    assert driver.calls["0"].state == "closed"
+    top = driver.calls["0"]
+    assert top.state == "closed" and isinstance(top.error, RuntimeError)
+    assert f"waits at {__file__}:{flow.__code__.co_firstlineno + 1}" in str(top.error)
 
 
 def test_cancelling_a_flow_call_leaves_its_tasks_running():
