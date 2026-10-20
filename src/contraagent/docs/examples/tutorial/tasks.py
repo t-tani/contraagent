@@ -73,6 +73,7 @@ async def triage_one(name: str):
 
 
 async def triage_and_plan(reports: list[str]):
-    """Every report's triage_one at once, then one table."""
-    triaged = await asyncio.gather(*[triage_one(name) for name in reports])
-    return await write_table(triaged=dict(zip(reports, triaged, strict=True)))
+    """Every report's triage_one at once, then one table of the reports that got through: a
+    report whose task failed is its exception in `done`, and the other reports go on."""
+    done = await asyncio.gather(*[triage_one(name) for name in reports], return_exceptions=True)
+    return await write_table(triaged={name: t for name, t in zip(reports, done, strict=True) if isinstance(t, Triage)})

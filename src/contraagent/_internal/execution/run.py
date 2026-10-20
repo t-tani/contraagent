@@ -784,6 +784,8 @@ class Run:
         error: BaseException | None = None,
         time_box: TimeBox | None = None,
         started_at: float | None = None,
+        raised_at: Frame | None = None,
+        raised_by: str | None = None,
     ) -> None:
         """One line of `flow_calls.jsonl` (a `FlowCallRow`). `event` "start": its `parent`,
         `function` and `flow`, the flow path where the parent created it (the parent's frames,
@@ -791,7 +793,7 @@ class Run:
         flow call started through `time_box`, its `time_box` (a `TimeBoxRecord`). `started_at`
         (`time.time()`): when the flow call started, where a time box's deadline counts from,
         and the start row's `ts`; a flow call may go on record after it started (`FlowDriver`).
-        "end": its `state` and `error`."""
+        "end": its `state` and `error`, and `raised_at` and `raised_by` when given."""
         ts = now_iso()
         if event == "start":
             ts = iso_of(started_at) if started_at is not None else ts
@@ -800,7 +802,12 @@ class Run:
             row = FlowCallRow.model_validate(start | box)
         else:
             error_text = f"{type(error).__name__}: {error}" if error is not None else None
-            row = FlowCallRow(ts=ts, id=call_id, event="end", state=state, error=error_text)
+            end: dict[str, Any] = {"ts": ts, "id": call_id, "event": "end", "state": state, "error": error_text}
+            if raised_at is not None:
+                end["raised_at"] = raised_at
+            if raised_by is not None:
+                end["raised_by"] = raised_by
+            row = FlowCallRow.model_validate(end)
         self._append(layout.FLOW_CALLS, row.to_dict())
         if event == "end" and self._estimates is not None:
             self._estimates.flow_call_ended(call_id, state or "")

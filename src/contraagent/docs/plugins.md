@@ -82,7 +82,7 @@ declaration names each implementation, a plugin directory by name. Every other
 argument is shared, and the flow chooses the implementation from a fact about
 the unit:
 
-::code{file="examples/implementations/flow.py" from="review = agent_task(" to="return counts"}
+::code{file="examples/implementations/flow.py" from="review = agent_task(" to="return {unit: len(result.findings)"}
 
 Each implementation is a kind of its own, `<kind>-<name>` (`review-python`,
 `review-go`); `review` is their base kind. `review["go"]` is the declaration of

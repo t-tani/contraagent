@@ -21,7 +21,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from contraagent import CommandValidator, Partial, TaskFailed, agent_task, python_task
+from contraagent import CommandValidator, Partial, agent_task, python_task
 
 INPUT_DIR = Path("inputs")
 
@@ -146,12 +146,9 @@ def docs_one_review(units: list[str]):
 
 
 async def review_loop(unit: str):
-    """One unit: its summary, revised until the review approves it, then its note.
-    None when the summary could not be made."""
-    try:
-        summary = await summarize(unit, prepared=prepare(unit))
-    except TaskFailed:
-        return None
+    """One unit: its summary, revised until the review approves it, then its note. A task
+    that fails ends this flow call, and only this one."""
+    summary = await summarize(unit, prepared=prepare(unit))
     while True:
         figures = await score(unit, summary=summary)
         verdict = await review(unit, summary=summary, score=figures)
@@ -163,6 +160,7 @@ async def review_loop(unit: str):
 
 
 async def docs(units: list[str]):
-    """Every unit's review loop at once (a flow call each), then one report over the approved summaries."""
-    summaries = await asyncio.gather(*[review_loop(u) for u in units])
-    return await report(summaries=[s for s in summaries if s is not None])
+    """Every unit's review loop at once (a flow call each), then one report over the approved
+    summaries. A unit that failed is its exception in `done`; the other units go on."""
+    done = await asyncio.gather(*[review_loop(u) for u in units], return_exceptions=True)
+    return await report(summaries=[s for s in done if isinstance(s, Summary)])

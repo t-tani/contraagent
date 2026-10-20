@@ -65,7 +65,17 @@ class RunReport:
     flow's return value, or, for a flow that does not wait, its return value, a task
     call's `Pending` included (its output is `value.output`); None when the flow raised.
     `flow_errors`: the top flow calls that raised after their first task was queued, or
-    that were closed because they waited for what nothing would answer.
+    that were closed because they waited for what nothing would answer, and every flow
+    call that raised an exception of flow code's own (a bug, `TooManyPasses`; not a task's
+    `TaskFailed` or `TaskDeferred` passing through), the first to raise it, even when a
+    parent caught it (`asyncio.gather(..., return_exceptions=True)`); `.raised_at` says
+    where one stopped and `.raised_by` which failed task stopped it.
+
+    The run keeps going past a failure: a failed task stops only the code that awaits its
+    output, and the flow calls that await that code, from their `await` on. Every other
+    flow call goes on, the tasks queued and running finish, and the run ends when no task
+    is left and every flow call has ended. A resume then runs the failed tasks and what
+    waits for them again.
 
     `summary` is the queue's (`wall_s`, `finished`, `ok`, `by_stop`, `by_kind`,
     `deferred`) plus the attempts this call journaled (`attempt_totals`), and
@@ -74,10 +84,10 @@ class RunReport:
     with one; `partial` lists them (`by_stop` counts them).
 
     A deferred task (stop `deferred`: not launched, nothing spent) is not a failure: it is
-    in `deferred`, never in `failed`. `ok` is True when no task failed and no top flow call
-    raised. A flow that catches `TaskDeferred` and returns is ok; a `TaskDeferred` the flow
-    does not catch ends the flow without its value, so it is in `flow_errors` and the run
-    is not ok."""
+    in `deferred`, never in `failed`. `ok` is True when no task failed and there is no flow
+    error: no top flow call raised, and no flow call raised an exception of its own. A
+    flow that catches `TaskDeferred` and returns is ok; a `TaskDeferred` the flow does not
+    catch ends the flow without its value, so it is in `flow_errors` and the run is not ok."""
 
     run_id: str
     run_dir: Path
@@ -86,15 +96,17 @@ class RunReport:
     #: What the flow returned, as it returned it: a `Pending` in it reads its task's checked
     #: output (`.output`).
     value: Any = None
-    #: The top flow calls that raised after their first task was queued, or that were closed
-    #: because they waited for what nothing would answer; `.error` is the exception (recorded
-    #: in `flow_calls.jsonl` too).
+    #: The flow errors: the top flow calls that raised after their first task was queued, or
+    #: that were closed because they waited for what nothing would answer, and each flow call
+    #: that raised an exception of flow code's own, caught by a parent or not; `.error` is
+    #: the exception, `.raised_at` and `.raised_by` where and why it stopped (recorded in
+    #: `flow_calls.jsonl` too).
     flow_errors: list[FlowCall] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
-        """No task failed and no top flow call raised (or waited for what nothing would
-        answer); deferred tasks do not count."""
+        """No task failed and there is no flow error (`flow_errors`); deferred tasks do not
+        count."""
         return not self.failed and not self.flow_errors
 
     @property
@@ -531,7 +543,9 @@ class Pipeline:
                     if not call.recorded:
                         return
                     try:
-                        run.record_flow_call("end", call.id, state=call.state, error=call.error)
+                        run.record_flow_call(
+                            "end", call.id, state=call.state, error=call.error, raised_at=call.raised_at, raised_by=call.raised_by
+                        )
                     except Exception as exc:  # the monitor's record only: the flow goes on
                         run._record_failed(layout.FLOW_CALLS, exc, f"flow call {call.id}")
 
@@ -661,10 +675,13 @@ class Pipeline:
             if (lost := run._journal_failure()) is not None:  # not finished: a resume runs those tasks again
                 raise lost
             run.finish()
-            # A top flow call closed with an error: it waited for what nothing would answer.
-            errors = [c for c in driver.calls.values() if c.parent is None and c.error is not None and c.state != "returned"]
             return RunReport(
-                run_id=run.run_id, run_dir=run.dir, results=dict(graph.results), summary=summary, value=value, flow_errors=errors
+                run_id=run.run_id,
+                run_dir=run.dir,
+                results=dict(graph.results),
+                summary=summary,
+                value=value,
+                flow_errors=driver.flow_errors(),
             )
 
     def _plays(self, task: Task) -> bool:

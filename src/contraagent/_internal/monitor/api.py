@@ -62,7 +62,7 @@ from contraagent._internal.execution.schemas import JournalRow, PlanRow, QuotaRe
 from contraagent._internal.routing.preflight import PreflightRecord
 from contraagent._internal.routing.quota import QuotaCap
 
-API_VERSION = "3.6.0"
+API_VERSION = "3.7.0"
 
 
 class Closed(BaseModel):
@@ -398,6 +398,16 @@ class FlowCallNode(Closed):
     )
     state: FlowState
     error: str | None = Field(None, description="`<type>: <message>` of what it raised (or what cancelling it raised); else null")
+    raised_at: Frame | None = Field(
+        None,
+        description="for one that raised: where the exception left its own code (mostly the `await` that failed), "
+        "its file as `flow` gives it; else null",
+    )
+    raised_by: str | None = Field(
+        None,
+        description="for one that raised: the key of the failed task the exception is, the same in every flow call "
+        "it passes through; null for an exception of flow code's own",
+    )
     time_box: TimeBoxRecord | None = Field(None, description="its own deadline, for a flow call started through `time_box`; else null")
 
 
