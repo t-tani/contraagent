@@ -53,6 +53,7 @@ from contraagent._internal.routing.config import ConfigError, PerTask, PipelineC
 from contraagent._internal.routing.plan import Overrides, RoutingError, RoutingPlan, call_credential_problems, check_task_tables
 from contraagent._internal.routing.preflight import PreflightPolicy, PreflightStopped, check_policy
 from contraagent._internal.routing.quota import QuotaRule
+from contraagent._internal.runs import layout
 from contraagent._internal.runs.names import portable
 
 
@@ -67,8 +68,10 @@ class RunReport:
     `flow_errors`: the top flow calls that raised after their first task was queued.
 
     `summary` is the queue's (`wall_s`, `finished`, `ok`, `by_stop`, `by_kind`,
-    `deferred`) plus the attempts this call journaled (`attempt_totals`). A `partial`
-    result is ok, so `ok` holds with one; `partial` lists them (`by_stop` counts them).
+    `deferred`) plus the attempts this call journaled (`attempt_totals`), and
+    `record_failures` when a record of the run could not be written: the count by file
+    name (`Pipeline.run` says which records). A `partial` result is ok, so `ok` holds
+    with one; `partial` lists them (`by_stop` counts them).
 
     A deferred task (stop `deferred`: not launched, nothing spent) is not a failure: it is
     in `deferred`, never in `failed`. `ok` is True when no task failed and no top flow call
@@ -432,6 +435,12 @@ class Pipeline:
         `rerun_on_resume` runs again, and so does a task whose last result was `partial`,
         with the tasks that wait for it).
 
+        A run record that cannot be written is said in a warning line of the run's log and
+        counted in `RunReport.summary["record_failures"]`; the run goes on. A journal row
+        is different, since a resume reads the journal: the run goes on to its end, then
+        raises `ContraagentError`, which names the journal and the first error, and leaves
+        the run unfinished for a resume.
+
         On the main thread, SIGTERM and SIGINT (Ctrl-C) stop the run's agents while it
         runs, then end the process as they would have; the handlers in place before are
         put back when it returns. An agent of a process killed outright (SIGKILL) is
@@ -511,7 +520,10 @@ class Pipeline:
                     graph.check_passes(flow, f"flow call {call.id} ({call.function})", call.id)
                 else:
                     graph.flow_call_ended(call)
-                    run.record_flow_call("end", call.id, state=call.state, error=call.error)
+                    try:
+                        run.record_flow_call("end", call.id, state=call.state, error=call.error)
+                    except Exception as exc:  # the monitor's record only: the flow goes on
+                        run._record_failed(layout.FLOW_CALLS, exc, f"flow call {call.id}")
 
             driver = FlowDriver(waits_for=graph.waits_for, answer=graph.answer, on_flow_call=on_flow_call)
             graph.driver = driver
@@ -630,10 +642,14 @@ class Pipeline:
                 top = driver.calls.get("0")
                 value = top.value if top is not None and top.state == "returned" else None
             summary.update(attempt_totals(run.rows()[journaled:]))
+            if failures := run._record_failures():
+                summary["record_failures"] = failures
             if recorder is not None:
                 for path in recorder.finish():
                     run.progress(f"[record] undeclared change: {path}", warning=True)
                 run.progress(recorder.summary())
+            if (lost := run._journal_failure()) is not None:  # not finished: a resume runs those tasks again
+                raise lost
             run.finish()
             errors = [c for c in driver.calls.values() if c.parent is None and c.state == "raised"]
             return RunReport(

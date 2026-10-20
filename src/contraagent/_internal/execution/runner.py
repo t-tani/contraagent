@@ -21,7 +21,6 @@ import signal
 import sys
 import threading
 import time
-import traceback
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
@@ -455,8 +454,8 @@ class AgentRunner:
             d = self.run_dir / layout.DEFINITIONS
             d.mkdir(parents=True, exist_ok=True)
             write_document(d / f"{layout.file_name(kind)}.json", json.dumps(body, default=str))
-        except Exception:  # a definition the monitor cannot show must not fail a launch
-            pass
+        except Exception as exc:  # a definition the monitor cannot show must not fail a launch
+            _logger.warning("[error] %s/%s.json not written: %r", (self.run_dir / layout.DEFINITIONS).as_posix(), kind, exc)
 
     def _refuse(self, task: Task, stop: Stop, reason: str) -> TaskResult:
         launch_result = LaunchResult(
@@ -819,7 +818,7 @@ class RetryingRunner:
                 except Exception:  # a journal write must never turn into
                     # "the launch failed", which the queue would retry and re-run a
                     # completed task.
-                    traceback.print_exc()
+                    _logger.warning("[error] %s: on_attempt raised; the attempt's result stands", task.key, exc_info=True)
             # A refusal was already tried on every route; an off-contract input is the same
             # file on the next attempt; a refused credential rests for the run. None is worth
             # another launch.

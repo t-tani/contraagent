@@ -3,8 +3,9 @@ patterns its task declares (`agent_task(changes=...)`, `TaskAdapter.changes`).
 
 `ChangesEnricher` is the `ResultEnricher` every `AgentRunner` runs first: before the
 dispatch it stamps each file the patterns match under the working directory
-(`(mtime_ns, size)`, and the digest of a file whose mtime is recent, which a rewrite at
-the same size within one timestamp tick would leave as it was), after it compares, sets `TaskResult.changes`, and when the
+(`stamp_of`: its mtime and size, and on POSIX its ctime and inode; and the digest of a
+file whose mtime is recent, which a rewrite at the same size within one timestamp tick
+would leave as it was), after it compares, sets `TaskResult.changes`, and when the
 attempt failed removes the files it created (and the directories it created for
 them, once empty), so a retry or a later run starts from the tree as it was. A task
 whose kind keeps a failed attempt's files (`keep_failed_changes`) leaves them in place
@@ -26,7 +27,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from contraagent._internal.contracts.contract import file_digest, recent_digest
+from contraagent._internal.contracts.contract import Stamp, file_digest, recent_digest, stamp_of
 from contraagent._internal.dispatch.records import Changes
 from contraagent._internal.dispatch.task import Task, TaskResult
 
@@ -40,7 +41,7 @@ class Snapshot:
     relative to the working directory."""
 
     patterns: tuple[str, ...]
-    files: dict[str, tuple[int, int]]
+    files: dict[str, Stamp]
     dirs: frozenset[str]
     digests: dict[str, str]
 
@@ -100,14 +101,14 @@ def excluded(patterns: Sequence[str], rel: str) -> bool:
     return any(r.match("/".join(parts[:n])) for r in out for n in range(1, len(parts) + 1))
 
 
-def scan(cwd: Path, patterns: Sequence[str]) -> tuple[dict[str, tuple[int, int]], frozenset[str]]:
-    """The files `patterns` cover under `cwd`, with their `(mtime_ns, size)`, and the
+def scan(cwd: Path, patterns: Sequence[str]) -> tuple[dict[str, Stamp], frozenset[str]]:
+    """The files `patterns` cover under `cwd`, with their stamps (`stamp_of`), and the
     directories, as POSIX paths relative to `cwd`. A pattern is a `Path.glob` pattern; one
     that matches a directory covers everything under it (`topics/alpha/**`, `topics/alpha`).
     A pattern that starts with `!` leaves out what it matches, and everything under a
     directory it matches, whatever the others cover; the walk does not enter such a
     directory."""
-    files: dict[str, tuple[int, int]] = {}
+    files: dict[str, Stamp] = {}
     dirs: set[str] = set()
     covering, leaving = split(patterns)
 
@@ -116,7 +117,7 @@ def scan(cwd: Path, patterns: Sequence[str]) -> tuple[dict[str, tuple[int, int]]
             st = p.stat()
         except OSError:
             return
-        files[p.relative_to(cwd).as_posix()] = (st.st_mtime_ns, st.st_size)
+        files[p.relative_to(cwd).as_posix()] = stamp_of(st)
 
     if not leaving:
         for pattern in covering:
@@ -170,11 +171,11 @@ def scan(cwd: Path, patterns: Sequence[str]) -> tuple[dict[str, tuple[int, int]]
     return files, frozenset(dirs)
 
 
-def scan_tree(cwd: Path, skip: Callable[[Path], bool]) -> dict[str, tuple[int, int]]:
-    """Every file under `cwd`, with its `(mtime_ns, size)`, by POSIX path relative to `cwd`;
+def scan_tree(cwd: Path, skip: Callable[[Path], bool]) -> dict[str, Stamp]:
+    """Every file under `cwd`, with its stamp (`stamp_of`), by POSIX path relative to `cwd`;
     `skip(path)` leaves out a file or a whole directory. Symbolic links to directories are
     not followed."""
-    files: dict[str, tuple[int, int]] = {}
+    files: dict[str, Stamp] = {}
     pending = [cwd]
     while pending:
         folder = pending.pop()
@@ -193,11 +194,11 @@ def scan_tree(cwd: Path, skip: Callable[[Path], bool]) -> dict[str, tuple[int, i
                 st = entry.stat(follow_symlinks=False)
             except OSError:
                 continue
-            files[path.relative_to(cwd).as_posix()] = (st.st_mtime_ns, st.st_size)
+            files[path.relative_to(cwd).as_posix()] = stamp_of(st)
     return files
 
 
-def recent_digests(cwd: Path, files: Mapping[str, tuple[int, int]], since_ns: int) -> dict[str, str]:
+def recent_digests(cwd: Path, files: Mapping[str, Stamp], since_ns: int) -> dict[str, str]:
     """The content digest of each of `files` (stamps by path relative to `cwd`, taken at or
     after `since_ns`) whose stamp is recent (`recent_digest`)."""
     out = {}
@@ -209,8 +210,8 @@ def recent_digests(cwd: Path, files: Mapping[str, tuple[int, int]], since_ns: in
 
 
 def compare(
-    before: Mapping[str, tuple[int, int]],
-    after: Mapping[str, tuple[int, int]],
+    before: Mapping[str, Stamp],
+    after: Mapping[str, Stamp],
     digests: Mapping[str, str] | None = None,
     cwd: Path | None = None,
 ) -> Changes:

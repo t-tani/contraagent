@@ -88,13 +88,19 @@ class Journal:
             **(self._row_extras(result) if self._row_extras else {}),
         )
 
-    def append(self, result: TaskResult) -> JournalRow:
+    def append(self, result: TaskResult, on_launch_error: Callable[[Exception], None] | None = None) -> JournalRow:
         """Append one row, plus the full `LaunchResult` when the attempt was an agent launch.
-        Returns the row."""
+        Returns the row. `on_launch_error(error)`: the `LaunchResult` could not be written
+        (the row was); without it, the error is raised."""
         row = self.row(result)
         append_lines(self.path, [row.model_dump_json()])
         if result.launch_result is not None:
-            result.launch_result.record(self.launches_path)
+            try:
+                result.launch_result.record(self.launches_path)
+            except Exception as exc:
+                if on_launch_error is None:
+                    raise
+                on_launch_error(exc)
         return row
 
     def rows(self) -> list[dict[str, Any]]:
