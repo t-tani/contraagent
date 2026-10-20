@@ -1951,6 +1951,9 @@ class Deferral
     cause: DeferralCause
     reason: str
 
+class FinishChance(Protocol)
+    def __call__(self, task: Task, within_s: float, after_s: float, /) -> float | None
+
 @dataclass(eq=False)
 class FlowCall
     def __init__(
@@ -2069,6 +2072,7 @@ class JournalEstimates
         loop_cap: int = LOOP_CAP,
     ) -> None
     def estimate(self, task: Task) -> float | None
+    def finish_chance(self, task: Task, within_s: float, after_s: float = 0.0) -> float | None
     def flow_call_ended(self, call_id: str, state: str) -> None
     loop_cap
     def observe_attempt(self, row: dict[str, Any]) -> None
@@ -2313,6 +2317,7 @@ class Run
         estimate: Callable[[Task], float | None] | None = None,
         overdue_s: float = OVERDUE_S,
         slack_s: float | None = None,
+        finish_chance: FinishChance | None = None,
     ) -> WorkQueue
     def record_attempt(self, result: TaskResult) -> None
     def record_flow_call(
@@ -2398,6 +2403,7 @@ class WorkQueue
         estimate: Callable[[Task], float | None] | None = None,
         overdue_s: float = OVERDUE_S,
         slack_s: float | None = None,
+        finish_chance: FinishChance | None = None,
     )
     def add(self, task: Task) -> bool
     between_passes: BetweenPasses | None

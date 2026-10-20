@@ -423,8 +423,8 @@ on, and the report joins the units that got through (see
 - A task that did not succeed raises `TaskFailed` at the `await` (`.stop`,
   `.key`, `.result`, and `.item`, the task call); a refused task too
   (`invalid_input`), and an output that no longer passes its checks
-  (`invalid_output`). A task not launched by the deadline, or whose remaining
-  work cannot finish before it, raises `TaskDeferred`, which a flow may answer
+  (`invalid_output`). A task not launched by the deadline, or unlikely to finish
+  before it while other tasks take every slot, raises `TaskDeferred`, which a flow may answer
   with a task of a `finishing_kinds` kind. An exception that ends a child flow
   call is raised again at its parent's `await`. What a failure stops, and what
   goes on, is in [Failures](#failures-the-run-keeps-going).
@@ -526,7 +526,9 @@ same runs directory and from the run itself as its flow calls return, and only
 from chains that ran to their end: a chain cut short by a failure, a deferral or
 a flow error would be too short. A task's own duration is the median of its
 kind's completed attempts, in this run once one has finished, else in the
-recent runs.
+recent runs. The order uses the median because a rare long launch does not move
+it. The samples themselves are kept, the 100 most recent of each kind and of each
+tail key, for the deadline below.
 
 A task's `priority` (`summarize.options(priority=2)("alpha", params)`, a number, default 0)
 orders tasks the queue would otherwise start in the order they were queued:
@@ -719,10 +721,15 @@ outside it is held to it.
 
 Inside, the rules are the run's deadline's: from `deadline_s - slack_s` (default a
 quarter of `deadline_s`) its tasks go before the others, its `finishing_kinds`
-first, and one whose known remaining work cannot finish in time is deferred at
-once; past the deadline only its `finishing_kinds` launch, for `grace_s`; every
-other task it creates is deferred, and the flow receives `TaskDeferred` at its
-`await`. A box whose flow does not catch it raises it to the flow call that
+first, then the shortest remaining work. A task that is not of a finishing kind is
+late when its finish chance is below 0.35: the share of the past tasks with
+the same kind, flow path and loop passes whose own time and the work after them
+fit in the time left (`JournalEstimates.finish_chance`), asked again as tasks
+finish. A late task goes last. It still starts when a slot is free, since an idle
+slot finishes nothing; it is deferred only when other tasks take every slot. A
+task with no history and no `estimate_s` is never late. Past the deadline only
+its `finishing_kinds` launch, for `grace_s`; every other task it creates is
+deferred, and the flow receives `TaskDeferred` at its `await`. A box whose flow does not catch it raises it to the flow call that
 awaits the box, which may catch it and go on. A box past its grace window is
 cancelled: its flow call is `closed`, and the agent tasks it created still run to
 their end. The deferred tasks are in
@@ -1045,7 +1052,7 @@ describe them.
 | `AgentRunner` / `RetryingRunner` | one agent task: input check, route, credential (skipping one that rests on its quota), launch, validate, failover; progress-aware retry |
 | `PythonTaskRunner` | Python tasks in-process, checked by the same contracts |
 | `TaskAdapter` | what a domain says about its tasks (prompt, plugin, contracts, changes, env) |
-| `WorkQueue` | claims and their capacities, caps, retry, throttle; a greedy schedule by bottom level, then priority, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first, deferring what cannot finish; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
+| `WorkQueue` | claims and their capacities, caps, retry, throttle; a greedy schedule by bottom level, then priority, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first and late tasks last, deferred only when other tasks take every slot; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
 | `FlowDriver` | async flows over a `WorkQueue`, for flows that depend on results: each `await` waits for a task or a child flow call, and a failure raises `TaskFailed` there |
 | `RoutingPlan`, `Router`, `CredentialRests` | per-kind routing and budgets, the failover chain, and the credentials that rest on their quota or after a refused launch |
 | `run_until_valid`, `OutputContract`, `InputContract` | files checked by schema and validators; resume until they pass |
