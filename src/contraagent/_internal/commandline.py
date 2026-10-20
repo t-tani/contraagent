@@ -227,11 +227,26 @@ def split_spec(spec: str) -> tuple[str, str]:
     return target, name
 
 
+#: The files `load_attr` loaded: a module of one of them gives its name up to the next file.
+_loaded: set[Path] = set()
+
+
+def _file_of(module: Any) -> Path | None:
+    file = getattr(module, "__file__", None)
+    return Path(file).resolve() if isinstance(file, str) else None
+
+
 def load_attr(spec: str) -> Any:
     """What `path/to/file.py:attr` or `package.module:attr` names. The working directory is
     on `sys.path`. A file is loaded from its path, anew, under its own name (`sys.modules`),
-    with its directory on `sys.path` first (so it imports its neighbours, and a hook in the
-    session imports the output models it defines by the same name); a module is imported."""
+    with its directory on `sys.path` first, as `python path/to/file.py` puts it there: it
+    imports its neighbours, at load time and later (a task's function may import one when
+    it runs), and a hook in the session imports the output models it defines by the same
+    name. A file loaded here before under the same name, and the same file imported
+    under that name, give the name up to it. A name that `sys.modules` gives to a module
+    of another file (the standard library's `queue`, a module of an installed package)
+    raises ImportError: replacing it would change that module for every importer. A
+    module is imported."""
     target, name = split_spec(spec)
     if str(Path.cwd()) not in sys.path:
         sys.path.insert(0, str(Path.cwd()))
@@ -240,6 +255,10 @@ def load_attr(spec: str) -> Any:
     path = Path(target).resolve()
     if not path.is_file():
         raise OSError(f"{spec}: no file {path}")
+    taken = sys.modules.get(path.stem)
+    if taken is not None and _file_of(taken) not in (path, *_loaded):
+        where = _file_of(taken) or "built into Python"
+        raise ImportError(f"{spec}: the module name {path.stem!r} is already {where}; rename {path.name}")
     if str(path.parent) in sys.path:
         sys.path.remove(str(path.parent))
     sys.path.insert(0, str(path.parent))
@@ -248,6 +267,7 @@ def load_attr(spec: str) -> Any:
         raise ImportError(f"{spec}: cannot load {path}")
     module = importlib.util.module_from_spec(found)
     sys.modules[path.stem] = module
+    _loaded.add(path)
     try:
         found.loader.exec_module(module)
     except BaseException:

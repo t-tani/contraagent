@@ -118,6 +118,15 @@ def test_only_the_most_recent_runs_are_read(tmp_path):
     assert JournalEstimates(tmp_path, recent=1).estimate(task("revise")) == 6
 
 
+def test_the_most_recent_runs_go_by_their_journals_last_time_not_the_files_time(tmp_path):
+    """A copy of the runs directory that did not keep the files' times keeps their rows' times."""
+    for i, (review_s, revise_s) in enumerate([(4, 6), (2, 2), (8, 30)]):
+        plan, journal = review_run(review_s, revise_s)
+        journal = [{**row, "ts": f"2026-10-{20 - i:02d}T09:00:00+00:00"} for row in journal]  # r0 the newest
+        write_run(tmp_path, f"r{i}", plan, journal, mtime=1_000_000 + i * 100)  # r2 the newest file
+    assert JournalEstimates(tmp_path, recent=1).estimate(task("revise")) == 6
+
+
 def test_this_runs_attempts_and_flow_calls_update_the_estimates(tmp_path):
     write_run(tmp_path, "old", *review_run(4, 6))
     est = JournalEstimates(tmp_path)

@@ -1,0 +1,1 @@
+After Ctrl-C, or when `Pipeline.run` returns, the tasks still on its event loop have 30 seconds to end once cancelled. A task that ignores its cancellation is then left behind with a warning that names it, instead of a wait with no end.

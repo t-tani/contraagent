@@ -8,7 +8,8 @@ it meets, in the order it meets them.
 
 What a function's code refers to: the global names its code (and the code
 nested in it: inner functions, lambdas, comprehensions) uses, an attribute
-of a module it uses by one of those names (`tasks.review`), the values its
+of a module it uses by one of those names (`tasks.review`, read from the
+module's namespace, so no module `__getattr__` runs), the values its
 closure holds, and its default arguments. Each value found is followed the
 same way when it is a function of flow code (`code.flow_code`), a bound
 method, a `functools.partial`, a class of flow code (the values its body
@@ -94,7 +95,10 @@ def _function_refs(fn: FunctionType) -> Iterable[Any]:
 
 def _code_refs(code: CodeType, globals_: dict[str, Any]) -> list[Any]:
     """The globals `code` and the code nested in it name, and those names' attributes of
-    the modules among them (`pkg.sub.task`: `pkg`, then `sub`, then `task`)."""
+    the modules among them (`pkg.sub.task`: `pkg`, then `sub`, then `task`). An attribute is
+    read from the module's namespace (`vars`), never through `getattr`: a module's
+    `__getattr__` (a name imported when first used, a deprecation warning) does not run
+    while the reach is found, and a name it alone gives is not followed."""
     names: dict[str, None] = {}
     stack = [code]
     while stack:
@@ -107,7 +111,7 @@ def _code_refs(code: CodeType, globals_: dict[str, Any]) -> list[Any]:
     while modules:
         module = modules.pop()
         for n in names:
-            value = getattr(module, n, None)
+            value = vars(module).get(n)
             if value is None or id(value) in seen:
                 continue
             refs.append(value)

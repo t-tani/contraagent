@@ -16,9 +16,14 @@ A link is a symbolic link; on Windows, where a user may not make one, a junction
 hard link (`links`).
 
 The directory is named by what it holds, so launches made alike share one: pi locks
-`auth.json.lock` beside the link while it refreshes an OAuth login, and launches that
-share the directory refresh one login once. A pi the user runs on the source
-directory itself takes its own lock.
+`auth.json.lock` beside the link while it refreshes an OAuth login (pi 1.2.0 takes the
+lock with `realpath: false`, on the path it was given, and has no setting for where), and
+launches that share the directory refresh one login once. A pi the user runs on the
+source directory itself takes its own lock, so the two can refresh at the same time; for
+a provider that replaces the refresh token at each refresh, one of them is then left with
+a token that no longer works, and its launch ends `auth_failed`. Such a launch says so
+(`wire.SHARED_LOGIN`), and the documentation of the agents asks the user not to run pi
+on a login while a pipeline uses it.
 """
 
 from __future__ import annotations

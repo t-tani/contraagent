@@ -1,0 +1,1 @@
+A pi launch on the user's pi logins that ends `auth_failed` now says in its reason that a pi the user runs on the same login at the same time can make its refresh token invalid, since pi locks a refresh in the directory it runs with. The documentation of the agents says not to run pi on a login while a pipeline uses it.

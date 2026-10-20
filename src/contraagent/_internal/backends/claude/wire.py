@@ -75,8 +75,18 @@ _REQUEST_ID_RE = re.compile(r"Request ID: (?P<id>\S+)")
 _MESSAGE_ID_RE = re.compile(r"Message ID: (?P<id>\S+)")
 # How Claude Code hands the agent what a Stop hook said: a user message starting so.
 STOP_HOOK_FEEDBACK = "Stop hook feedback:"
-# Hollow shape: <=1 turn, no tool use, raw tool-call text as the body.
-_HOLLOW_RE = re.compile(r"\b(Bash|Read|Write|Edit|Skill|Agent|WebFetch|WebSearch)\(")
+# A line that is a tool call written out as text: `Bash(...)`, also as a list item or in backticks.
+_CALL_LINE_RE = re.compile(r"\s*(?:[-*]\s+)?`*(?:Bash|Read|Write|Edit|Skill|Agent|WebFetch|WebSearch)\(")
+_FENCE_RE = re.compile(r"\s*(```|~~~)")
+
+
+def written_calls(text: str) -> bool:
+    """Whether an answer is tool calls written out as text instead of made: its first line is
+    one, or most of its lines are (blank lines and code fences not counted). A call quoted
+    in a sentence (`I read it with Read(path)`) is not."""
+    lines = [line for line in text.splitlines() if line.strip() and not _FENCE_RE.match(line)]
+    calls = sum(1 for line in lines if _CALL_LINE_RE.match(line))
+    return bool(lines) and (bool(_CALL_LINE_RE.match(lines[0])) or 2 * calls > len(lines))
 
 
 def stop_hook_feedback(ev: dict) -> str | None:
@@ -352,7 +362,8 @@ class StreamReader(EventFold):
         res = self.final or {}
         stop = self.stop(exit_code=exit_code, killed=killed)
         text = str(res.get("result") or "")
-        hollow = (res.get("num_turns") or 0) <= 1 and not self.tool_uses and bool(_HOLLOW_RE.search(text))
+        # Hollow: one turn or none, no tool used, and the answer is tool calls written as text.
+        hollow = (res.get("num_turns") or 0) <= 1 and not self.tool_uses and written_calls(text)
         usage = self.usage()
         usage.output_total = int((res.get("usage") or {}).get("output_tokens") or 0)
         own = self.init_model or launch.model

@@ -300,7 +300,9 @@ class LaunchResult:
     `ok` means "ran to the end and is not hollow". The only
     `COMPLETED`-yet-not-ok shape is hollow: the agent ended after one turn
     without calling a tool, having written tool calls out as text instead
-    (`Bash(...)`, `Write(...)`), so nothing it describes was done. A launch whose
+    (`Bash(...)`, `Write(...)`), so nothing it describes was done: the answer's
+    first line is such a call, or most of its lines are. A call quoted inside a
+    sentence does not make a launch hollow. A launch whose
     final message is its output (`OutputContract.from_message`) and passes its
     checks is not hollow: `run_until_valid` clears it.
     """

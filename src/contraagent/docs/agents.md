@@ -89,7 +89,12 @@ them when it exits. Besides it:
 
 - **pi** runs with an agent directory of contraagent's own under
   `~/.cache/contraagent/pi/` (`$XDG_CACHE_HOME`, when set, in place of `~/.cache`),
-  which links the user's pi logins.
+  which links the user's pi logins. pi refreshes a login under a lock in the directory
+  it runs with, so a pi that the user runs on the same login at the same time does not
+  wait for the refresh of a launch. Some providers replace the refresh token at each
+  refresh, and then one of the two is left with a token that no longer works. While a
+  pipeline uses a pi login, the user does not run pi on that login. A launch that ends
+  `auth_failed` on a pi login says this in its reason.
 - **codex** keeps its `CODEX_HOME` under `~/.cache/contraagent/` (Codex does not
   run from one under `/tmp`), and gives each launch a temporary directory of its own
   under `<temp dir>/contraagent-<uid>/`, removed when the launch ends.

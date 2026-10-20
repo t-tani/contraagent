@@ -1,5 +1,6 @@
 """End to end with a stub backend: config -> routing -> Run/AgentRunner/queue -> journal -> monitor."""
 
+import errno
 import json
 import logging
 import os
@@ -139,6 +140,18 @@ def test_python_steps_and_run_lock(tmp_path):
     with pytest.raises(RuntimeError):
         boom.run_python_steps([("bad", lambda: (_ for _ in ()).throw(RuntimeError("x"))), ("never", lambda: None)])
     assert [r["kind"] for r in boom.rows()] == ["bad"]
+
+
+def test_a_runs_directory_without_file_locks_is_an_error_not_a_held_lock(tmp_path, monkeypatch):
+    from contraagent._internal.execution import run as run_module
+
+    class NoLocks:
+        def try_lock(self, fd):
+            raise OSError(errno.ENOLCK, os.strerror(errno.ENOLCK))
+
+    monkeypatch.setattr(run_module, "locks", NoLocks())
+    with pytest.raises(OSError, match="cannot lock .*r4.lock: No locks available; the runs directory needs a file system with file locks"):
+        Run("r4", tmp_path / "runs")
 
 
 def test_rate_limit_fails_over_to_next_route(tmp_path):
