@@ -20,7 +20,9 @@ Two rules keep the wire stable:
   wrote straight through (journal rows, plan rows, contract records, task
   definitions) and shapes a domain extends (a panel body, the `task_detail`
   callback's keys, a custom backend's transcript events) allow extra keys, and
-  say so.
+  say so. The model of a run record a shape holds (`Frame`, `DeferralCause`,
+  `PreflightRecord` ...) is a `RecordModel`: it drops a key it does not know,
+  so the monitor reads a run that a later release of its run format wrote.
 
 Bump `API_VERSION` when a field is removed, renamed or changes meaning
 (major), or added (minor).

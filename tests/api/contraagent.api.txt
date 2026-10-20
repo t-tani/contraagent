@@ -69,7 +69,7 @@ class AgentTask[Out]
     unwrap: bool = False
     validators: tuple[Validator, ...]
 
-class Changes(BaseModel)
+class Changes(RecordModel)
     created: tuple[str, ...] = ()
     deleted: tuple[str, ...] = ()
     kept: tuple[str, ...] = ()
@@ -134,24 +134,24 @@ class ContraagentError(Exception)
 
 class CredentialError(ContraagentError)
 
-class DeferralCause(BaseModel)
+class DeferralCause(RecordModel)
     cause: str
     dependency: str | None = Field(default=None, description='`dependency_deferred`: the key of the deferred task whose output it reads')
     flow_call: str | None = Field(default=None, description="`deadline`, `grace_window`, `cannot_finish`: the flow call whose time box it is; null for the run's deadline")
     left_s: float | None = Field(default=None, description='`cannot_finish`: the time left before the deadline, in seconds')
-    model_config: ConfigDict = ConfigDict(extra='forbid', frozen=True)
+    model_config: ConfigDict = ConfigDict(frozen=True)
     need_s: float | None = Field(default=None, description='`cannot_finish`: the work it needed, in seconds')
     rests: tuple[SkippedHop, ...] = Field(default=(), description='`rest`: each hop passed over and why its credential rests')
     def to_dict(self) -> dict[str, Any]
 
-class Frame(BaseModel)
+class Frame(RecordModel)
     file: str = Field(description="relative to the run's working directory when under it, else as recorded")
     function: str = Field(description='`module.qualname`')
     line: int
     loops: tuple[Loop, ...] = Field(default=(), description='the loops of an async flow whose pass `line` was in, outermost first; empty outside a loop and for any other frame')
-    model_config: ConfigDict = ConfigDict(extra='forbid', frozen=True, serialize_by_alias=True)
+    model_config: ConfigDict = ConfigDict(frozen=True, serialize_by_alias=True)
 
-class Hop(BaseModel)
+class Hop(RecordModel)
     agent: str = ''
     cost_usd: float | None = None
     credential: str = ''
@@ -165,9 +165,9 @@ class Hop(BaseModel)
 
 class LaunchError(ContraagentError)
 
-class Loop(BaseModel)
+class Loop(RecordModel)
     line: int = Field(description="the loop's first line, which names it")
-    model_config: ConfigDict = ConfigDict(extra='forbid', frozen=True, serialize_by_alias=True)
+    model_config: ConfigDict = ConfigDict(frozen=True, serialize_by_alias=True)
     pass_: int | None = Field(validation_alias=AliasChoices('pass', 'pass_'), serialization_alias='pass', description='one iteration of this loop, numbered from 1 since the loop was last entered in that frame; null when not counted')
 
 class McpServers(Protocol)
@@ -193,7 +193,7 @@ class Origin
     flow: tuple[Frame, ...] = ()
     flow_call: str = '0'
 
-class OtherModel(BaseModel)
+class OtherModel(RecordModel)
     cache_creation: int = 0
     cache_read: int = 0
     cost_usd: float | None = None
@@ -443,7 +443,7 @@ class RunReport
     summary: dict[str, Any] = field(default_factory=dict)
     value: Any = None
 
-class SafetyStop(BaseModel)
+class SafetyStop(RecordModel)
     category: str = ''
     message_id: str = ''
     model: str = ''
@@ -593,7 +593,7 @@ class TimeBox
     grace_s: float
     slack_s: float = 0.0
 
-class TokenUsage(BaseModel)
+class TokenUsage(RecordModel)
     cache_creation: int = 0
     cache_read: int = 0
     calls: int = 0
@@ -1115,7 +1115,7 @@ class Pool(Credential)
     strategy: Literal['in_order', 'round_robin'] = 'in_order'
     type: Literal['pool'] = 'pool'
 
-class QuotaReading(BaseModel)
+class QuotaReading(RecordModel)
     account: str = ''
     credential: str = ''
     extra: dict[str, Any] = Field(default_factory=dict)
@@ -1136,7 +1136,7 @@ class QuotaReading(BaseModel)
     using_overage: bool | None = None
     windows: dict[str, QuotaWindow] = Field(default_factory=dict)
 
-class QuotaWindow(BaseModel)
+class QuotaWindow(RecordModel)
     model_config: ConfigDict = ConfigDict(extra='allow', frozen=True)
     pct: float | None = None
     resets_at: str | None = None
@@ -1251,11 +1251,11 @@ class Backend(abc.ABC)
     watched_limits: frozenset[str] = frozenset()
     wire: ModuleType | None = None
 
-class CallFile(BaseModel)
+class CallFile(RecordModel)
     cwd: str = ''
     key: str
     kind: str
-    model_config: ConfigDict = ConfigDict(extra='forbid')
+    model_config: ConfigDict = ConfigDict(extra='ignore')
     output: CallOutput | None = None
     params: dict[str, Any] = Field(default_factory=dict)
     @staticmethod
@@ -1267,12 +1267,12 @@ class CallFile(BaseModel)
     version: int = 1
     def write(self, path: Path) -> Path
 
-class CallOutput(BaseModel)
+class CallOutput(RecordModel)
     commands: list[dict[str, Any]] = Field(default_factory=list)
     format: Literal['json', 'text', 'jsonl'] = 'json'
     from_: Literal['file', 'message'] = Field('file', validation_alias=AliasChoices('from', 'from_'), serialization_alias='from')
     json_schema: dict[str, Any] = Field(default_factory=dict)
-    model_config: ConfigDict = ConfigDict(extra='forbid', serialize_by_alias=True)
+    model_config: ConfigDict = ConfigDict(serialize_by_alias=True)
     path: str
     preserve: list[str] = Field(default_factory=list)
     schema_ref: SchemaRef | None = None
@@ -1751,7 +1751,8 @@ class QuotaRefusal
     def __init__(self, retry_after_s: float | None = None) -> None
     retry_after_s: float | None = None
 
-class SchemaRef(BaseModel)
+class SchemaRef(RecordModel)
+    model_config: ConfigDict = ConfigDict(extra='ignore')
     module: str
     qualname: str
     search_path: str | None = None
@@ -1973,11 +1974,11 @@ class CredentialRests
     ) -> list[Rest]
     rule
 
-class Cursor(BaseModel)
+class Cursor(RecordModel)
     completed_stages: list[str] = Field(default_factory=list)
     history: list[HistoryEntry] = Field(default_factory=list)
     markers: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
-    model_config: ConfigDict = ConfigDict(extra='forbid', validate_assignment=True)
+    model_config: ConfigDict = ConfigDict(validate_assignment=True)
     run: str
     schema_version: str
     stage: str | None = None
@@ -2083,14 +2084,14 @@ class FlowDriver
 class FollowUp(Protocol)
     def __call__(self, result: TaskResult, /) -> list[Task]
 
-class HistoryEntry(BaseModel)
+class HistoryEntry(RecordModel)
     at: datetime
-    model_config: ConfigDict = ConfigDict(extra='forbid', validate_assignment=True)
+    model_config: ConfigDict = ConfigDict(validate_assignment=True)
     name: str
 
-class Inflight(BaseModel)
+class Inflight(RecordModel)
     item_ids: list[str] = Field(default_factory=list)
-    model_config: ConfigDict = ConfigDict(extra='forbid', validate_assignment=True)
+    model_config: ConfigDict = ConfigDict(validate_assignment=True)
     pid: int | None = None
     since: datetime
     start_ticks: int | None = None
@@ -2183,7 +2184,7 @@ class PythonTaskRunner
     def deferral(self, task: Task) -> Deferral | None
     def run(self, task: Task) -> TaskResult
 
-class Rest(BaseModel)
+class Rest(RecordModel)
     account: str = ''
     agent: str = ''
     cap: float | None = None
@@ -2410,12 +2411,12 @@ class TaskRunner(Protocol)
     def config(self, task: Task) -> RunnerConfig
     def run(self, task: Task) -> TaskResult
 
-class UnitCursor(BaseModel)
+class UnitCursor(RecordModel)
     completed: list[str] = Field(default_factory=list)
     history: list[HistoryEntry] = Field(default_factory=list)
     inflight: Inflight | None = None
     loop_pass: int = 0
-    model_config: ConfigDict = ConfigDict(extra='forbid', validate_assignment=True)
+    model_config: ConfigDict = ConfigDict(validate_assignment=True)
     stage: str | None = None
     step: str | None = None
 
@@ -3066,12 +3067,12 @@ class DownstreamTask(Closed)
     model_config: ConfigDict = ConfigDict(extra='forbid')
     unit: str
 
-class DroppedRoute(BaseModel)
+class DroppedRoute(RecordModel)
     agent: str
     credential: str
     kinds: tuple[str, ...] = Field(description='the kinds whose chain held it')
     model: str = Field(description="empty: the coding agent's default model")
-    model_config: ConfigDict = ConfigDict(extra='forbid', frozen=True)
+    model_config: ConfigDict = ConfigDict(frozen=True)
     reason: str = Field(description="not in its coding agent's model list, or how its probe ended (`rate limited`, ...)")
 
 class ExportInfo(Closed)
@@ -3144,7 +3145,7 @@ class JournalPage(Closed)
     model_config: ConfigDict = ConfigDict(extra='forbid')
     total: int
 
-class JournalRow(BaseModel)
+class JournalRow(RecordModel)
     agent: str = ''
     attempt: int = 0
     changes: Changes | None = None
@@ -3185,11 +3186,11 @@ class JournalRow(BaseModel)
     wall_s: float = 0.0
     web_queries: list[str] = Field(default_factory=list)
 
-class KeptKind(BaseModel)
+class KeptKind(RecordModel)
     agent: str
     kind: str
     model: str
-    model_config: ConfigDict = ConfigDict(extra='forbid', frozen=True)
+    model_config: ConfigDict = ConfigDict(frozen=True)
     reason: str
 
 class LaunchEvent(TranscriptEvent)
@@ -3328,10 +3329,10 @@ class PlanNode(PlanRow)
     unit: str = ''
     wall_s: float = 0.0
 
-class PreflightRecord(BaseModel)
+class PreflightRecord(RecordModel)
     dropped: list[DroppedRoute] = Field(default_factory=list)
     kept: list[KeptKind] = Field(default_factory=list)
-    model_config: ConfigDict = ConfigDict(extra='forbid')
+    model_config: ConfigDict = ConfigDict(extra='ignore')
     policy: PreflightPolicy = Field(description='`Pipeline(preflight=)`; `off`: no route was probed')
     stopped: list[str] = Field(default_factory=list, description='the kinds with no route left that stopped the run (policy `stop`)')
     substituted: list[Substitution] = Field(default_factory=list)
@@ -3368,10 +3369,10 @@ class ProcsMessage(Closed)
     event: Literal['procs']
     model_config: ConfigDict = ConfigDict(extra='forbid')
 
-class QuotaCap(BaseModel)
+class QuotaCap(RecordModel)
     credential: str
     five_hour_pct: float | None = None
-    model_config: ConfigDict = ConfigDict(extra='forbid', frozen=True)
+    model_config: ConfigDict = ConfigDict(frozen=True)
     seven_day_pct: float | None = None
 
 class ReadyMessage(Closed)
@@ -3439,11 +3440,11 @@ class StreamPage(Closed)
     model_config: ConfigDict = ConfigDict(extra='forbid')
     total: int
 
-class Substitution(BaseModel)
+class Substitution(RecordModel)
     from_agent: str
     from_model: str
     kind: str
-    model_config: ConfigDict = ConfigDict(extra='forbid', frozen=True)
+    model_config: ConfigDict = ConfigDict(frozen=True)
     to_agent: str
     to_model: str
 
@@ -3518,11 +3519,11 @@ class TaskLaunch(Closed)
     role: str | None
     unit: str | None
 
-class TimeBoxRecord(BaseModel)
+class TimeBoxRecord(RecordModel)
     deadline_s: float = Field(description='seconds from `started_at` to the deadline')
     finishing_kinds: tuple[str, ...] = Field(default=(), description='the kinds that still launch past the deadline')
     grace_s: float = Field(description='seconds past the deadline its `finishing_kinds` still launch')
-    model_config: ConfigDict = ConfigDict(extra='forbid', frozen=True)
+    model_config: ConfigDict = ConfigDict(frozen=True)
     slack_s: float = Field(description='seconds before the deadline from which its tasks are ordered for it')
     started_at: str = Field(description='when the flow call started, where its deadline counts from (UTC ISO 8601)')
 

@@ -6,6 +6,8 @@ these values; each is defined here once, as a pydantic model, so a file row and 
 response are the same type. Values are frozen. Nothing here imports anything outside the
 standard library and pydantic.
 
+* `RecordModel`: the base of every model of a run record: a reader ignores a field it does
+  not know.
 * `Executor`: who executes a task.
 * `Loop`, `Frame`: a flow path (`Origin.flow`, plan and flow call `flow`).
 * `Changes`: the files one attempt changed.
@@ -28,6 +30,19 @@ from typing import Any, ClassVar, Literal, NamedTuple
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
+
+class RecordModel(BaseModel):
+    """The model of a run record, or of a part of one: a reader ignores a field it does not
+    know, so this release reads the records a later release of the same run format writes
+    (a new field breaks nothing: `docs/compatibility.md`). A model that keeps such a field
+    and writes it again says so with `extra="allow"`; no model of a record forbids one.
+
+    A writer still writes only the fields declared: a model dumps nothing else, and a
+    misspelled keyword argument or attribute is a type error."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
+
+
 #: Who executes a task: a coding agent, or this process in Python (`Task.executor`).
 Executor = Literal["agent", "python"]
 
@@ -35,11 +50,11 @@ Executor = Literal["agent", "python"]
 # --- flow path ---------------------------------------------------------------
 
 
-class Loop(BaseModel):
+class Loop(RecordModel):
     """A `for` or `while` loop of an async flow around a call site, and the pass the call
     site was in."""
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True, serialize_by_alias=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, serialize_by_alias=True)
 
     line: int = Field(description="the loop's first line, which names it")
     pass_: int | None = Field(
@@ -49,11 +64,11 @@ class Loop(BaseModel):
     )
 
 
-class Frame(BaseModel):
+class Frame(RecordModel):
     """One frame of a flow path (outermost first): a call site in flow code where a task
     was created. A comprehension is not a loop."""
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True, serialize_by_alias=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, serialize_by_alias=True)
 
     function: str = Field(description="`module.qualname`")
     file: str = Field(description="relative to the run's working directory when under it, else as recorded")
@@ -67,7 +82,7 @@ class Frame(BaseModel):
 # --- changes -----------------------------------------------------------------
 
 
-class Changes(BaseModel):
+class Changes(RecordModel):
     """The files one attempt changed under its task's `changes` patterns, as paths relative
     to the working directory: those it `created`, `modified` and `deleted`. Of a failed
     attempt's created files, `removed` lists those the runner removed, and `kept` those it
@@ -88,7 +103,7 @@ class Changes(BaseModel):
 # --- hop ---------------------------------------------------------------------
 
 
-class TokenUsage(BaseModel):
+class TokenUsage(RecordModel):
     """Tokens summed over API calls: an attempt's (its rounds and hops, in `JournalRow.usage`)
     or one hop's (`Hop.usage`)."""
 
@@ -113,7 +128,7 @@ class TokenUsage(BaseModel):
     context_window: int | None = None
 
 
-class OtherModel(BaseModel):
+class OtherModel(RecordModel):
     """What a hop spent on a model other than its own (`Hop.other_models`)."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", frozen=True)
@@ -137,7 +152,7 @@ class OtherModel(BaseModel):
         )
 
 
-class Hop(BaseModel):
+class Hop(RecordModel):
     """One launch of an attempt on one route of its failover chain: where it ran and how
     it ended."""
 
@@ -168,7 +183,7 @@ class Hop(BaseModel):
 SafetyStopPart = Literal["response", "tool", "unread"]
 
 
-class SafetyStop(BaseModel):
+class SafetyStop(RecordModel):
     """A safety classifier that stopped part of a launch while the launch went on (Claude
     Code reports them). `response`: it stopped a response of the launch's own model, whose
     unfinished tool calls did not run; the coding agent tells the model and goes on.
@@ -232,7 +247,7 @@ def window_words(name: str) -> str:
     return spec.words if spec is not None else name
 
 
-class QuotaWindow(BaseModel):
+class QuotaWindow(RecordModel):
     """One window of a reading: its utilization (%) and when it resets (ISO 8601)."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", frozen=True)
@@ -241,7 +256,7 @@ class QuotaWindow(BaseModel):
     resets_at: str | None = None
 
 
-class QuotaReading(BaseModel):
+class QuotaReading(RecordModel):
     """A subscription's utilization during a launch, from one of these sources:
 
     * Claude Code: in its stream, when a session starts or resumes;
@@ -319,7 +334,7 @@ class QuotaReading(BaseModel):
 # --- rest --------------------------------------------------------------------
 
 
-class Rest(BaseModel):
+class Rest(RecordModel):
     """Why credential `credential` rests: past the cap of one window (`window` `five_hour`
     or `seven_day`, its reading `pct`, the cap `cap`), or by the quota rule (`rule`, what it
     said, `reading`, the reading it judged; `window` empty), or because a launch as it was
@@ -387,7 +402,7 @@ class RestEvent(Rest):
 # --- deferral ----------------------------------------------------------------
 
 
-class DeferralCause(BaseModel):
+class DeferralCause(RecordModel):
     """Why a task was deferred, as data (`Deferral.cause`). `cause`: `deadline`,
     `grace_window` (past the deadline's grace window), `cannot_finish` (`need_s`, `left_s`),
     `dependency_not_queued`, `dependency_deferred` (a task whose output it reads was
@@ -395,7 +410,7 @@ class DeferralCause(BaseModel):
     `rests`), or a runner's own name. A field a cause does not have is left unset, and
     `deferred.jsonl` records only the fields set."""
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     cause: str
     need_s: float | None = Field(default=None, description="`cannot_finish`: the work it needed, in seconds")
@@ -415,10 +430,10 @@ class DeferralCause(BaseModel):
 # --- time box ----------------------------------------------------------------
 
 
-class TimeBoxRecord(BaseModel):
+class TimeBoxRecord(RecordModel):
     """A flow call's own deadline (`time_box`, `TimeBox`), as `flow_calls.jsonl` records it."""
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     started_at: str = Field(description="when the flow call started, where its deadline counts from (UTC ISO 8601)")
     deadline_s: float = Field(description="seconds from `started_at` to the deadline")
@@ -434,7 +449,7 @@ class TimeBoxRecord(BaseModel):
 ServiceStopCause = Literal["run_end", "interrupted"]
 
 
-class ServiceEvent(BaseModel):
+class ServiceEvent(RecordModel):
     """One line of `services.jsonl`: the service a claim name stands for started (`event`
     `start`) or stopped (`stop`). A start with an `error` did not start; a stop with an
     `error` raised while it stopped, and the service counts as stopped."""
