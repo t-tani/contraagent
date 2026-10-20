@@ -21,7 +21,6 @@ import socket
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from types import ModuleType
 from typing import Any
 
 
@@ -228,8 +227,8 @@ def split_spec(spec: str) -> tuple[str, str]:
     return target, name
 
 
-#: The modules `load_attr` put in `sys.modules`, by name: the names it may give to a file again.
-_loaded: dict[str, ModuleType] = {}
+#: The files `load_attr` loaded: a module of one of them gives its name up to the next file.
+_loaded: set[Path] = set()
 
 
 def _file_of(module: Any) -> Path | None:
@@ -243,10 +242,11 @@ def load_attr(spec: str) -> Any:
     with its directory on `sys.path` first, as `python path/to/file.py` puts it there: it
     imports its neighbours, at load time and later (a task's function may import one when
     it runs), and a hook in the session imports the output models it defines by the same
-    name. A file loaded here before under the same name gives the name up to it. A name
-    that `sys.modules` gives to any other module (the standard library's `queue`, a
-    module of an installed package) raises ImportError: replacing it would change that
-    module for every importer. A module is imported."""
+    name. A file loaded here before under the same name, and the same file imported
+    under that name, give the name up to it. A name that `sys.modules` gives to a module
+    of another file (the standard library's `queue`, a module of an installed package)
+    raises ImportError: replacing it would change that module for every importer. A
+    module is imported."""
     target, name = split_spec(spec)
     if str(Path.cwd()) not in sys.path:
         sys.path.insert(0, str(Path.cwd()))
@@ -256,7 +256,7 @@ def load_attr(spec: str) -> Any:
     if not path.is_file():
         raise OSError(f"{spec}: no file {path}")
     taken = sys.modules.get(path.stem)
-    if taken is not None and taken is not _loaded.get(path.stem):
+    if taken is not None and _file_of(taken) not in (path, *_loaded):
         where = _file_of(taken) or "built into Python"
         raise ImportError(f"{spec}: the module name {path.stem!r} is already {where}; rename {path.name}")
     if str(path.parent) in sys.path:
@@ -266,11 +266,11 @@ def load_attr(spec: str) -> Any:
     if found is None or found.loader is None:
         raise ImportError(f"{spec}: cannot load {path}")
     module = importlib.util.module_from_spec(found)
-    sys.modules[path.stem] = _loaded[path.stem] = module
+    sys.modules[path.stem] = module
+    _loaded.add(path)
     try:
         found.loader.exec_module(module)
     except BaseException:
         sys.modules.pop(path.stem, None)
-        _loaded.pop(path.stem, None)
         raise
     return getattr(module, name)
