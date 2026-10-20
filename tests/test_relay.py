@@ -224,6 +224,27 @@ def test_a_changed_output_file_is_hashed_again_and_served(runs):
         Path(path).write_text(original)
 
 
+def test_a_file_rewritten_at_the_same_size_and_mtime_is_sent_again(runs, tmp_path):
+    hub = new_hub()
+    rec = Recording(DirectClient(hub))
+    r = relay(rec, runs)
+    out = tmp_path / "out.json"
+    out.write_text('{"n": 1}')
+    record = {"key": "extra", "outputs": [{"path": out.as_posix()}]}
+    (first(runs) / layout.entry(layout.CONTRACTS, "extra")).write_text(json.dumps(record))
+    assert r.pass_once()
+    stamp = out.stat().st_mtime_ns
+    out.write_text('{"n": 2}')
+    os.utime(out, ns=(stamp, stamp))  # the same size and mtime, as on a file system with coarse ticks
+    rec.clear()
+    assert r.pass_once()
+    assert [(f.path, f.sha256) for f in rec.files()] == [(out.as_posix(), hashlib.sha256(b'{"n": 2}').hexdigest())]
+    got = hub_monitor(hub).source.file("analyse@h1", out.as_posix())
+    assert got is not None and got.text == '{"n": 2}'
+    rec.clear()
+    assert r.pass_once() and rec.files() == []
+
+
 def test_a_restarted_relay_sends_nothing_new(runs):
     hub = new_hub()
     assert relay(DirectClient(hub), runs).pass_once()

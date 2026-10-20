@@ -122,7 +122,7 @@ def snapshot(source: DirectorySource, run: str) -> dict:
     # Work inside the run's own process: Python tasks, and agent tasks whose
     # backend is a library call (no child process to find; known only by marker).
     seen = {lc["key"] for lc in out["launches"]}
-    for m in _inflight(source, run):
+    for m in _inflight(source, run, info):
         if m.pop("executor") == "python":
             out["python_tasks"].append(m)
         elif m["key"] not in seen:
@@ -130,9 +130,11 @@ def snapshot(source: DirectorySource, run: str) -> dict:
     return out
 
 
-def _inflight(source: DirectorySource, run: str) -> list[dict]:
-    """Tasks running inside the run's own process, from their in-flight markers.
-    A marker whose process is gone is ignored."""
+def _inflight(source: DirectorySource, run: str, info: dict) -> list[dict]:
+    """Tasks running inside the run's own process, from their in-flight markers. A marker
+    whose process is gone, or whose pid another process now has (its start differs from
+    the one the marker holds), is ignored. A marker that holds no start, written before
+    markers held one, is taken at the start `info` (`run.json`) holds for the same pid."""
     out = []
     now = time.time()
     for text in source.folder(run, layout.INFLIGHT):
@@ -143,7 +145,8 @@ def _inflight(source: DirectorySource, run: str) -> list[dict]:
         if not isinstance(m, dict):
             continue
         pid = int(m.get("pid") or 0)
-        if not pid or not processes.alive(pid):
+        ticks = m.get("start_ticks", info.get("start_ticks") if pid == info.get("pid") else None)
+        if not pid or not processes.identity_ok(pid, ticks):
             continue
         started = parse_iso(m.get("started_at"))
         out.append(
