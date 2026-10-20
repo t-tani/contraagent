@@ -108,7 +108,7 @@
       "type": "object"
     }
   },
-  "description": "One line of `runs/<run>/flow_calls.jsonl`. `event` `start`: `parent`, `function`,\n`flow` (the flow path where the parent created it; empty for a top flow call) and, for a\nflow call started through `time_box`, `time_box`; `end`: `state` (`returned`, `raised`,\n`closed`) and `error` (`\"<type>: <message>\"` or null), and for one that `raised`,\n`raised_at` and `raised_by` when known. A row holds only its event's fields.",
+  "description": "One line of `runs/<run>/flow_calls.jsonl`. `event` `start`: `parent`, `function`,\n`flow` (the flow path where the parent created it; empty for a top flow call) and, for a\nflow call started through `time_box`, `time_box`; `end`: `state` (`returned`, `raised`,\n`closed`) and `error` (`\"<type>: <message>\"` or null), for one that `raised`,\n`raised_at` and `raised_by` when known, and for a top flow call `unawaited` when it\ncreated a task nothing used. A row holds only its event's fields.",
   "properties": {
     "ts": {
       "title": "Ts",
@@ -215,6 +215,22 @@
       "default": null,
       "description": "the key of the failed task the exception is (`TaskFailed.key`, the first one in an exception group), the same in every flow call it passes through; absent for an exception of flow code's own",
       "title": "Raised By"
+    },
+    "unawaited": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "for a top flow call: the keys of the tasks created in it or in the flow calls it started that no flow call awaited, no task waits for with `after=` and no flow call returned, in creation order; they ran all the same. Absent when there is none",
+      "title": "Unawaited"
     }
   },
   "required": [

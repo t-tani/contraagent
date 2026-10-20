@@ -627,7 +627,7 @@ class Monitor:
         def level(key: str, trail: tuple = ()) -> int:
             if key in depth:
                 return depth[key]
-            after = by_key.get(key, {}).get("after", [])
+            after = _earlier(by_key.get(key, {}))
             deps = [d for d in after if d in by_key and d not in trail]
             # A dependency not (yet) queued is upstream of this task all the same.
             floor = 0 if any(d not in by_key for d in after) else -1
@@ -736,16 +736,19 @@ class Monitor:
                     "error": None,
                     "raised_at": None,
                     "raised_by": None,
+                    "unawaited": [],
                     "time_box": _time_box(row.get("time_box")),
                 }
             elif row.get("event") == "end" and cid in calls:
                 at = row.get("raised_at")
                 by = row.get("raised_by")
+                unawaited = row.get("unawaited")
                 calls[cid].update(
                     state=row.get("state") or "closed",
                     error=row.get("error"),
                     raised_at=_shown_flow([at], cwd)[0] if isinstance(at, dict) else None,
                     raised_by=by if isinstance(by, str) else None,
+                    unawaited=[k for k in unawaited if isinstance(k, str)] if isinstance(unawaited, list) else [],
                 )
         return list(calls.values())
 
@@ -968,10 +971,11 @@ class Monitor:
         """One task's input and output: its params, the files it read, the files
         it left behind with the contract verdict, and how data flows around it.
 
-        `upstream` are the output files of the tasks this one waits for (`after=`): for a task
-        that declares no `InputContract`, they are what it actually reads. `downstream` are the
-        tasks that wait for this one. `outputs` and `plan_rows`, when given, are the run's
-        (`outputs(run)`, its plan rows), read once for many tasks.
+        `upstream` are the output files of the tasks this one waits for (`after=`) or was given
+        from (`given_from`): for a task that declares no `InputContract`, they are what it
+        actually reads. `downstream` are the tasks that wait for this one or were given from it.
+        `outputs` and `plan_rows`, when given, are the run's (`outputs(run)`, its plan rows),
+        read once for many tasks.
         """
         outs = outputs if outputs is not None else self.outputs(run)
         by_key = {c.get("key"): c for c in outs["contracts"]}
@@ -979,7 +983,7 @@ class Monitor:
         plan = {n["key"]: n for n in (plan_rows if plan_rows is not None else self._read_plan(run))}
         node = plan.get(key, {})
         upstream = []
-        for dep in node.get("after", []):
+        for dep in _earlier(node):
             d = by_key.get(dep)
             upstream.append(
                 {
@@ -993,7 +997,7 @@ class Monitor:
         downstream = [
             {"key": k, "kind": n.get("kind", ""), "unit": n.get("unit", ""), "executor": n.get("executor", "agent")}
             for k, n in plan.items()
-            if key in n.get("after", [])
+            if key in _earlier(n)
         ]
         return {
             "params": self._call_params(run, key, rec.get("params", {})),
@@ -1187,3 +1191,10 @@ def row_extras(rows: list[dict[str, Any]]) -> list[str]:
     for row in rows:
         out.update(dict.fromkeys(k for k in row if k not in known))
     return list(out)
+
+
+def _earlier(node: dict[str, Any]) -> list[str]:
+    """The keys of the tasks a plan node comes after: those it waits for (`after`), then those
+    it was given from (`given_from`), each once."""
+    keys = [*(node.get("after") or []), *(node.get("given_from") or [])]
+    return [k for k in dict.fromkeys(keys) if isinstance(k, str)]

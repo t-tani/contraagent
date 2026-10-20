@@ -133,13 +133,11 @@ class RunReport:
         return [r for r in self.results.values() if r.stop == STOP_PARTIAL]
 
 
-class _InputsFirst:
-    """The queue's runner: `runner`, but a task that reads the output of a deferred task is
-    deferred too (`Graph.input_deferral`), not refused for its missing input; a task whose
-    fingerprint is complete only when it starts is given as it starts by the graph
-    (`Graph.starting`), and one whose outside state could not be worked out then is refused
-    (`invalid_input`), its agent task's result journaled by `on_refused` (a Python task's is
-    journaled by the queue)."""
+class _AsStarting:
+    """The queue's runner: `runner`, but a task whose fingerprint is complete only when it
+    starts is given as it starts by the graph (`Graph.starting`), and one whose outside
+    state could not be worked out then is refused (`invalid_input`), its agent task's result
+    journaled by `on_refused` (a Python task's is journaled by the queue)."""
 
     def __init__(self, graph: Graph, runner: Any, on_refused: Callable[[TaskResult], None]) -> None:
         self._graph, self._runner, self._on_refused = graph, runner, on_refused
@@ -148,7 +146,7 @@ class _InputsFirst:
         return self._runner.config(task)
 
     def deferral(self, task: Task) -> Deferral | None:
-        return self._graph.input_deferral(task) or self._runner.deferral(task)
+        return self._runner.deferral(task)
 
     def starting(self, task: Task) -> Task:
         return self._graph.starting(task)
@@ -557,7 +555,14 @@ class Pipeline:
                         return
                     try:
                         run.record_flow_call(
-                            "end", call.id, state=call.state, error=call.error, raised_at=call.raised_at, raised_by=call.raised_by
+                            "end",
+                            call.id,
+                            state=call.state,
+                            error=call.error,
+                            raised_at=call.raised_at,
+                            raised_by=call.raised_by,
+                            unawaited=call.unawaited,
+                            ended_at=call.ended_at,
                         )
                     except Exception as exc:  # the monitor's record only: the flow goes on
                         run._record_failed(layout.FLOW_CALLS, exc, f"flow call {call.id}")
@@ -568,6 +573,7 @@ class Pipeline:
                 waits_for=graph.waits_for,
                 answer=graph.answer,
                 on_flow_call=on_flow_call,
+                holds=graph.holds,
                 replay=run.journal.places() if resume else None,
             )
             graph.driver = driver
@@ -645,7 +651,7 @@ class Pipeline:
                         runner.configs[kind], runner.routers.get(kind), credential, plan.credentials, self.backends, self.overrides
                     )
                     queue = run.queue(
-                        _InputsFirst(
+                        _AsStarting(
                             graph,
                             services.wrap(
                                 recording(
@@ -786,7 +792,7 @@ async def _start(
         raise generator_flow_error(function)
     if not inspect.iscoroutine(value):
         run.record_flow_call("start", "0", function=function)
-        run.record_flow_call("end", "0", state="returned")
+        run.record_flow_call("end", "0", state="returned", unawaited=driver.unawaited(value))
         return value, False
     top = driver.start(value)
     await driver.settle()

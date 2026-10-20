@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import pytest
 from pydantic import BaseModel
 
 from contraagent import Pipeline, PipelineConfig, agent_task, python_task
@@ -77,10 +78,10 @@ def test_a_list_of_dicts_given_to_a_list_of_models_becomes_a_list_of_models(tmp_
     assert [type(i) for i in seen["items"]] == [Item, Item] and report.results["python:take_items"].ok
 
 
-def test_an_argument_is_converted_and_an_unannotated_one_passes_as_it_is(tmp_path):
+def test_an_argument_is_converted_and_an_unannotated_one_passes_as_json(tmp_path):
     label = ("not", "checked")
     report = run(tmp_path, lambda: take_count(count="3", label=label))
-    assert report.ok and seen["count"] == 3 and seen["label"] == label and type(seen["label"]) is tuple
+    assert report.ok and seen["count"] == 3 and seen["label"] == ["not", "checked"]  # copied as JSON at the call
 
 
 def test_a_mismatch_refuses_the_task_before_the_function_runs(tmp_path):
@@ -99,8 +100,9 @@ def test_a_mismatch_names_each_parameter(tmp_path):
     assert failed.reason == "invalid input: parameter count: Input should be a valid integer, unable to parse string as an integer"
 
 
-def test_a_class_without_a_schema_is_checked_with_isinstance(tmp_path):
-    assert run(tmp_path, lambda: take_opaque(thing=Opaque()), run_id="instance").ok
+def test_a_value_that_is_not_json_is_refused_at_the_call(tmp_path):
+    with pytest.raises(TypeError, match="take_opaque\\(\\): thing is a Opaque, which is not JSON"):
+        run(tmp_path, lambda: take_opaque(thing=Opaque()), run_id="instance")
     report = run(tmp_path, lambda: take_opaque(thing="x"), run_id="string")
     [failed] = report.failed
     assert failed.stop == "invalid_input" and failed.reason.startswith(
@@ -113,8 +115,8 @@ def test_outputs_of_other_tasks_count_as_their_values(tmp_path):
     write = agent_task("write", plugin=tmp_path / "plugins" / "w", output=str, max_turns=5, timeout_s=60)
     agent = StubAgent({"write": "# text\n"})
 
-    def flow():
-        take_text(text=write("u"), item=make_item("u"))
+    async def flow():
+        await take_text(text=await write("u"), item=await make_item("u"))
 
     report = run(tmp_path, flow, agent)
     assert report.ok, report.failed

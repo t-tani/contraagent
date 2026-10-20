@@ -77,6 +77,8 @@ the driver:
 * `on_flow_call(event, call)`: a flow call started or ended. An exception it raises
   at a child's start fails the child before its code runs: the child ends `raised`
   with it, and the parent receives it where it awaits the child.
+* `holds(value) -> keys`: the keys of the tasks whose results `value`, what a flow call
+  returned, holds (a typed layer's references to tasks). Default: none.
 
 Rules:
 
@@ -137,6 +139,14 @@ Rules:
   a RuntimeError that names where it waits.
 * `finish()` cancels every flow call still running once the queue has run (recorded
   `closed`), and every other Task on the flow loop.
+* An unawaited task is one the flow code created and never used: no flow call awaited
+  it (`wait`), no task waits for it (`Task.after`), and no flow call returned it
+  (`holds`). It runs all the same: this is information, never an error. A top flow
+  call lists the unawaited tasks created in it or in the flow calls it started
+  (`FlowCall.unawaited`), once every one of them has ended: so its `"end"` comes
+  through `on_flow_call` when the last flow call it started ended, if that is after
+  it (its `ended_at` says when it ended itself). For a flow that does not wait,
+  `unawaited(value)` lists them.
 
 Flow code runs on the thread of the event loop that drives it; a callback of the flow
 loop longer than `slow_step_s` (a step of one flow call between two waits) is logged,
@@ -191,6 +201,13 @@ class Answer(Protocol):
     finished with `result`; by default the result itself."""
 
     def __call__(self, item: Any, result: TaskResult, /) -> Any: ...
+
+
+class Holds(Protocol):
+    """`holds(value)`: the keys of the tasks whose results `value`, what a flow call
+    returned, holds; by default none."""
+
+    def __call__(self, value: Any, /) -> Iterable[str]: ...
 
 
 class OnFlowCall(Protocol):
@@ -317,7 +334,10 @@ class FlowCall:
     through; None for an exception of flow code's own. `time_box`: its own deadline,
     when it was started through `time_box`; `started_at` (`time.time()`): when it
     started. `recorded`: whether it is on record (`on_flow_call("start")` came:
-    see the module docstring). `task`: its asyncio Task."""
+    see the module docstring). `task`: its asyncio Task. `ended_at` (`time.time()`): when
+    it ended, None while it runs. `unawaited`: for a top flow call whose flow calls have
+    all ended, the keys of the unawaited tasks created in it or in the flow calls it
+    started, in the order they were created (see the module docstring)."""
 
     id: str
     parent: FlowCall | None = field(default=None, repr=False)
@@ -331,6 +351,8 @@ class FlowCall:
     raised_by: str | None = None
     time_box: TimeBox | None = None
     started_at: float = field(default_factory=time.time)
+    ended_at: float | None = None
+    unawaited: tuple[str, ...] = ()
     recorded: bool = False
     task: asyncio.Task[Any] | None = field(default=None, repr=False)
     #: Its coroutine (the flow code the Task runs).
@@ -356,6 +378,10 @@ class FlowCall:
     _stopped: BaseException | None = field(default=None, init=False, repr=False)
     # The keys of the cancellable tasks it created or waited for (`Task.cancellable`).
     _cancellable: set[str] = field(default_factory=set, init=False, repr=False)
+    # The top flow call it was started in (itself for a top flow call).
+    _top: FlowCall | None = field(default=None, init=False, repr=False)
+    # For a top flow call: how many of the flow calls started in it (itself included) run.
+    _tree: int = field(default=0, init=False, repr=False)
 
 
 #: The flow call whose code runs.
@@ -393,6 +419,7 @@ class FlowDriver:
         waits_for: WaitsFor | None = None,
         answer: Answer | None = None,
         on_flow_call: OnFlowCall | None = None,
+        holds: Holds | None = None,
         past_grace: Callable[[], bool] | None = None,
         slow_step_s: float = 1.0,
         replay: Mapping[str, int] | None = None,
@@ -400,6 +427,7 @@ class FlowDriver:
         self._waits_for = waits_for or _task_itself
         self._answer = answer or (lambda item, result: result)
         self._on_flow_call = on_flow_call or (lambda event, call: None)
+        self._holds: Holds = holds or (lambda value: ())
         #: Whether the queue is past its grace window; `attach()` sets the queue's
         #: `past_hard_stop` when none is given.
         self.past_grace: Callable[[], bool] | None = past_grace
@@ -441,6 +469,10 @@ class FlowDriver:
         self._wake_due = False
         self._next: _Next | None = None
         self._made: FlowCall | None = None
+        # The keys of the tasks created under each top flow call (by id; "" for a flow that
+        # does not wait), in creation order, and the keys of those used (see `unawaited`).
+        self._created: dict[str, dict[str, None]] = {}
+        self._used: set[str] = set()
 
     # --- the cycle -----------------------------------------------------------
 
@@ -588,6 +620,16 @@ class FlowDriver:
         self._run_flows()
         self._close_rest()
 
+    def unawaited(self, value: Any = None) -> tuple[str, ...]:
+        """For a flow that does not wait (it ran in no flow call) and returned `value`: the
+        keys of the tasks it created that no task waits for (`Task.after`) and `value` does
+        not hold (`holds`), in the order it created them."""
+        self._used.update(self._holds(value))
+        return self._unused("")
+
+    def _unused(self, top: str) -> tuple[str, ...]:
+        return tuple(key for key in self._created.get(top, {}) if key not in self._used)
+
     def time_boxes(self, call: FlowCall | None) -> tuple[TimeBox, ...]:
         """The time boxes over the tasks `call` creates: its own and its ancestors',
         outermost first."""
@@ -669,6 +711,9 @@ class FlowDriver:
             if task.cancellable and task.key not in self.done and task.key not in self._creators:
                 self._creators[task.key] = call
                 call._cancellable.add(task.key)
+        top = call._top.id if call is not None and call._top is not None else ""
+        self._created.setdefault(top, {})[task.key] = None
+        self._used.update(task.after)
         self._enqueue(task, call)
 
     def wait(self, item: Any) -> Coroutine[Any, Any, Any]:
@@ -684,6 +729,7 @@ class FlowDriver:
         here = asyncio.current_task()
         own = call is not None and here is call.task
         key = task.key
+        self._used.add(key)
         result = self.done.get(key)
         if call is not None and key in self._creators:
             call._cancellable.add(key)
@@ -799,6 +845,9 @@ class FlowDriver:
         context.run(_call.set, call)
         self.calls[call.id] = call
         self._running += 1
+        call._top = parent._top if parent is not None else call
+        if call._top is not None:
+            call._top._tree += 1
         self._made = call
         try:
             self._on_flow_call("create", call)
@@ -912,6 +961,12 @@ class FlowDriver:
         call.state = state
         call.value = value
         call.error = error
+        call.ended_at = time.time()
+        if state == "returned":
+            try:
+                self._used.update(self._holds(value))
+            except Exception:
+                _logger.exception("holds() of what flow call %s returned raised", call.id)
         if state == "raised" and error is not None:
             call.raised_at = self._raised_at(call, error)
             call.raised_by = failed_key(error)
@@ -923,13 +978,23 @@ class FlowDriver:
         self._running -= 1
         if self._shows(call, state, error):
             self._record(call)
+        top = call._top
+        if top is not None:
+            top._tree -= 1
+        if call is not top:
+            self._ended(call)
+        if top is not None and top._tree == 0 and top.state != "running":
+            top.unawaited = self._unused(top.id)
+            self._ended(top)
+        if state == "closed":
+            for key in sorted(call._cancellable):
+                self._cancel_unwaited(key)
+
+    def _ended(self, call: FlowCall) -> None:
         try:
             self._on_flow_call("end", call)
         except Exception:
             _logger.exception("on_flow_call('end') of flow call %s raised", call.id)
-        if state == "closed":
-            for key in sorted(call._cancellable):
-                self._cancel_unwaited(key)
 
     def _cancel_unwaited(self, key: str) -> None:
         """Cancel the cancellable task of `key` when the flow call that created it is closed

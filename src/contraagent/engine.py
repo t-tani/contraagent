@@ -6,7 +6,7 @@ own builds on them directly.
 """
 
 from contraagent._internal.contracts.contract import Before, Check, InputContract, OutputContract, run_until_valid
-from contraagent._internal.dispatch.flow import Answer, FlowCall, FlowDriver, OnFlowCall, WaitsFor
+from contraagent._internal.dispatch.flow import Answer, FlowCall, FlowDriver, Holds, OnFlowCall, WaitsFor
 from contraagent._internal.dispatch.queue import (
     BetweenPasses,
     ClaimCapacity,
@@ -46,6 +46,7 @@ __all__ = [
     "FlowDriver",
     "FollowUp",
     "HistoryEntry",
+    "Holds",
     "Inflight",
     "InputContract",
     "JournalEstimates",

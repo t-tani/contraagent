@@ -37,7 +37,7 @@ from contraagent._internal.execution.recording_import import RecordingImport, im
 from contraagent._internal.execution.run import RunExists, RunFormatError, RunLocked
 from contraagent._internal.execution.services import Service, service_address
 from contraagent._internal.pipeline.check import CheckReport
-from contraagent._internal.pipeline.graph import Pending, TextOutput, TooManyPasses
+from contraagent._internal.pipeline.graph import Pending, TooManyPasses
 from contraagent._internal.pipeline.loops import max_passes
 from contraagent._internal.pipeline.pipeline import Pipeline, RunReport
 from contraagent._internal.pipeline.spec import AgentTask, OutsideState, PythonTask, agent_task, python_task
@@ -94,7 +94,6 @@ __all__ = [
     "TaskFailed",
     "TaskResult",
     "TaskScope",
-    "TextOutput",
     "TimeBox",
     "TokenUsage",
     "TooManyPasses",

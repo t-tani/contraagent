@@ -791,8 +791,8 @@ export type components = {
          * DeferralCause
          * @description Why a task was deferred, as data (`Deferral.cause`). `cause`: `deadline`,
          *     `grace_window` (past the deadline's grace window), `cannot_finish` (`need_s`, `left_s`),
-         *     `dependency_not_queued`, `dependency_deferred` (a task whose output it reads was
-         *     deferred: `dependency`), `rest` (the credential of every hop it could take rests:
+         *     `dependency_not_queued`, `dependency_deferred` (written by releases before 0.7: a task
+         *     whose output it read was deferred, `dependency`), `rest` (the credential of every hop it could take rests:
          *     `rests`), or a runner's own name. A field a cause does not have is left unset, and
          *     `deferred.jsonl` records only the fields set.
          */
@@ -822,7 +822,7 @@ export type components = {
             rests?: components["schemas"]["SkippedHop"][];
             /**
              * Dependency
-             * @description `dependency_deferred`: the key of the deferred task whose output it reads
+             * @description `dependency_deferred` (releases before 0.7): the key of the deferred task whose output it read
              */
             dependency?: string | null;
         };
@@ -1029,6 +1029,11 @@ export type components = {
             raised_by?: string | null;
             /** @description its own deadline, for a flow call started through `time_box`; else null */
             time_box?: components["schemas"]["TimeBoxRecord"] | null;
+            /**
+             * Unawaited
+             * @description for a top flow call that ended: the keys of the tasks created in it or in the flow calls it started that nothing awaited, waited for with `after=` or returned; they ran all the same
+             */
+            unawaited?: string[];
         };
         /**
          * Frame
@@ -1999,6 +2004,11 @@ export type components = {
              * @description the id of the flow call that created it; null for a task with no origin
              */
             flow_call?: string | null;
+            /**
+             * Given From
+             * @description keys of the tasks whose outputs it was given in its params: an output, or one item of an output that is a list, whose JSON is a value of its params; shown only, never part of its fingerprint
+             */
+            given_from?: string[];
             /**
              * Base Kind
              * @description an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty

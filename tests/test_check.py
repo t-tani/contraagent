@@ -69,12 +69,13 @@ def test_a_sound_flow_passes_and_counts_its_tasks(tmp_path, plugin_dir):
     def total(summaries: list[Summary]) -> int:
         return sum(len(s.points) for s in summaries)
 
-    def flow(units):
-        total(summaries=[summarize(u, path=f"{u}.md", words=3) for u in units])
+    async def flow(units):
+        await total(summaries=await asyncio.gather(*[summarize(u, path=f"{u}.md", words=3) for u in units]))
 
     report = pipeline().check(flow, ["a", "b"])
     assert report.ok, report
-    assert report.kinds == {"summarize": 2, "total": 1}
+    assert report.kinds == {"summarize": 2}  # `total` waits for their outputs, which a check does not give
+    assert report.later_kinds == ["total"]
     assert not (tmp_path / "runs").exists()
 
 
@@ -97,33 +98,31 @@ def test_what_a_run_would_find_one_launch_at_a_time_is_reported_at_once(plugin_d
     review = agent_task("review", plugin=plugin_dir, output=str)  # no budget
 
     def flow():
-        s = summarize("a", path="a.md", words="many")
-        review.options(after=["python:nowhere"])("a", s=s)
+        s = summarize("a", path="a.md", words=3)
+        review.options(after=["python:nowhere", s])("a")
 
     report = pipeline({"tasks": {"sumarize": {"max_turns": 3}}}).check(flow)
     assert not report.ok
     text = "\n".join(report.errors)
     assert "review-a: after='python:nowhere' names no task of this run" in text
-    assert "summarize-a: param words: Input should be a valid integer" in text
     assert "where the in-session hook cannot import it" in text
     assert "no-such-linter-xyz is not on PATH" in text
     assert "kind review has no budget (max_turns, timeout_s): set it in agent_task('review', max_turns=..., timeout_s=...)" in text
     assert any("[tasks.sumarize] is not a kind of this run" in w for w in report.warnings)  # a typo, said out loud
 
 
-def test_parameters_are_validated_as_the_run_will(plugin_dir):
+def test_parameters_are_validated_at_the_call(plugin_dir):
     summarize = agent_task("summarize", plugin=plugin_dir, params=Named, output=Summary, max_turns=5, timeout_s=60)
-    names = agent_task("names", plugin=plugin_dir, params=Named, output=Summary, max_turns=5, timeout_s=60)
 
     def flow():
+        summarize("c", n=1, name="c")
         summarize("a", n=0, name="ABC")  # constraints and validators: the whole model
-        names("b", n=0, name=summarize("c", n=1, name="c"))  # a Pending among them: field by field
 
-    errors = pipeline().check(flow).errors
-    assert "summarize-a: param n: Input should be greater than or equal to 1" in errors
-    assert "summarize-a: param name: Value error, must be lowercase" in errors
-    assert "names-b: param n: Input should be greater than or equal to 1" in errors
-    assert not any(e.startswith("summarize-c") for e in errors)
+    (error,) = pipeline().check(flow).errors
+    assert f"{__file__}:" in error
+    assert (
+        "params do not validate under Named: n: Input should be greater than or equal to 1; name: Value error, must be lowercase" in error
+    )
 
 
 def test_a_flow_that_raises_is_reported_at_the_callers_line(plugin_dir):
@@ -201,7 +200,7 @@ def test_every_routing_problem_is_reported_in_one_check(plugin_dir):
     }
 
     def flow():
-        review("a", s=summarize("a"))
+        review.options(after=[summarize("a")])("a")
 
     errors = Pipeline(PipelineConfig(config)).check(flow).errors
     assert [e.split("; expected")[0].split("; claude takes")[0].split("; known:")[0] for e in errors] == [
@@ -438,7 +437,8 @@ def test_the_first_steps_params_and_flow_call_errors_are_reported(plugin_dir):
         await asyncio.gather(part("a"), bad("b"))
 
     report = pipeline().check(flow)
-    assert "named-a: param n: Input should be greater than or equal to 1" in report.errors
+    [refused] = [e for e in report.errors if e.startswith("flow call 0.1 ")]
+    assert "part): " in refused and "params do not validate under Named: n: Input should be greater than or equal to 1" in refused
     [raised] = [e for e in report.errors if e.startswith("flow call 0.2 ")]
     assert "bad): " in raised and f"{__file__}:" in raised and raised.endswith("ValueError: no b")
 

@@ -1,10 +1,11 @@
 """The demo pipeline's tasks and flows: the part of a pipeline that is its own.
 
 Each agent task is an interface (parameters, output, budget) whose
-implementation is a role of the `plugins/docs` plugin. A flow is a plain
-function: passing one task's result to another is the dependency. `docs` is an
-`async def` flow: it waits for results and decides on them (a review loop per unit).
-`docs_one_review` creates the same kinds of tasks without waiting for any.
+implementation is a role of the `plugins/docs` plugin. A flow that gives one task
+another's output is an `async def` function: it awaits the output and passes the
+value on. `docs_one_review` reviews each unit once; `docs` decides on the results
+(a review loop per unit). Each runs a flow call per unit, so a unit that fails stops
+only its own.
 
 Each output declares an example that passes its validators (`examples` in its JSON
 Schema), so a stub run (`contraagent run tasks.py:docs --stub`) writes it and goes
@@ -115,7 +116,7 @@ def prepare(unit: str) -> Prepared:
     """A Python task: leave a checked description of the input for the agent."""
     path = INPUT_DIR / f"{unit}.md"
     if unit == "zeta":
-        raise ValueError("zeta's input is malformed")  # its downstream tasks are refused, not launched
+        raise ValueError("zeta's input is malformed")  # its flow call stops: its later tasks are not created
     return Prepared(unit=unit, path=str(path), words=len(path.read_text(encoding="utf-8").split()))
 
 
@@ -134,21 +135,25 @@ def report(summaries: list[Summary]) -> str:
     return "\n".join(f"{s.unit}: {len(s.points)} points" for s in summaries)
 
 
-def docs_one_review(units: list[str]):
-    """Per unit: prepare -> summarize -> score -> review, and a note; then one report, returned."""
-    summaries = []
-    for u in units:
-        summary = summarize(u, prepared=prepare(u))
-        review(u, summary=summary, score=score(u, summary=summary))
-        write_note(u, summary=summary)
-        summaries.append(summary)
-    return report(summaries=summaries)
+async def one_review(unit: str) -> Summary:
+    """One unit: prepare -> summarize -> score -> review, and a note beside the review."""
+    summary = await summarize(unit, prepared=await prepare(unit))
+    figures = await score(unit, summary=summary)
+    await asyncio.gather(review(unit, summary=summary, score=figures), write_note(unit, summary=summary))
+    return summary
+
+
+async def docs_one_review(units: list[str]):
+    """Every unit's review at once (a flow call each), then one report over the units that
+    got through, returned."""
+    done = await asyncio.gather(*[one_review(u) for u in units], return_exceptions=True)
+    return await report(summaries=[s for s in done if isinstance(s, Summary)])
 
 
 async def review_loop(unit: str):
     """One unit: its summary, revised until the review approves it, then its note. A task
     that fails ends this flow call, and only this one."""
-    summary = await summarize(unit, prepared=prepare(unit))
+    summary = await summarize(unit, prepared=await prepare(unit))
     while True:
         figures = await score(unit, summary=summary)
         verdict = await review(unit, summary=summary, score=figures)

@@ -88,12 +88,28 @@ DIFFERENCES: dict[str, list[Allowed]] = {
             "Both loops' TooManyPasses are flow errors; on 0.6.2 only the top flow call that raised one was.",
         ),
     ],
+    "demo.docs.demo": [
+        Allowed(
+            ("tasks/summarize-zeta", "report/failed"),
+            "pending-to-await",
+            "zeta's `prepare` fails. On 0.6.2 `review_loop` passed the prepare call to `summarize`, which was "
+            "created and refused (invalid_input); now it awaits `prepare`, so zeta's summary is not created and "
+            "does not count as failed.",
+        ),
+    ],
     "demo.docs_one_review.demo": [
         Allowed(
-            ("tasks/python:score-zeta", "tasks/review-zeta", "tasks/write_note-zeta", "tasks/python:report"),
+            (
+                "tasks/summarize-zeta",
+                "tasks/python:score-zeta",
+                "tasks/review-zeta",
+                "tasks/write_note-zeta",
+                "tasks/python:report",
+            ),
             "pending-to-await",
-            "zeta's `prepare` fails. On 0.6.2 the flow does not wait, so zeta's score, review and note and the "
-            "report are created and refused (invalid_input); awaited, they are not created.",
+            "zeta's `prepare` fails. On 0.6.2 the flow does not wait, so zeta's summary, score, review and note "
+            "and the report are created and refused (invalid_input); awaited, zeta's are not created, and the "
+            "report runs over the other units.",
         ),
         Allowed(
             ("report/failed", "report/ok", "outputs/report/*", "value"),

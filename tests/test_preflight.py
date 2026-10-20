@@ -126,8 +126,8 @@ write = agent_task("write", instructions="Write a note.", output=Note, max_turns
 check = agent_task("check", instructions="Check the note.", output=Note, max_turns=3, timeout_s=60)
 
 
-def flow():
-    check(note=write(unit="a"), unit="a")
+async def flow():
+    await check(note=await write(unit="a"), unit="a")
 
 
 class Listed(StubAgent):

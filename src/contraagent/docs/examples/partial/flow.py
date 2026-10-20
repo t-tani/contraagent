@@ -3,11 +3,14 @@
 `find_sources` asks a local index server for the files on a topic. When the server
 does not answer, the lookup returns `Partial`: an empty list of files as its output,
 and why. The run goes on: `summarize` runs on what the lookup wrote. A later resume
-runs that lookup again, with the `summarize` that read its output; every other task
-it skips.
+runs that lookup again; the `summarize` given its output runs again when the lookup
+now finds other files, since the output is part of its params. Every other task it
+skips.
 """
 
 from __future__ import annotations
+
+import asyncio
 
 from pydantic import BaseModel
 
@@ -57,6 +60,11 @@ summarize = agent_task(
 )
 
 
-def topics(names: list[str]):
-    for name in names:
-        summarize(name, sources=find_sources(name))
+async def topic(name: str) -> None:
+    """One topic: its sources, then its summary."""
+    await summarize(name, sources=await find_sources(name))
+
+
+async def topics(names: list[str]):
+    """Every topic at once (a flow call each): a topic that fails stops only its own."""
+    await asyncio.gather(*[topic(name) for name in names], return_exceptions=True)

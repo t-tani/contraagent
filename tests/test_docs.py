@@ -253,7 +253,7 @@ def test_the_demo_runs_end_to_end_as_its_docstring_says(tmp_path, monkeypatch):
     report = demo.main(["--no-serve", "--fast"])
     stops = {k: r.stop for k, r in report.results.items()}
     assert stops["python:prepare-zeta"] == "error"
-    assert stops["summarize-zeta"] == "invalid_input"  # zeta's review loop ends there
+    assert "summarize-zeta" not in stops  # zeta's review loop ends at the await of its prepare
     assert all(r.ok for k, r in report.results.items() if "zeta" not in k) and report.flow_errors == []
     assert report.value == "\n".join(f"{u}: 3 points" for u in ("alpha", "beta", "gamma", "delta", "epsilon"))
     rows = [json.loads(line) for line in (report.run_dir / "journal.jsonl").read_text(encoding="utf-8").splitlines()]
@@ -318,7 +318,7 @@ def test_the_tutorial_commands_print_what_the_page_shows(tmp_path):
             encoding="utf-8",
         )
         assert proc.returncode == 0, proc.stdout + proc.stderr
-        shown = [line for line in proc.stdout.splitlines() if line.startswith(("✓ 4 tasks", "  triage", "  write_table"))]
+        shown = [line for line in proc.stdout.splitlines() if line.startswith(("✓ 3 tasks", "  triage", "  write_table"))]
         assert shown and all(line in page for line in shown), shown
 
 

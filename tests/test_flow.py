@@ -1,5 +1,6 @@
 """The pipeline API end to end: agent_task + plugin + call file, Python tasks, validators, resume."""
 
+import asyncio
 import json
 import sys
 from pathlib import Path
@@ -7,7 +8,7 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel, Field
 
-from contraagent import CommandValidator, ConfigError, Overrides, Pipeline, PipelineConfig, agent_task, python_task
+from contraagent import CommandValidator, ConfigError, Overrides, Pipeline, PipelineConfig, TaskFailed, agent_task, python_task
 from contraagent._internal.cli import _spent
 from contraagent._internal.contracts.calls import validate_call
 from contraagent._internal.platform import envvars
@@ -68,13 +69,14 @@ def test_a_flow_runs_in_dependency_order_with_typed_outputs(tmp_path, plugin_dir
 
     handles = {}
 
-    def docs(units):
-        verdicts = []
-        for u in units:
-            s = summarize(u, path=f"in/{u}.md")
-            verdicts.append(review(u, summary=s))
-            handles[u] = s
-        handles["report"] = report(verdicts=verdicts)
+    async def one(u):
+        handles[u] = summarize(u, path=f"in/{u}.md")
+        return await review(u, summary=await handles[u])
+
+    async def docs(units):
+        verdicts = await asyncio.gather(*[one(u) for u in units])
+        handles["report"] = report(verdicts=list(verdicts))
+        await handles["report"]
 
     agent = stub()
     rep = pipeline(tmp_path, agent).run(docs, units=["a", "b"])
@@ -141,18 +143,18 @@ def test_a_text_output_with_a_linter(tmp_path, plugin_dir):
     assert holder["d"].path.suffix == ".md" and agent.launches[0].call.output.format == "text"
 
 
-def test_a_failed_upstream_refuses_its_consumers_before_launch(tmp_path, plugin_dir):
+def test_a_failed_upstream_stops_the_flow_call_before_its_consumers_are_created(tmp_path, plugin_dir):
     summarize, review = declare(plugin_dir, retries=0)
     # The upstream fails outright: the rounds that lead to invalid_output are the contracts' tests.
     agent = StubAgent({"summarize": fails(Stop.INVALID_OUTPUT), "review": good_answer})
 
-    def flow():
-        review("u", summary=summarize("u", path="x"))
+    async def flow():
+        await review("u", summary=await summarize("u", path="x"))
 
     rep = pipeline(tmp_path, agent).run(flow)
     stops = {k: r.stop for k, r in rep.results.items()}
-    assert stops == {"summarize-u": "invalid_output", "review-u": "invalid_input"}
-    assert all(launch.kind == "summarize" for launch in agent.launches)  # review never launched
+    assert stops == {"summarize-u": "invalid_output"}  # review is never created
+    assert all(launch.kind == "summarize" for launch in agent.launches)
 
 
 def test_the_value_of_a_flow_that_does_not_yield_is_what_it_returned(tmp_path, plugin_dir):
@@ -166,44 +168,30 @@ def _one_point(path, s: Summary):
     return None if len(s.points) > 1 else "points: give at least two"
 
 
-@pytest.mark.parametrize("yields", [False, True])
-def test_an_output_its_validators_rejected_refuses_every_task_that_reads_it(tmp_path, plugin_dir, yields):
+def test_an_output_its_validators_rejected_raises_where_it_is_awaited(tmp_path, plugin_dir):
     # The file the rounds left behind meets its schema; only a validator rejected it.
     summarize, review = declare(plugin_dir, retries=0, validators=[_one_point])
-    ran = []
-
-    @python_task
-    def count(summaries: dict[str, Summary]) -> int:
-        ran.append(summaries)
-        return len(summaries)
-
     agent = StubAgent({"summarize": {"unit": "u", "summary": "s", "points": ["a"]}, "review": good_answer})
+    raised = []
 
     async def flow():
-        s = summarize("u", path="x")
-        if yields:
-            try:
-                await s
-            except Exception:
-                pass
-        review("u", summary=s)
-        count(summaries={"u": s})
+        try:
+            await review("u", summary=await summarize("u", path="x"))
+        except TaskFailed as exc:
+            raised.append((exc.key, exc.stop))
 
     rep = pipeline(tmp_path, agent, overrides=Overrides(agent="omp")).run(flow)
-    stops = {k: r.stop for k, r in rep.results.items()}
-    assert stops == {"summarize-u": "invalid_output", "review-u": "invalid_input", "python:count": "invalid_input"}
-    assert ran == [] and all(launch.kind == "summarize" for launch in agent.launches)
-    assert rep.results["review-u"].reason.startswith("invalid input: input from summarize-u ended invalid_output: ")
-    assert rep.results["python:count"].reason.startswith("invalid input: input from summarize-u ended invalid_output: ")
+    assert {k: r.stop for k, r in rep.results.items()} == {"summarize-u": "invalid_output"}
+    assert raised == [("summarize-u", "invalid_output")] and all(launch.kind == "summarize" for launch in agent.launches)
 
 
 def test_resume_skips_finished_work_and_still_reads_its_output(tmp_path, plugin_dir):
     summarize, review = declare(plugin_dir)
     handles = {}
 
-    def flow():
+    async def flow():
         handles["s"] = summarize("u", path="x")
-        handles["r"] = review("u", summary=handles["s"])
+        handles["r"] = review("u", summary=await handles["s"])
 
     agent = stub()
     pipeline(tmp_path, agent).run(flow)
@@ -310,29 +298,23 @@ def test_a_validator_may_take_the_tasks_params_and_call_file(tmp_path, plugin_di
     assert validate_call(env={envvars.CALL: call}) == (0, "")
 
 
-def test_a_python_task_validator_gets_the_resolved_params(tmp_path, plugin_dir):
+def test_a_python_task_validator_gets_the_params(tmp_path, plugin_dir):
     summarize, _ = declare(plugin_dir)
     seen = []
 
     def same_unit(path, n: int, *, params):
-        seen.append(params["summary"].unit)
+        seen.append(params["summary"]["unit"])  # the params as JSON, as an agent task's validator gets them
 
     @python_task(validators=[same_unit])
     def count(summary: Summary) -> int:
         return len(summary.points)
 
-    def flow():
-        return count(summary=summarize("u", path="x"))
+    async def flow():
+        return count(summary=await summarize("u", path="x"))
 
     rep = pipeline(tmp_path, stub()).run(flow)
     assert rep.ok and seen == ["u"] and rep.value.output == 2  # the flow's return value, read after the run
     assert rep.value.path.name == "count.json"  # no ':' from the key `python:count`
-
-
-def test_a_refused_task_names_the_task_that_did_not_write_its_input(tmp_path, plugin_dir):
-    summarize, review = declare(plugin_dir, retries=0)
-    rep = pipeline(tmp_path, StubAgent({"summarize": fails()})).run(lambda: review("u", summary=summarize("u", path="x")))
-    assert rep.results["review-u"].reason.startswith("invalid input: input from summarize-u is missing")
 
 
 def test_a_run_id_that_holds_a_run_is_refused_unless_resumed(tmp_path, plugin_dir):

@@ -33,9 +33,11 @@ for another port).
 3. **Plugin.** `contraagent plugin new plugins/<name>`, then the procedure in
    `agents/<role>.md`, then `contraagent plugin lint`. → [Plugins](plugins.md)
 4. **Python tasks.** `@python_task` for anything code does deterministically. → [Tasks](tasks.md)
-5. **Flow.** A function that calls the tasks; passing a task's result to another
-   is the dependency. A flow that waits is an `async def` function: it receives
-   outputs at each `await` and decides what runs next from them. → [Tasks](tasks.md)
+5. **Flow.** A function that calls the tasks. A task is given values: a flow that
+   gives a task another task's output is an `async def` function, which receives the
+   output at an `await` and passes the value on, and decides what runs next from it.
+   A plain `def` flow creates tasks that are independent or ordered with `after=`
+   only. → [Tasks](tasks.md)
 6. **Config.** Where each kind runs, in TOML. → [Routing](routing.md)
 7. **Check.** `contraagent check tasks.py:<flow> --config pipeline.toml --kwargs '{...}'`
    until it prints ✓. → [Checking and testing](testing.md)
@@ -114,8 +116,13 @@ for another port).
   on tasks belongs in a flow, with its Python steps as separate Python tasks.
 - A task is called inside a flow only; `pending.output` is read after the run (an
   async flow receives the output at the `await`).
-- A failed task refuses every task that reads its output; a task that reads
-  every unit's output (a report) is refused when any of them failed.
+- A task call's `Pending` given to another task as a param (`review(u, summary=summarize(u))`)
+  raises `TypeError` at the call: await it and pass the output
+  (`summary=await summarize(u)`), or give it in `.options(after=[...])` when the second
+  task only has to start after the first.
+- A task that reads what a task before it (`after=`) changed in the working tree
+  declares that state with `outside_state=`: an `after=` task is not part of its
+  fingerprint, so a resume would skip it with the old state.
 - The library reports through `logging` (`contraagent.*`): configure it at INFO
   to see routing, each task's start and end, correction rounds and model switches.
 - Running a flow again under the same run id needs `resume=True` (`--resume`), or another run id.

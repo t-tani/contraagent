@@ -181,7 +181,7 @@ def test_a_scope_for_one_executor_leaves_the_other_and_agent_tasks_keep_theirs(t
     every: list = []
     agent = StubAgent({"note": {"text": "t"}})
     report = pipeline(tmp_path, backends=agent.backends(), scopes=[python_only, recording_scope(every)]).run(
-        lambda: note("a", n=count("a"))
+        lambda: note.options(after=[count("a")])("a", n={"n": 1})
     )
     assert report.ok, report.failed
     assert seen == [("enter", "python", "count", 0), ("exit", "python", "count", 0)]

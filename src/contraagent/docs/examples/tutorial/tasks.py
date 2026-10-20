@@ -58,10 +58,10 @@ def report_path(name: str) -> str:
     return f"issues/{name}.md"
 
 
-def triage_all(reports: list[str]):
+async def triage_all(reports: list[str]):
     """Triage every report at once, then write one table."""
-    triaged = {name: triage(name, report=report_path(name)) for name in reports}
-    return write_table(triaged=triaged)
+    found = await asyncio.gather(*[triage(name, report=report_path(name)) for name in reports])
+    return await write_table(triaged=dict(zip(reports, found, strict=True)))
 
 
 async def triage_one(name: str):

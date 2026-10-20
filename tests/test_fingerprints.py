@@ -1,6 +1,6 @@
-"""A task's fingerprint takes each output it reads by its content: an output the flow received as
-it received it, one it passed on unreceived as the file is when the task is about to start.
-A resume skips a matching task only when its output still reads under its output schema."""
+"""A task's fingerprint is what it is given and what it observes: an output it is given is part of
+its params, by its content, and a task it only waits for (`after=`) is no part of it. A resume
+skips a matching task only when its output still reads under its output schema."""
 
 import json
 
@@ -26,11 +26,11 @@ def tasks(instructions: str = "Write."):
 
 
 def passing_on(instructions: str = "Write."):
-    """A flow that does not wait: `check` is given `write`'s `Pending`, never its output."""
+    """`check` is given the output of `write` the flow received."""
     write, check = tasks(instructions)
 
-    def flow():
-        check("u", doc=write("u"))
+    async def flow():
+        await check("u", doc=await write("u"))
 
     return flow
 
@@ -116,9 +116,26 @@ def test_an_unchanged_run_resumes_with_nothing_launched(tmp_path):
     assert rep.ok and agent.launches == []
 
 
-def test_a_task_that_only_waits_takes_the_fingerprint_of_the_task_it_waits_for(tmp_path):
+def test_a_task_that_only_waits_is_skipped_when_the_task_it_waits_for_runs_again(tmp_path):
     agent = Agent()
     assert pipeline(tmp_path, agent).run(ordering(), run_id="r").ok
     agent.launches.clear()
+    agent.text = "second"
     rep = pipeline(tmp_path, agent).run(ordering("Write more."), run_id="r", resume=True)
-    assert rep.ok and keys(agent) == ["write-u", "check-u"]  # the same output, but after reads none
+    assert rep.ok and keys(agent) == ["write-u"]  # after= is no part of check's fingerprint
+    assert rep.results["check-u"].stop == "skipped"
+
+
+def test_after_does_not_change_the_fingerprint(tmp_path):
+    write, check = tasks()
+
+    def alone():
+        check("u")
+
+    def after():
+        check.options(after=[write("u")])("u")
+
+    agent = Agent()
+    first = pipeline(tmp_path, agent).run(alone, run_id="a")
+    second = pipeline(tmp_path, agent).run(after, run_id="b")
+    assert first.results["check-u"].task.fingerprint == second.results["check-u"].task.fingerprint

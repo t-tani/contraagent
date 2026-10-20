@@ -81,11 +81,16 @@ class Origin:
     that flow call's previous resume and the resume in which it created the task
     (the flow call's frontier: see `FlowDriver`).
     `flow_call`: the id of the flow call that created it.
+    `given_from`: the keys of the tasks whose outputs it was given in its params: of the
+    outputs the flow had received when it created the task, each one that is among its
+    params whole, or one whole item of which is (an output that is a list, a Rows), by its
+    JSON. Shown only, never part of its fingerprint.
     """
 
     flow: tuple[Frame, ...] = ()
     created_from: tuple[str, ...] = ()
     flow_call: str = "0"
+    given_from: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -150,7 +155,7 @@ class Task:
     a resumed run skips a key only when its last journal row is ok with the
     same fingerprint.
     `fingerprint_at_start`: its fingerprint is complete only when it is about to start (it
-    covers outside state, its own or that of a task it waits for): the queue asks the
+    covers outside state, or the file an `output_of` task fills in): the queue asks the
     runner for the task as it starts (`starting`) and a resume asks whether to skip it
     then, not when it is queued.
     `outside`: the SHA-256 of its outside state, once it is about to start; empty for a

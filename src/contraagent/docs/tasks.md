@@ -37,20 +37,21 @@ them all):
 
 A function becomes a task with the same contract machinery: its return
 annotation is its output contract, a function with a `unit` parameter is given
-the unit, and a raised exception fails the task. Its parameters' annotations are
-its input types: each argument is checked and converted before the call (pydantic,
-lax mode), so a dict given to a model parameter arrives as the model, a list of
-dicts given to `list[Model]` as a list of models, and an output of another task as
-its value. An argument that does not match refuses the task (`invalid_input`, the
-parameter named in its reason) and the function is not called; an unannotated
-parameter takes its argument as it is. It runs in this process, in its current
+the unit, and a raised exception fails the task. Its arguments are JSON values,
+copied at the task call, and its parameters' annotations are its input types: each
+argument is checked and converted before the call (pydantic, lax mode), so a model
+given to a model parameter arrives as the model, a list of dicts given to
+`list[Model]` as a list of models, and `"3"` given to `int` as 3. An argument that
+does not match refuses the task (`invalid_input`, the parameter named in its reason)
+and the function is not called; an unannotated parameter takes the JSON as it is (a
+model as a dict, a tuple as a list). It runs in this process, in its current
 directory (a relative path it opens resolves there, not against `Pipeline(cwd=)`), and
 has no budget: budgets cap coding-agent launches. A step with a side effect (a
 fetch, a write outside the run directory, a push) belongs in a Python task, not
 in the flow's own body: a stub run plays Python tasks and runs flow code as it is
 (see `testing`).
 
-::code{file="examples/demo/tasks.py" from="@python_task" to="def docs_one_review("}
+::code{file="examples/demo/tasks.py" from="@python_task" to="async def one_review("}
 
 ### Retries
 
@@ -100,31 +101,41 @@ it wrote passes its checks: `agent_task(partial_on=["timeout", "stalled"])`, in
 
 ## The flow
 
-A flow is a function, with no decorator. A flow that waits for outputs is an
-`async def` function (see [Flows that depend on results](#flows-that-depend-on-results));
-a flow that does not wait is a plain `def` function. `Pipeline` tells one from the
-other by itself.
+A flow is a function, with no decorator. A flow that gives a task another task's
+output is an `async def` function: it awaits the output and passes the value on (see
+[Flows that depend on results](#flows-that-depend-on-results)). A plain `def`
+function is a flow too, for tasks that are independent of each other or ordered with
+`after=` only. `Pipeline` tells one from the other by itself.
 
-A flow that does not wait creates every task at once:
+The demo's `docs_one_review` reviews each unit in a flow call of its own, then
+writes one report over the units that got through:
 
-::code{file="examples/demo/tasks.py" from="def docs_one_review(" to="def review_loop("}
+::code{file="examples/demo/tasks.py" from="async def one_review(" to="async def review_loop("}
 
 Calling a task inside a flow does not run it. It returns a `Pending`, a
 reference to the task's future output:
 
-- Passed to another task (also inside a list or a dict), it makes that task
-  wait. Its file becomes the consumer's checked input, and its value is what
-  the consumer receives.
-- A task whose input failed is refused before launch (`invalid_input`), not run
-  on nothing. In `docs_one_review` `prepare` raises for `zeta`, so `zeta`'s
-  summary, score, review and note are refused, and so is the report, which
-  needs every summary.
+- Awaited in an async flow, it gives the task's checked output. A task is given
+  values: its params are copied as JSON at the call, so what the flow does with a
+  value afterwards does not reach the task. An output the flow received is a value
+  like any other, and so is a copy of it or a field of it.
+- A `Pending` among the params of another task call, at any depth (in a list, a
+  dict or a model), raises `TypeError` at that call, which says how to write it:
+  await the task call and pass its output, or give the task call in
+  `.options(after=[...])` for an order with no output passed on. A value that is
+  not JSON (an object pydantic cannot turn into JSON, a NaN) raises `TypeError`
+  there too.
+- A task called and never awaited, never given in `after=` and never returned runs
+  all the same, for its output file and its changes: it is an unawaited task, which
+  the end of its top flow call lists (`flow_calls.jsonl` `unawaited`). That is
+  information, not an error.
 - A task's key, an order without data, a priority, a credential and cancellation
   are its call options, given by `task.options(...)` (see below).
 - A call that the run could not make raises `TypeError` at the call, and
   `contraagent check` reports it at the flow's line: for a Python task a keyword
-  its function has no parameter for, or a required parameter left out, and for
-  any task a call option given as a keyword of the call.
+  its function has no parameter for, or a required parameter left out, for an agent
+  task params its params model does not validate, and for any task a call option
+  given as a keyword of the call.
 - After the run, `pending.output` is the checked value.
 
 ### Call options
@@ -148,7 +159,9 @@ Each option is checked where `options` is given; one that is wrong raises
   the unit (see below). Two tasks of one kind on one unit with different keys are
   two tasks with two files.
 - `after` is a list of tasks, each a task call's `Pending` or a task's key: the task
-  starts after them, with no output passed on.
+  starts after them, with no output passed on. They are not part of its fingerprint:
+  a task that reads what they changed in the working tree declares that state with
+  `outside_state=` (see below).
 - `priority` breaks ties in the queue, higher first (see below).
 - `credential` (an agent task's) names the `[credentials.<name>]` that task runs as
   on every route of its kind, in place of the kind's own; how it ranks, fails over
@@ -215,36 +228,43 @@ journal row is ok with the same fingerprint is skipped, its output read from the
 run directory. Another run id starts a new run. A run directory a newer
 contraagent wrote, of a run format this one does not read (`run.json` `format`), is
 not resumed (`RunFormatError`; [Compatibility](compatibility.md#run-formats-and-schemas)). A task's fingerprint is a digest
-of:
+of what it is given and what it observes:
 
-- its kind, unit, key and params;
+- its kind, unit and key;
+- its params, as the JSON the task call copied: an output it was given is part of
+  them, by its content; an agent task's params model fills in its defaults, and a
+  Python task's function's defaults are filled in, so a call that gives a default
+  and one that leaves it out have one fingerprint;
 - its definition: for an agent task, its instructions, its role file's content,
   the skills of its plugin and of each plugin of its `skills_from`, its output
   schema, its validators and its params schema; for a Python task, its function's
   source, its output schema and its validators;
-- each output it reads, by the content of that output file: as the flow received
-  it, for an output the flow received and passed on (an async flow); as the file
-  is when the task is about to start, for a task call passed before it finished
-  (as in a flow that does not wait);
-- each other task it waits for (`after=`): that task's fingerprint;
 - for a task that fills in another task's file (`output_of`), the content of
   that file as it was when the task was about to start;
 - its outside state, when it declares one (below).
 
 The journal row of each attempt keeps a digest of each of these parts beside the
-fingerprint (`fingerprint_parts`): `definition`, `params`, `output:<key>` for each
-output it reads, `after:<key>` for each other task it waits for, `outside` and
+fingerprint (`fingerprint_parts`): `definition`, `params`, `outside` and
 `output_of`.
 
 A changed parameter or an edited instruction, role file or function runs its task
-again. A task that reads another task's output runs again only when that output
-changed: a task that ran again and wrote the same output leaves the tasks that
-read it skipped, in a flow that waits and in one that does not. An output file
-changed under a skipped task (by hand, or by another program) runs again the tasks
-that read it. A task that only waits for another (`after=`) runs again whenever
-the other does. The functions that call the
+again. A task given another task's output runs again only when that output
+changed: a task that ran again and wrote the same output leaves the tasks given it
+skipped, and one that wrote another output runs them again, since the flow receives
+the new output and passes it on. A task it waits for with `after=` is not part of
+the fingerprint, and neither is where its params came from: a task that reads what
+another task changed in the working tree declares that state with `outside_state=`
+(below), and then runs again when the state changed. The functions that call the
 tasks, their names and lines are not part of it: renaming a function of the flow
 runs nothing again.
+
+Where a task's params came from is recorded beside the fingerprint, and never
+changes what a resume skips. A task is given from the tasks whose outputs the flow
+had received when it created the task and are among its params: `plan.jsonl`
+`given_from`. A value of the params, at any depth, counts when its JSON is that of a
+whole output, or of one whole row of an output that is a list (a Rows). A copy of an
+output counts as the output. A field or a text taken out of an output, or a value built
+from it, does not: the task's created from still shows which results it came after.
 
 A resume skips a task only when its output still reads under its output schema.
 An output file that no longer does (one edited by hand into another shape) runs
@@ -283,9 +303,9 @@ backlog file, and the function returns the file's digest:
 ::code{file="examples/outside/flow.py" from="@python_task(outside_state" to="def topics("}
 
 - The function is called when the task is about to start, once every task it waits
-  for finished, with its params and the outputs it is given. So it sees what those
-  tasks wrote, and a resume compares the state as it is then. A relative path is
-  relative to the pipeline's process, as in the task itself.
+  for finished, with its unit and its params as JSON (the call file's `params`). So
+  it sees what those tasks wrote, and a resume compares the state as it is then. A
+  relative path is relative to the pipeline's process, as in the task itself.
 - It returns any JSON value: a digest, a version, a list or a dict of them, a pydantic
   model. A digest stands for a file of any size; `hashlib.file_digest` reads it in
   blocks. A file that is missing is a state too: return a value for it (an empty
@@ -294,9 +314,9 @@ backlog file, and the function returns the file's digest:
   (`invalid_input`, its reason the exception), and the tasks that wait for it do not
   start. `contraagent check` calls it for every task whose params are known before the
   run and reports the same.
-- A task that reads the output of one with outside state runs again when that
-  output changed, as for any output it reads. A task that only waits for it
-  (`after=`) runs again when it runs again.
+- A task given the output of one with outside state runs again when that output
+  changed, as for any output it is given. A task that only waits for it (`after=`)
+  does not run again with it, unless it declares outside state of its own.
 - A file the task itself writes is no outside state: its digest changes with every
   run, so the task would run again on every resume. `rerun_on_resume` and
   `outside_state` do not go together.
@@ -308,10 +328,10 @@ When a resume runs a task again that an earlier attempt finished, its journal ro
 says why in `rerun` (`its outside state changed`, `its last result was partial`,
 ...), the start line of the log says so too, and the monitor shows it on the task.
 A changed fingerprint names each part that changed: `its fingerprint changed: its
-definition`, `its fingerprint changed: the output of write-u it reads`.
+definition`, `its fingerprint changed: its params`.
 
-A task whose params changed although every task it was given an output of or was
-created from was skipped is a **divergence**: the flow gave other params for the
+A task whose params changed although every task it was given from or was created
+from was skipped is a **divergence**: the flow gave other params for the
 same outputs. The flow's code reads a clock, randomness or outside state, or the
 code itself changed. The task runs again with `rerun` `divergence: ...`, and the
 run logs a warning, `[resume] <key>: divergence: ...`. Its fingerprint keeps a
@@ -348,7 +368,8 @@ on, and the report joins the units that got through (see
   the output's type.
 - A task call does not wait. It queues the task and returns its `Pending` at once,
   so a helper function that only creates tasks can be a plain `def`. A task called
-  and never awaited still runs; the flow call does not wait for it.
+  and never awaited still runs; the flow call does not wait for it, and its top flow
+  call lists it as unawaited once every flow call it started has ended.
 - `await sub(...)`, for an `async def` function `sub` of flow code, runs `sub` in
   the same flow call, as any function call does. A coroutine that is never awaited
   (`sub(u)` without `await`) never runs: the run logs a warning line for it, and
@@ -359,9 +380,10 @@ on, and the report joins the units that got through (see
   flow, `sub(...)`: every asyncio Task that flow code starts is a flow call of its
   own, beside the others, and what it returns is its item.
   `asyncio.TaskGroup` and `asyncio.create_task` start flow calls in the same way.
-- Passing a received output on to another task is the dependency, as passing
-  the task call is: the second review waits for the revision and reads its file.
-  A number, a bool, None or a `str` the flow built is a value.
+- A received output is a value: the flow passes it on to another task as it passes
+  any value, and the task is given a copy, made at the call. The second review is
+  given the revision the flow received. A task call itself is never passed: its
+  `Pending` among the params of another task call raises `TypeError`.
 - A task that did not succeed raises `TaskFailed` at the `await` (`.stop`,
   `.key`, `.result`, and `.item`, the task call); a refused task too
   (`invalid_input`), and an output that no longer passes its checks

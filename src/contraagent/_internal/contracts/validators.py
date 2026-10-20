@@ -10,9 +10,8 @@ agent exactly like schema errors: as the next turn of the same session.
         if not summary.points:
             return ["points: give at least one point"]
 
-A validator that also declares `params` is given the task's params (an agent
-task's as its call file holds them, a Python task's with every upstream value
-resolved); one that declares `call` is given the path of an agent task's call
+A validator that also declares `params` is given the task's params as JSON, as
+the task call copied them (an agent task's as its call file holds them); one that declares `call` is given the path of an agent task's call
 file; one that declares `cwd`, the task's working directory. A rule that relates
 the output to the input needs them:
 

@@ -2,7 +2,7 @@
 // task joined to them.
 import type { PlanNode } from '@contraagent/api';
 
-/** The plan's tasks by key, and the tasks that wait for each task. */
+/** The plan's tasks by key, and the tasks that wait for each task or were given its output. */
 export interface TaskLinks {
   byKey: ReadonlyMap<string, PlanNode>;
   waiters: ReadonlyMap<string, readonly string[]>;
@@ -10,7 +10,7 @@ export interface TaskLinks {
 
 export function taskLinks(nodes: readonly PlanNode[]): TaskLinks {
   const waiters = new Map<string, string[]>();
-  for (const n of nodes) for (const d of n.after ?? []) (waiters.get(d) ?? waiters.set(d, []).get(d))?.push(n.key);
+  for (const n of nodes) for (const d of earlier(n)) (waiters.get(d) ?? waiters.set(d, []).get(d))?.push(n.key);
   return { byKey: new Map(nodes.map((n) => [n.key, n])), waiters };
 }
 
@@ -35,6 +35,11 @@ export function related(nodes: readonly PlanNode[], links: TaskLinks, hl: string
     }
   };
   walk((k) => links.waiters.get(k) ?? []);
-  walk((k) => links.byKey.get(k)?.after ?? []);
+  walk((k) => { const n = links.byKey.get(k); return n ? earlier(n) : []; });
   return on;
+}
+
+/** The tasks a task comes after: those it waits for, and those whose outputs it was given. */
+function earlier(n: PlanNode): string[] {
+  return [...new Set([...(n.after ?? []), ...(n.given_from ?? [])])];
 }

@@ -121,8 +121,8 @@ def test_a_value_that_is_not_json_refuses_the_task(tmp_path):
     assert "which is not JSON" in report.results["python:tally-a"].reason
 
 
-def test_the_function_is_called_when_the_task_starts_with_its_params_resolved(tmp_path):
-    """It sees what an earlier task wrote, and the outputs it is given."""
+def test_the_function_is_called_when_the_task_starts_with_its_params_as_json(tmp_path):
+    """It sees what an earlier task wrote, and the params as the call file holds them."""
     seen: list[tuple[str, dict]] = []
     state = tmp_path / "state.txt"
 
@@ -139,19 +139,17 @@ def test_the_function_is_called_when_the_task_starts_with_its_params_resolved(tm
     def read(unit: str, count: Count) -> Count:
         return Count(n=count.n)
 
-    def flow():
-        c = write("a")
-        read("a", count=c)  # not yielded: a Pending, resolved when the task starts
+    async def flow():
+        await read("a", count=await write("a"))
 
     report = pipeline(tmp_path).run(flow)
     assert report.ok
     [(unit, params, text)] = seen
-    assert unit == "a" and params["count"] == Count(n=7) and text == "written"
+    assert unit == "a" and params["count"] == {"n": 7} and text == "written"
 
 
-def test_a_task_that_waits_for_one_that_ran_again_runs_again_too(tmp_path):
-    """In a flow that does not receive the output, the later task's fingerprint takes the
-    output file as it is when the later task starts: a changed state that changes it reaches it."""
+def test_a_task_given_the_output_of_one_that_ran_again_runs_again_too(tmp_path):
+    """The later task is given the output: a changed state that changes it reaches it."""
     calls: list[str] = []
     state, tally = counting(tmp_path, calls)
 
@@ -160,8 +158,8 @@ def test_a_task_that_waits_for_one_that_ran_again_runs_again_too(tmp_path):
         calls.append("report")
         return Count(n=count.n)
 
-    def flow():
-        report_on(count=tally("a"))
+    async def flow():
+        await report_on(count=await tally("a"))
 
     state.write_text('{"items": [1]}')
     pipeline(tmp_path).run(flow, run_id="r")

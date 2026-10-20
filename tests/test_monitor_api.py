@@ -386,11 +386,11 @@ def test_the_page_makes_no_third_party_requests():
         assert "googleapis" not in text and "gstatic" not in text, f.name
 
 
-def test_the_plan_tells_the_failed_task_from_the_ones_it_stopped(demo_runs):
-    """`prepare-zeta` raised; the summary refused for its missing output never ran."""
+def test_the_plan_shows_the_failed_task_and_nothing_after_it(demo_runs):
+    """`prepare-zeta` raised at the await of zeta's review loop: its summary was never created."""
     state = {n["key"]: n["state"] for n in Monitor(demo_runs).plan("docs")["nodes"]}
     assert state["python:prepare-zeta"] == "failed"
-    assert state["summarize-zeta"] == "blocked"
+    assert "summarize-zeta" not in state
     assert state["review-gamma"] == "done"  # failed twice, then succeeded
     assert state["python:report"] == "done"
 
@@ -403,22 +403,21 @@ def test_a_task_shows_every_param_it_was_given(demo_runs):
 
 
 def test_the_run_list_counts_tasks_as_the_run_page_does(demo_runs):
-    """31 tasks: 28 done, 1 partial (score-epsilon), 1 failed (prepare-zeta), 1 never started;
-    33 journal rows, 1 of them never ran."""
+    """30 tasks: 28 done, 1 partial (score-epsilon), 1 failed (prepare-zeta); 32 journal rows."""
     row = next(r for r in Monitor(demo_runs).runs() if r["run"] == "docs")
     assert row["tasks"] == {
-        "total": 31,
+        "total": 30,
         "done": 28,
         "partial": 1,
         "failed": 1,
-        "not_started": 1,
+        "not_started": 0,
         "running": 0,
         "waiting": 0,
         "not_run": 0,
         "skipped": 0,
         "cancelled": 0,
     }
-    assert (row["attempts"], row["not_run"]) == (33, 1)
+    assert (row["attempts"], row["not_run"]) == (32, 0)
 
 
 def test_a_python_task_kind_records_its_function(demo_runs):
@@ -468,14 +467,17 @@ def test_a_unitless_python_task_has_the_same_unit_everywhere(demo_runs):
     assert record["unit"] == row["unit"] == ""
 
 
-def test_a_python_task_s_outputs_from_earlier_tasks_are_its_inputs_by_producer(demo_runs):
-    record = next(r for r in Monitor(demo_runs).outputs("docs")["contracts"] if r["key"] == "python:report")
-    # Given only outputs of earlier tasks: no param of its own, each output an input named by its producer.
-    assert record["params"] == {}
-    producers = {i["producer"] for i in record["inputs"]}
-    assert {"summarize-alpha", "revise-gamma"} <= producers, producers  # a revision writes its summary's file
-    alpha = next(i for i in record["inputs"] if i["producer"] == "summarize-alpha")
-    assert alpha["path"].endswith("out/summarize/alpha.json")
+def test_the_tasks_a_task_was_given_from_are_upstream_of_it(demo_runs):
+    mon = Monitor(demo_runs)
+    io = mon.task_detail("docs", "python:report")["io"]
+    # Given the outputs the flow received: each is upstream by the task that wrote it.
+    upstream = {u["key"]: u for u in io["upstream"]}
+    assert {"summarize-alpha", "revise-gamma"} <= set(upstream), upstream  # gamma's summary was revised
+    assert "summarize-gamma" not in upstream
+    assert upstream["summarize-alpha"]["outputs"][0]["path"].endswith("out/summarize/alpha.json")
+    plan = {n["key"]: n for n in mon.plan("docs")["nodes"]}
+    assert "revise-gamma" in plan["python:report"]["given_from"] and plan["python:report"]["after"] == []
+    assert "python:report" in {d["key"] for d in mon.task_detail("docs", "revise-gamma")["io"]["downstream"]}
 
 
 # --- flow calls and origins ----------------------------------------------------

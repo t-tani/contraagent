@@ -50,12 +50,13 @@ Out = TypeVar("Out")
 
 class OutsideState(Protocol):
     """A function that returns a task's outside state: what its work depends on beside its
-    params, its definition and the outputs it reads (`agent_task(outside_state=)`,
-    `@python_task(outside_state=)`). `outside_state(unit, params)` is given the task's unit
-    (empty for a task with none) and its params, every output of another task resolved, and
-    returns any JSON value: a digest of the files the task reads, a version, a list or a dict
-    of them, a pydantic model. The task's fingerprint covers the value, so a resume runs the
-    task again when it returns another. It is called when the task is about to start, once
+    params and its definition (`agent_task(outside_state=)`, `@python_task(outside_state=)`),
+    such as what a task it waits for with `after=` changed in the working tree.
+    `outside_state(unit, params)` is given the task's unit (empty for a task with none) and
+    its params as JSON (the call file's `params`), and returns any JSON value: a digest of
+    the files the task reads, a version, a list or a dict of them, a pydantic model. The
+    task's fingerprint covers the value, so a resume runs the task again when it returns
+    another. It is called when the task is about to start, once
     every task it waits for finished; one that raises, or returns what is not JSON, refuses
     the task (`invalid_input`)."""
 
@@ -275,9 +276,12 @@ class AgentTask[Out]:
         }
 
     def __call__(self, unit: str = "", **params: Any) -> Pending[Out]:
-        """Queue this task for `unit`, with its call options (`options`). `params` may hold
-        `Pending` outputs of other tasks. A call option given as a keyword (`key=`) that is no
-        field of the params model raises TypeError: `options` gives it."""
+        """Queue this task for `unit`, with its call options (`options`). `params` are
+        values, copied as JSON here (through the params model, when the task declares one):
+        a `Pending` among them, at any depth, a value that is not JSON, or params the model
+        does not validate raise TypeError, and so does a call option given as a keyword
+        (`key=`) that is no field of the params model: `options` gives it. To give a task
+        another task's output, await that task in an async def flow and pass the value."""
         _refuse_call_options(self.kind, params, set(self.params.model_fields) if self.params is not None else set(), python=False)
         if self.params is not None:
             _check_param_names(self.kind, self.params, params)
@@ -1072,9 +1076,11 @@ class PythonTask[Out]:
 
     def __call__(self, unit: str = "", **kwargs: Any) -> Pending[Out]:
         """Queue this Python task for `unit`, with its call options (`options`); the function
-        runs with `kwargs` (Pending resolved). A function with a `unit` parameter is given the
-        unit too. A call the function could not take (a keyword it has no parameter for, a
-        required parameter left out) raises TypeError here, and so does a call option given
+        runs with `kwargs`, copied as JSON here (a `Pending` among them, at any depth, or a
+        value that is not JSON raises TypeError) and converted to its parameters'
+        annotations. A function with a `unit` parameter is given the unit too. A call the
+        function could not take (a keyword it has no parameter for, a required parameter
+        left out) raises TypeError here, and so does a call option given
         as a keyword (`key=`) that the function has no parameter for: `options` gives it."""
         self._check_call(unit, kwargs)
         o = self._options
@@ -1177,8 +1183,7 @@ class PythonTask[Out]:
         return body
 
     def arguments(self, unit: str, kwargs: dict[str, Any]) -> dict[str, Any]:
-        """The function's arguments: `kwargs` (every `Pending` already its output) and the
-        unit for a `unit` parameter, each checked and converted against its parameter's
+        """The function's arguments: `kwargs` and the unit for a `unit` parameter, each checked and converted against its parameter's
         annotation (`_ParamTypes`). `InvalidInput` when one does not match."""
         if unit and "unit" not in kwargs and "unit" in inspect.signature(self.fn).parameters:
             kwargs = {**kwargs, "unit": unit}

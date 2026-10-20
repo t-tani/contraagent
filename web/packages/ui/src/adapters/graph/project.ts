@@ -266,7 +266,8 @@ export function projectTasks(ix: FlowIndex, path: readonly string[], inside: rea
       const k = `${s.id}\u0000${to}\u0000${type}`;
       (stubs.get(k) ?? stubs.set(k, { ...s, to, type, tasks: new Set() }).get(k))?.tasks.add(t.n.key);
     };
-    for (const dep of t.n.after ?? []) link(dep, 'after');
+    // A task given another's output is drawn after it, as a task that waits for it (`given_from`).
+    for (const dep of new Set([...(t.n.after ?? []), ...(t.n.given_from ?? [])])) link(dep, 'after');
     for (const dep of t.from) link(dep, 'created');
   }
   // A created_from edge is drawn only where no after edge joins the same two. In the order

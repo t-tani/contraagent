@@ -1,18 +1,21 @@
 """The task graph a flow builds, and `Pending`: a reference to a task's future output.
 
 Calling a task inside a flow does not run it; it adds a node and returns a
-`Pending`. Passing that `Pending` to another task as a parameter is the
-dependency: the consumer waits for it, its output file becomes the consumer's
-checked input, and its value is what the consumer receives.
+`Pending`. A task is given values, never a `Pending`: an async flow awaits a
+`Pending` (`await triage(...)`, or several at once with `asyncio.gather`) and
+receives the checked output at the `await` (`FlowDriver.wait`, with this graph's
+`waits_for` and `answer` as its callbacks), and passes that value on. A `Pending`
+among the params of a task call, at any depth, raises `TypeError` there, which says
+how to write it: await it and pass the value, or give it in `.options(after=[...])`
+for an order with no output passed on. The task reaches the queue when it is
+called, whether or not anything awaits it.
 
-An async flow awaits a `Pending` (`await triage(...)`, or several at once with
-`asyncio.gather`) and receives the checked output at the `await` (`FlowDriver.wait`,
-with this graph's `waits_for` and `answer` as its callbacks). The task reaches the
-queue when it is called, whether or not anything awaits it. Passing a received
-output on to another task is the same dependency as passing its `Pending`: the
-graph remembers which `Pending` produced each output it answered (a model
-instance, a list, a dict, a text) and puts the `Pending` back. A number, a
-bool, None and a `str` the flow built are values, never a dependency.
+The params of a task call are copied as JSON at the call (`Node.params`): an agent
+task's through its params model, defaults filled in, a Python task's as given. A value
+that is not JSON (one pydantic cannot turn into JSON, a NaN) raises `TypeError` at the
+call. What the flow does with a value afterwards does not reach the task: the call file
+of an agent task holds the copy, and a Python task's function is given it, each
+argument converted to its parameter's annotation.
 
 Every node records where it was created (`Origin`, see `origin.py`) and how it
 is numbered:
@@ -33,26 +36,27 @@ is numbered:
   function's `@max_passes(n)`, else the run's `max_passes`) raises
   `TooManyPasses` at the task call, and at the creation of a child flow call (a
   `for` loop ends with its iterable and has no limit);
-* its fingerprint is a digest of its kind, unit, key and params (a `Pending`
-  among them standing for its key), of its definition (`AgentTask.digest`,
-  `PythonTask.digest`), and of each task it waits for. An output it reads (a
-  `Pending` among its params, or an output the flow received and passed on) stands
-  for the content of its output file: when the flow received it, as received; else
-  as the task is about to start. Another task it waits for (`after=`) stands for that
-  task's fingerprint. The file an `output_of` task fills in stands for its content as
-  the task is about to start, not for the task that wrote it last. So an upstream task
-  that runs again and writes the same output leaves the fingerprint as it was, and one
-  that writes another output changes it. The digest of each part is kept beside the
-  fingerprint (`Task.fingerprint_parts`), so a resume names the parts that changed;
-* a task that reads an output the flow did not receive, whose declaration gives
-  `outside_state` or `output_of`, or that waits, other than for an output it reads, for
-  a task of such a fingerprint, has a
-  fingerprint that is complete only when it is about to start
-  (`Task.fingerprint_at_start`): `starting` works it out again then, with the content of
-  the output files it reads and the fingerprints the tasks it waits for started with.
-  For `outside_state`, `starting` calls the function with the task's params resolved;
-  the SHA-256 of the JSON of what it returned is part of the fingerprint. A task whose
-  function raised or returned what is not JSON is refused (`refusal`);
+* it is given from (`Origin.given_from`) the tasks whose outputs the flow had received
+  when it created the task and are among its params, at any depth: a value whose JSON
+  is that of a whole output, or of one whole item of an output that is a list (a Rows).
+  So a copy of an output counts as the output, and a field taken out of it does not.
+  It is shown only, never part of the fingerprint;
+* its fingerprint is a digest of its kind, unit, key, the JSON of its params (with a
+  Python task's defaults filled in), and its definition (`AgentTask.digest`,
+  `PythonTask.digest`). An output it was given is part of its params, by its content,
+  so an upstream task that runs again and writes the same output leaves the
+  fingerprint as it was, and one that writes another output changes it. A task it
+  waits for with `after=` is not part of it: a task that reads what another task
+  changed declares `outside_state`. The file an `output_of` task fills in stands for
+  its content as the task is about to start, not for the task that wrote it last. The
+  digest of each part is kept beside the fingerprint (`Task.fingerprint_parts`), so a
+  resume names the parts that changed;
+* a task whose declaration gives `outside_state` or `output_of` has a fingerprint that
+  is complete only when it is about to start (`Task.fingerprint_at_start`): `starting`
+  works it out again then. For `outside_state`, `starting` calls the function with the
+  task's unit and params; the SHA-256 of the JSON of what it returned is part of the
+  fingerprint. A task whose function raised or returned what is not JSON is refused
+  (`refusal`);
 * a resume skips a task whose journal row matches its fingerprint only when its output
   file still reads under its output schema (`output_reads`); else the task runs again.
 """
@@ -61,6 +65,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import copy
 import dataclasses
 import glob
 import hashlib
@@ -76,21 +81,19 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from pydantic import BaseModel, RootModel
-from pydantic_core import to_jsonable_python
+from pydantic import BaseModel, RootModel, ValidationError
+from pydantic_core import PydanticSerializationError, to_jsonable_python
 
-from contraagent._internal.contracts.contract import InputContract, OutputContract, check_file
+from contraagent._internal.contracts.contract import OutputContract, check_file
 from contraagent._internal.contracts.rows import is_rows, row_of, rows_text
 from contraagent._internal.dispatch.flow import TaskFailed, result_or_raise
 from contraagent._internal.dispatch.flowloop import not_flow_code
 from contraagent._internal.dispatch.python_task import PythonTaskPayload
-from contraagent._internal.dispatch.records import DeferralCause, Frame
+from contraagent._internal.dispatch.records import Frame
 from contraagent._internal.dispatch.task import (
     PYTHON_KEY_PREFIX,
-    STOP_DEFERRED,
     STOP_DUPLICATE_KEY,
     STOP_INVALID_OUTPUT,
-    Deferral,
     Origin,
     Partial,
     Task,
@@ -120,13 +123,6 @@ class TooManyPasses(ContraagentError):
     run's `max_passes`): it created a task, or a child flow call, in a later pass."""
 
 
-class TextOutput(str):
-    """A text output as a flow receives it. A `str` of its own (never interned, unlike a
-    `str` the flow built), so passing it on to another task is recognized as the dependency."""
-
-    __slots__ = ()
-
-
 def current_graph() -> Graph:
     graph = _current.get()
     if graph is None:
@@ -135,8 +131,10 @@ def current_graph() -> Graph:
 
 
 class Pending[Out]:
-    """A task's future output. Pass it to another task, await it in an async flow (its
-    checked output, or `TaskFailed` / `TaskDeferred`), or read `.output` after the run."""
+    """A task's future output. Await it in an async flow (its checked output, or
+    `TaskFailed` / `TaskDeferred`) and pass the value on, give it in another task's
+    `.options(after=[...])` for an order with no output passed on, or read `.output` after
+    the run. A task is never given a `Pending` among its params: that raises TypeError."""
 
     _node: Node
     _graph: Graph
@@ -185,8 +183,8 @@ class Pending[Out]:
 
     @property
     def output(self) -> Out:
-        """The checked output: the schema instance, the text (a `TextOutput`), the rows (a
-        `Rows`, a list), or the Python task's return value."""
+        """The checked output: the schema instance, the text, the rows (a `Rows`, a list), or
+        the Python task's return value."""
         if self._value is _UNSET:
             node = self._node
             if node.output_path is None:
@@ -195,7 +193,7 @@ class Pending[Out]:
             if not chk.ok:
                 raise ValueError(f"{self.key}: no valid output: {'; '.join(chk.errors)}")
             value = chk.value.root if isinstance(chk.value, RootModel) else chk.value
-            self._value = TextOutput(value) if isinstance(value, str) else value
+            self._value = value
         return self._value
 
     def __await__(self) -> Generator[Any, None, Out]:
@@ -218,10 +216,10 @@ class Node:
     spec: Any  # AgentTask or PythonTask
     key: str
     unit: str
+    #: Its params, copied as JSON at the task call.
     params: dict[str, Any]
     after: tuple[str, ...]
     output_path: Path | None
-    upstream: list[Pending[Any]] = field(default_factory=list)
     #: Its `changes` patterns, with `{unit}`, `{key}` and `{kind}` filled in.
     changes: tuple[str, ...] = ()
     #: The names it claims: its kind's `claims` with `{unit}`, `{key}`, `{kind}` and
@@ -235,19 +233,14 @@ class Node:
     cancellable: bool = False
     origin: Origin | None = None
     fingerprint: str = ""
-    #: The keys of the tasks it waits for whose outputs the flow received and passed on.
-    received: frozenset[str] = frozenset()
-    #: The digest of each output file it reads, by its task's key: of a received output, its
-    #: file's content when the flow passed it on; of another, when the task last started.
-    reads: dict[str, str] = field(default_factory=dict)
+    #: The JSON of its params with a Python task's defaults filled in, as its fingerprint holds them.
+    fingerprinted: str = ""
     #: Its fingerprint is complete only when it is about to start (`Task.fingerprint_at_start`).
     at_start: bool = False
     #: The SHA-256 of its outside state when it last started; empty before, or when it declares none.
     outside: str = ""
-    #: For a task that fills in another task's file (`output_of`): the key of the task it waits
-    #: for that wrote the file last (None when none did), and the digest of the file as it was
-    #: when the task last started (empty before, or when the file was missing).
-    writer: str | None = None
+    #: For a task that fills in another task's file (`output_of`): the digest of the file as it
+    #: was when the task last started (empty before, or when the file was missing).
     filled: str = ""
     #: The digest of each part of its fingerprint (`Task.fingerprint_parts`).
     parts: dict[str, str] = field(default_factory=dict)
@@ -258,19 +251,6 @@ class Node:
     @property
     def output_schema(self) -> type[BaseModel] | None:
         return self.spec.output_schema
-
-    def resolved_params(self) -> dict[str, Any]:
-        """The parameters with every `Pending` replaced by its output."""
-        return {k: _resolve(v) for k, v in self.params.items()}
-
-    def input_contracts(self) -> list[InputContract]:
-        """The upstream outputs this task reads: missing, off-contract, or written by a task
-        that did not succeed refuses it."""
-        return [
-            InputContract(p.path, p._node.output_schema, producer=p.key, producer_failure=p._failure)
-            for p in self.upstream
-            if p.path is not None
-        ]
 
     def output_contracts(self, params: Callable[[], dict[str, Any]] | None = None, call: Path | None = None) -> list[OutputContract]:
         """Its output contract; `params` and `call` reach the validators that take them."""
@@ -339,7 +319,11 @@ class Graph:
         self._reached: dict[str, Any] = {}  # agent kind with no task yet -> the reachable declaration routed
         self._named: dict[int, Any] = {}  # id(spec) -> every declaration reached or created, for `kind_clash`
         self._prefix: dict[str, tuple[Frame, ...]] = {}  # flow call id -> the frames before its own
-        self._produced: dict[int, tuple[Any, Pending[Any]]] = {}  # id(output) -> (output, its Pending)
+        # The digest of each output the flow received -> the keys of the tasks whose output it
+        # is, and of each item of an output that is a list (a Rows) -> the keys of the tasks
+        # whose output holds it (`given_from`).
+        self._outputs: dict[str, set[str]] = {}
+        self._items: dict[str, set[str]] = {}
         self._layouts: dict[str, str] = {}  # output_name with its kind filled in -> the kind
         self._writers: dict[Path, str] = {}  # output file -> the key of the task it is given to
 
@@ -427,6 +411,7 @@ class Graph:
                 problems = self.check_credential(spec.kind, credential)
                 if problems:
                     raise ValueError(f"{key}: credential={credential!r}: {'; '.join(problems)}")
+            params, fingerprinted = _params_json(spec, unit, params)
             claims = _expand_claims(spec, unit, key, params)  # before the key is taken: a raise leaves no gap in ~n
             out, writer = None, None
             if _writes_output(spec):
@@ -445,13 +430,15 @@ class Graph:
                             "put {unit} or {key} in output_name, or give one of them output_of="
                         )
             self._bases[base] = (call_id, n)
-            received: set[str] = set()
-            params = {name: self._dependency(v, received) for name, v in params.items()}
-            upstream = list(_pendings(params.values()))
-            deps = [*(p.key for p in upstream), *((a.key if isinstance(a, Pending) else str(a)) for a in after)]
+            deps = [(a.key if isinstance(a, Pending) else str(a)) for a in after]
             if writer is not None and writer not in deps:
                 deps.append(writer)
-            origin = Origin(flow=frames, created_from=call.frontier if call is not None else (), flow_call=call_id)
+            origin = Origin(
+                flow=frames,
+                created_from=call.frontier if call is not None else (),
+                flow_call=call_id,
+                given_from=self._given_from(params),
+            )
             filled = {"unit": glob.escape(unit or base), "key": glob.escape(base), "kind": spec.kind}
             node = Node(
                 spec=spec,
@@ -460,23 +447,15 @@ class Graph:
                 params=params,
                 after=tuple(dict.fromkeys(deps)),
                 output_path=out,
-                upstream=upstream,
                 origin=origin,
                 changes=tuple(p.format(**filled) for p in getattr(spec, "changes", ())),
                 claims=claims,
                 priority=priority,
                 credential=credential,
                 cancellable=cancellable,
-                received=frozenset(received),
-                writer=writer,
+                fingerprinted=fingerprinted,
             )
-            reads = _reads(node)
-            node.at_start = (
-                getattr(spec, "outside_state", None) is not None
-                or getattr(spec, "output_of", None) is not None
-                or any(k not in received for k in reads)
-                or any((up := self._by_key.get(k)) is not None and up.at_start for k in node.after if k not in reads)
-            )
+            node.at_start = getattr(spec, "outside_state", None) is not None or getattr(spec, "output_of", None) is not None
             node.fingerprint = self._fingerprint(node)
             self.nodes.append(node)
             self._by_key[key] = node
@@ -497,24 +476,18 @@ class Graph:
     def starting(self, task: Task) -> Task:
         """`task` as it is about to start, the tasks it waits for finished: for one whose
         fingerprint is complete only then (`Task.fingerprint_at_start`), its outside state
-        worked out now and its fingerprint again, with the content of the output files it
-        reads now and the fingerprints the tasks it waits for started with. Any other task
-        as it is."""
+        worked out now and its fingerprint again, with the content of the file it fills in
+        (`output_of`) now. Any other task as it is."""
         node = self._by_key.get(task.key)
         if node is None or not node.at_start:
             return task
         node.outside, node.outside_error = "", ""
         fn = getattr(node.spec, "outside_state", None)
         if fn is not None:
-            try:
-                params = node.resolved_params()
-            except Exception:  # an input that is not there: the input check refuses the task
-                params = None
-            if params is not None:
-                node.outside, node.outside_error = _outside_digest(node.spec.kind, fn, node.unit, params)
+            node.outside, node.outside_error = _outside_digest(node.spec.kind, fn, node.unit, copy.deepcopy(node.params))
         if getattr(node.spec, "output_of", None) is not None and node.output_path is not None:
             node.filled = _file_digest(node.output_path)
-        node.fingerprint = self._fingerprint(node, started=True)
+        node.fingerprint = self._fingerprint(node)
         new = replace(task, fingerprint=node.fingerprint, outside=node.outside, fingerprint_parts=dict(node.parts))
         node.task = new
         return new
@@ -542,20 +515,6 @@ class Graph:
             return True
         return check_file(node.output_path, node.output_schema).ok
 
-    def input_deferral(self, task: Task) -> Deferral | None:
-        """Why `task` is not launched: an earlier task whose output it reads was deferred
-        (cause `dependency_deferred`, `dependency` its key), so its input will not be there.
-        None when every task it reads from was not deferred. A task that only waits for
-        another (`after=`) is not deferred with it."""
-        node = self._by_key.get(task.key)
-        if node is None:
-            return None
-        for up in node.upstream:
-            result = self.results.get(up.key)
-            if result is not None and result.stop == STOP_DEFERRED:
-                return Deferral(f"input from {up.key} was deferred", DeferralCause(cause="dependency_deferred", dependency=up.key))
-        return None
-
     def record(self, result: TaskResult) -> None:
         """Remember a task's final result (a refused duplicate never replaces its key's own)."""
         if result.stop != STOP_DUPLICATE_KEY or result.task.key not in self.results:
@@ -574,7 +533,9 @@ class Graph:
     def answer(self, item: Pending[Any], result: TaskResult) -> Any:
         """What a flow receives for a finished task: its checked output (None for a task
         with no output). `TaskFailed` / `TaskDeferred` for one that did not succeed, and
-        `TaskFailed` (`invalid_output`) for an output that no longer passes its checks."""
+        `TaskFailed` (`invalid_output`) for an output that no longer passes its checks. The
+        output's content, and each part of it, is remembered for the tasks given it
+        (`given_from`)."""
         result_or_raise(item, result)
         if item.path is None:
             return None
@@ -582,9 +543,23 @@ class Graph:
             value = item.output
         except ValueError as exc:
             raise TaskFailed(dataclasses.replace(result, ok=False, stop=STOP_INVALID_OUTPUT, reason=str(exc)), item) from None
-        if _tracked(value):
-            self._produced[id(value)] = (value, item)
+        try:
+            received = to_jsonable_python(value)
+        except PydanticSerializationError:  # a Python task's value that is not JSON: no task is given it
+            return value
+        whole = _digest(received)
+        if whole is not None:
+            self._outputs.setdefault(whole, set()).add(item.key)
+        for row in received if isinstance(received, list) else ():
+            if (digest := _digest(row)) is not None:
+                self._items.setdefault(digest, set()).add(item.key)
         return value
+
+    def holds(self, value: Any) -> list[str]:
+        """The keys of the tasks whose `Pending`s of this graph `value` holds, at any depth (a
+        list, a tuple, a set, a dict's keys and values, a pydantic model's fields, a
+        dataclass's fields): what a flow returned, for the driver (`FlowDriver`'s `holds`)."""
+        return [p.key for _, p in _pendings(value) if p._graph is self]
 
     def flow_call_created(self, call: FlowCall) -> tuple[Frame, ...]:
         """The flow path where a child flow call was created: its parent's frames where its
@@ -694,56 +669,39 @@ class Graph:
                 raise ValueError(message)
         self._named[id(spec)] = spec
 
-    def _dependency(self, value: Any, received: set[str]) -> Any:
-        """`value` with every output this graph answered replaced by its `Pending`; the keys
-        of those go to `received`."""
-        hit = self._produced.get(id(value))
-        if hit is not None and hit[0] is value:
-            received.add(hit[1].key)
-            return hit[1]
-        if isinstance(value, list) or type(value) is tuple:
-            items = [self._dependency(v, received) for v in value]
-            return type(value)(items) if any(a is not b for a, b in zip(items, value, strict=True)) else value
-        if isinstance(value, dict):
-            pairs = {k: self._dependency(v, received) for k, v in value.items()}
-            return pairs if any(pairs[k] is not value[k] for k in value) else value
-        return value
+    def _given_from(self, params: dict[str, Any]) -> tuple[str, ...]:
+        """The keys of the tasks whose outputs the flow received so far and are among `params`
+        (the JSON of a task call's params), in the order the tasks were created. A value of
+        the params, at any depth, counts when its JSON is that of a whole output, or of one
+        whole item of an output that is a list (a Rows); a value that counts is not looked
+        into further. A field or a text taken out of an output, or a value built from it,
+        counts for nothing."""
+        keys: set[str] = set()
+        todo = list(params.values())
+        while todo:
+            value = todo.pop()
+            digest = _digest(value)
+            if digest is not None and (found := self._outputs.get(digest) or self._items.get(digest)):
+                keys |= found
+            elif isinstance(value, dict):
+                todo += value.values()
+            elif isinstance(value, list):
+                todo += value
+        order = {key: i for i, key in enumerate(self._by_key)}
+        return tuple(sorted(keys, key=lambda key: order.get(key, len(order))))
 
-    def _fingerprint(self, node: Node, *, started: bool = False) -> str:
+    def _fingerprint(self, node: Node) -> str:
         """See the module docstring: the digest of each part of the task's work (`Node.parts`,
         named as `Task.fingerprint_parts`), and the fingerprint of them. `definition`: its
-        declaration's digest; `params`: its params, a `Pending` among them standing for its
-        key; `output:<key>`: each output it reads, by its file's content (one the flow
-        received, as it was when the flow passed it on; one it did not, as the task is about
-        to start, `started`; before, empty); `after:<key>`: the fingerprint of each other task
-        it waits for; `outside`: its outside state, for a task that declares one, once it is
+        declaration's digest; `params`: the JSON of its params, a Python task's defaults
+        filled in; `outside`: its outside state, for a task that declares one, once it is
         worked out (`starting`; before, and when it could not be, empty); `output_of`: the
         file it fills in, for an `output_of` task, as it was when the task was about to start
         (before, empty), which stands for the task that wrote it last."""
         spec = node.spec
         if id(spec) not in self._digests:
             self._digests[id(spec)] = spec.digest()
-        for p in node.upstream:
-            if p.path is None:
-                continue
-            if p.key in node.received:
-                node.reads.setdefault(p.key, _file_digest(p.path))
-            else:
-                node.reads[p.key] = _file_digest(p.path) if started else ""
-        params = json.dumps(
-            to_jsonable_python(_keys_for_pendings(node.params), fallback=repr),
-            sort_keys=True,
-            ensure_ascii=False,
-            separators=(",", ":"),
-            default=repr,
-        )
-        parts = {"definition": self._digests[id(spec)], "params": hashlib.sha256(params.encode()).hexdigest()}
-        for k in node.after:
-            if k in node.reads:
-                parts[f"output:{k}"] = node.reads[k]
-            elif k != node.writer:
-                up = self._by_key.get(k)
-                parts[f"after:{k}"] = up.fingerprint if up is not None else ""
+        parts = {"definition": self._digests[id(spec)], "params": hashlib.sha256(node.fingerprinted.encode()).hexdigest()}
         if getattr(spec, "outside_state", None) is not None:
             parts["outside"] = node.outside
         if getattr(spec, "output_of", None) is not None:
@@ -793,7 +751,7 @@ class Graph:
             schema = node.output_schema
             partial = None
             if self.stub is not None and self.stub.plays(node.spec.kind):
-                params = node.resolved_params()
+                params = copy.deepcopy(node.params)
                 node.spec.arguments(node.unit, params)  # a stub run refuses what a run refuses
                 rows = is_rows(schema)
                 json_schema = row_of(schema).model_json_schema() if node.output_path is not None and schema is not None else None
@@ -801,7 +759,7 @@ class Graph:
                 if not has_output:
                     return None
             else:
-                value = node.spec.invoke(node.unit, node.resolved_params())
+                value = node.spec.invoke(node.unit, copy.deepcopy(node.params))
                 if isinstance(value, Partial):
                     partial, value = value, value.value
             # A Python task is given an output path only when it declares an output schema.
@@ -817,8 +775,7 @@ class Graph:
             task,
             fn=call,
             payload=PythonTaskPayload(
-                input_contracts=tuple(node.input_contracts()),
-                output_contracts=tuple(node.output_contracts(params=node.resolved_params)),
+                output_contracts=tuple(node.output_contracts(params=lambda: copy.deepcopy(node.params))),
                 definition=node.spec.definition(),
                 retries=node.spec.retries,
                 retry_on=node.spec.retry_on,
@@ -860,8 +817,8 @@ def _expand_claims(spec: Any, unit: str, key: str, params: dict[str, Any]) -> tu
     """The names a task claims: each of its kind's templates filled in. `{params.<name>}` is
     a parameter of the call: a list gives one name per element (several lists, every
     combination). In order and once each. Raises at the task call for a `{unit}` of a task
-    with no unit, a missing parameter, an output not received yet, or a value that is not
-    a string or a number, or a list with no element (the claim would hold nothing)."""
+    with no unit, a missing parameter, or a value that is not a string or a number, or a
+    list with no element (the claim would hold nothing)."""
     out: list[str] = []
     for template in getattr(spec, "claims", ()):
         names = [""]
@@ -892,8 +849,6 @@ def _claim_values(kind: str, template: str, field_name: str, unit: str, key: str
     if not items:
         raise ValueError(f"{kind}(): claim {template!r} names params.{name}, an empty list; the task would claim nothing")
     for v in items:
-        if isinstance(v, Pending):
-            raise TypeError(f"{kind}(): claim {template!r} names params.{name}, an output not received yet; await it first")
         if isinstance(v, bool) or not isinstance(v, (str, int, float)):
             raise TypeError(f"{kind}(): claim {template!r} names params.{name}, which holds {v!r}; a claim takes strings and numbers")
     return [str(v) for v in items]
@@ -923,45 +878,134 @@ def _file_digest(path: Path) -> str:
         return ""
 
 
-def _reads(node: Node) -> set[str]:
-    """The keys of the tasks whose output files `node` reads: each `Pending` among its params
-    (an output received and passed on included) of a task with an output file."""
-    return {p.key for p in node.upstream if p.path is not None}
+def _canonical(value: Any) -> str:
+    """The JSON text a fingerprint and a content match take: keys sorted, no spaces."""
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
 
 
-def _tracked(value: Any) -> bool:
-    """Whether an answered output is remembered as its task's: an object made for it,
-    never a number, a bool, None or a `str` the flow could have built (or an empty tuple,
-    which Python shares)."""
-    return isinstance(value, (BaseModel, list, dict, set, TextOutput)) or (type(value) is tuple and len(value) > 0)
+def _digest(value: Any) -> str | None:
+    """The digest of `value`, a JSON value, as `given_from` matches it: of a dict, a list or a
+    text that is not empty; None for any other (a number, a bool or null matches nothing)."""
+    if isinstance(value, (dict, list, str)) and value:
+        return hashlib.sha256(_canonical(value).encode()).hexdigest()
+    return None
 
 
-def _pendings(values) -> Iterator[Pending[Any]]:
-    for v in values:
-        if isinstance(v, Pending):
-            yield v
-        elif isinstance(v, (list, tuple, set)):
-            yield from _pendings(v)
-        elif isinstance(v, dict):
-            yield from _pendings(v.values())
+def _inside(value: Any) -> Iterator[tuple[str, Any]]:
+    """The values `value` holds, one level down, each with where (appended to a name): a
+    list's, a tuple's and a set's items, a dict's keys and values, a pydantic model's fields
+    and extra fields, a dataclass's fields."""
+    if isinstance(value, dict):
+        for k, v in value.items():
+            yield " (a key)", k
+            yield f"[{k!r}]", v
+    elif isinstance(value, (list, tuple)):
+        for i, v in enumerate(value):
+            yield f"[{i}]", v
+    elif isinstance(value, (set, frozenset)):
+        for v in value:
+            yield " (an item)", v
+    elif isinstance(value, BaseModel):
+        for name in type(value).model_fields:
+            yield f".{name}", getattr(value, name, None)
+        for name, v in (value.model_extra or {}).items():
+            yield f".{name}", v
+    elif dataclasses.is_dataclass(value) and not isinstance(value, type):
+        for f in dataclasses.fields(value):
+            yield f".{f.name}", getattr(value, f.name, None)
 
 
-def _keys_for_pendings(v: Any) -> Any:
-    """`v` with each `Pending` as `{"task": key}`, for a fingerprint."""
-    if isinstance(v, Pending):
-        return {"task": v.key}
-    if isinstance(v, (list, tuple)):
-        return [_keys_for_pendings(x) for x in v]
-    if isinstance(v, dict):
-        return {str(k): _keys_for_pendings(x) for k, x in v.items()}
-    return v
+def _pendings(value: Any, where: str = "", seen: set[int] | None = None) -> Iterator[tuple[str, Pending[Any]]]:
+    """Each `Pending` in `value`, at any depth (`_inside`), with where it is (appended to
+    `where`). A value that holds itself is walked once."""
+    if isinstance(value, Pending):
+        yield where, value
+        return
+    if isinstance(value, (str, bytes, int, float, type(None))):
+        return
+    seen = set() if seen is None else seen
+    if id(value) in seen:
+        return
+    seen.add(id(value))
+    for step, inner in _inside(value):
+        yield from _pendings(inner, where + step, seen)
 
 
-def _resolve(v: Any) -> Any:
-    if isinstance(v, Pending):
-        return v.output
-    if isinstance(v, (list, tuple)):
-        return type(v)(_resolve(x) for x in v)
-    if isinstance(v, dict):
-        return {k: _resolve(x) for k, x in v.items()}
-    return v
+def _refuse_pendings(kind: str, params: dict[str, Any]) -> None:
+    """TypeError when a `Pending` is among `params`, at any depth: a task is given values.
+    It says where, and how to write the call."""
+    for name, value in params.items():
+        for where, pending in _pendings(value, name):
+            raise TypeError(
+                f"{kind}(): {where} is the Pending of {pending.key}, the future output of a task call; a task is "
+                f"given values. In an async def flow, await the task call and pass its output ({name}=await ...); "
+                f"for an order with no output passed on, give the task call in .options(after=[...]) "
+                f"(contraagent docs tasks)"
+            )
+
+
+def _params_json(spec: Any, unit: str, params: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    """The params of a task call as JSON, and the text of the JSON its fingerprint holds:
+    an agent task's through its params model (its defaults filled in); a Python task's as
+    given, and for its fingerprint with the defaults of the function's parameters filled in.
+    TypeError for a `Pending` among them, a value that is not JSON, or params that do not
+    validate under the agent task's params model."""
+    kind = spec.kind
+    _refuse_pendings(kind, params)
+    model = getattr(spec, "params", None) if spec.executor == "agent" else None
+    if model is not None:
+        try:
+            validated = model.model_validate(params)
+        except ValidationError as exc:
+            raise TypeError(f"{kind}(): params do not validate under {model.__name__}: {_errors(exc)}") from None
+        try:
+            given = validated.model_dump(mode="json")
+        except PydanticSerializationError as exc:
+            raise TypeError(f"{kind}(): params hold a value that is not JSON: {exc}") from None
+    else:
+        given = {}
+        for name, value in params.items():
+            try:
+                given[name] = to_jsonable_python(value)
+            except PydanticSerializationError:
+                raise TypeError(
+                    f"{kind}(): {name} is a {type(value).__name__}, which is not JSON; a task is given JSON values "
+                    "(a string, a number, a bool, None, a list or a dict of them, a pydantic model)"
+                ) from None
+    try:
+        text = _canonical(given)
+    except ValueError as exc:  # NaN, infinity
+        raise TypeError(f"{kind}(): params hold a value that is not JSON: {exc}") from None
+    if spec.executor == "python":
+        defaults = _defaults(spec, params)
+        if defaults:
+            text = _canonical({**defaults, **given})
+    return given, text
+
+
+def _defaults(spec: Any, params: dict[str, Any]) -> dict[str, Any]:
+    """The defaults, as JSON, of a Python task's parameters that a call leaves out (its
+    `unit` parameter aside). TypeError for one that is not JSON."""
+    try:
+        signature = inspect.signature(spec.fn)
+    except (TypeError, ValueError):  # a callable with no signature to read
+        return {}
+    out: dict[str, Any] = {}
+    for name, parameter in signature.parameters.items():
+        if name in params or name == "unit" or parameter.default is inspect.Parameter.empty:
+            continue
+        try:
+            out[name] = to_jsonable_python(parameter.default)
+            _canonical(out[name])
+        except (PydanticSerializationError, ValueError):
+            raise TypeError(
+                f"{spec.kind}(): the default of {name} is a {type(parameter.default).__name__}, which is not JSON; "
+                "a task is given JSON values, its defaults too"
+            ) from None
+    return out
+
+
+def _errors(exc: ValidationError) -> str:
+    """A pydantic validation error in one line: each error's place and message, three at most."""
+    errors = [f"{'.'.join(str(p) for p in e['loc']) or 'params'}: {e['msg']}" for e in exc.errors()]
+    return "; ".join(errors[:3] + ([f"{len(errors) - 3} more errors"] if len(errors) > 3 else []))
