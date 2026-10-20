@@ -12,7 +12,7 @@ import pytest
 
 from contraagent import CredentialError
 from contraagent._internal.backends.codex.wire import EventReader, normalize_event, read_rollout
-from contraagent.backends import CodexBackend, Launch, Stop, normalize_stream_line
+from contraagent.backends import CodexBackend, Launch, LaunchResult, Stop, normalize_stream_line
 from contraagent.config import ApiKey, Gateway, Limits, Subscription
 from fake_cli import write_fake_cli
 
@@ -206,6 +206,65 @@ def test_a_refused_credential_ends_the_launch_on_its_second_retry(fake):
 def test_a_usage_limit_is_a_rate_limit(fake):
     _, r, _ = fake("quota")
     assert r.stop is Stop.RATE_LIMITED
+
+
+def test_an_answer_that_mentions_a_rate_limit_is_completed(fake):
+    _, r, _ = fake(env={"FAKE_TEXT": "Added a 429 handler: on rate limit exceeded, the client waits."})
+    assert r.stop is Stop.COMPLETED and r.ok
+
+
+#: A Python traceback on a failed launch's stderr: line numbers and paths, no refusal.
+TRACEBACK = """Traceback (most recent call last):
+  File "/work/billing/quota.py", line 429, in main
+    raise SystemExit(load(path))
+  File "/work/auth/tokens.py", line 401, in load
+PermissionError: [Errno 13] Permission denied: '/work/403/forbidden.txt'
+OSError: [Errno 122] Disk quota exceeded
+"""
+
+
+def failed(stop: Stop) -> LaunchResult:
+    return LaunchResult(label="t", agent="codex", stop=stop, ok=False)
+
+
+@pytest.mark.parametrize("stop", [Stop.ERROR, Stop.LAUNCH_FAILED])
+def test_a_traceback_on_stderr_does_not_rest_the_route(stop):
+    result = failed(stop)
+    CodexBackend().reclassify(result, TRACEBACK)
+    assert result.stop is stop and result.quota_refusal is None
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "ERROR: unexpected status 429 Too Many Requests: slow down",
+        "Error: exceeded retry limit, last status: 429 Too Many Requests",
+        "ERROR: You've hit your usage limit. Try again in 3 hours.",
+        "ERROR: Quota exceeded. Check your plan and billing details.",
+        'Error: {"error": {"code": "rate_limit_exceeded", "message": "Rate limit reached for gpt"}}',
+    ],
+)
+def test_a_quota_refusal_on_stderr_still_rests_the_route(stderr):
+    result = failed(Stop.ERROR)
+    CodexBackend().reclassify(result, TRACEBACK + stderr)
+    assert result.stop is Stop.RATE_LIMITED and result.quota_refusal is not None
+
+
+@pytest.mark.parametrize(
+    ("message", "stop"),
+    [
+        ('Error running tool: File "x.py", line 429, in main', Stop.API_ERROR),
+        ("could not open /work/quota.py", Stop.API_ERROR),
+        ("stream ended at line 401 of the response", Stop.API_ERROR),
+        ("unexpected status 429 Too Many Requests: slow down", Stop.RATE_LIMITED),
+        ("unexpected status 403 Forbidden: no access", Stop.AUTH_FAILED),
+    ],
+)
+def test_a_failed_turn_is_read_by_the_shapes_codex_prints(message, stop):
+    reader = EventReader()
+    reader.feed({"type": "thread.started", "thread_id": THREAD})
+    reader.feed({"type": "turn.failed", "error": {"message": message}})
+    assert reader.stop(exit_code=1, killed=None) is stop
 
 
 def test_a_tool_call_past_max_turns_ends_the_launch(fake):

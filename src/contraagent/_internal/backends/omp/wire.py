@@ -15,7 +15,7 @@ from contraagent._internal.backends.wire import EventFold, feedback_errors, toke
 
 #: How omp words a refusal: a provider's quota in its own words (providers disagree on the
 #: wording), read only when the wire gives no status; a status decides alone. omp reports
-#: a quota refusal on stderr too (`429 Go usage limit exceeded` in text mode).
+#: a quota refusal on stderr in text mode (`429 Go usage limit exceeded`), and nowhere else.
 SIGNALS = Signals(quota=QUOTA_RE, status_decides=True)
 
 #: omp's built-in web search tool; its arguments carry `query`.
@@ -33,11 +33,6 @@ def stop_hook_feedback(message: object) -> str | None:
     content = message.get("content")
     return content if isinstance(content, str) else None
 
-
-# A quota notice is a short message; a completed agent answer is not. The ceiling keeps
-# a passing mention of "rate limit" inside a legitimate text-mode answer from being read
-# as the provider refusing the launch.
-_RATE_LIMIT_MAX_SCAN = 400
 
 # Stream event types the monitor's live view renders; everything else on
 # the wire (raw tool-call-argument deltas, internal bookkeeping frames,
@@ -390,9 +385,10 @@ class TraceReader(EventFold):
 
 class TextReader(EventFold):
     """omp's plain-text mode (`trace=False`): stdout is the answer, with no usage or cost.
-    A nonzero exit is the refusal's signal; a zero exit still counts when the whole stdout
-    is a short notice, which is what a quota refusal looks like: an agent that produced a
-    real answer is never 400 characters long."""
+
+    Stdout never holds a refusal: when the last assistant message ended on an error, omp
+    18.9 prints nothing on stdout, writes the message's `errorMessage` on stderr and exits 1.
+    The exit status decides, and `Backend.reclassify` reads the refusal on stderr."""
 
     agent = "omp"
     signals = SIGNALS
@@ -417,9 +413,7 @@ class TextReader(EventFold):
         return b"\n".join(self.lines).decode("utf-8", "replace").strip()
 
     def ending(self, *, exit_code: int | None, killed: Stop | None) -> Ending:
-        text = self.text
-        notice = exit_code not in (0, None) or len(text) <= _RATE_LIMIT_MAX_SCAN
-        return Ending(killed=killed, exit_code=exit_code, saw_any=True, text=text, error=text if notice else "")
+        return Ending(killed=killed, exit_code=exit_code, saw_any=True, text=self.text)
 
     def result(self, launch: Launch, agent: str, *, exit_code: int | None, killed: Stop | None) -> LaunchResult:
         stop = self.stop(exit_code=exit_code, killed=killed)
