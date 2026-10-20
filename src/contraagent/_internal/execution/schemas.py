@@ -14,9 +14,11 @@ a deferral's cause) are the record types of `dispatch/records.py`.
   (`dispatch/records.py`) are one line of `rests.jsonl` and of `services.jsonl`.
 * `RunInfo` — `runs/<run>/run.json`: who drives the run, which run it is, its run format.
 * `Cursor` — the resume cursor (`CursorStore`): where a run is, so a resume
-  never guesses. `extra="forbid"` throughout, because a renamed field or a
-  typo'd stage name should fail loudly at write time instead of silently
-  drifting the way an untyped dict does.
+  never guesses. `validate_assignment` throughout, because a value of the wrong
+  type should fail loudly at write time instead of silently drifting the way an
+  untyped dict does.
+
+Each is a `RecordModel`: a reader ignores a field it does not know.
 
 Nothing here knows what a stage or a unit *means*; `CursorStore` can be
 given the legal vocabulary and checks it at the one call site that invents
@@ -28,7 +30,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from contraagent._internal.backends.launch import Stop
 from contraagent._internal.dispatch.flow import FlowState
@@ -39,6 +41,7 @@ from contraagent._internal.dispatch.records import (
     Frame,
     Hop,
     QuotaReading,
+    RecordModel,
     SafetyStop,
     SkippedHop,
     TimeBoxRecord,
@@ -54,7 +57,7 @@ from contraagent._internal.routing.preflight import PreflightRecord
 JOURNAL_STOPS: tuple[str, ...] = (*(s.value for s in Stop), STOP_SKIPPED, STOP_PARTIAL)
 
 
-class JournalRow(BaseModel):
+class JournalRow(RecordModel):
     """One finished attempt. `key` is the stable `Task.key`, one task; `kind`
     and `unit` are its kind and unit; `executor` says who ran it; `stop` is
     `Stop.value` (or a Python task's completed/error)."""
@@ -136,10 +139,8 @@ class JournalRow(BaseModel):
 # --- launches --------------------------------------------------------------
 
 
-class LaunchUsage(BaseModel):
+class LaunchUsage(RecordModel):
     """A launch's tokens as `launches.jsonl` records them (`Usage.as_dict`)."""
-
-    model_config = ConfigDict(extra="forbid")
 
     n_calls: int = Field(description="API calls the coding agent made")
     resident: int = Field(description="the whole input of the first API call; 0 with no call")
@@ -158,20 +159,16 @@ class LaunchQuota(QuotaReading):
     retry_after_s: float | None = Field(None, description="the cool-off the provider stated with a quota refusal, in seconds")
 
 
-class DeniedCall(BaseModel):
+class DeniedCall(RecordModel):
     """A tool call the coding agent refused (`denied`): the tool and the head of its input."""
-
-    model_config = ConfigDict(extra="forbid")
 
     tool: str
     input: str = Field(description="the call's input as JSON, cut at 160 characters")
 
 
-class LaunchRow(BaseModel):
+class LaunchRow(RecordModel):
     """One line of `runs/<run>/launches.jsonl`: one launch of a coding agent
     (`LaunchResult.as_dict`)."""
-
-    model_config = ConfigDict(extra="forbid")
 
     ts: str = Field(description="when the launch started")
     label: str
@@ -218,7 +215,7 @@ class LaunchRow(BaseModel):
 # --- plan, flow calls, deferrals ------------------------------------------
 
 
-class PlanRow(BaseModel):
+class PlanRow(RecordModel):
     """One line of `runs/<run>/plan.jsonl`: a task a queue accepted, with its dependencies
     and its origin. A task with no origin (built by hand) has an empty `flow` and
     `created_from`, and `flow_call` null; `base_kind` is set only for an implementation kind,
@@ -253,13 +250,13 @@ class PlanRow(BaseModel):
         return self.model_dump(mode="json", exclude=unset or None)
 
 
-class FlowCallRow(BaseModel):
+class FlowCallRow(RecordModel):
     """One line of `runs/<run>/flow_calls.jsonl`. `event` `start`: `parent`, `function`,
     `flow` (the flow path where the parent created it; empty for a top flow call) and, for a
     flow call started through `time_box`, `time_box`; `end`: `state` (`returned`, `raised`,
     `closed`) and `error` (`"<type>: <message>"` or null). A row holds only its event's fields."""
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", serialize_by_alias=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(serialize_by_alias=True)
 
     ts: str
     id: str
@@ -276,11 +273,9 @@ class FlowCallRow(BaseModel):
         return self.model_dump(mode="json", exclude_unset=True)
 
 
-class DeferredRow(BaseModel):
+class DeferredRow(RecordModel):
     """One line of `runs/<run>/deferred.jsonl`: a task the queue deferred, never launched;
     why in one line (`reason`) and as data (`cause`)."""
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     ts: str
     key: str
@@ -302,7 +297,7 @@ class DeferredRow(BaseModel):
 # --- run.json --------------------------------------------------------------
 
 
-class RunInfo(BaseModel):
+class RunInfo(RecordModel):
     """`runs/<run>/run.json`: who drives the run (`pid`, `start_ticks`, `host_id`), which run
     it is (`run_id`, `run_uid`), its run format, and what the run recorded about itself since.
     `Run.update_info` may add fields of a caller's own."""
@@ -337,16 +332,16 @@ class RunInfo(BaseModel):
 # --- resume cursor ---------------------------------------------------------
 
 
-class HistoryEntry(BaseModel):
+class HistoryEntry(RecordModel):
     """One transition, run- and unit-level alike: `{name, at}`."""
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(validate_assignment=True)
 
     name: str
     at: datetime
 
 
-class Inflight(BaseModel):
+class Inflight(RecordModel):
     """Work items dispatched but not yet recorded, and who dispatched them.
 
     `pid`/`start_ticks` identify the dispatching process, not just a
@@ -355,7 +350,7 @@ class Inflight(BaseModel):
     fact rather than a guess about how long a launch should take.
     """
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(validate_assignment=True)
 
     item_ids: list[str] = Field(default_factory=list)
     since: datetime
@@ -364,7 +359,7 @@ class Inflight(BaseModel):
     start_ticks: int | None = None
 
 
-class UnitCursor(BaseModel):
+class UnitCursor(RecordModel):
     """One unit's position in the per-unit step sequence.
 
     `stage` is the run stage that was active the last time this unit's step
@@ -374,7 +369,7 @@ class UnitCursor(BaseModel):
     `loop_pass` is the pass number of a loop inside the step (0 until a loop records one).
     """
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(validate_assignment=True)
 
     stage: str | None = None
     step: str | None = None
@@ -384,7 +379,7 @@ class UnitCursor(BaseModel):
     history: list[HistoryEntry] = Field(default_factory=list)
 
 
-class Cursor(BaseModel):
+class Cursor(RecordModel):
     """The run's one resume cursor.
 
     `markers` is a free-form store of event lists keyed by name (a stall, a
@@ -392,7 +387,7 @@ class Cursor(BaseModel):
     `list[dict]` rather than per-key models.
     """
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(validate_assignment=True)
 
     schema_version: str
     run: str

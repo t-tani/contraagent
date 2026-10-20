@@ -34,11 +34,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import ClassVar, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from contraagent._internal.backends.base import Backend
 from contraagent._internal.backends.credentials import AMBIENT, Credential
 from contraagent._internal.backends.launch import Launch, LaunchResult, Limits, Stop
+from contraagent._internal.dispatch.records import RecordModel
 from contraagent._internal.dispatch.task import kind_name
 from contraagent._internal.errors import ContraagentError
 from contraagent._internal.routing.pool import first_member
@@ -214,11 +215,11 @@ def _own_chain(backend: Backend, model: str) -> str:
     return chains.describe(model)
 
 
-class DroppedRoute(BaseModel):
+class DroppedRoute(RecordModel):
     """A route the preflight dropped: not in its agent's model list, or its probe did not
     complete. `kinds`: the kinds whose chain held it."""
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     agent: str
     model: str = Field(description="empty: the coding agent's default model")
@@ -230,10 +231,10 @@ class DroppedRoute(BaseModel):
         return f"{Route(self.agent, self.model, self.credential)} ({self.reason})"
 
 
-class Substitution(BaseModel):
+class Substitution(RecordModel):
     """A kind with no route left, run on the first route that answered (`substitute`)."""
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     kind: str
     from_agent: str
@@ -242,10 +243,10 @@ class Substitution(BaseModel):
     to_model: str
 
 
-class KeptKind(BaseModel):
+class KeptKind(RecordModel):
     """A kind with no route left, run as configured all the same (`substitute`), and why."""
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
     kind: str
     agent: str
@@ -253,12 +254,10 @@ class KeptKind(BaseModel):
     reason: str
 
 
-class PreflightRecord(BaseModel):
+class PreflightRecord(RecordModel):
     """What a preflight did, as `run.json` records it (`preflight`): its policy, the routes
     it dropped, and, for each kind left with no route, its substitution, the kind kept
     as configured, or the kind that stopped the run (`stopped`)."""
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     policy: PreflightPolicy = Field(description="`Pipeline(preflight=)`; `off`: no route was probed")
     dropped: list[DroppedRoute] = Field(default_factory=list)
