@@ -533,9 +533,8 @@ SCENARIOS: list[Scenario] = [
 
 def _figures(scenario: Scenario, stub: SlowStub, report: Any, scale: float) -> dict[str, Any]:
     timed = sorted(stub.timed, key=lambda launch: launch.start)
-    if not timed:
-        return {"makespan": 0.0, "launches": 0}
-    first, last = timed[0].start, max(launch.end for launch in timed)
+    # A run that launched nothing (every agent task deferred) has every figure, each 0 but its counts.
+    first, last = (timed[0].start, max(launch.end for launch in timed)) if timed else (0.0, 0.0)
     makespan = (last - first) / scale
     busy = sum((launch.end - launch.start) / scale for launch in timed)
     out: dict[str, Any] = {

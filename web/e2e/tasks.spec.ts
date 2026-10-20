@@ -16,11 +16,11 @@ test('the tasks tab counts and lists as many tasks as the header', async ({ page
   const passes = page.locator('ca-task-table tbody tr', { hasText: 'gamma' }).filter({ hasText: 'review' }).locator('.pass');
   await expect(passes).toHaveCount(2);
   expect((await passes.allTextContents()).sort()).toEqual(['Pass 1', 'Pass 2']);
-  // The task that did not start names the earlier task that failed.
-  const z = page.locator('ca-task-table tbody tr', { hasText: 'summarize' }).filter({ hasText: 'zeta' });
-  await expect(z.locator('.pill')).toHaveText('not started');
-  await expect(z.locator('.cause')).not.toBeEmpty();
-  await z.click();
+  // zeta's prepare failed, and its review loop created nothing after it.
+  const zeta = page.locator('ca-task-table tbody tr', { hasText: 'zeta' });
+  await expect(zeta).toHaveCount(1);
+  await expect(zeta.locator('.pill')).toHaveText('failed');
+  await zeta.click();
   await expect(page).toHaveURL(/tab=stream/);
 });
 
@@ -54,31 +54,17 @@ for (const [tab, list] of [['tasks', 'ca-task-table'], ['journal', 'ca-journal-t
   });
 }
 
-test('a task that did not start reads its input file by file, from the earlier task that failed', async ({ page }) => {
-  await page.goto('/?run=docs&tab=stream&key=summarize-zeta&view=input');
-  const view = page.locator('ca-task-view');
-  const card = view.locator('.io-card').first();
-  await expect(card.locator('.ct-path')).toHaveText('out/prepare/zeta.json');
-  await expect(card.locator('.io-from')).toContainText('Output of prepare · zeta');
-  await expect(card.locator('.io-from .pill')).toHaveText('failed');
-  await expect(card.locator('.io-hd .ct-chip')).toHaveText('not written (task failed)');
-  const earlier = view.locator('.upstream');
-  await expect(earlier).toHaveCount(1);
-  await expect(earlier.locator('.meta').first()).toHaveText('1 output file | 1 read by this task');
-  // The file it reads is not shown again under the earlier task.
-  await expect(earlier.locator('.io-card')).toHaveCount(0);
-  await expect(view).not.toContainText('Also an input');
-  await card.locator('.io-from a').click();
-  await expect(page).toHaveURL(/key=python%3Aprepare-zeta|key=python:prepare-zeta/);
-});
-
-test('an agent task that reads two earlier outputs, and a Python task', async ({ page }) => {
+test('a task given earlier outputs names, by each param, the earlier task it came from', async ({ page }) => {
   await page.goto('/?run=docs&tab=stream&key=review-gamma&view=input');
   const view = page.locator('ca-task-view');
-  await expect(view.locator('.io-card .io-from')).toHaveText([/Output of summarize · gamma/, /Output of score · gamma/]);
-  await expect(view.locator('.upstream .meta')).toHaveText(['1 output file | 1 read by this task', '1 output file | 1 read by this task']);
-  await page.goto('/?run=docs&tab=stream&key=python:score-gamma&view=input');
-  await expect(view.locator('.io-card .io-from')).toHaveText([/Output of summarize · gamma/]);
+  const param = (name: string) => view.locator('table.params tr', { has: page.locator('td.jmono', { hasText: name }) });
+  await expect(param('summary').locator('.from')).toHaveText('From summarize · gamma');
+  // A task is given values, not files: it reads no input file of an earlier task.
+  await expect(view).toContainText('No input files');
+  await expect(view.locator('.upstream', { hasText: 'summarize · gamma' })).toHaveCount(1);
+  await expect(view.locator('.upstream', { hasText: 'score · gamma' })).toHaveCount(1);
+  await param('summary').locator('.from a').click();
+  await expect(page).toHaveURL(/key=summarize-gamma/);
 });
 
 
