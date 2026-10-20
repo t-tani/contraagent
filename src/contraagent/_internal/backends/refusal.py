@@ -10,7 +10,8 @@ observed is an `Ending`; `classify_stop` weighs it in one order for every agent:
     -> a nonzero exit with no answer -> nothing seen at all -> no answer -> completed
 
 The steps from the refused credential to the API error apply only when the agent reports
-that the session ended on an error (`Ending.failed`).
+that the session ended on an error (`Ending.failed`). Words decide nothing for a launch the
+agent reports as ended normally (`Ending.completed`): an answer may well mention a rate limit.
 
 A refusal can also be printed only on stderr (omp's text mode, a CLI that dies at start):
 `Backend.reclassify` reads it there, for the stops `Signals.stderr_stops` names.
@@ -118,7 +119,7 @@ class Ending:
     saw_any: bool = False
     #: The agent's answer: its final text.
     text: str = ""
-    #: The provider's words about a failure (or the text a refusal is looked for in).
+    #: The provider's words about a failure: never the answer of a launch that ended normally.
     error: str = ""
     #: The provider's HTTP status, when the wire states one.
     status: int | None = None
@@ -138,7 +139,7 @@ def classify_stop(e: Ending, signals: Signals) -> Stop:
     """One stop from what a launch's wire said, in one order for every coding agent."""
     if e.killed is not None:
         return e.killed
-    words_decide = not (signals.status_decides and e.status is not None)
+    words_decide = not e.completed and not (signals.status_decides and e.status is not None)
     if e.status == 429 or (words_decide and signals.quota_in(e.error)):
         return Stop.RATE_LIMITED
     if e.failed:

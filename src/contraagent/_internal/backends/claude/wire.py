@@ -26,10 +26,10 @@ from contraagent._internal.runs.times import iso_of, now_iso
 
 #: A safety refusal in an error result's text (a result that is no error may say it in passing).
 REFUSAL_RE = re.compile(r"safeguard|refus", re.I)
-#: How Claude Code words a refusal. Usage-limit copy observed in result text (40 live
-#: sightings, 2026-09); a refused credential's result starts `Failed to authenticate`; a
-#: safety refusal is `REFUSAL_RE` in an error result. A process that printed nothing failed
-#: to start when it exited nonzero; one that printed something but no result had no output.
+#: How Claude Code words a refusal, read only in an error result's text: usage-limit copy
+#: (40 live sightings, 2026-09), a refused credential's `Failed to authenticate`, a safety
+#: refusal's `REFUSAL_RE`. A process that printed nothing failed to start when it exited
+#: nonzero; one that printed something but no result had no output.
 SIGNALS = Signals(
     quota=re.compile(r"hit your (weekly|usage|session) limit|rate.?limit", re.I),
     auth=re.compile(r"^Failed to authenticate"),
@@ -306,34 +306,30 @@ class StreamReader(EventFold):
         return [*self.safety_stops, *(SafetyStop(part="unread") for _ in range(max(more, 0)))]
 
     def ending(self, *, exit_code: int | None, killed: Stop | None) -> Ending:
-        """The result event decides: its API status, its text (where a quota, a refused
-        credential or a refusal is worded), its subtype and its reasons."""
+        """The result event decides: its API status, its subtype, its error flag and its
+        reasons. Its text is the provider's words (where a quota, a refused credential or a
+        refusal is worded) only on an error result; on any other it is the answer, which may
+        mention a rate limit in passing."""
         res = self.final or {}
         text = str(res.get("result") or "")
         subtype = str(res.get("subtype") or "")
         status = res.get("api_error_status")
+        status = status if isinstance(status, int) and not isinstance(status, bool) else None
+        is_error = bool(res.get("is_error") or (subtype and subtype != "success"))
         capped = Stop.MAX_TURNS if "max_turns" in subtype else Stop.BUDGET if "budget" in subtype else None
         e = Ending(
             killed=killed,
             exit_code=exit_code,
             saw_any=self.saw_any,
-            error=text,
-            status=status if isinstance(status, int) and not isinstance(status, bool) else None,
+            error=text if is_error else "",
+            status=status,
             auth=status in (401, 403),
             refused=res.get("stop_reason") == "refusal" or bool(res.get("is_error") and REFUSAL_RE.search(text)),
             aborted=str(res.get("terminal_reason") or "").startswith("aborted"),
             capped=capped,
         )
         if res:
-            e.failed = bool(
-                res.get("is_error")
-                or (subtype and subtype != "success")
-                or e.auth
-                or SIGNALS.auth_in(text)
-                or e.refused
-                or e.aborted
-                or capped
-            )
+            e.failed = bool(is_error or e.auth or e.refused or e.aborted or capped)
             e.completed = not e.failed
         return e
 

@@ -31,12 +31,28 @@ from contraagent._internal.backends.wire import EventFold, feedback_errors, posi
 from contraagent._internal.dispatch.records import QuotaReading
 from contraagent._internal.runs.times import iso_of, now_iso
 
+#: An HTTP status as codex-cli 0.162.1 words one: `unexpected status 429 Too Many Requests: ...`,
+#: `exceeded retry limit, last status: 429 Too Many Requests`. A bare number is no status: a
+#: failed launch's stderr may hold a traceback (`line 429`) or a path.
+_STATUS = r"\bstatus:? {code}\b|\b{code} {reason}\b"
 #: How Codex words a refusal: for usage or rate (ChatGPT plan limits, a provider's 429), a
-#: refused credential, a safety refusal. A process that printed nothing failed to start
-#: when it exited nonzero. A launch that dies before its first event prints only on stderr.
+#: refused credential, a safety refusal. Each is a status in its words (`_STATUS`) or a
+#: message codex-cli 0.162.1 prints (`You've hit your usage limit. ...`, `Quota exceeded.
+#: Check your plan and billing details.`) or the API's error code; a single word such as
+#: `quota` is no refusal (`Disk quota exceeded`, `quota.py`). A process that printed nothing
+#: failed to start when it exited nonzero. A launch that dies before its first event prints
+#: only on stderr, which `Backend.reclassify` reads with `quota`.
 SIGNALS = Signals(
-    quota=re.compile(r"\b429\b|usage limit|rate.?limit|quota|too many requests", re.I),
-    auth=re.compile(r"\b(401|403)\b|unauthori[sz]ed|forbidden|invalid api key|not logged in", re.I),
+    quota=re.compile(
+        _STATUS.format(code=429, reason="Too Many Requests")
+        + r"|hit your usage limit|usage_limit_reached|rate[_ ]limit[_ ](?:reached|exceeded)"
+        + r"|Quota exceeded\. Check your plan|exceeded your current quota|insufficient_quota",
+        re.I,
+    ),
+    auth=re.compile(
+        _STATUS.format(code="(?:401|403)", reason="(?:Unauthorized|Forbidden)") + r"|invalid[_ ]api[_ ]key|incorrect api key|not logged in",
+        re.I,
+    ),
     refusal=re.compile(r"cyber_policy|safety|refus", re.I),
     status=re.compile(r"\bstatus (\d{3})\b|\"code\":\s*\"?(\d{3})"),
     silence_is_startup=True,

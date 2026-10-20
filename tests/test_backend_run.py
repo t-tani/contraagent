@@ -60,6 +60,43 @@ def test_claude_reads_a_quota_refusal_on_stderr(tmp_path):
     assert result.started_at and result.cli_version == "2.1.296"
 
 
+def claude_stop(**result) -> Stop:
+    reader = StreamReader(Limits())
+    reader.feed({"type": "system", "subtype": "init", "session_id": "s-1"})
+    reader.feed({"type": "result", **result})
+    return reader.result(Launch(prompt="x", label="t"), "claude", exit_code=0, killed=None).stop
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "Done: I added rate limiting to the /api endpoint.",
+        "The client now backs off on a rate-limit response and on a quota exceeded error.",
+        "Requests without a token now get 401; you've hit your usage limit is the message.",
+        "Failed to authenticate is what the old handler logged; it now retries.",
+        "Callers that are refused get a 403; the safeguard is in middleware.py.",
+    ],
+)
+def test_claude_s_answer_that_mentions_a_limit_is_still_completed(answer):
+    """A successful result's text is the answer, not the provider's words: a task about rate
+    limits says "rate limit", and its launch completed."""
+    assert claude_stop(subtype="success", is_error=False, result=answer, num_turns=5) is Stop.COMPLETED
+
+
+@pytest.mark.parametrize(
+    ("result", "stop"),
+    [
+        ({"subtype": "success", "is_error": True, "result": "You've hit your usage limit · resets 5pm"}, Stop.RATE_LIMITED),
+        ({"subtype": "success", "is_error": True, "result": "API Error: Rate limit reached"}, Stop.RATE_LIMITED),
+        ({"subtype": "success", "is_error": False, "result": "x", "api_error_status": 429}, Stop.RATE_LIMITED),
+        ({"subtype": "success", "is_error": True, "result": "Failed to authenticate. API Error: 401"}, Stop.AUTH_FAILED),
+        ({"subtype": "success", "is_error": True, "result": "API Error: overloaded"}, Stop.API_ERROR),
+    ],
+)
+def test_claude_s_error_result_is_read_in_its_words(result, stop):
+    assert claude_stop(**result) is stop
+
+
 def test_claude_counts_the_events_it_does_not_know():
     reader = StreamReader(Limits())
     reader.feed({"type": "system", "subtype": "init", "session_id": "s-1"})
@@ -186,6 +223,7 @@ def test_opencode_s_quota_refusal_carries_its_cool_off():
         (Ending(capped=Stop.MAX_TURNS, failed=True, saw_any=True), Stop.MAX_TURNS),
         (Ending(failed=True, saw_any=True), Stop.API_ERROR),
         (Ending(completed=True, saw_any=True), Stop.COMPLETED),
+        (Ending(error="rate limit exceeded", completed=True, saw_any=True, text="x"), Stop.COMPLETED),
         (Ending(exit_code=1, saw_any=True), Stop.ERROR),
         (Ending(exit_code=0, saw_any=False), Stop.LAUNCH_FAILED),
         (Ending(exit_code=0, saw_any=True), Stop.NO_OUTPUT),
