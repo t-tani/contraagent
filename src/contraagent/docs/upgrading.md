@@ -222,13 +222,16 @@ The run format stays 1: the records of 0.7 add fields and values, and remove non
 - `flow_calls.jsonl`: the end of a flow call that raised has `raised_at` and
   `raised_by`; the end of a top flow call has `unawaited`, the tasks that no flow
   call awaited, gave in `after=` or returned.
-- `plan.jsonl`: `given_from`, the tasks whose outputs a task was given.
+- `plan.jsonl`: `given_from`, the tasks whose outputs a task was given, and
+  `input_files`, its input files.
+- `run.json`: `flow`, the top flow, which the monitor's forecast reads.
 - `journal.jsonl`: `fingerprint_parts`, and the stop `cancelled`. `rerun` names the
   parts that changed.
 - The call file: `params_json_schema`, the JSON Schema of the params model, beside
   `params`, whose shape does not change.
 - `deferred.jsonl`: no `dependency_deferred` row is written.
-- The monitor's API is 3.7.0: the plan state `cancelled` and the fields above.
+- The monitor's API is 3.7.0: the plan state `cancelled`, the fields above, and the
+  view `forecast`, the tasks a run is expected to create and has not yet.
 
 ## Check the upgrade
 
