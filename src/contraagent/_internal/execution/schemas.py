@@ -266,14 +266,19 @@ class PlanRow(RecordModel):
         description="keys of the tasks whose outputs it was given in its params: an output, or one item of an output that "
         "is a list, whose JSON is a value of its params; shown only, never part of its fingerprint",
     )
+    input_files: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="the input files among its params, as its task call hashed them: `param` (its place in the params, "
+        "`notes/0`), `path` and `sha256`; absent when it has none",
+    )
     base_kind: str = Field(
         "",
         description="an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty",
     )
 
     def to_dict(self) -> dict[str, Any]:
-        """The row as `plan.jsonl` records it: `base_kind` and `credential` only when set."""
-        unset = {name for name in ("base_kind", "credential") if not getattr(self, name)}
+        """The row as `plan.jsonl` records it: `base_kind`, `credential` and `input_files` only when set."""
+        unset = {name for name in ("base_kind", "credential", "input_files") if not getattr(self, name)}
         return self.model_dump(mode="json", exclude=unset or None)
 
 
@@ -371,6 +376,11 @@ class RunInfo(RecordModel):
         None, description="by credential, the quota caps of each that has one"
     )
     quota_rule: str | None = Field(None, description="the quota rule's `module.qualname`; empty without one")
+    flow: str | None = Field(
+        None,
+        description="`module.qualname` of the run's top flow (`Pipeline.run(flow)`): the runs of one flow, which the monitor's "
+        "forecast compares; absent in a run of an earlier release",
+    )
     preflight: PreflightRecord | None = Field(None, description="what the run's preflight did")
 
 

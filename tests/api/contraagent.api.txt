@@ -2664,6 +2664,7 @@ class Monitor
     def cursor(self, run: str) -> dict[str, Any] | None
     def definitions(self, run: str) -> list[dict[str, Any]]
     def digest(self, run: str) -> dict[str, Any]
+    def forecast(self, run: str) -> dict[str, Any]
     group_defs: list[dict[str, Any]]
     def hosts(self) -> dict[str, Any]
     def journal(self, run: str, since: int = 0) -> tuple[list[dict[str, Any]], int]
@@ -2702,6 +2703,7 @@ class Monitor
         *,
         outputs: dict[str, Any] | None = None,
         plan_rows: list[dict[str, Any]] | None = None,
+        rows: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]
     title
     def trends(self, period: Period, *, run_group: str = '', stub: bool = False) -> dict[str, Any]
@@ -2978,12 +2980,12 @@ class ContractField(Closed)
 
 class ContractRecord(Open)
     executor: Executor = 'agent'
-    inputs: list[ContractSpec] = Field(default_factory=list)
+    inputs: list[ContractSpec] = Field(default_factory=list, description='its input contracts (`InputContract`, from a `TaskAdapter` of the engine), checked before it starts')
     key: str
     kind: str = ''
     model_config: ConfigDict = ConfigDict(extra='allow')
     outputs: list[ContractSpec] = Field(default_factory=list)
-    params: dict[str, str | int | float | bool] = Field(default_factory=dict, description="the task's params that are strings, numbers or booleans; an earlier task's output is one of `inputs`")
+    params: dict[str, str | int | float | bool] = Field(default_factory=dict, description="the task's params that are strings, numbers or booleans")
     unit: str = ''
 
 class ContractSpec(Open)
@@ -3032,6 +3034,7 @@ class DownstreamTask(Closed)
     executor: Executor
     key: str
     kind: str
+    lineage: list[Lineage] = Field(default_factory=list, description='how it is joined to this task, in the order `given_from`, `after`, `created_from`')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     unit: str
 
@@ -3074,6 +3077,33 @@ class FlowCallNode(Closed)
     state: FlowState
     time_box: TimeBoxRecord | None = Field(None, description='its own deadline, for a flow call started through `time_box`; else null')
     unawaited: list[str] = Field(default_factory=list, description='for a top flow call that ended: the keys of the tasks created in it or in the flow calls it started that nothing awaited, waited for with `after=` or returned; they ran all the same')
+
+class Forecast(Closed)
+    cost_usd: float | None = Field(description="the entries' `cost_usd`, summed; null when none has one")
+    earlier_finished_at: str = Field(description='when the earlier run finished, ISO 8601; empty when there is none')
+    earlier_run: str = Field(description='the run it reads; empty when no run of the same flow finished before this one started')
+    entries: list[ForecastEntry] = Field(description='by tail key, in the order the earlier run created the first task of each')
+    flow: str = Field(description="`module.qualname` of the run's top flow (`run.json` `flow`); empty for a run of an earlier release")
+    model_config: ConfigDict = ConfigDict(extra='forbid')
+    remaining: int = Field(description="the entries' `remaining`, summed")
+    wall_s: float = Field(description="the entries' `wall_s`, summed")
+
+class ForecastEntry(Closed)
+    cost_usd: float | None = Field(description="the cost of the `remaining` tasks in USD, at the earlier run's mean per task; null when the earlier run reported none")
+    created: int = Field(description='the tasks of it this run has created')
+    expected: int = Field(description='the tasks of it the earlier run created')
+    flow: list[str] = Field(description='the function names of its flow path, outermost first')
+    group: str = Field(description='the group its kind is drawn in (`PlanGroup.id`)')
+    kind: str = Field(description="the kind of the earlier run's first task of it")
+    model_config: ConfigDict = ConfigDict(extra='forbid')
+    passes: list[int | None] = Field(description='the passes of the loops around it, outermost first, each capped at 3 (3: the third pass and later); null for a loop whose pass was not recorded')
+    remaining: int = Field(description='`expected` less `created`, never below 0')
+    wall_s: float = Field(description="the wall time of the `remaining` tasks, at the earlier run's mean per task (every attempt counted)")
+
+class ForecastMessage(Closed)
+    data: Forecast
+    event: Literal['forecast']
+    model_config: ConfigDict = ConfigDict(extra='forbid')
 
 class HostSummary(Closed)
     host_id: str
@@ -3291,6 +3321,7 @@ class PlanNode(PlanRow)
     flow_call: str | None = Field(None, description='the id of the flow call that created it; null for a task with no origin')
     given_from: list[str] = Field(default_factory=list, description='keys of the tasks whose outputs it was given in its params: an output, or one item of an output that is a list, whose JSON is a value of its params; shown only, never part of its fingerprint')
     group: str
+    input_files: list[dict[str, str]] = Field(default_factory=list, description='the input files among its params, as its task call hashed them: `param` (its place in the params, `notes/0`), `path` and `sha256`; absent when it has none')
     key: str
     kind: str
     level: int = Field(description='depth in the dependency graph, 0 for a task that waits for nothing')
@@ -3362,7 +3393,7 @@ class RetryEvent(TranscriptEvent)
     model_config: ConfigDict = ConfigDict(extra='allow')
     type: Literal['auto_retry_start']
 
-RunEvent = JournalMessage | ProcsMessage | PlanMessage | OutputsMessage | CursorMessage | PanelMessage | ReadyMessage
+RunEvent = JournalMessage | ProcsMessage | PlanMessage | OutputsMessage | ForecastMessage | CursorMessage | PanelMessage | ReadyMessage
 
 class RunSummary(Closed)
     attempts: int = Field(description='journal rows: finished task attempts')
@@ -3478,11 +3509,21 @@ class TaskDetail(Open)
 class TaskIO(Closed)
     downstream: list[DownstreamTask]
     executor: Executor
-    inputs: list[ContractSpec]
+    input_files: list[TaskInputFile] = Field(default_factory=list, description='the input files among its params')
+    inputs: list[ContractSpec] = Field(description='its input contracts (`ContractRecord.inputs`)')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     outputs: list[ContractSpec]
     params: dict[str, Any]
     upstream: list[UpstreamTask]
+
+class TaskInputFile(Closed)
+    check: InputFileCheck
+    model_config: ConfigDict = ConfigDict(extra='forbid')
+    param: str = Field(description="its place in the params: the param's name, then a list's index or a field's name (`notes/0`)")
+    path: str = Field(description="as the params hold it: relative to the run's working directory, or absolute for an output file outside it")
+    reason: str = Field('', description='for one `refused`: why, as the refusal names it; else empty')
+    sha256: str
+    writer: str | None = Field(None, description='the key of the task it was given from whose output file it is; null for another file')
 
 class TaskLaunch(Closed)
     age_s: int | None
@@ -3674,6 +3715,7 @@ class UpstreamTask(Closed)
     executor: Executor
     key: str
     kind: str
+    lineage: list[Lineage] = Field(default_factory=list, description='how this task is joined to it, in the order `given_from`, `after`, `created_from`')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     outputs: list[ContractSpec]
     unit: str

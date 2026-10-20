@@ -50,6 +50,35 @@ describe('ca-pipeline-graph', () => {
     expect(prepare.querySelector('.mark[title*="zeta"]')?.getAttribute('data-shape')).toBe('square');
   });
 
+  it('shows the forecast on its kind nodes and above the graph, and the tasks no flow awaited', async () => {
+    const plan = staticDemo();
+    const report = plan.nodes.find((n) => n.kind === 'report')!;
+    plan.flow_calls = [
+      { id: '0', parent: null, function: 'flows.docs', flow: [], state: 'returned', error: null, unawaited: [report.key] },
+    ] as Plan['flow_calls'];
+    const entry = (group: string, remaining: number, flow: string[] = []) => ({
+      kind: group, group, flow, passes: [], expected: remaining + 1, created: 1, remaining, wall_s: 10 * remaining, cost_usd: null,
+    });
+    const forecast = {
+      flow: 'flows.docs', earlier_run: 'docs-1', earlier_finished_at: '2026-10-11T00:00:00+00:00',
+      entries: [entry('review', 2), entry('publish', 1)], remaining: 3, wall_s: 30, cost_usd: null,
+    };
+    const el = document.createElement('ca-pipeline-graph');
+    Object.assign(el, { plan, forecast });
+    document.body.append(el);
+    const g = await settle(el);
+    const review = g.querySelector('.node[data-id="kind:review"]')!;
+    expect(review.querySelector('.expected')?.textContent).toBe('+2');
+    expect(review.querySelector('.expected')?.getAttribute('title')).toBe('2 more tasks expected (forecast)');
+    expect(review.getAttribute('aria-label')).toContain('2 more tasks expected (forecast)');
+    expect(g.querySelector('.node[data-id="kind:prepare"] .expected')).toBeNull();
+    const root = el.shadowRoot!;
+    expect(root.querySelector('.forecast')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+      'Forecast: 3 more tasks | 30s of task time | Not in the plan yet: publish +1',
+    );
+    expect(root.querySelector('.unawaited')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('1 task not awaited report');
+  });
+
   it('selects a node or a mark on a click, and opens a kind node’s tasks on a double click', async () => {
     const { g, sent } = await graph(staticDemo());
     (g.querySelector('.node[data-id="kind:summarize"] .name') as HTMLElement).click();

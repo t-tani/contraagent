@@ -54,6 +54,10 @@ export const graphStyles = [
     .switch:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 1px; }
     .switch[aria-pressed='true'] { color: var(--text); background: var(--accent-bg); border-color: var(--accent); }
     .opens { display: inline-flex; gap: 6px; margin-left: auto; }
+    .forecast { font-size: 12px; color: var(--text-muted); margin: 0 0 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+    .forecast .expected-mark { display: inline-block; width: 18px; height: 10px; border: 1.5px dotted var(--line2); border-radius: 999px; margin-right: 4px; }
+    .unawaited { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; }
+    .card .down { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 
     /* The outline: a column beside the graph, or a part above it on a narrow frame. */
     .whole, .whole > .g { display: flex; flex-direction: column; flex: auto; min-height: 0; min-width: 0; }

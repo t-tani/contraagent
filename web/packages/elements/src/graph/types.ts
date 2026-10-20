@@ -4,8 +4,14 @@
 import type { Fact } from '../primitives/fact-line.js';
 import type { Tone } from '../core/tone.js';
 
-/** How an edge is drawn: solid, or dashed (another kind of link). */
-export type EdgeStyle = 'solid' | 'dashed';
+/** How an edge is drawn: solid, dotted or dashed (three kinds of link). */
+export type EdgeStyle = 'solid' | 'dotted' | 'dashed';
+
+/**
+ * The marks a highlighted series lights: their ids, or by id the style of the link that
+ * joins each to the series (a ring in that style; null: none, a mark of the series itself).
+ */
+export type LitMarks = ReadonlySet<string> | ReadonlyMap<string, EdgeStyle | null>;
 
 /** One mark of a node: an item it stands for, drawn as a small shape in its state's look. */
 export interface GraphMark {
@@ -64,6 +70,12 @@ export interface GraphNodeInput {
   progress?: NodeProgress;
   /** The line under its marks ("1 failed | 1 not started"). */
   notes?: readonly Fact[];
+  /**
+   * Items expected and not in it yet, drawn after its marks as a dotted outline with a
+   * short text ("+3") and its words (its tooltip, and part of the node's accessible name
+   * through `summary`); none by default.
+   */
+  expected?: { text: string; label: string };
   /** Its frame's tone: failed, running or done. */
   look?: Tone;
   /** It can be drawn open, as a cluster of what is inside it: a control in its header sends `cae-toggle` (`closed`: it is drawn closed now). */

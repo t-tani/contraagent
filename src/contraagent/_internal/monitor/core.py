@@ -37,6 +37,7 @@ from pydantic import BaseModel, ValidationError
 from contraagent._internal.backends.streams import normalize_stream_line, resolve_format
 from contraagent._internal.dispatch.records import DeferralCause, Rest, RestEvent, ServiceEvent, TimeBoxRecord
 from contraagent._internal.execution.cursor import parse_cursor
+from contraagent._internal.execution.estimates import TailKey, latest_finished, row_tail_key, run_shape
 from contraagent._internal.execution.schemas import JournalRow
 from contraagent._internal.monitor import trends
 from contraagent._internal.monitor.aggregate import TOKENS, add_tokens, model_usage
@@ -369,6 +370,7 @@ class Monitor:
         self.keep_digests = keep_digests
         self._digests: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}  # run -> (signature, digest)
         self._infos: dict[str, tuple] = {}  # run -> (run.json's stat, run.json)
+        self._shapes: dict[str, tuple[tuple, dict]] = {}  # run -> (its plan's and journal's stats, `run_shape`)
         self._trends: tuple[tuple, dict[str, Any]] | None = None  # the last trends, and what they were made of
         # Each trends panel's last body, and what it was made of; and those being made now,
         # so the same panel asked again (a page refreshes every few seconds) waits for it.
@@ -650,6 +652,73 @@ class Monitor:
             **self._preflight(run),
         }
 
+    # --- forecast (what the run is expected to create, from an earlier run) ---------
+
+    def forecast(self, run: str) -> dict[str, Any]:
+        """The tasks the run is expected to create and has not yet (`api.Forecast`): by
+        tail key, the tasks of the run of the same flow that finished last before this one
+        started (`latest_finished`), less those this run has created, with the earlier
+        run's wall time and cost per task. A display only: the schedule never reads it."""
+        infos = {r: self._info(r) for r in self.source.runs()}
+        infos.setdefault(run, self._info(run))
+        flow = infos[run].get("flow")
+        earlier = latest_finished(run, infos)
+        out: dict[str, Any] = {
+            "flow": flow if isinstance(flow, str) else "",
+            "earlier_run": earlier or "",
+            "earlier_finished_at": str(infos[earlier].get("finished_at") or "") if earlier else "",
+            "entries": [],
+            "remaining": 0,
+            "wall_s": 0.0,
+            "cost_usd": None,
+        }
+        if earlier is None:
+            return out
+        created: dict[TailKey, int] = {}
+        for row in self._read_plan(run):
+            k = row_tail_key(row)
+            created[k] = created.get(k, 0) + 1
+        for (functions, kind, passes), part in self._shape(earlier).items():
+            made = created.get((functions, kind, passes), 0)
+            left = max(0, part["tasks"] - made)
+            share = left / part["tasks"]
+            cost = round(part["cost_usd"] * share, 6) if part["cost_usd"] is not None else None
+            out["entries"].append(
+                {
+                    "kind": kind,
+                    "group": self._group_name({"kind": kind, "base_kind": part["base_kind"]}),
+                    "flow": list(functions),
+                    "passes": list(passes),
+                    "expected": part["tasks"],
+                    "created": made,
+                    "remaining": left,
+                    "wall_s": round(part["wall_s"] * share, 3),
+                    "cost_usd": cost,
+                }
+            )
+            out["remaining"] += left
+            out["wall_s"] += part["wall_s"] * share
+            if cost is not None:
+                out["cost_usd"] = (out["cost_usd"] or 0.0) + cost
+        out["wall_s"] = round(out["wall_s"], 3)
+        if out["cost_usd"] is not None:
+            out["cost_usd"] = round(out["cost_usd"], 6)
+        return out
+
+    def _info(self, run: str) -> dict[str, Any]:
+        """A run's `run.json` ({} for none), read again only when it changed."""
+        return trends.run_info(self.source, run, self._infos)
+
+    def _shape(self, run: str) -> dict[TailKey, dict[str, Any]]:
+        """A run's `run_shape`, read again only when its plan or its journal changed."""
+        sig = (self.source.stat(run, layout.PLAN), self.source.stat(run, layout.JOURNAL))
+        held = self._shapes.get(run)
+        if held is not None and held[0] == sig:
+            return held[1]
+        shape = run_shape(parse_rows(self.source.lines(run, layout.PLAN)[0]), self._read_journal(run))
+        self._shapes[run] = (sig, shape)
+        return shape
+
     def _preflight(self, run: str) -> dict[str, Any]:
         """`preflight`: what the run's preflight did (`run.json`), when it records it."""
         record = (self.source.info(run) or {}).get("preflight")
@@ -805,7 +874,7 @@ class Monitor:
             "rows": rows,
             "launches": launches,
             "definition": defs.get(kind),
-            "io": self.task_io(run, key),
+            "io": self.task_io(run, key, rows=rows),
             "stream": key if self.source.size(run, layout.stream(key)) >= 0 else None,
             "row_extras": row_extras(rows),
         }
@@ -966,16 +1035,25 @@ class Monitor:
         return parse_rows(self.source.folder(run, layout.DEFINITIONS))
 
     def task_io(
-        self, run: str, key: str, *, outputs: dict[str, Any] | None = None, plan_rows: list[dict[str, Any]] | None = None
+        self,
+        run: str,
+        key: str,
+        *,
+        outputs: dict[str, Any] | None = None,
+        plan_rows: list[dict[str, Any]] | None = None,
+        rows: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """One task's input and output: its params, the files it read, the files
         it left behind with the contract verdict, and how data flows around it.
 
-        `upstream` are the output files of the tasks this one waits for (`after=`) or was given
-        from (`given_from`): for a task that declares no `InputContract`, they are what it
-        actually reads. `downstream` are the tasks that wait for this one or were given from it.
-        `outputs` and `plan_rows`, when given, are the run's (`outputs(run)`, its plan rows),
-        read once for many tasks.
+        `upstream` are the tasks this one was given from (`given_from`), waits for (`after=`) or
+        was created from (`created_from`), each with its output files (for a task that declares
+        no `InputContract`, those of the tasks it was given from are what it reads) and its
+        lineage. `downstream` are the tasks joined so to this one, each with its lineage.
+        `input_files` are the input files among its params, each with the task it was given from
+        whose output file it is, and its check as the task was about to start.
+        `outputs`, `plan_rows` and `rows`, when given, are the run's (`outputs(run)`, its plan
+        rows) and the task's journal rows, read once for many tasks.
         """
         outs = outputs if outputs is not None else self.outputs(run)
         by_key = {c.get("key"): c for c in outs["contracts"]}
@@ -983,7 +1061,7 @@ class Monitor:
         plan = {n["key"]: n for n in (plan_rows if plan_rows is not None else self._read_plan(run))}
         node = plan.get(key, {})
         upstream = []
-        for dep in _earlier(node):
+        for dep, lineage in lineage_of(node).items():
             d = by_key.get(dep)
             upstream.append(
                 {
@@ -992,21 +1070,27 @@ class Monitor:
                     "unit": (plan.get(dep) or {}).get("unit", ""),
                     "executor": (plan.get(dep) or {}).get("executor", "agent"),
                     "outputs": (d or {}).get("outputs", []),
+                    "lineage": lineage,
                 }
             )
-        downstream = [
-            {"key": k, "kind": n.get("kind", ""), "unit": n.get("unit", ""), "executor": n.get("executor", "agent")}
-            for k, n in plan.items()
-            if key in _earlier(n)
-        ]
+        downstream = []
+        for k, n in plan.items():
+            lineage = lineage_of(n).get(key)
+            if lineage:
+                neighbour = {"key": k, "kind": n.get("kind", ""), "unit": n.get("unit", ""), "executor": n.get("executor", "agent")}
+                downstream.append({**neighbour, "lineage": lineage})
         return {
             "params": self._call_params(run, key, rec.get("params", {})),
             "inputs": rec.get("inputs", []),
+            "input_files": _input_files(node, by_key, rows if rows is not None else self._rows(run, key)),
             "outputs": rec.get("outputs", []),
             "executor": rec.get("executor", node.get("executor", "agent")),
             "upstream": upstream,
             "downstream": downstream,
         }
+
+    def _rows(self, run: str, key: str) -> list[dict[str, Any]]:
+        return [e for e in self._read_journal(run) if e.get("key") == key]
 
     def _call_params(self, run: str, key: str, fallback: dict[str, Any]) -> dict[str, Any]:
         """What the task was given: the call file's params (every value, a value
@@ -1198,3 +1282,62 @@ def _earlier(node: dict[str, Any]) -> list[str]:
     it was given from (`given_from`), each once."""
     keys = [*(node.get("after") or []), *(node.get("given_from") or [])]
     return [k for k in dict.fromkeys(keys) if isinstance(k, str)]
+
+
+def lineage_of(node: Mapping[str, Any]) -> dict[str, list[str]]:
+    """The earlier tasks of a plan row by key, each with its lineage (`api.Lineage`): those it
+    was given from (`given_from`), those it waits for and was not given from (`after`), then
+    those it was created from (`created_from`); each key once, its lineage in that order."""
+    given = [k for k in node.get("given_from") or () if isinstance(k, str)]
+    out: dict[str, list[str]] = {k: ["given_from"] for k in given}
+    for k in node.get("after") or ():
+        if isinstance(k, str) and k not in out:
+            out[k] = ["after"]
+    for k in node.get("created_from") or ():
+        if isinstance(k, str):
+            lineage = out.setdefault(k, [])
+            if "created_from" not in lineage:
+                lineage.append("created_from")
+    return out
+
+
+def _input_files(node: Mapping[str, Any], records: Mapping[Any, Mapping[str, Any]], rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """A task's input files (its plan row's `input_files`), each with `writer`, the task it
+    was given from whose output file it is (by the path), and `check`: `refused` when its
+    last journal row is a refusal (`invalid_input`) that names its path, `passed` when a
+    journal row shows the task started, else `not_checked`."""
+    last = rows[-1] if rows else None
+    started = any(r.get("stop") not in ("invalid_input", "skipped") for r in rows)
+    refusal = str(last.get("reason") or "") if last is not None and last.get("stop") == "invalid_input" else ""
+    out = []
+    for f in node.get("input_files") or ():
+        if not isinstance(f, Mapping) or not isinstance(f.get("path"), str):
+            continue
+        path = f["path"]
+        writers = [
+            k
+            for k in node.get("given_from") or ()
+            if any(_same_file(o.get("path"), path) for o in (records.get(k) or {}).get("outputs", ()))
+        ]
+        check = "refused" if refusal and path in refusal else "passed" if started else "not_checked"
+        out.append(
+            {
+                "param": str(f.get("param", "")),
+                "path": path,
+                "sha256": str(f.get("sha256", "")),
+                "writer": writers[0] if writers else None,
+                "check": check,
+                "reason": refusal if check == "refused" else "",
+            }
+        )
+    return out
+
+
+def _same_file(output: object, given: str) -> bool:
+    """An output contract's path (absolute) names the file an input file's path (relative to
+    the working directory, or absolute) names."""
+    if not isinstance(output, str) or not output:
+        return False
+    if output == given:
+        return True
+    return not Path(given).is_absolute() and Path(output).as_posix().endswith("/" + Path(given).as_posix())

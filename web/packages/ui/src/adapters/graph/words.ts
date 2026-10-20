@@ -7,7 +7,7 @@ import { msg, str } from '@lit/localize';
 import { facts, fmtDur, kindUnit, listText } from '../../words/format.js';
 import { passesRan, stateCount, taskStatusLabel } from '../../words/index.js';
 import { SEVERITY } from './states.js';
-import type { GraphNode, LayerGraph, LayerMark, NodeCounts } from './types.js';
+import type { EdgeType, GraphNode, LayerGraph, LayerMark, NodeCounts } from './types.js';
 
 /** The states the legend can show, in this order; it shows the ones the view has. */
 export const LEGEND: readonly TaskState[] = ['done', 'partial', 'running', 'pending', 'failed', 'blocked', 'skipped', 'cancelled'];
@@ -93,28 +93,32 @@ export function nodeTip(n: GraphNode): string {
   return facts(msg(str`Function ${n.name}`), n.timeBox ? msg(str`Deadline ${fmtDur(n.timeBox.deadline_s)}`) : '', doneOf(n.counts));
 }
 
-/** The names of the nodes `n` waits for, was created after, and feeds. */
-export function neighbours(n: GraphNode, g: Pick<LayerGraph, 'nodes' | 'edges' | 'stubs'>): { waits: string[]; after: string[]; feeds: string[] } {
+/** The names of the nodes whose outputs `n`'s tasks are given, that they only run after, that they were created after, and that `n` feeds. */
+export function neighbours(
+  n: GraphNode,
+  g: Pick<LayerGraph, 'nodes' | 'edges' | 'stubs'>,
+): { given: string[]; order: string[]; created: string[]; feeds: string[] } {
   const label = (id: string) => {
     const x = g.nodes.find((y) => y.id === id);
     return !x ? id : x.box ? msg(str`${x.label} in the loop`) : x.label;
   };
-  const into = (type: 'after' | 'created') => [
+  const into = (type: EdgeType) => [
     ...g.stubs.filter((s) => s.to === n.id && s.type === type).map((s) => s.label),
     ...g.edges.filter((e) => e.to === n.id && e.type === type).map((e) => label(e.from)),
   ];
-  return { waits: into('after'), after: into('created'), feeds: [...new Set(g.edges.filter((e) => e.from === n.id).map((e) => label(e.to)))] };
+  return { given: into('given'), order: into('after'), created: into('created'), feeds: [...new Set(g.edges.filter((e) => e.from === n.id).map((e) => label(e.to)))] };
 }
 
-/** The node for a screen reader: its counts, and the nodes it waits for, was created after and feeds. */
+/** The node for a screen reader: its counts, and the nodes it is given the outputs of, runs after, was created after and feeds. */
 export function nodeLabel(n: GraphNode, g: Pick<LayerGraph, 'nodes' | 'edges' | 'stubs'>, live: boolean): string {
   const c = n.counts;
-  const { waits, after, feeds } = neighbours(n, g);
+  const { given, order, created, feeds } = neighbours(n, g);
   return [
     n.type === 'flow' ? facts(msg(str`Function ${n.label}`), doneOf(c)) : facts(n.label, executorWord(n), doneOf(c)),
     ...exceptions(n, live).map(([, t]) => t),
-    waits.length ? msg(str`Waits for: ${listText(waits)}`) : '',
-    after.length ? msg(str`Created after: ${listText(after)}`) : '',
+    given.length ? msg(str`Given output of: ${listText(given)}`) : '',
+    order.length ? msg(str`Runs after: ${listText(order)}`) : '',
+    created.length ? msg(str`Created after: ${listText(created)}`) : '',
     feeds.length ? msg(str`Later tasks: ${listText(feeds)}`) : '',
   ]
     .filter(Boolean)

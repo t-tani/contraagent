@@ -96,13 +96,23 @@ export interface FlowBox {
   parts: { id: string; key: string; node: GraphNode }[];
 }
 
+/** How tasks of two nodes are joined (`GraphEdge.type`), the strongest first. */
+export type EdgeType = 'given' | 'after' | 'created';
+
+/** The edge types, the strongest first: an edge is drawn only where no stronger one joins the same two. */
+export const EDGE_TYPES: readonly EdgeType[] = ['given', 'after', 'created'];
+
 export interface GraphEdge {
   from: string;
   to: string;
   /** Tasks of `to` joined to a task of `from`. */
   tasks: number;
-  /** `after`: waits for its output; `created`: created after its result (and does not wait for its output). */
-  type: 'after' | 'created';
+  /**
+   * `given`: given its output (`given_from`, data); `after`: waits for it and is not given its output (order
+   * only); `created`: created after its result (`created_from`). Two nodes are joined by the first of these any of
+   * their tasks are.
+   */
+  type: EdgeType;
   /** Some task of it joins a task in the same pass of every loop around both ends: it sets the layers (else it goes back to a loop's next pass). */
   samePass: boolean;
   /** It goes back to a loop's next pass (or otherwise closes a cycle): the loop box stands for it, it is not drawn. */
@@ -115,7 +125,7 @@ export interface GraphStub {
   label: string;
   to: string;
   tasks: number;
-  type: 'after' | 'created';
+  type: EdgeType;
 }
 
 /** A layer as the plan has it, before it is arranged: its nodes in the plan's order, its loop boxes without their layers. */

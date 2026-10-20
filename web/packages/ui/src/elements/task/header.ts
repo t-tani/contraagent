@@ -11,6 +11,8 @@ import { contextWarnedText, contextWarnedTip, peakContextLine, peakContextTip, p
 import { readingShort, readingTip } from '../../words/quota.js';
 import { safetyStopCount, safetyStopLine, safetyStopTip } from '../../words/safety.js';
 import { customColumnTip, customValues } from '../../words/row-extras.js';
+import { divergenceTip, divergenceWord, rerunLine, rerunOf } from '../../words/rerun.js';
+import { stoppedAt } from '../../words/flow-calls.js';
 import { isStop, type Tone } from '../../lib/tone.js';
 import { executorIcon } from '../../words/executor.js';
 import '@contraagent/elements/json-tree/define';
@@ -137,7 +139,8 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
               </div>`
             : nothing}
           ${node?.priority ? html`<div class="meta" title=${priorityTip()}>${priorityText(node.priority)}</div>` : nothing}
-          ${node?.rerun ? html`<div class="meta">${msg(str`Ran again after a resume: ${node.rerun}`)}</div>` : nothing}
+          ${rerunMeta(rows, node?.rerun)}
+          ${stoppedFlowCalls(c)}
           ${session
             ? html`<div class="whos">
                 ${tagChips([...whoTags(who), ...identityTags(tries)])}
@@ -290,6 +293,8 @@ function quotaLine(c: TaskContext, tries: JournalRow[]) {
 /** One finished attempt: how it ended, how long, its cost, its safety stops; the rest (when, corrections, model, model switch) in its tooltip. */
 function runChip(c: TaskContext, r: JournalRow, name: string, session: boolean, extras: readonly string[]) {
   const look = r.stop === 'partial' ? 'part' : r.ok ? 'ok' : 'bad';
+  const rows = c.detail.rows;
+  const rerun = rerunOf(rows, rows.indexOf(r));
   const played = !!c.replayMarks && !!r.replayed;
   const reason = runRelative(r.reason, c.run);
   const sw = modelSwitch(r.hops, null, r.skipped_hops);
@@ -304,12 +309,34 @@ function runChip(c: TaskContext, r: JournalRow, name: string, session: boolean, 
     reason,
     r.route || '',
     played ? replayedTip() : '',
+    rerun ? rerunLine(rerun) : '',
     ...customValues(r, extras).map(([k, v]) => `${k}: ${v}`),
   ]
     .filter(Boolean)
     .join('\n');
   const cost = r.cost_usd !== null && r.cost_usd !== undefined ? usd(r.cost_usd) : '';
   return html`<span class="runchip ${look}" title=${tip}>
-    ${mark(r)} ${facts(name, stopLabel(r.stop, r.reason), fmtDur(r.wall_s), cost, safety, played ? replayedLabel() : '')}
+    ${mark(r)} ${facts(name, stopLabel(r.stop, r.reason), fmtDur(r.wall_s), cost, safety, played ? replayedLabel() : '', rerun?.divergence ? divergenceWord() : '')}
   </span>`;
+}
+
+/**
+ * Why a resume ran the task again, from its latest journal row with a `rerun`: the parts
+ * of its fingerprint that changed, and a divergence; the plan's `rerun` before its row
+ * arrives. The recorded reason is the tooltip.
+ */
+function rerunMeta(rows: readonly JournalRow[], planned: string | undefined) {
+  const i = rows.map((r) => !!r.rerun).lastIndexOf(true);
+  const r = i >= 0 ? rerunOf(rows, i) : planned ? { text: planned, changed: [], divergence: planned.startsWith('divergence') } : null;
+  if (!r) return nothing;
+  return html`<div class="meta rerun" title=${r.text}>${rerunLine(r)}${r.divergence
+    ? html` <span class="divergence" title=${divergenceTip()}>${pill({ text: divergenceWord(), tone: 'attention' })}</span>`
+    : nothing}</div>`;
+}
+
+/** The flow calls this task's failure stopped (`FlowCallNode.raised_by`), each with where: "This failure stopped review_loop at flow.py:42". */
+function stoppedFlowCalls(c: TaskContext) {
+  const calls = (c.plan?.flow_calls ?? []).filter((f) => f.raised_by === c.detail.key);
+  if (!calls.length) return nothing;
+  return html`${calls.map((f) => html`<div class="meta stopped" title=${f.error ?? ''}>${stoppedAt(f, c.run)}</div>`)}`;
 }

@@ -10,7 +10,7 @@ export interface RunCounts extends Record<Outcome, number> {
   total: number;
   /** done + recovered: "N of M tasks done" in every view. */
   doneTotal: number;
-  /** done + recovered + partial + skipped: nothing is left to do. */
+  /** done + recovered + partial + skipped + cancelled: nothing is left to do. */
   finished: number;
 }
 
@@ -56,7 +56,7 @@ function derive(journal: readonly JournalRow[], plan: Plan): RunDerived {
   return {
     outcomes,
     rows: taskRows(outcomes, plan),
-    counts: { ...c, doneTotal: c.done + c.recovered, finished: c.done + c.recovered + c.partial + c.skipped },
+    counts: { ...c, doneTotal: c.done + c.recovered, finished: c.done + c.recovered + c.partial + c.skipped + c.cancelled },
     problems: problems(outcomes),
     kinds: [...new Set([...outcomes.values()].map((t) => t.kind))].sort(),
     tries: tryCounts(journal),
@@ -76,7 +76,9 @@ export interface Progress {
   /** Plan state `partial`: ok, the output a placeholder. */
   partial: number;
   skipped: number;
-  /** Finished (done, partial and skipped) out of all, in percent. */
+  /** Plan state `cancelled`: no flow call waited for it any longer. */
+  cancelled: number;
+  /** Finished (done, partial, skipped and cancelled) out of all, in percent. */
   pct: number;
 }
 
@@ -86,13 +88,22 @@ export function progress(plan: Plan): Progress {
   const done = plan.groups.reduce((a, g) => a + g.done, 0);
   const partial = plan.groups.reduce((a, g) => a + (g.partial ?? 0), 0);
   const skipped = plan.groups.reduce((a, g) => a + g.skipped, 0);
-  return { total, done, partial, skipped, pct: Math.round((100 * (done + partial + skipped)) / Math.max(1, total)) };
+  const cancelled = plan.groups.reduce((a, g) => a + (g.cancelled ?? 0), 0);
+  return { total, done, partial, skipped, cancelled, pct: Math.round((100 * (done + partial + skipped + cancelled)) / Math.max(1, total)) };
 }
 
 /** How a run's tasks ended, from the plan: for a run that is over, in place of a progress bar. */
-export function result(plan: Plan): { done: number; partial: number; skipped: number; failed: number; notStarted: number; left: number } {
+export function result(plan: Plan): { done: number; partial: number; skipped: number; cancelled: number; failed: number; notStarted: number; left: number } {
   const count = (...states: PlanNode['state'][]) => plan.nodes.filter((n) => states.includes(n.state)).length;
-  return { done: count('done'), partial: count('partial'), skipped: count('skipped'), failed: count('failed'), notStarted: count('blocked'), left: count('pending', 'running') };
+  return {
+    done: count('done'),
+    partial: count('partial'),
+    skipped: count('skipped'),
+    cancelled: count('cancelled'),
+    failed: count('failed'),
+    notStarted: count('blocked'),
+    left: count('pending', 'running'),
+  };
 }
 
 /** How long a run took, wall clock: from its start to its last activity (null when unknown). */

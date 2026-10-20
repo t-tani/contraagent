@@ -8,7 +8,7 @@ import type { GraphLayout } from './layout.js';
 import { markGrid } from './marks.js';
 import type { PanZoomController } from './pan-zoom.js';
 import type { LayeredGraphStrings } from './strings.js';
-import type { Arrangement, DrawnGraph, GraphClusterInput, GraphMark, GraphNode } from './types.js';
+import type { Arrangement, DrawnGraph, GraphClusterInput, GraphMark, GraphNode, LitMarks } from './types.js';
 
 /** The failed marks a node drawn as a bar lists by name. */
 export const BAR_LIST = 8;
@@ -43,7 +43,7 @@ export interface GraphHost extends ReactiveControllerHost, HTMLElement {
   readonly card: CardController;
   renderIcon(name: string): unknown;
   /** The series (or mark id) highlighted, and the marks it lights. */
-  lit(): { key: string | null; on: ReadonlySet<string> | null };
+  lit(): { key: string | null; on: LitMarks | null };
   /** Select an item by its id (null: none). */
   select(id: string | null): void;
   /** Focus moved by the reader selects what it is on; focus put back does not. */

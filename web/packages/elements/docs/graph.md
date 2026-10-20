@@ -31,6 +31,11 @@ marks whose state has the tone `done` of all its marks, in the words of
 
 ::code{file="../src/graph/types.ts" from="export interface GraphNodeInput {" to="/** A node as the graph draws it"}
 
+An edge is `solid`, `dotted` or `dashed`: three kinds of link, which the legend
+names (`strings.solidEdge`, `dottedEdge`, `dashedEdge`) as soon as one that is not
+solid is drawn, and the node table gives a column each. A node's `expected` is a
+count of items not in it yet, drawn after its marks in a dotted outline.
+
 A cluster is a box of nodes (and of other clusters). A cluster that `cycle`s draws
 a return from its last layer to its first; an edge with `ranks: false` closes that
 cycle: it never sets the layers and is not drawn. An edge may join items in
@@ -85,7 +90,9 @@ draws (a new `selected` draws it), there is no card: a page that shows the
 selection elsewhere leaves the slot empty.
 
 Hovering, focusing or selecting a mark highlights its series; `related` names more
-marks to light (a mark's id, or a series id, to the ids of the marks it lights).
+marks to light (a mark's id, or a series id, to the ids of the marks it lights). When
+`related` gives a map, each lit mark takes a ring in the style of the edge it maps to
+(`LitMarks`), so the kind of link shows in the marks too.
 
 The line under the legend holds the key hints. It keeps its height at all times,
 and shows its words while the graph has the focus. On a screen with touch alone
@@ -104,6 +111,7 @@ look as `data-tone` and `data-shape`. The parts, for `::part()`:
 | `stage` | what pans and zooms |
 | `node`, `node-header`, `node-name` | each node, its first line, its name |
 | `mark` | each mark |
+| `expected` | a node's items not in it yet |
 | `cluster`, `cluster-label` | each cluster, its header |
 | `edge`, `stub` | each edge, each stub |
 | `legend` | the legend |

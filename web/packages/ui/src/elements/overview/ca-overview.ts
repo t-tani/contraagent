@@ -223,7 +223,7 @@ export class CaOverview extends LitElement {
       <section class="panel enter">
         <h3 title=${msg('Every task the run scheduled, by kind (plan.jsonl)')}>${msg('Pipeline')}
           <span class="r">${this.progressLine(live)}</span></h3>
-        <ca-pipeline-graph .plan=${s.plan} .journal=${s.journal} .run=${this.run} .layer=${this.layer} .unit=${this.unit} .sel=${this.sel} ?live=${live}></ca-pipeline-graph>
+        <ca-pipeline-graph .plan=${s.plan} .forecast=${s.forecast} .journal=${s.journal} .run=${this.run} .layer=${this.layer} .unit=${this.unit} .sel=${this.sel} ?live=${live}></ca-pipeline-graph>
       </section>
       <section class="panel enter">
         <h3 title=${msg('Counted from every finished attempt (journal.jsonl)')}>${msg('Totals')}</h3>
@@ -336,7 +336,7 @@ export class CaOverview extends LitElement {
     const r = result(plan);
     if (live || r.left) {
       const p = progress(plan);
-      return facts(msg(str`${p.pct}%`), msg(str`${p.done} of ${p.total} tasks done`), p.partial ? stateCount('partial', p.partial) : '', p.skipped ? stateCount('skipped', p.skipped) : '');
+      return facts(msg(str`${p.pct}%`), msg(str`${p.done} of ${p.total} tasks done`), p.partial ? stateCount('partial', p.partial) : '', p.skipped ? stateCount('skipped', p.skipped) : '', p.cancelled ? stateCount('cancelled', p.cancelled) : '');
     }
     return facts(
       stateCount('done', r.done),
@@ -344,6 +344,7 @@ export class CaOverview extends LitElement {
       r.failed ? stateCount('failed', r.failed) : '',
       r.notStarted ? stateCount('not_started', r.notStarted) : '',
       r.partial ? stateCount('partial', r.partial) : '',
+      r.cancelled ? stateCount('cancelled', r.cancelled) : '',
     );
   }
 

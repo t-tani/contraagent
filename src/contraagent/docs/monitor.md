@@ -34,11 +34,16 @@ It reads `runs/<id>/` and shows, live, one tab each:
   (`Partly done: timed out` for an agent task whose launch was stopped, see
   [Contracts](contracts.md#a-launch-stopped-for-its-time)), and the files each
   attempt changed, those a failed attempt created marked as removed or as kept
-  (`keep_failed_changes`). Its input is file by file: each file the task reads, with the
-  earlier task whose output it is (or that it was there before the run), then
-  the earlier tasks it waits for, each with its other output files. A resumed
-  run numbers a task's attempts from 1 again, so an attempt of a later run start
-  reads "Attempt 1 | resumed run".
+  (`keep_failed_changes`). Its input gives its params, its input files (each
+  [`InputFile`](tasks.md) param with its path, its hash, the earlier task whose output
+  file it is, and whether the file still had that content as the task started), then
+  its earlier tasks, each tagged with its lineage: given output, runs after (order
+  only), created after result. Its later tasks are tagged the same way. A task whose
+  failure stopped a flow call names where: "This failure stopped review_loop at
+  flow.py:42". A task a resume ran again says why, with the parts of its fingerprint
+  that changed ("Changed: params") and a divergence. A resumed run numbers a task's
+  attempts from 1 again, so an attempt of a later run start reads "Attempt 1 |
+  resumed run".
 
 With the keyboard, the tabs are one tab stop: the arrow keys,
 Home and End move between them and Enter opens one; the keys 1 to 9 open a tab
@@ -65,10 +70,23 @@ a function node also names its flow calls that stopped with an error. A kind nod
 shows who runs its tasks: ✦ and a violet edge for an agent task, ⚙ for a Python
 task. A breadcrumb names the layer
 (Pipeline › function › loop at flow.py:122), each loop by the file and first line
-it is at, so a loop and the loop inside it are told apart. A solid edge is a dependency (`after`); a dashed
-one joins a task to a result that reached its flow call just before it created the task
-(`created_from`), drawn only where the task does not also wait for that output.
-A flow that does not wait is one layer: its kinds.
+it is at, so a loop and the loop inside it are told apart. An edge has one of three
+lineages: solid, the later tasks were given the earlier ones' output (`given_from`);
+dotted, they wait for them and were not given their output (`after` alone, order
+only); dashed, their flow call created them after the earlier ones' result
+(`created_from`). Two nodes are joined by the strongest of these that any of their
+tasks has, in that order. Hovering or selecting a mark lights the tasks joined to its
+unit, each with a ring in the style of its link, and the card of a node lists its
+earlier nodes by lineage. A flow that does not wait is one layer: its kinds.
+
+A function node's mark of a flow call that raised says where it stopped and which
+task's failure stopped it ("Stopped at flow.py:42 by the failure of prepare ·
+zeta"). Above the top layer, the tasks no flow awaited (`unawaited`) are listed: they
+ran for their output files and changes. When an earlier run of the same flow
+finished before this one started, the [forecast](concepts.md#the-monitor) is above the
+graph too ("Forecast: 7 more tasks | 4m 10s of task time | $0.62"), and each kind node
+shows the tasks it is expected to have beyond its own (+3 in a dotted outline): a
+display only, never a constraint on the run.
 
 The layer shown is drawn with some of its functions open: a function drawn open
 is a box that holds its own layer (its kinds, its loops, the functions it called,
@@ -440,16 +458,19 @@ The monitor publishes its contract as OpenAPI at `/api/openapi.json`
 (`contraagent monitor --openapi PATH` writes it), browsable at `/api/docs` when started with
 `--docs`; every response is checked against its pydantic model before it is
 sent. `curl http://127.0.0.1:8787/api/runs` lists the runs, and every endpoint
-under `/api/runs/<run>/` (the journal, the plan, outputs, one task by its key,
-a task's transcript) is in that document. The plan (`/api/runs/<run>/plan`)
-carries each task's origin (`flow`, each frame with its loops and their passes; `created_from`, `flow_call`)
-and the run's `flow_calls` (each with `flow`, its parent's frames where it was
-created), and `models`: what the agent sessions spent on each model (`ModelUsage`,
+under `/api/runs/<run>/` (the journal, the plan, outputs, the forecast, one task by
+its key, a task's transcript) is in that document. The plan (`/api/runs/<run>/plan`)
+carries each task's origin (`flow`, each frame with its loops and their passes;
+`created_from`, `given_from`, `flow_call`) and the run's `flow_calls` (each with
+`flow`, its parent's frames where it was created, and for one that raised
+`raised_at` and `raised_by`; a top flow call's `unawaited`), and `models`: what the agent sessions spent on each model (`ModelUsage`,
 summed from each journal row's hops, which record their own tokens, cost and time;
 a hop's spend on other models, such as Claude Code's summary of a fetched page on a
 smaller model, counts on each of them, `Hop.other_models`);
 a run whose tasks no flow created (queued through `Run.queue` by hand) has
-none. A file of flow code under the run's working directory (`run.json`
+none. The forecast (`/api/runs/<run>/forecast`, `Forecast`) reads the run of the
+same flow (`run.json` `flow`) that finished last before this one started: by tail
+key, its tasks less those this run has created, with their wall time and cost. A file of flow code under the run's working directory (`run.json`
 `cwd`) is given relative to it. Its page is built from two npm packages that
 work in any page or framework: `@contraagent/api` (the typed client, live feeds
 and store) and `@contraagent/ui` (the monitor and each of its views as web
