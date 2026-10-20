@@ -4,6 +4,7 @@ refuses each line marked `# type: ignore[...]`: both checkers report an ignore t
 silences nothing."""
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -24,5 +25,7 @@ def test_pyright_strict_infers_the_public_types(tmp_path: Path):
     config.write_text(json.dumps({"typeCheckingMode": "strict", "pythonVersion": "3.12", "reportUnnecessaryTypeIgnoreComment": "error"}))
     pyright = Path(sys.executable).with_name("pyright")
     command = [str(pyright), "--project", str(config), "--pythonpath", sys.executable, str(CHECKED)]
-    done = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+    # Without it the pyright package asks PyPI for its latest version before every check.
+    env = {**os.environ, "PYRIGHT_PYTHON_IGNORE_WARNINGS": "1"}
+    done = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, env=env)
     assert done.returncode == 0, done.stdout + done.stderr

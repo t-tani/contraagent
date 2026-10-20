@@ -298,17 +298,21 @@ def test_omp_rpc_reads_its_session_id_and_context_window_past_frames_that_come_f
     assert result.context_window == 400_000  # the model's, from get_state
 
 
-def test_a_chatgpt_login_is_one_credential_for_omp_and_codex():
-    """`provider = "openai"` names whose login it is; omp runs that login's models as `openai-codex/`."""
+def test_a_chatgpt_login_is_one_credential_for_omp_and_codex(tmp_path, monkeypatch):
+    """`provider = "openai"` names whose login it is; omp runs that login's models as `openai-codex/`.
+    The login is isolated while no `.env` file that omp reads sets a key: the working
+    directory and the home here are empty ones, not the host's."""
     import pytest
 
     from contraagent import CredentialError
     from contraagent.backends import CodexBackend
     from contraagent.config import Subscription
 
+    monkeypatch.chdir(tmp_path)
+    host = {"HOME": str(tmp_path)}
     sub = Subscription(name="chatgpt", provider="openai")
-    binding = OmpBackend(base_env={}).bind_credential(sub, "openai-codex/gpt-5.6-luna")
+    binding = OmpBackend(base_env=host).bind_credential(sub, "openai-codex/gpt-5.6-luna")
     assert binding.isolated and "openai-codex login" in binding.isolation
     with pytest.raises(CredentialError, match="openai-codex \\(its openai login\\)"):
-        OmpBackend(base_env={}).bind_credential(sub, "openai/gpt-5.6-luna")  # omp's openai is the API platform
-    assert CodexBackend(base_env={}).bind_credential(sub, "gpt-5.6-luna").isolated
+        OmpBackend(base_env=host).bind_credential(sub, "openai/gpt-5.6-luna")  # omp's openai is the API platform
+    assert CodexBackend(base_env=host).bind_credential(sub, "gpt-5.6-luna").isolated

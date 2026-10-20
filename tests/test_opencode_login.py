@@ -2,7 +2,11 @@
 own way, and agree on the account it bills and on the Go subscription's usage."""
 
 import json
+import threading
+import urllib.error
+import urllib.request
 from datetime import UTC, datetime
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -78,6 +82,44 @@ def test_the_route_is_asked_with_the_key_under_the_base_and_any_failure_is_none(
 
     assert login.go_usage(KEY, fetch=broken) is None
     assert login.go_usage("", fetch=fetch) is None and len(asked) == 2  # no key, no request
+
+
+def test_a_refused_usage_request_closes_its_response(monkeypatch):
+    """The error urllib raises for a 401 holds the response open; the reader closes it. Python
+    3.14 warns of an error left open; this checks the response on every version."""
+
+    class Refuse(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(401)
+            self.send_header("content-length", "2")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *args):
+            pass
+
+    refused: list[urllib.error.HTTPError] = []
+    urlopen = urllib.request.urlopen
+
+    def recording(*args, **kwargs):
+        try:
+            return urlopen(*args, **kwargs)
+        except urllib.error.HTTPError as e:
+            refused.append(e)
+            raise
+
+    monkeypatch.setattr(urllib.request, "urlopen", recording)
+    with ThreadingHTTPServer(("127.0.0.1", 0), Refuse) as server:
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            assert login.go_usage(KEY, f"http://127.0.0.1:{server.server_address[1]}", timeout=5) is None
+        finally:
+            server.shutdown()
+    try:
+        assert [e.code for e in refused] == [401] and refused[0].fp.closed
+    finally:
+        for e in refused:
+            e.close()
 
 
 def test_a_stored_login_is_read_by_the_name_opencode_keeps_it_under(tmp_path):
