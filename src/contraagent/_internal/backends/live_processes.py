@@ -43,9 +43,7 @@ import time
 
 from contraagent._internal.platform.groups import groups
 
-#: Reentrant because `stop_all` runs from a signal handler, which can land on
-#: the main thread while that same thread is inside `register`/`unregister`.
-_lock = threading.RLock()
+_lock = threading.Lock()
 _live: list[subprocess.Popen] = []
 #: Bumped each time a teardown starts. A launch notes it before spawning
 #: (`epoch()`) and hands it back to `register`: a different value means a
@@ -230,9 +228,10 @@ def live_count() -> int:
 def stop_all(timeout: float = _TERM_GRACE_S) -> int:
     """Stop every live agent group. Returns how many were signalled.
 
-    Idempotent and safe to call from a signal handler: nothing here raises,
-    because a teardown that failed while handling a termination would leave
-    the process running, which is the situation this exists to prevent.
+    Idempotent, and nothing here raises, because a teardown that failed while
+    handling a termination would leave the process running, which is the
+    situation this exists to prevent. It waits for the agents to end: call it
+    from the teardown's own thread, never from a signal handler.
     """
     global _epoch, _stopping
     with _lock:

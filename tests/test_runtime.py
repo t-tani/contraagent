@@ -237,13 +237,15 @@ def restore_signals():
 def test_sigint_handler_restores_the_previous_one(restore_signals):
     signal.signal(signal.SIGINT, signal.default_int_handler)
     calls: list[str] = []
-    teardown.install_signal_handlers(lambda: calls.append("teardown"))
+    restore = teardown.install_signal_handlers(lambda: calls.append("teardown"))
     handler = signal.getsignal(signal.SIGINT)
     assert handler is not signal.default_int_handler
     with pytest.raises(KeyboardInterrupt):
         handler(signal.SIGINT, None)
-    assert calls == ["teardown"]
     assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+    teardown.settle()  # the teardown runs on a thread of its own
+    assert calls == ["teardown"]
+    restore()
 
 
 def test_host_handler_is_restored_and_called(restore_signals):
@@ -251,10 +253,71 @@ def test_host_handler_is_restored_and_called(restore_signals):
     host = lambda signum, frame: host_calls.append(signum)
     signal.signal(signal.SIGTERM, host)
     calls: list[str] = []
-    teardown.install_signal_handlers(lambda: calls.append("teardown"))
+    restore = teardown.install_signal_handlers(lambda: calls.append("teardown"))
     signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
-    assert calls == ["teardown"] and host_calls == [signal.SIGTERM]
+    assert host_calls == [signal.SIGTERM]
     assert signal.getsignal(signal.SIGTERM) is host
+    restore()  # waits for the teardown the signal started
+    assert calls == ["teardown"]
+
+
+def test_restore_with_no_signal_ends_the_teardown_thread(restore_signals):
+    before = {t for t in threading.enumerate() if t.name == "contraagent-teardown"}
+    calls: list[str] = []
+    restore = teardown.install_signal_handlers(lambda: calls.append("teardown"))
+    (thread,) = {t for t in threading.enumerate() if t.name == "contraagent-teardown"} - before
+    restore()
+    thread.join(timeout=30)
+    assert not thread.is_alive() and calls == []
+
+
+#: SIGTERM delivered while the main thread holds the lock of `append_lines`, as it does while
+#: it writes a journal row, with a teardown that writes a line too. A teardown run inside
+#: the handler would wait there for the lock its own thread holds, for ever.
+_HOLDING = """
+import signal
+import sys
+import threading
+from pathlib import Path
+
+from contraagent._internal.backends.base import exit_dir
+from contraagent._internal.runs import files
+from contraagent.engine import Run
+
+runs = Path(sys.argv[1])
+run = Run("r", runs)
+run.stop_on_signals()
+run.on_teardown(lambda: files.append_lines(runs / "teardown.log", ["torn down"]))
+print(exit_dir("secret-"), flush=True)
+with files._append_lock:
+    signal.raise_signal(signal.SIGTERM)  # its handler runs here, on this thread, before this returns
+    print("handled", flush=True)
+threading.Event().wait()  # the teardown ends the process
+"""
+
+
+@posix
+def test_sigterm_while_the_main_thread_holds_the_append_lock_still_ends_the_process(tmp_path):
+    script = tmp_path / "holding.py"
+    script.write_text(_HOLDING)
+    (tmp_path / "tmp").mkdir()
+    proc = subprocess.Popen(
+        [sys.executable, str(script), str(tmp_path / "runs")],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env={**os.environ, "TMPDIR": str(tmp_path / "tmp")},
+        text=True,
+    )
+    try:
+        out, err = proc.communicate(timeout=60)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.communicate()
+        pytest.fail("the process never ended: its teardown waited for a lock its own thread held")
+    secret, handled = out.splitlines()
+    assert handled == "handled" and proc.returncode == -signal.SIGTERM, err
+    assert (tmp_path / "runs" / "teardown.log").read_text() == "torn down\n"
+    assert not os.path.exists(secret)
 
 
 # --- run -----------------------------------------------------------------
@@ -283,6 +346,7 @@ class Sleeper(Backend):
     binary = sys.executable
 
     def argv(self, launch):
+        self.scratch(launch.label, "config")  # the backend's scratch root
         return [sys.executable, "-c", "import time; time.sleep(300)", token]
 
     def env(self, launch):
@@ -293,7 +357,9 @@ class Sleeper(Backend):
 
 
 work = agent_task("work", instructions="x", max_turns=1, timeout_s=600, agent="sleeper")
-Pipeline(backends={"sleeper": Sleeper()}, runs_dir=runs).run(lambda: work("a"), run_id="sleep")
+# A server's arguments may hold a secret: they are written to an owner-only temporary directory.
+servers = lambda task, params, own: {"index": {"command": "index", "args": ["--token", "secret"]}}
+Pipeline(backends={"sleeper": Sleeper()}, runs_dir=runs, mcp_servers=servers).run(lambda: work("a"), run_id="sleep")
 """
 
 
@@ -306,11 +372,17 @@ def _with_token(*parts: str) -> list[int]:
 def test_an_agent_ends_with_the_pipeline_that_launched_it(tmp_path, how):
     """SIGTERM and Ctrl-C reach the run's teardown; a kill (SIGKILL; TerminateProcess on
     Windows), which runs nothing, leaves the watchdog (the job on Windows) to stop the
-    agent. Either way no agent outlives its pipeline."""
+    agent. Either way no agent outlives its pipeline. SIGTERM and Ctrl-C also remove the
+    temporary directories the run made: its MCP servers' and the backend's scratch root."""
     token = f"contraagent-test-{os.getpid()}-{how}-{time.monotonic_ns()}"
     script = tmp_path / "driver.py"
     script.write_text(_DRIVER)
-    driver = subprocess.Popen([sys.executable, str(script), token, str(tmp_path / "runs")], stderr=subprocess.PIPE)
+    tmp = tmp_path / "tmp"
+    tmp.mkdir()
+    made = lambda: sorted(p.name for root in tmp.iterdir() for p in root.iterdir())
+    driver = subprocess.Popen(
+        [sys.executable, str(script), token, str(tmp_path / "runs")], stderr=subprocess.PIPE, env={**os.environ, "TMPDIR": str(tmp)}
+    )
     try:
         # The agent's processes: one, or on Windows a venv's python.exe and the interpreter it
         # starts, which carries the same command line (as the driver's own interpreter does).
@@ -320,6 +392,7 @@ def test_an_agent_ends_with_the_pipeline_that_launched_it(tmp_path, how):
             time.sleep(0.1)
         found = agents()
         assert found, "the agent never started"
+        assert [name.split("-")[0] for name in made()] == ["mcp", "sleeper"], made()
         if how == "kill":
             driver.kill()
         else:
@@ -329,6 +402,8 @@ def test_an_agent_ends_with_the_pipeline_that_launched_it(tmp_path, how):
         while any(map(_alive, found)) and time.monotonic() < deadline:
             time.sleep(0.1)
         assert not any(map(_alive, found)), f"the agent outlived its pipeline ({how})"
+        if how != "kill":
+            assert made() == [], f"temporary directories outlived the pipeline ({how})"
     finally:
         driver.kill()
         driver.wait()

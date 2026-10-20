@@ -70,3 +70,13 @@ def test_another_users_directory_is_refused_and_left_as_it_is(systmp, monkeypatc
     monkeypatch.setattr(base.os, "fchmod", lambda *a: pytest.fail("changed the mode of another user's directory"))
     with pytest.raises(PermissionError, match="owned by uid"):
         temp_root()
+
+
+def test_a_directory_removed_at_exit_is_owner_only_and_removed_with_its_contents(systmp, monkeypatch):
+    monkeypatch.setattr(base, "_exit_dirs", [])  # the directories other tests of this process made stay
+    made = base.exit_dir("mcp-")
+    (made / "index.mcp.json").write_text("{}")
+    assert made.parent == temp_root() and mode(made) == 0o700
+    base.remove_exit_dirs()
+    assert not made.exists()
+    base.remove_exit_dirs()  # nothing left to remove
