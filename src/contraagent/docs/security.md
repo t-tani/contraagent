@@ -142,7 +142,9 @@ The coding agents' CLIs do not enforce the same things. The table in
   Ctrl-C).
 - When the pipeline's process is killed outright (SIGKILL, the out-of-memory
   killer), a watchdog process stops the agent groups that are still running; on
-  Windows the OS ends each launch's job.
+  Windows the OS ends each launch's job. The watchdog compares the start time of
+  each group's first process with the one it recorded, so it does not signal an
+  unrelated process that the OS later gave the same process id.
 - Codex runs in its `workspace-write` sandbox (the OS's own: bubblewrap on Linux,
   Seatbelt on macOS, Codex's Windows sandbox), with the network on, and with a
   temporary directory of its own for each launch. Claude Code takes its permissions
