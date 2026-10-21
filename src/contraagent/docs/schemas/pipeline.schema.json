@@ -627,11 +627,9 @@
         "timeout_s": {
           "anyOf": [
             {
-              "exclusiveMinimum": 0,
               "type": "integer"
             },
             {
-              "exclusiveMinimum": 0,
               "type": "number"
             }
           ],

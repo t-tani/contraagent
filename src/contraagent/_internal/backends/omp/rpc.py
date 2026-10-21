@@ -19,7 +19,6 @@ from __future__ import annotations
 import base64
 import dataclasses
 import json
-import math
 import queue
 import subprocess
 import threading
@@ -164,9 +163,10 @@ class OmpRpcBackend(OmpBackend):
         # over the constructor default so a per-task effort reaches the CLI.
         a += ["--thinking", launch.effort or self.thinking, "--approval-mode", "yolo", *isolation_args()]
         a += prompt_args(self, launch)
-        # CLI-side backstop behind the loop's own abort: the process
-        # dies even if our abort frame is lost.
-        a += ["--max-time", str(math.ceil(launch.limits.timeout_s))]
+        if launch.limits.timeout_s:
+            # CLI-side backstop behind the loop's own abort: the process
+            # dies even if our abort frame is lost.
+            a += ["--max-time", str(int(launch.limits.timeout_s))]
         if launch.model:
             a += ["--model", launch.model]
         a += self.bind_credential(launch.credential, launch.model, label=launch.label).args
@@ -189,7 +189,7 @@ class OmpRpcBackend(OmpBackend):
         assert isinstance(fold, RpcReader)
         if stop_requested():
             raise LaunchError(STOPPED)
-        deadline = time.monotonic() + launch.limits.timeout_s
+        deadline = time.monotonic() + (launch.limits.timeout_s or 600.0)
         since = live_processes.epoch()
         try:
             proc = subprocess.Popen(
