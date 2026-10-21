@@ -31,12 +31,16 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 INGEST_RECORDS = "/ingest/records"
 INGEST_HEARTBEAT = "/ingest/heartbeat"
 INGEST_BLOB = "/ingest/blobs/{sha256}"
 HEALTHZ = "/healthz"
+
+#: A relay's TTL in heartbeat intervals, unless it is given one (`contraagent relay
+#: --ttl`); the hub reads a heartbeat without a TTL as this many of its intervals.
+TTL_INTERVALS = 4
 
 
 class RunRef(BaseModel):
@@ -109,16 +113,38 @@ class RunLiveness(BaseModel):
 
 
 class Heartbeat(BaseModel):
-    """A host says it is up, and what its runs are doing."""
+    """A host says it is up, and what its runs are doing. The hub counts the host as up
+    for `ttl_s` seconds after it receives the heartbeat, by the hub's clock; the relay
+    sets both `interval_s` and `ttl_s`."""
 
     host_id: str
     sent_at: str = Field(description="the host's clock, ISO 8601")
     interval_s: float = Field(gt=0, description="seconds until the next heartbeat")
+    ttl_s: float = Field(
+        gt=0,
+        description="seconds the hub counts the host as up after it receives this heartbeat, more than interval_s; "
+        f"a heartbeat without it is read as {TTL_INTERVALS} × interval_s",
+    )
     runs: list[RunLiveness] = []
+
+    @model_validator(mode="before")
+    @classmethod
+    def _default_ttl(cls, data: object) -> object:
+        """A heartbeat without `ttl_s` has `TTL_INTERVALS` of its intervals."""
+        if isinstance(data, dict) and "ttl_s" not in data and isinstance(interval := data.get("interval_s"), int | float):
+            return {**data, "ttl_s": TTL_INTERVALS * interval}
+        return data
+
+    @model_validator(mode="after")
+    def _ttl_past_interval(self) -> Heartbeat:
+        if self.ttl_s <= self.interval_s:
+            raise ValueError(f"ttl_s ({self.ttl_s:g}) must be more than interval_s ({self.interval_s:g})")
+        return self
 
 
 class HeartbeatAck(BaseModel):
-    """How long the hub counts the host as up without another heartbeat."""
+    """The TTL the hub keeps for the heartbeat: how long it counts the host as up
+    without another."""
 
     ttl_s: float
 

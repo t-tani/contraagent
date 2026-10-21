@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from contraagent._internal.hub.protocol import Accepted, Heartbeat, HeartbeatAck, LogChunk, RecordBatch
-from contraagent._internal.hub.source import DEFAULT_TTL_S, HeartbeatLiveness, HubSource
+from contraagent._internal.hub.source import HeartbeatLiveness, HubSource
 from contraagent._internal.hub.store import BlobStore, HubStore
 from contraagent._internal.hub.streams import MemoryStreamLogs, StreamLogs, is_stream
 from contraagent._internal.runs import layout, times
@@ -68,11 +68,10 @@ def _ended_tasks(chunk: LogChunk) -> set[str]:
 class Hub:
     """Receives relays' batches, heartbeats and blobs, and serves the monitor over them."""
 
-    def __init__(self, store: HubStore, blobs: BlobStore, *, streams: StreamLogs | None = None, ttl_s: float = DEFAULT_TTL_S) -> None:
+    def __init__(self, store: HubStore, blobs: BlobStore, *, streams: StreamLogs | None = None) -> None:
         self.store = store
         self.blobs = blobs
         self.streams: StreamLogs = streams if streams is not None else MemoryStreamLogs()
-        self.ttl_s = ttl_s
 
     def records(self, batch: RecordBatch) -> Accepted:
         received = now_iso("milliseconds")
@@ -93,7 +92,7 @@ class Hub:
 
     def heartbeat(self, heartbeat: Heartbeat) -> HeartbeatAck:
         self.store.put_heartbeat(heartbeat, now_iso("milliseconds"))
-        return HeartbeatAck(ttl_s=self.ttl_s)
+        return HeartbeatAck(ttl_s=heartbeat.ttl_s)
 
     def has_blob(self, sha256: str) -> bool:
         return self.blobs.has(sha256)
@@ -108,7 +107,7 @@ class Hub:
 
     def liveness(self) -> HeartbeatLiveness:
         """Which of the runs are live, by their hosts' heartbeats."""
-        return HeartbeatLiveness(self.store, self.ttl_s)
+        return HeartbeatLiveness(self.store)
 
     def close(self) -> None:
         """Shut down the transcripts (`SegmentedStreamLogs.shutdown`, when they have one) and
@@ -165,7 +164,7 @@ class Hub:
         now = now or times.now()
         cutoff = now - older_than
         report = PruneReport(dry_run=dry_run, cutoff=cutoff.isoformat(timespec="milliseconds"))
-        liveness = HeartbeatLiveness(self.store, self.ttl_s, clock=now.timestamp)
+        liveness = HeartbeatLiveness(self.store, clock=now.timestamp)
         live, unresponsive = liveness.live(), liveness.unresponsive()
 
         held: dict[str, str] = {}

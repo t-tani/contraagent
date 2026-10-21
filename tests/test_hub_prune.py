@@ -91,7 +91,7 @@ def ship(hub: Hub, run_id: str, at: datetime, *, host: str = "h1", uid: str | No
 
 def heartbeat(hub: Hub, host: str, at: datetime, alive: list[str] = ()) -> None:
     runs = [RunLiveness(run=RunRef(host_id=host, run_id=r, run_uid=f"uid-{r}"), alive=True, snapshot={}) for r in alive]
-    hub.store.put_heartbeat(Heartbeat(host_id=host, sent_at=iso(at), interval_s=3, runs=runs), iso(at))
+    hub.store.put_heartbeat(Heartbeat(host_id=host, sent_at=iso(at), interval_s=3, ttl_s=12, runs=runs), iso(at))
 
 
 def objects_of(hub: Hub, name: str) -> list[str]:
