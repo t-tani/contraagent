@@ -413,23 +413,27 @@ Path(sys.argv[1]).write_text(json.dumps(out), encoding="utf-8")
 
 
 def _import_in_fresh_interpreter(refs: dict[str, dict[str, Any]]) -> dict[str, str]:
-    """What the hook (`contraagent call validate`, same interpreter) would fail to import.
+    """What the hook (`contraagent call validate`, same interpreter) would fail to import:
+    one probe for all `refs`. It has no time limit, as the hook has none: a module that
+    blocks at import blocks the hook too, and the caller of `contraagent check` stops it.
     The probe writes its answer to a file, since a module it imports may print."""
     try:
         with tempfile.TemporaryDirectory(prefix="probe-", dir=temp_root()) as tmp:
             answer = Path(tmp) / "answer.json"
-            subprocess.run(
+            done = subprocess.run(
                 [sys.executable, "-c", _IMPORT_PROBE, str(answer)],
                 input=json.dumps(refs),
                 capture_output=True,
                 text=True,
-                timeout=60,
-                check=True,
                 encoding="utf-8",
                 errors="replace",
             )
+            if done.returncode != 0:
+                lines = done.stderr.strip().splitlines()
+                cause = lines[-1] if lines else f"exit status {done.returncode}"
+                return {kind: f"output import not checked: the probe failed: {cause}" for kind in refs}
             return json.loads(answer.read_text(encoding="utf-8"))
-    except (subprocess.SubprocessError, ValueError, OSError) as exc:
+    except (ValueError, OSError) as exc:
         return {kind: f"output import not checked: {exc}" for kind in refs}
 
 
