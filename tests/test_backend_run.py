@@ -10,6 +10,7 @@ import pytest
 
 from contraagent._internal.backends.claude.wire import StreamReader
 from contraagent._internal.backends.opencode.wire import EventReader
+from contraagent._internal.backends.process import stopped_by
 from contraagent._internal.backends.refusal import classify_stop, parse_retry_after
 from contraagent.backends import ClaudeBackend, Ending, Launch, LaunchResult, OmpBackend, OmpRpcBackend, OpencodeBackend, Signals, Stop
 from contraagent.config import Limits
@@ -286,6 +287,37 @@ def test_omp_rpc_ends_a_launch_past_its_cost_cap(tmp_path, rpc_env):
     limits = Limits(timeout_s=30, max_budget_usd=0.025)
     result = OmpRpcBackend(base_env=rpc_env).run(Launch(prompt="spend", label="t", model="p/m", cwd=tmp_path, limits=limits))
     assert result.stop == Stop.BUDGET and not result.ok and len(result.usage.calls) == 3
+
+
+OMP_RPC_SILENT = r"""
+import pathlib, sys
+if sys.argv[1:2] == ["--version"]:
+    print("omp/18.9.1"); sys.exit(0)
+if "--mode" not in sys.argv:
+    sys.exit(0)
+pathlib.Path("started").write_text("")
+sys.stdin.read()  # never sends ready; ends at stdin's EOF
+"""
+
+
+class StopOnceStarted(threading.Event):
+    """A stop mark that is set once the fake omp has started: the request comes during the
+    handshake, after the launch was let through."""
+
+    def __init__(self, started) -> None:
+        super().__init__()
+        self.started = started
+
+    def is_set(self) -> bool:
+        return self.started.exists()
+
+
+def test_omp_rpc_leaves_the_handshake_when_its_task_is_cancelled(tmp_path):
+    backend = OmpRpcBackend(base_env=path_of(fake_cli(tmp_path, "omp", OMP_RPC_SILENT)))
+    with stopped_by(StopOnceStarted(tmp_path / "started")):
+        result = backend.run(launch(tmp_path))
+    # Not the deadline's `timeout` 30 s later: the launch left on the stop request.
+    assert result.stop is not Stop.TIMEOUT and "no ready frame" not in result.stderr_tail and not result.ok
 
 
 # --- opencode: its catalogue's time limit, its refusal's cool-off ------------------------------
