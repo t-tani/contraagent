@@ -20,7 +20,7 @@ role's file is inlined into the prompt, as for omp. `Launch.system_prompt`
 replaces codex's own instructions (`model_instructions_file`, a file of the launch's
 scratch directory), `json_schema` becomes `--output-schema` (a file too), and a plugin's
 `.mcp.json` becomes `mcp_servers`. `append_system_prompt` and the preamble go at the head
-of the prompt (`prepare`), which goes over stdin past `STDIN_THRESHOLD` characters, so no
+of the prompt (`prepare`), which goes over stdin past `STDIN_THRESHOLD` (`via_stdin`), so no
 text of the task makes the command line longer than the operating system takes.
 
 `Limits.max_turns` counts tool calls and ends the launch past it.

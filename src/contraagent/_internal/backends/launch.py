@@ -24,9 +24,11 @@ from contraagent._internal.backends.credentials import AMBIENT, Credential
 from contraagent._internal.dispatch.records import OtherModel, QuotaReading, SafetyStop, TokenUsage
 from contraagent._internal.runs.files import append_lines
 
-# Prompt text beyond this size goes over stdin, not argv (stdin takes 10MB). Linux caps one
-# argv element at 128KB; Windows caps the whole command line at 32767 characters, of which the
-# other arguments (a system prompt, a JSON schema) take their share.
+# A prompt past this size goes over stdin, not argv (`via_stdin`). The size is the one the
+# operating system limits: on Linux and macOS the UTF-8 bytes of one argument (Linux takes
+# at most 131072 bytes for one, `MAX_ARG_STRLEN`, and all arguments and the environment
+# together share `ARG_MAX`); on Windows the UTF-16 code units of the command line, which
+# holds at most 32767 of them with the other arguments.
 STDIN_THRESHOLD = 16_000 if sys.platform == "win32" else 60_000
 
 
@@ -133,8 +135,8 @@ class Launch:
     no settings files: a role comes from the plugin, not `.claude/agents/`). `stream_path` keeps raw stream-json lines for
     later inspection. `permission_prompts="none"` (default, CLI >= 2.1.259)
     tells the model not to retry denied calls under headless `-p`.
-    `prompt_via_stdin` None sends over stdin past `STDIN_THRESHOLD`
-    (argv caps one element at 128KB; stdin takes 10MB). `session_id`
+    `prompt_via_stdin` None sends over stdin past `STDIN_THRESHOLD`, counted as the
+    operating system counts a command line (`via_stdin`). `session_id`
     pins the UUID so records and sessions can be joined. `fallback_model`
     covers overload.
 

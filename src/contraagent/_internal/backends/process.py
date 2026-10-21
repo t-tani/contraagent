@@ -21,6 +21,7 @@ import logging
 import os
 import queue
 import subprocess
+import sys
 import threading
 import time
 from collections.abc import Iterator
@@ -118,10 +119,22 @@ class Sink(Protocol):
 
 
 def via_stdin(launch: Launch) -> bool:
-    """Long prompts go over stdin. The per-argument limit is 128KB."""
+    """Whether the prompt goes over stdin: `Launch.prompt_via_stdin`, else whether its size on
+    a command line (`command_line_size`) passes `STDIN_THRESHOLD`. Characters are not the
+    measure: 50,000 Japanese characters are 150,000 bytes in UTF-8, past what Linux takes
+    for one argument. A shorter prompt stays on the command line, where a process listing
+    shows its telemetry line (`ps`, and the monitor on macOS)."""
     if launch.prompt_via_stdin is None:
-        return len(launch.prompt) > STDIN_THRESHOLD
+        return command_line_size(launch.prompt) > STDIN_THRESHOLD
     return launch.prompt_via_stdin
+
+
+def command_line_size(text: str) -> int:
+    """The size of `text` as the operating system limits a command line: UTF-16 code units on
+    Windows, UTF-8 bytes elsewhere."""
+    if sys.platform == "win32":
+        return len(text.encode("utf-16-le", "surrogatepass")) // 2
+    return len(text.encode("utf-8", "surrogateescape"))
 
 
 def _feed(pipe, text: str) -> None:

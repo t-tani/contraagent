@@ -259,7 +259,7 @@ class OmpBackend(Backend):
     No text of the task is on the command line: `Launch.system_prompt` and
     `append_system_prompt` are files of the launch's scratch directory (`prompt_args`),
     the attached files are named by path (`@<file>`), and `Launch.preamble` is the head of
-    the prompt, which goes over stdin past `STDIN_THRESHOLD` characters. omp sends the
+    the prompt, which goes over stdin past `STDIN_THRESHOLD` (`via_stdin`). omp sends the
     attached files and the prompt as one first message. `OmpRpcBackend` sends the
     preamble, the attached files and the prompt as one message over stdin.
 

@@ -64,10 +64,10 @@ No text of a task is on an agent's command line or in its environment: Linux doe
 start a process with one argument or variable longer than 131,072 bytes, and the
 instructions of a light launch hold its params. A system prompt is a file in the
 launch's scratch directory, which only the user can read, and the command line holds
-its path. A prompt longer than 60,000 characters (16,000 on Windows) goes over stdin,
-and a `preamble` param goes at the head of the prompt, in its one first message. Codex
-takes `Launch.append_system_prompt` at the head of the prompt too: it has no file for
-developer instructions.
+its path. A prompt longer than 60,000 bytes in UTF-8 (16,000 UTF-16 code units on
+Windows) goes over stdin, and a `preamble` param goes at the head of the prompt, in its
+one first message. Codex takes `Launch.append_system_prompt` at the head of the prompt
+too: it has no file for developer instructions.
 
 omp has no flag that denies a tool. A launch whose task sets `disallowed_tools` loads
 an extension of contraagent's own (`-e`), which sees each tool call before it runs. A

@@ -174,7 +174,7 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
     No text of the task is in the command line or the environment: the config names the
     files of the system prompt (`config`), the attached files are named by path
     (`--file`), and `Launch.preamble` is the head of the prompt, which goes over stdin past
-    `STDIN_THRESHOLD` characters. opencode puts stdin after a message of its command line,
+    `STDIN_THRESHOLD` (`via_stdin`). opencode puts stdin after a message of its command line,
     and a message there that holds a space reaches the model in double quotes.
     """
 
@@ -260,7 +260,7 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
 
     def _as_launched(self, launch: Launch) -> Launch:
         """The preamble at the head of the prompt (`preamble_in_prompt`), so that it goes over
-        stdin with the prompt past `STDIN_THRESHOLD` characters."""
+        stdin with the prompt past `STDIN_THRESHOLD` (`via_stdin`)."""
         return preamble_in_prompt(super()._as_launched(launch))
 
     def config(self, launch: Launch) -> dict[str, Any]:

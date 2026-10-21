@@ -16,11 +16,10 @@ import pytest
 from pydantic import BaseModel
 
 from contraagent import Pipeline, PipelineConfig, agent_task
+from contraagent._internal.backends.process import command_line_size, via_stdin
 from contraagent.backends import ClaudeBackend, CodexBackend, Launch, OmpBackend, OmpRpcBackend, OpencodeBackend, PiBackend
 from contraagent.config import Limits
 from fake_cli import write_fake_cli
-
-pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="a fake coding agent is a #! script")
 
 #: About 300 KB in UTF-8: more than twice what Linux takes for one argument.
 LONG = "長い本文の一行です。" * 10_000
@@ -120,9 +119,24 @@ def test_claude_code_reads_its_system_prompts_from_files(agent):
     owner_only(seen, LONG)
 
 
-def test_claude_code_reads_a_long_prompt_from_stdin(agent):
-    seen, _ = agent(ClaudeBackend, prompt=LONG)
-    assert seen["stdin"] == LONG
+#: 50,000 characters, 150,000 bytes in UTF-8: under `STDIN_THRESHOLD` counted in characters,
+#: past what Linux takes for one argument.
+JAPANESE_PROMPT = "日本語の短い指示です" * 5_000
+
+
+@pytest.mark.parametrize("cls", [ClaudeBackend, OmpBackend, OmpRpcBackend, PiBackend, OpencodeBackend, CodexBackend])
+def test_a_prompt_long_in_bytes_goes_over_stdin(agent, cls):
+    assert len(JAPANESE_PROMPT) == 50_000 and len(JAPANESE_PROMPT.encode()) == 150_000
+    seen, _ = agent(cls, prompt=JAPANESE_PROMPT)  # every argument under 16 KB (`assert_small`)
+    assert seen["stdin"] == JAPANESE_PROMPT
+    assert not any("日本語の短い指示" in a for a in seen["argv"])
+
+
+def test_the_size_of_a_prompt_is_counted_as_the_system_counts_it():
+    windows = sys.platform == "win32"
+    assert command_line_size("é" * 10) == (10 if windows else 20)  # UTF-16 code units, else UTF-8 bytes
+    assert command_line_size("𝄞") == (2 if windows else 4)  # a surrogate pair on Windows
+    assert via_stdin(Launch(prompt=JAPANESE_PROMPT)) and not via_stdin(Launch(prompt="x" * 1_000))
 
 
 @pytest.mark.parametrize("cls", [OmpBackend, PiBackend])

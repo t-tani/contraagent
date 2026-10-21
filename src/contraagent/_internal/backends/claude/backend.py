@@ -68,7 +68,7 @@ class ClaudeBackend(ResumeById, Backend):
 
     `Launch.system_prompt` and `Launch.append_system_prompt` reach it as files of the
     launch's scratch directory (`--system-prompt-file`, `--append-system-prompt-file`), and
-    a prompt past `STDIN_THRESHOLD` characters over stdin, so no text of the task makes its
+    a prompt past `STDIN_THRESHOLD` (`via_stdin`) over stdin, so no text of the task makes its
     command line longer than the operating system takes."""
 
     name = "claude"
