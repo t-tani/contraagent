@@ -108,6 +108,32 @@ def test_the_scan_and_environment_of_a_child():
     assert processes.environ(proc.pid) == {}
 
 
+class _Process:
+    """A process as `processes.scan` reads it, whose read gives `info` or raises `error`."""
+
+    def __init__(self, pid, info=None, error=None):
+        self.pid, self.info, self.error = pid, info, error
+
+    def as_dict(self, attrs):
+        if self.error is not None:
+            raise self.error
+        return {a: self.info.get(a) for a in attrs}
+
+
+def test_the_scan_leaves_out_a_process_that_could_not_be_read():
+    info = {"ppid": 1, "cmdline": ["agent", "-p"], "create_time": 5.0, "status": psutil.STATUS_RUNNING}
+    ended = SystemError("<built-in function proc_cmdline> returned a result with an exception set")
+    seen = processes.scan(
+        [
+            _Process(10, info),
+            _Process(11, error=ended),  # psutil 7.2.2 on macOS, a process ending while read
+            _Process(12, error=psutil.NoSuchProcess(12)),
+            _Process(13, {**info, "status": psutil.STATUS_ZOMBIE}),
+        ]
+    )
+    assert seen == {10: processes.Proc(10, 1, "agent -p", 5.0)}
+
+
 # --- groups: POSIX, against the OS -------------------------------------------------------
 
 _TREE = """
