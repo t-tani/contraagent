@@ -91,17 +91,29 @@ if (how && list && nav) {
    * from it by less than a device pixel, at most a CSS pixel at a device pixel ratio of 1 or more.
    */
   const there = (left: number): boolean => Math.abs(list.scrollLeft - left) < Math.max(1, 1 / devicePixelRatio);
+  /**
+   * The card a button's smooth scroll leaves, until that scroll ends or the reader takes
+   * the list. A scroll that completed before the press may still have its `scrollend`
+   * to come (input runs before the scroll steps that send it): that one finds the list
+   * still on this card, as the new scroll has not moved it off yet, and is not the
+   * list at rest. The new scroll ends on another card, or a newer press records its own.
+   */
+  let leaving: number | undefined;
   /** The swipe's scroll at its end: snapping on again, and the step the card the list rests on. */
   const land = (): void => {
     release = undefined;
+    leaving = undefined;
     list.classList.remove('is-swiped');
     if (narrow.matches) mark(nearest());
   };
   const go = (k: number): void => {
     const to = Math.max(0, Math.min(steps.length - 1, k));
+    const on = nearest();
     mark(to);
     const left = place(to);
     if (list.classList.contains('is-swiped')) release = left;
+    // An instant scroll is there at once, and its `scrollend` finds the list there; a list on `to` does not move.
+    else leaving = !reduced.matches && on !== to ? on : undefined;
     // The browser ends a scroll still under way, and does not scroll a list already there.
     list.scrollTo({ left, behavior: reduced.matches ? 'auto' : 'smooth' });
     // Already there, or there at once (an instant scroll): no end of a scroll to wait for.
@@ -115,9 +127,14 @@ if (how && list && nav) {
   // A scroll of the list has ended (CSSOM View: `scrollend` comes when the scroll sequence
   // is over and the position has changed; a smooth scroll that a newer scroll ends has
   // none, nor has a scroll to where the list already is). Snapping has placed the list,
-  // so the card it rests on is the step, whatever moved it: a button, the reader, a script.
+  // so the card it rests on is the step, whatever moved it: a button, the reader, a script,
+  // unless it is the end of a scroll from before a button's (`leaving`).
   list.addEventListener('scrollend', () => {
-    if (!swipe?.own && release === undefined && narrow.matches) mark(nearest());
+    if (swipe?.own || release !== undefined) return;
+    const on = nearest();
+    if (on === leaving) return;
+    leaving = undefined;
+    if (narrow.matches) mark(on);
   });
   list.addEventListener(
     'scroll',
@@ -126,11 +143,13 @@ if (how && list && nav) {
     },
     { passive: true },
   );
-  // The reader's own input takes the list from a swipe's scroll: snapping on again, from where it is.
+  // The reader's own input takes the list from a button's or a swipe's scroll: from then on,
+  // the card it rests on is the step; after a swipe, snapping on again from where it is.
   for (const type of ['pointerdown', 'wheel', 'keydown', 'focusin'])
     list.addEventListener(
       type,
       () => {
+        leaving = undefined;
         if (release !== undefined) land();
       },
       { passive: true },
