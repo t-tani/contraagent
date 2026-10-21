@@ -105,7 +105,7 @@ def _help_snapshot():
 
 def test_every_command_s_help_matches_the_snapshot():
     snapshot = _help_snapshot()
-    committed = snapshot.SNAPSHOT.read_text()
+    committed = snapshot.SNAPSHOT.read_text(encoding="utf-8")
     written_with = committed.splitlines()[0]
     if written_with != snapshot.header().rstrip("\n"):
         pytest.skip(f"argparse's output depends on the Python version; the snapshot is {written_with}")

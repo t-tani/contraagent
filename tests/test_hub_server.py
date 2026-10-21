@@ -464,7 +464,7 @@ def test_healthz_is_in_the_ingest_contract_only():
 
 
 def test_the_committed_openapi_document_is_current():
-    assert server.OPENAPI_FILE.read_text() == server.openapi_document(), (
+    assert server.OPENAPI_FILE.read_text(encoding="utf-8") == server.openapi_document(), (
         "src/contraagent/_internal/hub/openapi.json is stale: run `contraagent hub --openapi src/contraagent/_internal/hub/openapi.json`"
     )
     doc = json.loads(server.openapi_document())
@@ -477,7 +477,7 @@ def test_the_committed_openapi_document_is_current():
 def test_openapi_flag_writes_the_document(tmp_path):
     out = tmp_path / "openapi.json"
     assert cli_main(["hub", "--openapi", str(out)]) == 0
-    assert out.read_text() == server.openapi_document()
+    assert out.read_text(encoding="utf-8") == server.openapi_document()
 
 
 def test_token_files(tmp_path):
