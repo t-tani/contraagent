@@ -96,7 +96,6 @@ from contraagent._internal.hub.retention import (
     report_json,
     report_table,
 )
-from contraagent._internal.hub.source import DEFAULT_TTL_S
 from contraagent._internal.hub.store import BlobStore, DirectoryBlobs, HubStore, MemoryBlobs, MemoryHubStore
 from contraagent._internal.hub.streams import MemoryStreamLogs, StreamLogs
 from contraagent._internal.monitor.core import Monitor
@@ -423,7 +422,7 @@ def create_ingest_app(
 
     @app.post(INGEST_HEARTBEAT, response_model=HeartbeatAck, responses={**errors, 403: _OTHER_HOST})
     def heartbeat(beat: Heartbeat, host: str | None = Depends(host_of)) -> HeartbeatAck:
-        """Keep a host's latest heartbeat; how long the hub counts the host as up without another."""
+        """Keep a host's latest heartbeat; its TTL, how long the hub counts the host as up without another."""
         same_host(host, beat.host_id)
         return hub.heartbeat(beat)
 
@@ -658,7 +657,6 @@ def _storage_args(ap: argparse.ArgumentParser) -> None:
         metavar="DIR|s3://BUCKET/PREFIX",
         help="where sealed transcript segments are kept (default: <streams-dir>/segments)",
     )
-    ap.add_argument("--ttl", type=float, default=DEFAULT_TTL_S, help="seconds a host counts as up after a heartbeat (default: %(default)g)")
 
 
 def _retain_arg(ap: argparse.ArgumentParser, help: str) -> None:
@@ -730,7 +728,7 @@ def run(args: argparse.Namespace) -> int:
         read_token = read_read_token(args.read_token_file) if args.read_token_file else None
         seal = {k: v for k in ("segment_bytes", "idle_s", "age_s", "tick_s") if (v := getattr(args, k)) is not None}
         streams = open_streams(args.streams_dir, args.segments, args.store, **seal)
-        hub = Hub(open_store(args.store), open_blobs(args.blobs), streams=streams, ttl_s=args.ttl)
+        hub = Hub(open_store(args.store), open_blobs(args.blobs), streams=streams)
     except (OSError, ValueError) as exc:
         raise CommandError(str(exc)) from None
     if read_token is None and not is_loopback(args.host):
@@ -803,7 +801,7 @@ def prune(args: argparse.Namespace) -> int:
             if args.streams_dir is not None or args.segments is not None
             else MemoryStreamLogs()
         )
-        hub = Hub(open_store(args.store), open_blobs(args.blobs), streams=streams, ttl_s=args.ttl)
+        hub = Hub(open_store(args.store), open_blobs(args.blobs), streams=streams)
     except (OSError, ValueError) as exc:
         raise CommandError(str(exc)) from None
     try:

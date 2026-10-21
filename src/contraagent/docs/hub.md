@@ -53,7 +53,7 @@ CONTRAAGENT_HUB_TOKEN=... contraagent relay --runs-dir runs --hub http://hub.lan
 ```
 
 It ships each run's records as they are written (the pipeline's own logs and documents
-among them), the contents of the files its contracts name, and a heartbeat with the run's live processes every few seconds. Where
+among them), the contents of the files its contracts name, and a heartbeat with the run's live processes every `--interval` seconds. Where
 it is up to is kept in a progress file next to the runs directory
 (`<runs-dir>.relay.json`), so a restarted relay continues; the hub's answers correct it
 when the hub holds less (a new hub, lost data). A run is named on the hub
@@ -62,8 +62,11 @@ host name.
 
 ## What the monitor shows
 
-The same views as on one host, for every host's runs. A run is live while its host's
-heartbeats keep arriving (`contraagent hub --ttl`) and report it alive.
+The same views as on one host, for every host's runs. A host is up for the TTL of its
+latest heartbeat, counted from when the hub received it. The relay sets the TTL
+(`contraagent relay --ttl`, four times `--interval` unless given), so a heartbeat that
+is late or lost does not show the host as down. A run is live while its host is up and
+the host's latest heartbeat reports the run alive.
 
 On a hub the monitor shows the host behind each run. The run picker groups the runs by
 host, each group headed by the host's state (up, or no report since its last heartbeat),
