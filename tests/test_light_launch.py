@@ -82,7 +82,8 @@ def test_claude_code_gets_no_tools_and_the_role_as_its_system_prompt(plugin, tmp
     stub = StubAgent({"judge": {"same": False}})
     run(tmp_path, lambda: judge("a", Titles(first="x", second="y")), stub)
     argv = ClaudeBackend().argv(stub.launches[0].launch)
-    assert "--system-prompt=- Answer whether the two titles name one subject." in argv  # one element: it starts with `-`
+    role = Path(argv[argv.index("--system-prompt-file") + 1])  # a file: the text is never on the command line
+    assert role.read_text(encoding="utf-8") == "- Answer whether the two titles name one subject."
     assert argv[argv.index("--tools") + 1] == "" and argv[argv.index("--setting-sources") + 1] == ""
     assert "--strict-mcp-config" in argv
     assert "--plugin-dir" not in argv and "--agent" not in argv and "--settings" not in argv
@@ -91,7 +92,9 @@ def test_claude_code_gets_no_tools_and_the_role_as_its_system_prompt(plugin, tmp
 def test_omp_gets_no_tools_and_the_role_as_its_system_prompt():
     launch = Launch(prompt="p", model="anthropic/claude-haiku-5-5", system_prompt="- judge", tools=())
     argv = OmpBackend().argv(launch)
-    assert "--system-prompt=- judge" in argv and "--no-tools" in argv and "--no-lsp" in argv
+    [flag] = [a for a in argv if a.startswith("--system-prompt=")]
+    assert Path(flag.removeprefix("--system-prompt=")).read_text(encoding="utf-8") == "- judge"
+    assert "--no-tools" in argv and "--no-lsp" in argv
     assert "--plugin-dir" not in argv
     assert "--tools=read,grep" in OmpBackend().argv(Launch(prompt="p", tools=("read", "grep")))
     assert not any(a.startswith(("--system-prompt", "--no-tools", "--tools")) for a in OmpBackend().argv(Launch(prompt="p")))

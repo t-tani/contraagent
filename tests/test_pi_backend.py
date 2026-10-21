@@ -163,14 +163,15 @@ def test_a_task_plugin_reaches_pi_by_flag(tmp_path, home):
     extensions = [argv[i + 1] for i, a in enumerate(argv) if a == "-e"]
     assert extensions == [str(plug / "pi" / "index.ts"), "builtin:mcp", str(MCP_EXTENSION)]
     assert env["CONTRAAGENT_PI_MCP_CONFIG"] == str(plug / ".mcp.json")
-    assert argv[argv.index("--") + 1 :] == [f"@{role}", "-- read the role", "hello"]
+    # The preamble heads the prompt: one message, the attached file before it (pi's order).
+    assert argv[argv.index("--") + 1 :] == [f"@{role}", "-- read the role\n\nhello"]
 
 
 def test_a_light_launch_has_no_tools_and_its_own_system_prompt(tmp_path, home):
     _, argv, env = run(
         backend(tmp_path, home), tmp_path, model="openai/m", tools=(), system_prompt="- You judge.", mcp_config=str(tmp_path / "m.json")
     )
-    assert "--no-tools" in argv and argv[argv.index("--system-prompt") + 1] == "- You judge."
+    assert "--no-tools" in argv and Path(argv[argv.index("--system-prompt") + 1]).read_text(encoding="utf-8") == "- You judge."
     assert "builtin:mcp" not in argv and "CONTRAAGENT_PI_MCP_CONFIG" not in env
 
 
