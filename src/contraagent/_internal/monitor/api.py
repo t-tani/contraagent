@@ -62,7 +62,7 @@ from contraagent._internal.execution.schemas import JournalRow, PlanRow, QuotaRe
 from contraagent._internal.routing.preflight import PreflightRecord
 from contraagent._internal.routing.quota import QuotaCap
 
-API_VERSION = "3.7.0"
+API_VERSION = "3.8.0"
 
 
 class Closed(BaseModel):

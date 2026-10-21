@@ -77,7 +77,9 @@ does not match refuses the task (`invalid_input`, the parameter named in its rea
 and the function is not called; an unannotated parameter takes the JSON as it is (a
 model as a dict, a tuple as a list). It runs in this process, in its current
 directory (a relative path it opens resolves there, not against `Pipeline(cwd=)`), and
-has no budget: budgets cap coding-agent launches. A step with a side effect (a
+has no budget: budgets cap coding-agent launches. Every task shares that directory, so a
+Python task has no `cwd` call option: a function that works in a directory of its own
+takes the directory as a parameter. A step with a side effect (a
 fetch, a write outside the run directory, a push) belongs in a Python task, not
 in the flow's own body: a stub run plays Python tasks and runs flow code as it is
 (see `testing`).
@@ -183,8 +185,8 @@ them, and calling what it returns is the task call, as in
 
 `options` takes each option as a keyword, and an option it is not given keeps the
 value it had, so `summarize.options(priority=2).options(key="k")` has both. None
-given as `key` or `credential` clears it: the key is `<kind>-<unit>` again, and the
-credential is the kind's. The task
+given as `key`, `credential` or `cwd` clears it: the key is `<kind>-<unit>` again, the
+credential is the kind's, and the working directory is the run's. The task
 it returns has the same declaration: one kind, one digest, one `[tasks.<kind>]`
 table. Its type is the task's own (`AgentTask[SummarizeParams, Summary]` stays
 `AgentTask[SummarizeParams, Summary]`), so a function that takes a task and calls it
@@ -206,6 +208,9 @@ Each option is checked where `options` is given; one that is wrong raises
   no coding agent, so it has no credential, and its `options` does not take one.
 - `cancellable=True` lets the task be cancelled when no flow call waits for it any
   longer (see below).
+- `cwd` (an agent task's) is the task's working directory in place of the run's
+  (`Pipeline(cwd=)`): a path relative to the run's working directory, or an absolute
+  one. See [A working directory of its own](#a-working-directory-of-its-own-git-worktrees).
 
 A params field or a Python task's parameter may have the name of an option
 (`key`, `priority`): it is a param like any other. A call option given as a keyword
@@ -662,15 +667,16 @@ call, and reads the file itself.
 
 ::code{file="examples/input_file/flow.py" from="@python_task" to="async def reports("}
 
-- The params hold `{"path": ..., "sha256": ...}`, the path relative to the working
-  directory (`Pipeline(cwd=)`). The JSON Schema of the params model in the call file
+- The params hold `{"path": ..., "sha256": ...}`, the path relative to the task's
+  working directory: the `cwd` of its call options, else the run's (`Pipeline(cwd=)`).
+  A relative path given to `InputFile` is relative to it too. The JSON Schema of the params model in the call file
   (`params_json_schema`) tells the agent to read the file with its tools. A light
   launch (`tools=()`) has no tool to read a file, so give it the text as a `str` field.
 - A task's output goes by its output file: `pending.input_file()`, once the flow has
   awaited the task. It raises `ValueError` for a task that has no output, has not
   finished or did not succeed. A file that is there before the run goes by its path,
   `InputFile("in/spec.md")`.
-- The file is in the working directory, or it is an output file of the run. A
+- The file is in the task's working directory, or it is an output file of the run. A
   relative path that climbs out with `..` raises `ValueError` where the `InputFile` is
   made. An absolute path outside both directories, a symbolic link to a file outside
   them, and a path that names no file raise `ValueError` at the task call.
@@ -917,7 +923,11 @@ model (for a Python task, no parameter of its function), raises where the task i
 declared. A claim that names `{unit}` on a task with no unit, or a parameter the call
 does not give, raises at the task call; so does a parameter that holds an empty list,
 which would claim nothing. Claims are not part of the fingerprint: they change
-when a task runs, not what it does. The plan records each task's claims, and the
+when a task runs, not what it does. Tasks that would change the same files can also
+each work in a directory of their own, and run at once
+([A working directory of its own](#a-working-directory-of-its-own-git-worktrees)); a
+claim then keeps apart what is not a file, such as the git commands that change the
+one repository. The plan records each task's claims, and the
 monitor shows them in the task's detail.
 
 ## Services: a server that the tasks of a claim share
@@ -1049,8 +1059,8 @@ bound nothing. `contraagent run` does not take `max_concurrent`: a program gives
 ## Files a task changes
 
 An agent task whose work is files in the working tree, beside its output,
-declares where with `changes`: `Path.glob` patterns relative to the working
-directory, filled in like `output_name` (`{unit}`, `{key}`, `{kind}`). A pattern
+declares where with `changes`: `Path.glob` patterns relative to the task's working
+directory (the `cwd` of its call options, else the run's), filled in like `output_name` (`{unit}`, `{key}`, `{kind}`). A pattern
 that matches a directory covers everything under it. Each attempt's journal row
 then holds its changes (`created`, `modified`, `deleted`), and the files a
 failed attempt created (a timeout, a run of failed checks) are removed, with the
@@ -1080,7 +1090,60 @@ ones it lists.
 
 A file is counted as the change of the attempt that was running when it changed.
 Two tasks that run at once under one pattern cannot be told apart: put `{unit}`
-in the pattern, or keep them from running at once (a claim).
+in the pattern, keep them from running at once (a claim), or give each a working
+directory of its own.
+
+## A working directory of its own: git worktrees
+
+An agent task works in the run's working directory (`Pipeline(cwd=)`) unless its call
+options name another: `implement.options(cwd=tree)(unit, change)`. Its coding agent
+runs in that directory. The call file's `cwd`, the `cwd` a validator takes, the
+directory a `CommandValidator` runs in, its `changes` patterns and the relative paths
+of its input files are of it too. An input file is then a file of that directory or
+an output file of the run. A relative `cwd` is relative to the run's working
+directory, and the plan records the absolute path (`cwd` of `plan.jsonl`). The
+directory need not be there at the task call: a task that makes it may run first.
+When the task starts, a path that is not a directory refuses it (`invalid_input`).
+
+Where a task works is not part of its fingerprint, as the run's working directory is
+not: two worktrees with the same content give one task the same fingerprint, and a
+resume skips a task whose directory is gone. A task whose result depends on the state
+of the tree declares it with `outside_state=`, or takes the commit it starts from as a
+param. A Python task has no `cwd`: it takes its directory as a parameter.
+
+Each unit's change can be made in a git worktree of its own, so that the units run at
+once without touching one file, and is then merged into the branch the run's working
+directory has checked out. contraagent does not make the worktrees or merge them: the
+flow does, with Python tasks.
+
+::code{file="examples/worktrees/flow.py" from="def tree_of(" to="class Change("}
+
+::code{file="examples/worktrees/flow.py" from="def resolved(" to="async def changes("}
+
+- `contraagent run` starts in the repository, with a clean working tree; the runs
+  directory is ignored by git or outside the repository. A worktree holds only the
+  files git tracks: the `worktree` task also makes what the agents need that git does
+  not track, such as `.env`, `.venv` or `node_modules`.
+- The worktrees are outside the run's working directory. One inside it would be seen
+  by the `changes` patterns of the tasks that work there, and by a recording, which
+  compares only the run's working directory ([Testing](testing.md)).
+- The checked-out branch moves only forward (`--ff-only`). A merge that conflicts
+  stays in the unit's worktree, and `resolve` resolves it there: its validator reads
+  that worktree, since its `cwd` is the task's. A project with tests runs them there
+  too, in the same validator. The loop ends at `max_passes` (`TooManyPasses`).
+- The git tasks claim `git`, so one runs at a time. They are declared
+  `rerun_on_resume`, and each one does nothing when its work is already done, so a
+  resume runs them again safely.
+- A unit that fails leaves its worktree for a person to look at, and
+  `return_exceptions=True` lets the other units go on.
+- A stub run and a replay play Python tasks unless they execute them: run the git
+  tasks for real with `StubAgent(execute=["worktree", "land", "remove_worktree"])`, or
+  `--execute`.
+- Codex writes only in its working directory and its own temporary directory, so
+  contraagent lets it write in the run's `out/` too when that is outside the task's
+  working directory; so it does for Claude Code (`--add-dir`) and opencode
+  (`external_directory`). An omp launch reads `.env` and `.omp/` of the task's working
+  directory, which a worktree holds only when git tracks them.
 
 ## Around each attempt: scopes, enrichers, journal columns
 

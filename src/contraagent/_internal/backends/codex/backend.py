@@ -28,9 +28,11 @@ Codex's `workspace-write` sandbox makes the launch's cwd writable and, by defaul
 and `$TMPDIR` too, and its Linux sandbox leaves empty `.git`, `.agents` and `.codex` paths
 behind in a writable root (`codex-rs/linux-sandbox/src/bwrap.rs`). So `/tmp` and `$TMPDIR`
 are taken out (`sandbox_workspace_write.exclude_slash_tmp`, `exclude_tmpdir_env_var`) and the
-launch gets a temporary directory of its own instead (`launch_tmp`), its one writable root
+launch gets a temporary directory of its own instead (`launch_tmp`), a writable root
 besides the cwd (`sandbox_workspace_write.writable_roots`) and the `TMPDIR`, `TMP` and `TEMP`
-of codex and of the commands it runs; it is removed when the launch ends.
+of codex and of the commands it runs; it is removed when the launch ends. The run's `out/`
+is the other writable root when it is outside the cwd (`Launch.out_dir`, `writable_out`), so
+the agent can write its output files there.
 
 `max_budget_usd` and `context_budget` are not enforced: codex reports no
 cost, and per-call tokens only in the rollout file, after the launch.
@@ -61,7 +63,7 @@ from contraagent._internal.backends.credentials import (
     child_env,
     secret_value,
 )
-from contraagent._internal.backends.launch import Launch, Stop
+from contraagent._internal.backends.launch import Launch, Stop, writable_out
 from contraagent._internal.backends.process import via_stdin
 from contraagent._internal.backends.refusal import Signals
 from contraagent._internal.backends.wire import EventFold, LimitsWatch
@@ -351,15 +353,18 @@ class CodexBackend(ResumeById, Backend):
 
     def tmp_args(self, launch: Launch) -> list[str]:
         """The sandbox's temporary directory: `/tmp` and `$TMPDIR` not writable, the launch's
-        own (`launch_tmp`) writable and named by `TMP_VARS` in the commands codex runs."""
+        own (`launch_tmp`) writable and named by `TMP_VARS` in the commands codex runs; the
+        run's `out/` writable too when it is outside the cwd (`writable_out`)."""
         tmp = str(self.launch_tmp(launch))
+        out = writable_out(launch)
+        roots = [tmp, str(out)] if out is not None else [tmp]
         a = [
             "-c",
             "sandbox_workspace_write.exclude_slash_tmp=true",
             "-c",
             "sandbox_workspace_write.exclude_tmpdir_env_var=true",
             "-c",
-            f"sandbox_workspace_write.writable_roots={toml([tmp])}",
+            f"sandbox_workspace_write.writable_roots={toml(roots)}",
         ]
         for var in TMP_VARS:
             a += ["-c", f"shell_environment_policy.set.{var}={toml(tmp)}"]

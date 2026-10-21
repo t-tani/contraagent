@@ -43,7 +43,7 @@ from contraagent._internal.backends.credentials import (
     model_provider,
     secret_value,
 )
-from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
+from contraagent._internal.backends.launch import Launch, LaunchResult, Stop, writable_out
 from contraagent._internal.backends.opencode import catalogue
 from contraagent._internal.backends.opencode import wire as opencode_wire
 from contraagent._internal.backends.opencode_key import OpencodeKeyAccount
@@ -299,6 +299,11 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
         if allowed is not None:
             permission = {"*": "deny", **{self.PERMISSION_OF.get(t, t.lower()): "allow" for t in allowed}}
         permission = permission_rules(launch.limits.disallowed_tools, permission, Path(launch.cwd))
+        out = writable_out(launch)
+        if out is not None:  # the run's `out/`, outside the cwd: where the agent writes its outputs
+            had = permission.get("external_directory", permission.get("*", "ask"))
+            rules = had if isinstance(had, dict) else {"*": had}
+            permission["external_directory"] = {**rules, f"{out.as_posix()}/**": "allow"}
         if permission:
             cfg["permission"] = permission
         if launch.limits.max_turns is not None:

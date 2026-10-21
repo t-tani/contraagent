@@ -8,9 +8,9 @@ Both are called inside a flow run by `Pipeline.run`: an agent task with its unit
 instance of its params model (`summarize(unit, SummarizeParams(...))`), a Python task as
 its function. A call queues a task and returns a `Pending` reference to its future
 output, which an async flow awaits for the output. A task's call options (`key`,
-`after`, `priority`, an agent task's `credential`, `cancellable`) are not arguments of
-the call: `task.options(...)` returns the same task with them, and calling that is the
-task call.
+`after`, `priority`, an agent task's `credential` and `cwd`, `cancellable`) are not
+arguments of the call: `task.options(...)` returns the same task with them, and calling
+that is the task call.
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ import hashlib
 import inspect
 import json
 import math
+import os
 import re
 import string
 import types
@@ -115,6 +116,8 @@ class _CallOptions:
     #: An agent task's credential; empty: its kind's.
     credential: str = ""
     cancellable: bool = False
+    #: An agent task's working directory, as given (relative to the run's or absolute); None: the run's.
+    cwd: str | None = None
 
     def given(
         self,
@@ -125,6 +128,7 @@ class _CallOptions:
         priority: float | Literal[_Keep.KEEP],
         credential: str | None | Literal[_Keep.KEEP],
         cancellable: bool | Literal[_Keep.KEEP],
+        cwd: str | os.PathLike[str] | None | Literal[_Keep.KEEP] = _Keep.KEEP,
     ) -> _CallOptions:
         """These options with each one given (not `_Keep.KEEP`) replaced, checked; `where` names
         the call in an error."""
@@ -136,6 +140,7 @@ class _CallOptions:
             priority=self.priority if priority is _Keep.KEEP else _checked_priority(where, priority),
             credential=self.credential if credential is _Keep.KEEP else _checked_credential(where, credential),
             cancellable=self.cancellable if cancellable is _Keep.KEEP else cancellable,
+            cwd=self.cwd if cwd is _Keep.KEEP else _checked_cwd(where, cwd),
         )
 
 
@@ -323,6 +328,7 @@ class AgentTask[ParamsT: BaseModel | None, Out]:
             priority=o.priority,
             credential=o.credential,
             cancellable=o.cancellable,
+            cwd=o.cwd,
         )
 
     def _called(self, args: tuple[Any, ...], keywords: dict[str, Any]) -> tuple[str, BaseModel | None]:
@@ -380,6 +386,7 @@ class AgentTask[ParamsT: BaseModel | None, Out]:
         priority: float | Literal[_Keep.KEEP] = _Keep.KEEP,
         credential: str | None | Literal[_Keep.KEEP] = _Keep.KEEP,
         cancellable: bool | Literal[_Keep.KEEP] = _Keep.KEEP,
+        cwd: str | os.PathLike[str] | None | Literal[_Keep.KEEP] = _Keep.KEEP,
     ) -> Self:
         """This task with call options: calling what it returns is a task call of this task,
         its declaration the same (one kind, one digest), so `summarize.options(key="k")(unit)`
@@ -399,10 +406,21 @@ class AgentTask[ParamsT: BaseModel | None, Out]:
         `requires` is refused before the task launches. `cancellable`: True cancels the task (stop `cancelled`) once the flow call that
         created it and every flow call that waited for it were closed and no flow call waits
         for it: a queued one is not launched, a running one's launch is stopped. False, the
-        default: it runs to its end whatever happens to its flow calls. None of them is part
-        of the task's fingerprint but `key`."""
+        default: it runs to its end whatever happens to its flow calls. `cwd`: the task's
+        working directory in place of the run's (`Pipeline(cwd=)`), relative to the run's or
+        absolute: the coding agent runs in it, and its call file's `cwd`, its validators'
+        `cwd`, its `changes` patterns and the relative paths of its input files are of it; an
+        input file is a file of it or of the run's `out/`. It must be a directory when the
+        task starts, or the task is refused (`invalid_input`); None clears it. None of them is
+        part of the task's fingerprint but `key`."""
         made = self._options.given(
-            f"{self.kind}.options", key=key, after=after, priority=priority, credential=credential, cancellable=cancellable
+            f"{self.kind}.options",
+            key=key,
+            after=after,
+            priority=priority,
+            credential=credential,
+            cancellable=cancellable,
+            cwd=cwd,
         )
         return _with_options(self, made)
 
@@ -1096,7 +1114,9 @@ class PythonTask[**P, Out]:
         cancellable: bool | Literal[_Keep.KEEP] = _Keep.KEEP,
     ) -> Self:
         """This task with call options, as `AgentTask.options`: `key`, `after`, `priority`
-        and `cancellable`. A Python task runs no coding agent, so it has no credential. A
+        and `cancellable`. A Python task runs no coding agent, so it has no credential; it
+        runs in this process, whose current directory every task shares, so it has no `cwd`:
+        a function that works in a directory takes it as a parameter. A
         cancelled Python task that is running runs to its end: a thread cannot be stopped."""
         made = self._options.given(
             f"{self.kind}.options", key=key, after=after, priority=priority, credential=_Keep.KEEP, cancellable=cancellable
@@ -1464,7 +1484,7 @@ def _type_name(t: type) -> str:
 #: The keywords a task call takes itself, so never a parameter of the task.
 #: The call options (`options`): a task call given one of them as a keyword that is no
 #: parameter of its task raises TypeError.
-CALL_OPTIONS = ("key", "after", "priority", "credential", "cancellable")
+CALL_OPTIONS = ("key", "after", "priority", "credential", "cancellable", "cwd")
 
 
 def declaration_of[T: AgentTask[Any, Any] | PythonTask[..., Any]](task: T) -> T:
@@ -1488,10 +1508,16 @@ def _refuse_call_options(kind: str, given: Mapping[str, Any], params: set[str], 
     words = [w for w in CALL_OPTIONS if w in given and w not in params]
     if not words:
         return
-    if python and words == ["credential"]:
+    if python and "credential" in words:
         raise TypeError(
             f"{kind}(...): credential= names the credential an agent task runs as, and a Python task runs no "
             "coding agent, so it has no credential: drop credential= (contraagent docs routing, A task call's credential)"
+        )
+    if python and "cwd" in words:
+        raise TypeError(
+            f"{kind}(...): cwd= names the working directory of an agent task, and a Python task runs in this "
+            "process, whose current directory every task shares: give the directory as a parameter of the function "
+            "(contraagent docs tasks, Python tasks)"
         )
     shown = ", ".join(f"{w}=" for w in words)
     example = ", ".join(f"{w}=..." for w in words)
@@ -1536,6 +1562,17 @@ def _checked_credential(where: str, credential: Any) -> str:
     if not isinstance(credential, str) or not credential.strip() or credential != credential.strip():
         raise TypeError(f"{where}(...): credential must name a [credentials.<name>] or be None, not {credential!r}")
     return credential
+
+
+def _checked_cwd(where: str, cwd: Any) -> str | None:
+    """An agent task's `cwd` option: a path, as text; None, the run's working directory."""
+    if cwd is None:
+        return None
+    if isinstance(cwd, (str, os.PathLike)):
+        text = os.fspath(cwd)
+        if isinstance(text, str) and text:
+            return text
+    raise TypeError(f"{where}(...): cwd must be a directory's path (a str or a PathLike) or None, not {cwd!r}")
 
 
 def _checked_claims(owner: str, claims: Sequence[str], params: set[str] | None) -> tuple[str, ...]:

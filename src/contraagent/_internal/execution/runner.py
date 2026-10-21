@@ -309,12 +309,17 @@ class AgentRunner:
             limits=rc.limits(),
             credential=credential,
             env=env,
-            cwd=self.cwd,
+            cwd=self._cwd_of(task),
+            out_dir=(self.run_dir / layout.OUT).resolve(),
             preamble=task.params.get("preamble"),
             context_files=self.adapter.context_files(task, be),
             plugin_dirs=plugin_dirs,
             stream_path=self.run_dir / layout.stream(task.key) if self.keep_transcripts else None,
         )
+
+    def _cwd_of(self, task: Task) -> Path:
+        """The task's working directory: its own (`Task.cwd`), else the runner's."""
+        return task.cwd or self.cwd
 
     def credential_for(self, task: Task, route: Route | None) -> Credential:
         """The identity this task launches as on `route`: the route's, else the kind's.
@@ -475,7 +480,8 @@ class AgentRunner:
             return self._stops.setdefault(task.id, threading.Event())
 
     def _record_contracts(self, task: Task) -> None:
-        record_contracts(self.run_dir, task, list(self.adapter.output_contracts(task)), list(self.adapter.input_contracts(task)), self.cwd)
+        outs, ins = list(self.adapter.output_contracts(task)), list(self.adapter.input_contracts(task))
+        record_contracts(self.run_dir, task, outs, ins, self._cwd_of(task))
         self._record_definition(task)
 
     def _record_definition(self, task: Task) -> None:
@@ -510,9 +516,13 @@ class AgentRunner:
         missing = self.adapter.missing_params(task)
         if missing:
             return self._refuse(task, Stop.LAUNCH_FAILED, f"missing required params: {', '.join(missing)}")
+        cwd = self._cwd_of(task)
+        if task.cwd is not None and not cwd.is_dir():
+            # Refused before launch: the directory its call options name is not there.
+            return self._refuse(task, Stop.INVALID_INPUT, f"invalid input: working directory {cwd.as_posix()} is not a directory")
         bad: list[str] = []
         for contract in self.adapter.input_contracts(task):
-            bad += check_input(contract, self.cwd)
+            bad += check_input(contract, cwd)
         if bad:
             # Refused before launch: an input the task would read is off-contract.
             return self._refuse(task, Stop.INVALID_INPUT, f"invalid input: {'; '.join(bad)}")

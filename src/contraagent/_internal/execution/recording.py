@@ -70,6 +70,7 @@ and with `record_missing` it counts as missing. A `~n` key never plays one of it
 
 from __future__ import annotations
 
+import glob
 import hashlib
 import json
 import re
@@ -91,7 +92,7 @@ from contraagent._internal.contracts.contract import OutputContract, Stamp
 from contraagent._internal.dispatch.records import SafetyStop
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_matches, kind_name
 from contraagent._internal.errors import ContraagentError
-from contraagent._internal.execution.changes import compare, excluded, matcher, recent_digests, scan, scan_tree
+from contraagent._internal.execution.changes import EXCLUDE, compare, excluded, matcher, recent_digests, scan, scan_tree
 from contraagent._internal.execution.pipeline_files import Written, write_captured
 from contraagent._internal.platform import envvars
 from contraagent._internal.runs import layout
@@ -179,6 +180,14 @@ def _outputs(contracts: Sequence[OutputContract], cwd: Path) -> list[tuple[Path,
     return [(c.resolve(cwd), c.message_path(cwd)) for c in contracts]
 
 
+def _under(folder: str, pattern: str) -> str:
+    """A `changes=` pattern relative to `folder` (a POSIX path) as one relative to its parent:
+    `!` kept in front, the folder's name escaped."""
+    leave = pattern.startswith(EXCLUDE)
+    inner = pattern.removeprefix(EXCLUDE) if leave else pattern
+    return f"{EXCLUDE if leave else ''}{glob.escape(folder)}/{inner.lstrip('/')}"
+
+
 def _written(files: Path, pipeline: dict[str, Any]) -> Written:
     """What a recorded attempt wrote with `contraagent.log` and `save`, read back from its files."""
     written = Written()
@@ -221,7 +230,8 @@ class Recorder:
     and the recorder of each Python task attempt (`record_python`, by `PythonTaskRunner`).
 
     `outputs(task)`: an agent task's output contracts (`TaskAdapter.output_contracts`); `cwd`:
-    where its changes and outputs are resolved; `run_dir`: the run whose transcripts are
+    the run's working directory, where outputs are resolved, and a task's changes unless it
+    has its own (`Task.cwd`), and the one `start` and `finish` compare; `run_dir`: the run whose transcripts are
     copied. It runs after the enricher that records the task's changes, so it sees them.
     `max_file_mb`: an output or changed file larger is kept by hash only, and `log` is given
     a line naming it; `summary()` is the line that sums up what this run recorded.
@@ -272,7 +282,7 @@ class Recorder:
         return _Mark(stream_at=at)
 
     def enrich(self, task: Task, before: _Mark, result: TaskResult) -> None:
-        self.declare(self._outputs(task), self._patterns(task), result)
+        self.declare(self._outputs(task), self._patterns(task), result, task.cwd)
         # Nothing was launched: a deferral, or an input refused before launch; or it was played.
         if result.stop in (STOP_DEFERRED, STOP_INVALID_INPUT) or result.launch_result is None or result.replayed:
             return
@@ -292,7 +302,7 @@ class Recorder:
         if changes is not None:
             removed = set(changes.removed)
             for rel in (*changes.created, *changes.modified):
-                if rel not in removed and self._store(task, self._cwd / rel, files / "files" / rel, by_hash):
+                if rel not in removed and self._store(task, (task.cwd or self._cwd) / rel, files / "files" / rel, by_hash):
                     written.append(rel)
             deleted = list(changes.deleted)
 
@@ -367,12 +377,24 @@ class Recorder:
             self._unplayable[task.key] = kind_name(task.kind)
         self._log(f"[record] {task.key}: {shown} ({megabytes(size)}) stored by hash only, over {self.max_file_mb:g} MB")
 
-    def declare(self, outputs: Sequence[OutputContract], patterns: Sequence[str] = (), result: TaskResult | None = None) -> None:
+    def declare(
+        self, outputs: Sequence[OutputContract], patterns: Sequence[str] = (), result: TaskResult | None = None, cwd: Path | None = None
+    ) -> None:
         """What a task attempt declares it changes: its output files, its `changes=` patterns,
-        and the paths those saw change (`result.changes`). Played attempts count too."""
+        and the paths those saw change (`result.changes`). Played attempts count too. `cwd`: the
+        task's own working directory, which its patterns and changes are relative to; one
+        inside the run's adds them under its path, one outside adds none (the run's working
+        directory is the one compared)."""
         paths = [p for pair in _outputs(outputs, self._cwd) for p in pair]
         changes = result.changes if result is not None else None
         seen = [*changes.created, *changes.modified, *changes.deleted] if changes is not None else []
+        if cwd is not None:
+            under = self._relative(cwd)
+            if under is None:
+                seen, patterns = [], ()
+            elif under != ".":
+                seen = [f"{under}/{p}" for p in seen]
+                patterns = [_under(under, p) for p in patterns]
         with self._lock:
             for p in paths:
                 rel = self._relative(p)
