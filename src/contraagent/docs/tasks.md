@@ -726,7 +726,8 @@ A flow call that raised records where and why it stopped, in `FlowCall.raised_at
 `FlowCall.raised_by`, at the end of its `flow_calls.jsonl` record and in the monitor.
 `raised_at` is the frame where the exception left the flow call's own code: mostly
 the line of the `await` that failed, or for a parent, the line where it awaits the
-child. `raised_by` is the key of the failed task the exception is (`TaskFailed.key`,
+child. An exception raised in a function that is not `async def`, such as a helper
+or a library, is at the line of the flow code that called the function. `raised_by` is the key of the failed task the exception is (`TaskFailed.key`,
 the first one in an exception group), the same in every flow call it passes through;
 it is null for an exception of flow code's own. `contraagent run` prints the place of
 each flow error.

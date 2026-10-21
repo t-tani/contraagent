@@ -330,9 +330,10 @@ class FlowCall:
     `value`: what it returned; `error`: what it raised (or what cancelling it
     raised, or, for one closed because it waited for what nothing would answer,
     the RuntimeError that says where it waited). For one that `raised`, `raised_at` is
-    where the exception left its own code (the innermost frame of flow code of its own
-    coroutine and the functions it awaited in it: mostly the line of the `await` that
-    failed), and `raised_by` the key of the failed task the exception is (`TaskFailed.key`,
+    where the exception left its own code (the innermost frame of its own coroutine and
+    the coroutines of flow code it awaited: mostly the line of the `await` that failed;
+    for an exception raised in a function it called, a helper or a library, the line of
+    that call), and `raised_by` the key of the failed task the exception is (`TaskFailed.key`,
     the first one in an exception group), the same key in every flow call it passes
     through; None for an exception of flow code's own. `time_box`: its own deadline,
     when it was started through `time_box`; `started_at` (`time.time()`): when it
@@ -903,8 +904,11 @@ class FlowDriver:
 
     def _raised_at(self, call: FlowCall, error: BaseException) -> Frame | None:
         """Where `error` left the code of `call`, which ends with it: the innermost frame
-        of flow code in its traceback, above contraagent's own code (a task call's `await`,
-        the driver) and before the frames of the child flow call it came from.
+        in its traceback of a coroutine of flow code (`CO_COROUTINE`: its own coroutine and
+        the coroutines it awaited), above contraagent's own code (a task call's `await`, the
+        driver) and before the frames of the child flow call it came from. A function that
+        is not a coroutine (a helper, a library's) is passed over, so an exception raised in
+        it is at the line of the coroutine that called it.
 
         An exception that passes from a child flow call to its parent keeps the child's
         traceback after the parent's own frames (a Task's exception is raised again at its
@@ -930,7 +934,7 @@ class FlowDriver:
             code = tb.tb_frame.f_code
             if contraagent_file(code.co_filename):  # a task call's await, the driver: below flow code
                 break
-            if flow_code(code.co_filename):
+            if code.co_flags & inspect.CO_COROUTINE and flow_code(code.co_filename):
                 module = tb.tb_frame.f_globals.get("__name__", "")
                 function = f"{module}.{code.co_qualname}" if module else code.co_qualname
                 found = Frame(function=function, file=code.co_filename, line=tb.tb_lineno or code.co_firstlineno)

@@ -12,6 +12,7 @@ import json
 import threading
 
 import pytest
+from pydantic import BaseModel, ValidationError
 
 from contraagent import Pipeline, TaskFailed, agent_task
 from contraagent.testing import StubAgent, fails
@@ -220,6 +221,43 @@ def test_an_exception_of_flow_code_a_parent_tolerates_is_still_a_flow_error(tmp_
     [call] = rep.flow_errors
     assert call.id == "0.1" and isinstance(call.error, ValueError) and call.raised_by is None
     assert call.raised_at is not None and call.raised_at.line == line_of(broken, "# BUG")
+
+
+class Found(BaseModel):
+    text: str
+
+
+class Review(BaseModel):
+    found: Found
+
+
+find = agent_task("find", instructions="f", output=Found, max_turns=5, timeout_s=60)
+review = agent_task("review", instructions="r", params=Review, output=str, max_turns=5, timeout_s=60)
+
+
+def check_text(text: str) -> None:
+    raise ValueError(f"no {text}")
+
+
+def test_an_exception_raised_below_flow_code_is_at_the_flow_s_line(tmp_path):
+    """A library (pydantic refusing a `Pending` as a field's value) or a helper that is not
+    a coroutine raises below the flow's line: `raised_at` is that line, not theirs."""
+
+    async def library():
+        pending = find("a")
+        await review("a", Review(found=pending))  # type: ignore[arg-type]  # LIBRARY
+
+    async def helper():
+        found = await find("b")
+        check_text(found.text)  # HELPER
+
+    agent = StubAgent({"find": lambda launch: {"text": launch.key}})
+    for flow, marker, error in ((library, "# LIBRARY", ValidationError), (helper, "# HELPER", ValueError)):
+        rep = pipeline(tmp_path, agent).run(flow, run_id=flow.__name__)
+        [call] = rep.flow_errors
+        assert isinstance(call.error, error) and call.raised_at is not None
+        assert (call.raised_at.function.rpartition(".")[2], call.raised_at.line) == (flow.__name__, line_of(flow, marker))
+        assert ends(rep)["0"]["raised_at"]["line"] == line_of(flow, marker)
 
 
 def test_a_task_failure_a_parent_tolerates_fails_the_run_only_as_a_failed_task(tmp_path):
