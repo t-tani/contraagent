@@ -759,7 +759,7 @@ def agent_task(
     which starts it again; the last hop's result stands. A launch that failed fails over anyway.
     `disallowed_tools`: tools its launches may not use, in Claude Code's names and patterns
     (`["WebFetch", "Bash(git push:*)"]`).
-    `max_turns`: turns per launch. `timeout_s`: seconds per launch. `max_budget_usd`: cost per
+    `max_turns`: turns per launch. `timeout_s`: seconds per launch, above 0. `max_budget_usd`: cost per
     launch, as the coding agent reports it. `stall_s`: stop a launch whose transcript is silent
     this many seconds. `context_budget`: stop a launch once one call's input passes this many
     tokens. `context_warn_pct`: warn once a launch's peak context passes this percent of
