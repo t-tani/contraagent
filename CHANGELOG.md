@@ -10,6 +10,13 @@ The changes not released yet are the fragments in [`changelog.d/`](changelog.d/)
 
 <!-- towncrier release notes start -->
 
+## [0.7.1] - 2026-10-21
+
+### Fixed
+
+- A light launch whose instructions hold a long param, and a launch with a long `preamble` param, now start on every coding agent. The system prompt went on the command line of Claude Code, omp and pi and into `OPENCODE_CONFIG_CONTENT` for opencode, and the preamble went on the command line of omp and pi; past 131072 bytes on Linux the launch failed with `[Errno 7] Argument list too long`. Each system prompt is now a file in the launch's scratch directory that only the user can read (`--system-prompt-file` for Claude Code, a file path for omp's and pi's `--system-prompt`, `{file:...}` in opencode's config). The preamble is now the head of the prompt, which goes over stdin when it is long, so omp and pi get the preamble and the prompt as one first message instead of two turns. Codex gets `append_system_prompt` at the head of the prompt instead of as `developer_instructions` on its command line. A prompt goes over stdin by its size as the operating system counts it, not by its characters: past 60,000 bytes in UTF-8 (on Windows, 16,000 UTF-16 code units), so a prompt of 50,000 Japanese characters (150,000 bytes) no longer goes on the command line.
+- A task whose params hold a long text launches. Every scalar param was also copied, as JSON, into one variable of the launch's environment, and a variable longer than the operating system allows (131072 bytes on Linux) made the launch fail with `[Errno 7] Argument list too long`. The params now reach an agent only through its call file (old → new): an agent read its scalar params from `CONTRAAGENT_PARAMS` → from its call file (`CONTRAAGENT_CALL`), which holds every param.
+- A launch that the operating system refuses for its own command is not launched again: arguments and environment too long (`E2BIG`), an executable it cannot run (`ENOEXEC`) or may not run (`EACCES`). The launch fails with `launch_failed`, its reason says that the command is refused on every launch, and its result is not retryable (`LaunchResult.retryable`, `TaskResult.retryable`): neither the kind's `retries` nor the queue's retry of a launch that never ran tries it again. The task still fails over to the next route, which has its own command. A missing executable (`ENOENT`) and every other launch failure are retried as before.
 ## [0.7.0] - 2026-10-21
 
 ### Added
