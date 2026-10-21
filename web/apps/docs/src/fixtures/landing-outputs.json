@@ -15,7 +15,7 @@
   "Many hosts: the hub",
   "Operating a hub",
   "Compatibility",
-  "Upgrading from 0.6 to 0.7"
+  "Upgrading from 0.7 to 0.8"
  ],
  "slip": {
   "kwargs": "{\"units\": \"alpha\"}",
