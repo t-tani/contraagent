@@ -91,14 +91,22 @@ def _segment(seg: str) -> str:
     return out
 
 
+def matcher(patterns: Sequence[str]) -> Callable[[str], bool]:
+    """Whether one of `patterns` (`Path.glob` patterns, with no `!`) matches a POSIX path
+    relative to the working directory: the path itself, not a directory it is under."""
+    regexes = [_regex(p) for p in patterns]
+    return lambda rel: any(r.match(rel) for r in regexes)
+
+
 def excluded(patterns: Sequence[str], rel: str) -> bool:
     """Whether the `!` patterns among `patterns` leave out `rel` (a POSIX path relative to
     the working directory): it, or a directory it is under, matches one."""
-    out = [_regex(p) for p in split(patterns)[1]]
-    if not out:
+    leaving = split(patterns)[1]
+    if not leaving:
         return False
+    matches = matcher(leaving)
     parts = rel.split("/")
-    return any(r.match("/".join(parts[:n])) for r in out for n in range(1, len(parts) + 1))
+    return any(matches("/".join(parts[:n])) for n in range(1, len(parts) + 1))
 
 
 def scan(cwd: Path, patterns: Sequence[str]) -> tuple[dict[str, Stamp], frozenset[str]]:
@@ -234,8 +242,9 @@ def compare(
 
 class ChangesEnricher:
     """The `ResultEnricher` that records a task's changes, and removes the files a failed
-    attempt created. `patterns(task)`: the task's patterns, relative to `cwd`; none, and
-    it does nothing. `keep(task)`: True leaves a failed attempt's files in place."""
+    attempt created. `patterns(task)`: the task's patterns, relative to its working
+    directory (`Task.cwd`, else `cwd`); none, and it does nothing. `keep(task)`: True
+    leaves a failed attempt's files in place."""
 
     def __init__(self, patterns: Callable[[Task], Sequence[str]], cwd: Path, keep: Callable[[Task], bool] = lambda task: False) -> None:
         self._patterns = patterns
@@ -247,33 +256,36 @@ class ChangesEnricher:
         if not patterns:
             return None
         since = time.time_ns()
-        files, dirs = scan(self._cwd, patterns)
-        return Snapshot(patterns, files, dirs, recent_digests(self._cwd, files, since))
+        cwd = task.cwd or self._cwd
+        files, dirs = scan(cwd, patterns)
+        return Snapshot(patterns, files, dirs, recent_digests(cwd, files, since))
 
     def enrich(self, task: Task, before: Snapshot | None, result: TaskResult) -> TaskResult | None:
         if before is None:
             return None
-        after, dirs = scan(self._cwd, before.patterns)
-        changes = compare(before.files, after, before.digests, self._cwd)
+        cwd = task.cwd or self._cwd
+        after, dirs = scan(cwd, before.patterns)
+        changes = compare(before.files, after, before.digests, cwd)
         if not result.ok and changes.created and self._keep(task):
             changes = changes.model_copy(update={"kept": changes.created})
         elif not result.ok and changes.created:
-            changes = changes.model_copy(update={"removed": self._remove(changes.created, dirs - before.dirs)})
+            changes = changes.model_copy(update={"removed": self._remove(cwd, changes.created, dirs - before.dirs)})
         return replace(result, changes=changes)
 
-    def _remove(self, created: Sequence[str], new_dirs: frozenset[str]) -> tuple[str, ...]:
-        """Remove `created`, then each of `new_dirs` (directories the patterns match that did
+    @staticmethod
+    def _remove(cwd: Path, created: Sequence[str], new_dirs: frozenset[str]) -> tuple[str, ...]:
+        """Remove `created` (relative to `cwd`), then each of `new_dirs` (directories the patterns match that did
         not exist before) left empty, deepest first. Returns the files removed."""
         removed = []
         for rel in created:
             try:
-                (self._cwd / rel).unlink()
+                (cwd / rel).unlink()
                 removed.append(rel)
             except OSError as exc:
                 _logger.warning(f"[changes] could not remove {rel}: {exc}")
         for d in sorted(new_dirs, key=lambda d: d.count("/"), reverse=True):
             try:
-                (self._cwd / d).rmdir()  # only an empty one
+                (cwd / d).rmdir()  # only an empty one
             except OSError:
                 pass
         return tuple(removed)

@@ -558,6 +558,47 @@ def test_the_runner_s_quota_rule_rests_past_80_percent():
     assert isinstance(rest, tuple) and rest[0] == "5-hour usage 91% is past 80%" and rest[1].hour == 12
 
 
+def test_the_converge_loop_stops_flat_at_its_ceiling_or_its_time_box_and_resumes_to_the_same_document(tmp_path):
+    """The tasks topic's loop that stops when it stops improving: alpha's open issues stay
+    at 2, beta's keep falling until the range ends, and a time box already past defers
+    the first critique. A resume skips every task and saves the same documents."""
+    from contraagent import Pipeline
+    from contraagent.docs.examples.converge import flow
+    from contraagent.testing import StubAgent
+
+    issues = {"alpha": [5, 2, 2, 2, 2], "beta": [9, 8, 7, 6, 5]}
+
+    def critique(launch):
+        n = int(launch.key.partition("~")[2] or 1)  # critique-beta~3 is beta's third critique
+        return {"open_issues": issues[launch.unit][n - 1], "notes": []}
+
+    def draft(launch):
+        return {"unit": launch.unit, "text": launch.key}
+
+    agent = StubAgent({"write": draft, "revise": draft, "critique": critique})
+    pipeline = Pipeline(runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path)
+
+    def documents(report):
+        return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in sorted((report.run_dir / "pipeline").glob("*.json"))}
+
+    report = pipeline.run(flow.improve, units=["alpha", "beta"], passes=5)
+    assert report.ok, report.failed
+    saved = documents(report)
+    assert saved == {
+        "refine-alpha": {"open_issues": [5, 2, 2, 2], "why": "flat"},
+        "refine-beta": {"open_issues": [9, 8, 7, 6, 5], "why": "ceiling"},
+    }
+    assert sorted(p.name for p in (report.run_dir / "pipeline").iterdir()) == ["refine-alpha.json", "refine-beta.json"]
+    launched = len(agent.launches)
+    resumed = pipeline.run(flow.improve, units=["alpha", "beta"], passes=5, resume=True)
+    assert resumed.ok and len(agent.launches) == launched  # every task skipped
+    assert documents(resumed) == saved
+
+    boxed = pipeline.run(flow.improve, units=["alpha"], deadline_s=1e-9, run_id="boxed")  # a deadline past at once
+    assert boxed.ok and [r.task.key for r in boxed.deferred] == ["critique-alpha"]
+    assert documents(boxed) == {"refine-alpha": {"open_issues": [], "why": "time box"}}
+
+
 def test_routing_names_every_key_defaults_takes():
     from contraagent._internal.routing.config import DEFAULTS_KEYS
 
@@ -677,3 +718,51 @@ def test_the_docs_site_runs_no_command_when_it_renders():
         and re.search(r"child_process|\bexeca\b", f.read_text(encoding="utf-8"))
     ]
     assert running == []
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
+def test_the_worktrees_example_merges_two_units_that_change_one_line(tmp_path, monkeypatch):
+    from contraagent import Pipeline
+    from contraagent.docs.examples.worktrees import flow
+    from contraagent.testing import StubAgent
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    def git(*args: str, cwd: Path = repo) -> str:
+        return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout
+
+    git("init", "-q", "-b", "main")
+    git("config", "user.name", "t")
+    git("config", "user.email", "t@example.com")
+    (repo / "greeting.txt").write_text("hello\n")
+    git("add", "-A")
+    git("commit", "-q", "-m", "start")
+    monkeypatch.chdir(repo)  # `contraagent run` starts in the repository
+
+    def implement(launch):
+        (Path(launch.launch.cwd) / "greeting.txt").write_text(f"hello from {launch.unit}\n")
+        return f"greeting of {launch.unit}"
+
+    def resolve(launch):
+        tree = Path(launch.launch.cwd)
+        (tree / "greeting.txt").write_text("hello from a and b\n")
+        git("add", "greeting.txt", cwd=tree)
+        return "greeting.txt: both"
+
+    agent = StubAgent({"implement": implement, "resolve": resolve}, execute=["worktree", "land", "remove_worktree"])
+    report = Pipeline(runs_dir=tmp_path / "runs", stub=agent, cwd=repo).run(flow.changes, {"a": "greet from a", "b": "greet from b"})
+    assert report.ok, report.failed
+    assert sorted(launch.kind for launch in agent.launches) == ["implement", "implement", "resolve"]
+    assert (repo / "greeting.txt").read_text() == "hello from a and b\n"
+    assert git("status", "--porcelain") == "" and git("branch", "--list", "work/*") == ""
+    trees = tmp_path / "repo.worktrees"
+    assert not (trees / "a").exists() and not (trees / "b").exists()
+    plan = [json.loads(line) for line in (report.run_dir / "plan.jsonl").read_text().splitlines()]
+    cwd = {row["key"]: row.get("cwd") for row in plan if row["executor"] == "agent"}
+    [resolved] = [key for key in cwd if key.startswith("resolve-")]
+    assert cwd == {
+        "implement-a": (trees / "a").as_posix(),
+        "implement-b": (trees / "b").as_posix(),
+        resolved: (trees / resolved[-1]).as_posix(),
+    }

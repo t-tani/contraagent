@@ -77,7 +77,9 @@ does not match refuses the task (`invalid_input`, the parameter named in its rea
 and the function is not called; an unannotated parameter takes the JSON as it is (a
 model as a dict, a tuple as a list). It runs in this process, in its current
 directory (a relative path it opens resolves there, not against `Pipeline(cwd=)`), and
-has no budget: budgets cap coding-agent launches. A step with a side effect (a
+has no budget: budgets cap coding-agent launches. Every task shares that directory, so a
+Python task has no `cwd` call option: a function that works in a directory of its own
+takes the directory as a parameter. A step with a side effect (a
 fetch, a write outside the run directory, a push) belongs in a Python task, not
 in the flow's own body: a stub run plays Python tasks and runs flow code as it is
 (see `testing`).
@@ -183,8 +185,8 @@ them, and calling what it returns is the task call, as in
 
 `options` takes each option as a keyword, and an option it is not given keeps the
 value it had, so `summarize.options(priority=2).options(key="k")` has both. None
-given as `key` or `credential` clears it: the key is `<kind>-<unit>` again, and the
-credential is the kind's. The task
+given as `key`, `credential` or `cwd` clears it: the key is `<kind>-<unit>` again, the
+credential is the kind's, and the working directory is the run's. The task
 it returns has the same declaration: one kind, one digest, one `[tasks.<kind>]`
 table. Its type is the task's own (`AgentTask[SummarizeParams, Summary]` stays
 `AgentTask[SummarizeParams, Summary]`), so a function that takes a task and calls it
@@ -206,6 +208,9 @@ Each option is checked where `options` is given; one that is wrong raises
   no coding agent, so it has no credential, and its `options` does not take one.
 - `cancellable=True` lets the task be cancelled when no flow call waits for it any
   longer (see below).
+- `cwd` (an agent task's) is the task's working directory in place of the run's
+  (`Pipeline(cwd=)`): a path relative to the run's working directory, or an absolute
+  one. See [A working directory of its own](#a-working-directory-of-its-own-git-worktrees).
 
 A params field or a Python task's parameter may have the name of an option
 (`key`, `priority`): it is a param like any other. A call option given as a keyword
@@ -604,6 +609,51 @@ Passes are counted from the loops' back edges as the flow runs
 code goes back to the start of a loop. When the two monitoring tool ids it can
 use (3 and 4) are both taken, `pass` is null and no loop is bounded.
 
+### A loop that stops when it stops improving
+
+A loop that revises a draft until a critique finds nothing may never get there. Each
+pass costs tasks, and after a few passes the draft often stays as good as it is. Such
+a loop needs three ends: a measure that has not changed for a few passes, a largest
+number of passes, and a deadline. Each one is plain flow code over what contraagent
+already has, and the loop returns the last draft whichever end it reaches.
+
+::code{file="examples/converge/flow.py" from="async def refine("}
+
+The measure is a value the flow computes from the outputs it receives, here the
+critique's `open_issues`, compared with `==` to the values of the passes before.
+`refine` stops when it has not changed for `flat` passes in a row. A resume gives the flow
+the recorded outputs of the skipped tasks in the same order, so the loop computes the
+same values and stops at the same pass.
+
+The largest number of passes is the range of a `for` loop. When `range(passes)`
+ends, the loop ends as any `for` loop does, and the flow goes on with the last draft.
+A `while` loop under `max_passes` does not end that way: `max_passes` guards against a
+loop that never ends by mistake, and the pass after it raises `TooManyPasses`, a flow
+error that leaves the run not ok. A loop whose bound is part of its design takes a
+range, and `max_passes` stays the guard.
+
+The deadline is a time box: `improve` runs each `refine` in `time_box(...,
+deadline_s=)`, since flow code has no clock to read. Past the deadline, the next
+critique or revision is deferred, and `refine` receives `TaskDeferred` at its `await`,
+catches it and returns the draft it has. The box counts from its flow call's start in
+each run, so a resume gives the loop the whole `deadline_s` again: the passes an earlier
+run finished are skipped at once, and the time goes to the passes that are left. A
+loop that stopped on its time box may therefore go further on a resume.
+
+The measures and why the loop stopped are kept with `contraagent.save` in the
+pipeline document `refine-<unit>` ([A pipeline's own records](#a-pipelines-own-records)), not with
+`contraagent.log`. A resume runs the flow again from its start, so a row logged after
+the loop would be appended once more on each resume, while `save` writes the same
+value in place of the old one. After a run in which alpha's critiques find 5 open
+issues, then 2 three times, `pipeline/refine-alpha.json` holds the following, and a
+resume leaves it the same:
+
+```json
+{"open_issues": [5, 2, 2, 2], "why": "flat"}
+```
+
+`why` is `flat`, `ceiling` when the range ended, or `time box`.
+
 ## Large inputs: input files
 
 A task call copies its params into the call file. A long text that one task wrote and
@@ -617,15 +667,16 @@ call, and reads the file itself.
 
 ::code{file="examples/input_file/flow.py" from="@python_task" to="async def reports("}
 
-- The params hold `{"path": ..., "sha256": ...}`, the path relative to the working
-  directory (`Pipeline(cwd=)`). The JSON Schema of the params model in the call file
+- The params hold `{"path": ..., "sha256": ...}`, the path relative to the task's
+  working directory: the `cwd` of its call options, else the run's (`Pipeline(cwd=)`).
+  A relative path given to `InputFile` is relative to it too. The JSON Schema of the params model in the call file
   (`params_json_schema`) tells the agent to read the file with its tools. A light
   launch (`tools=()`) has no tool to read a file, so give it the text as a `str` field.
 - A task's output goes by its output file: `pending.input_file()`, once the flow has
   awaited the task. It raises `ValueError` for a task that has no output, has not
   finished or did not succeed. A file that is there before the run goes by its path,
   `InputFile("in/spec.md")`.
-- The file is in the working directory, or it is an output file of the run. A
+- The file is in the task's working directory, or it is an output file of the run. A
   relative path that climbs out with `..` raises `ValueError` where the `InputFile` is
   made. An absolute path outside both directories, a symbolic link to a file outside
   them, and a path that names no file raise `ValueError` at the task call.
@@ -841,22 +892,42 @@ run at once:
 ::code{file="examples/claims/flow.py" from="lookup = agent_task(" to="def topics("}
 
 `Pipeline(claim_capacity=CLAIM_CAPACITY)` gives it, or
-`index = { memory_mb = 1500, cores = 1 }` in `[defaults.claim_capacity]`. Each
-time the queue tries to start such a task, the capacity is the tasks that hold the
-name plus as many more as the free memory holds, and at most the usable cores
-divided by `cores`. While no task holds the name it is at least 1, so a run always
-goes on even on a host short of memory. The free memory is what the OS reports as
-available (on Linux `MemAvailable` of `/proc/meminfo`), less `memory_mb` for each
-such task started in the last 30 seconds, since a server just started has not taken
-its memory yet; where the OS reports none, memory does not limit the name. The capacity grows
-as memory frees, and a waiting task starts then, while the others still run.
+`index = { memory_mb = 1500, cores = 1 }` in `[defaults.claim_capacity]`. Give as
+`memory_mb` the most memory one task takes, its coding agent and every process it
+starts included.
+
+Each running task with a `PerTask` claim holds its `memory_mb` from its start until
+it ends, or what its processes take when that is more. A server that takes its
+memory late is held all the same, and one that took its memory is counted once.
+Each time the queue tries to start such a task, it reads the free memory and what
+the running tasks' processes take, and checks two conditions. The holds, the new
+task's `memory_mb` and the memory that other programs took must fit in the
+baseline: the free memory read while no such task runs. The free memory now must
+also hold the new task's `memory_mb` and what the running tasks hold but have not
+taken yet. Tasks that start on one reading count each other's `memory_mb`, so a
+burst of starts does not take more than the memory holds.
+
+The free memory is what the OS reports as available (on Linux `MemAvailable` of
+`/proc/meminfo`); where the OS reports none, memory does not limit the name. What a
+task's processes take is the memory that the processes in its coding agents'
+process groups do not share with other processes. A Python task runs inside the
+run's own process, and a process can leave its agent's group, so what they take
+counts as other programs' memory while the task's `memory_mb` stays held. The cores allow at most the
+usable cores divided by `cores`. While no task holds the name, one starts anyway,
+so a run always goes on even on a host short of memory. A larger `memory_mb` than a
+task takes holds back other tasks. A waiting task starts as soon as a task ends or
+the memory frees, while the others still run.
 
 A claim that names `{params.<name>}`, where `<name>` is no field of the task's params
 model (for a Python task, no parameter of its function), raises where the task is
 declared. A claim that names `{unit}` on a task with no unit, or a parameter the call
 does not give, raises at the task call; so does a parameter that holds an empty list,
 which would claim nothing. Claims are not part of the fingerprint: they change
-when a task runs, not what it does. The plan records each task's claims, and the
+when a task runs, not what it does. Tasks that would change the same files can also
+each work in a directory of their own, and run at once
+([A working directory of its own](#a-working-directory-of-its-own-git-worktrees)); a
+claim then keeps apart what is not a file, such as the git commands that change the
+one repository. The plan records each task's claims, and the
 monitor shows them in the task's detail.
 
 ## Services: a server that the tasks of a claim share
@@ -988,8 +1059,8 @@ bound nothing. `contraagent run` does not take `max_concurrent`: a program gives
 ## Files a task changes
 
 An agent task whose work is files in the working tree, beside its output,
-declares where with `changes`: `Path.glob` patterns relative to the working
-directory, filled in like `output_name` (`{unit}`, `{key}`, `{kind}`). A pattern
+declares where with `changes`: `Path.glob` patterns relative to the task's working
+directory (the `cwd` of its call options, else the run's), filled in like `output_name` (`{unit}`, `{key}`, `{kind}`). A pattern
 that matches a directory covers everything under it. Each attempt's journal row
 then holds its changes (`created`, `modified`, `deleted`), and the files a
 failed attempt created (a timeout, a run of failed checks) are removed, with the
@@ -1019,7 +1090,60 @@ ones it lists.
 
 A file is counted as the change of the attempt that was running when it changed.
 Two tasks that run at once under one pattern cannot be told apart: put `{unit}`
-in the pattern, or keep them from running at once (a claim).
+in the pattern, keep them from running at once (a claim), or give each a working
+directory of its own.
+
+## A working directory of its own: git worktrees
+
+An agent task works in the run's working directory (`Pipeline(cwd=)`) unless its call
+options name another: `implement.options(cwd=tree)(unit, change)`. Its coding agent
+runs in that directory. The call file's `cwd`, the `cwd` a validator takes, the
+directory a `CommandValidator` runs in, its `changes` patterns and the relative paths
+of its input files are of it too. An input file is then a file of that directory or
+an output file of the run. A relative `cwd` is relative to the run's working
+directory, and the plan records the absolute path (`cwd` of `plan.jsonl`). The
+directory need not be there at the task call: a task that makes it may run first.
+When the task starts, a path that is not a directory refuses it (`invalid_input`).
+
+Where a task works is not part of its fingerprint, as the run's working directory is
+not: two worktrees with the same content give one task the same fingerprint, and a
+resume skips a task whose directory is gone. A task whose result depends on the state
+of the tree declares it with `outside_state=`, or takes the commit it starts from as a
+param. A Python task has no `cwd`: it takes its directory as a parameter.
+
+Each unit's change can be made in a git worktree of its own, so that the units run at
+once without touching one file, and is then merged into the branch the run's working
+directory has checked out. contraagent does not make the worktrees or merge them: the
+flow does, with Python tasks.
+
+::code{file="examples/worktrees/flow.py" from="def tree_of(" to="class Change("}
+
+::code{file="examples/worktrees/flow.py" from="def resolved(" to="async def changes("}
+
+- `contraagent run` starts in the repository, with a clean working tree; the runs
+  directory is ignored by git or outside the repository. A worktree holds only the
+  files git tracks: the `worktree` task also makes what the agents need that git does
+  not track, such as `.env`, `.venv` or `node_modules`.
+- The worktrees are outside the run's working directory. One inside it would be seen
+  by the `changes` patterns of the tasks that work there, and by a recording, which
+  compares only the run's working directory ([Testing](testing.md)).
+- The checked-out branch moves only forward (`--ff-only`). A merge that conflicts
+  stays in the unit's worktree, and `resolve` resolves it there: its validator reads
+  that worktree, since its `cwd` is the task's. A project with tests runs them there
+  too, in the same validator. The loop ends at `max_passes` (`TooManyPasses`).
+- The git tasks claim `git`, so one runs at a time. They are declared
+  `rerun_on_resume`, and each one does nothing when its work is already done, so a
+  resume runs them again safely.
+- A unit that fails leaves its worktree for a person to look at, and
+  `return_exceptions=True` lets the other units go on.
+- A stub run and a replay play Python tasks unless they execute them: run the git
+  tasks for real with `StubAgent(execute=["worktree", "land", "remove_worktree"])`, or
+  `--execute`.
+- Codex writes only in its working directory and its own temporary directory, so
+  contraagent lets it write in the run's `out/` too when that is outside the task's
+  working directory; so it does for Claude Code (`--add-dir`) and opencode
+  (`external_directory`). An omp launch reads `.env` and `.omp/` of the task's working
+  directory, which a worktree holds only when git tracks them.
 
 ## Around each attempt: scopes, enrichers, journal columns
 

@@ -32,6 +32,7 @@ import json
 import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from contraagent._internal.dispatch.records import Changes, DeferralCause, Executor, Frame, Hop, SkippedHop
@@ -173,6 +174,12 @@ class Task:
     created it and every flow call that waited for it were closed, and no flow call waits for
     it, the flow driver cancels it (`WorkQueue.cancel`). False: it runs to its end whatever
     happens to its flow calls.
+    `cwd`: an agent task's working directory, absolute, when its call options name one
+    (`.options(cwd=)`): the coding agent runs in it, and its call file, its validators and
+    its `changes` patterns are relative to it. None: the runner's (`Pipeline(cwd=)`). A
+    Python task has none: its function runs in this process, whose current directory its
+    other threads share; a `Task` with both `fn` and `cwd` raises `ValueError`. Where it
+    works, not what: no part of the fingerprint.
     """
 
     kind: str
@@ -199,8 +206,14 @@ class Task:
     credential: str = ""
     fingerprint_parts: dict[str, str] = field(default_factory=dict)
     cancellable: bool = False
+    cwd: Path | None = None
 
     def __post_init__(self) -> None:
+        if self.fn is not None and self.cwd is not None:
+            raise ValueError(
+                f"Task {self.kind!r}: a Python task (fn) has no cwd: its function runs in this process, "
+                "whose current directory every task shares; give it the directory as a param"
+            )
         # Generic, collision-safe fallbacks -- a domain that always assigns
         # both explicitly (a domain's own task factory does) never hits these;
         # they exist so a bare `Task("kind")` from a hypothetical second

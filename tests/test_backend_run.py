@@ -8,6 +8,7 @@ import threading
 
 import pytest
 
+from contraagent import ConfigError, PipelineConfig, agent_task
 from contraagent._internal.backends.claude.wire import StreamReader
 from contraagent._internal.backends.opencode.wire import EventReader
 from contraagent._internal.backends.process import stopped_by
@@ -287,6 +288,22 @@ def test_omp_rpc_ends_a_launch_past_its_cost_cap(tmp_path, rpc_env):
     limits = Limits(timeout_s=30, max_budget_usd=0.025)
     result = OmpRpcBackend(base_env=rpc_env).run(Launch(prompt="spend", label="t", model="p/m", cwd=tmp_path, limits=limits))
     assert result.stop == Stop.BUDGET and not result.ok and len(result.usage.calls) == 3
+
+
+@pytest.mark.parametrize("value", [0, -1, 0.0, float("inf"), float("nan"), True])
+def test_a_launch_s_deadline_is_a_number_of_seconds_above_0(value):
+    with pytest.raises(ValueError, match="timeout_s"):
+        Limits(timeout_s=value)
+    errors: list[str] = []
+    assert "timeout_s" not in PipelineConfig({"tasks": {"t": {"timeout_s": value}}}).task_tables(errors).get("t", {})
+    assert errors and "timeout_s" in errors[0]
+    with pytest.raises(ConfigError, match="timeout_s"):
+        agent_task("t", instructions="x", max_turns=1, timeout_s=value)
+
+
+def test_omp_rpc_passes_its_deadline_to_omp_in_whole_seconds_never_0(tmp_path):
+    argv = OmpRpcBackend().argv(Launch(prompt="x", cwd=tmp_path, limits=Limits(timeout_s=0.5)))
+    assert argv[argv.index("--max-time") + 1] == "1"
 
 
 OMP_RPC_SILENT = r"""

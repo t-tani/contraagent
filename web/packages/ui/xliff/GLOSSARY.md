@@ -203,6 +203,7 @@ wherever the UI shows a state or a count to the reader.
 | Period; N days; Dates (the trends' period) | 期間; N 日間; 日付指定 |
 | Run starts (by weekday and hour) | 実行の開始時刻 |
 | Priority 2 (a task's `priority`: tie-breaker in the queue's order) | 優先度 2 |
+| Working directory /repo.worktrees/alpha (a task's own working directory: the directory its task call named) | 作業ディレクトリ /repo.worktrees/alpha |
 | Peak context (the largest input of one API call) / context limit / near the context limit (past the warning threshold) | 最大コンテキスト / コンテキストの上限 / コンテキストの上限に接近 |
 | 71% of the context limit 200k | コンテキストの上限 200k の 71% |
 | Model availability (the preflight: one request to each model before the first agent session) / all models available | モデルの利用可否 / すべてのモデルが利用可能 |

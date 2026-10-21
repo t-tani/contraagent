@@ -15,6 +15,7 @@ from __future__ import annotations
 import enum
 import hashlib
 import json
+import math
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -78,11 +79,21 @@ class Stop(str, enum.Enum):
     CREDENTIAL_MISMATCH = "credential_mismatch"  # The agent reports a different credential than the one chosen
 
 
+#: What a `timeout_s` that is not one says.
+TIMEOUT_RANGE = "is not a number of seconds above 0: every launch has a deadline"
+
+
+def is_timeout(value: object) -> bool:
+    """A `Limits.timeout_s`: a finite number of seconds above 0."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and 0 < value < math.inf
+
+
 @dataclass(frozen=True)
 class Limits:
     """The budget of one launch: the turn, time, cost and stall caps that stop it.
 
-    `timeout_s` / `max_turns` / `max_budget_usd` go to the CLI.
+    `timeout_s` / `max_turns` / `max_budget_usd` go to the CLI. `timeout_s` is a
+    finite number of seconds above 0: every launch has a deadline.
     `context_budget` (per-call input ceiling: resident + accumulated reads)
     and `stall_s` are enforced by the wrapper watching the stream.
     `context_warn_pct` stops nothing: a launch whose peak context
@@ -105,6 +116,8 @@ class Limits:
     max_denials: int | None = None
 
     def __post_init__(self) -> None:
+        if not is_timeout(self.timeout_s):
+            raise ValueError(f"timeout_s = {self.timeout_s!r} {TIMEOUT_RANGE}")
         if self.context_warn_pct is not None:
             if (
                 isinstance(self.context_warn_pct, bool)
@@ -145,6 +158,12 @@ class Launch:
     else the lone session under `session_dir` (`--continue`). omp prints
     no session id in text mode, so a launch that may need resuming gets
     its own `session_dir` and the directory is the handle.
+
+    `out_dir` is the run's `out/`, where the agent writes its output files: a coding agent
+    that writes only under its working directory by default is allowed to write there too when
+    it is outside `cwd` (`writable_out`): Codex's sandbox takes it as a writable root,
+    Claude Code as `--add-dir`, opencode as an allowed `external_directory`. None: no such
+    directory.
     """
 
     prompt: str
@@ -178,6 +197,19 @@ class Launch:
     fallback_model: str | None = None
     resume: str | None = None
     session_dir: Path | None = None
+    out_dir: Path | None = None
+
+
+def writable_out(launch: Launch) -> Path | None:
+    """The launch's `out_dir`, every symbolic link followed, when it is a directory outside
+    its `cwd`: the one directory beside `cwd` its agent must be allowed to write in. None when
+    there is none, or it is inside `cwd`."""
+    if launch.out_dir is None:
+        return None
+    out = Path(launch.out_dir).resolve()
+    if not out.is_dir() or out.is_relative_to(Path(launch.cwd).resolve()):
+        return None
+    return out
 
 
 @dataclass

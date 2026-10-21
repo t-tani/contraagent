@@ -106,8 +106,8 @@ options:
 
 $ contraagent relay --help
 usage: contraagent relay [-h] [--runs-dir RUNS_DIR] --hub HUB [--token-file TOKEN_FILE]
-                         [--host-id HOST_ID] [--interval INTERVAL] [--since DAYS] [--once]
-                         [--progress-file PROGRESS_FILE] [--timeout TIMEOUT]
+                         [--host-id HOST_ID] [--interval INTERVAL] [--ttl TTL] [--since DAYS]
+                         [--once] [--progress-file PROGRESS_FILE] [--timeout TIMEOUT]
 
 Ship every run under a runs directory to a contraagent hub, incrementally, and send a heartbeat
 with the live runs. The ingest token comes from --token-file, else the environment variable
@@ -123,6 +123,8 @@ options:
   --host-id HOST_ID     this host's name on the hub (default: CONTRAAGENT_HOST_ID, else the host
                         name)
   --interval INTERVAL   seconds between heartbeats and between passes (default: 3)
+  --ttl TTL             seconds the hub counts this host as up after it receives a heartbeat; more
+                        than --interval (default: 4 × --interval)
   --since DAYS          of the runs not shipped yet, ship only those whose records changed in the
                         last DAYS days (default: every run)
   --once                make one full pass, then exit: 0 when the hub took everything, else 1
@@ -134,7 +136,7 @@ options:
 $ contraagent hub --help
 usage: contraagent hub [-h] [--store memory|postgres://...]
                        [--blobs memory|dir:PATH|s3://BUCKET/PREFIX] [--streams-dir PATH]
-                       [--segments DIR|s3://BUCKET/PREFIX] [--ttl TTL] [--ingest-token-file FILE]
+                       [--segments DIR|s3://BUCKET/PREFIX] [--ingest-token-file FILE]
                        [--read-token-file FILE] [--host HOST] [--port PORT] [--allow-host NAME]
                        [--cors-origin ORIGIN] [--base-path PATH] [--title TITLE]
                        [--max-blob-mb MAX_BLOB_MB] [--retain-days N] [--prune-every HOURS]
@@ -157,7 +159,6 @@ options:
   --segments DIR|s3://BUCKET/PREFIX
                         where sealed transcript segments are kept (default: <streams-
                         dir>/segments)
-  --ttl TTL             seconds a host counts as up after a heartbeat (default: 15)
   --ingest-token-file FILE
                         ingest tokens, one per line, or `host_id token` for a token good for that
                         host only
@@ -190,8 +191,8 @@ commands:
 $ contraagent hub prune --help
 usage: contraagent hub prune [-h] [--store memory|postgres://...]
                              [--blobs memory|dir:PATH|s3://BUCKET/PREFIX] [--streams-dir PATH]
-                             [--segments DIR|s3://BUCKET/PREFIX] [--ttl TTL] [--retain-days N]
-                             [--dry-run] [--blob-grace-hours H] [--json]
+                             [--segments DIR|s3://BUCKET/PREFIX] [--retain-days N] [--dry-run]
+                             [--blob-grace-hours H] [--json]
 
 Remove the runs with no activity for N days from the hub's storage, once, and print what was
 removed. A run is kept while the heartbeats in the store report it live or unresponsive. Do not
@@ -209,7 +210,6 @@ options:
   --segments DIR|s3://BUCKET/PREFIX
                         where sealed transcript segments are kept (default: <streams-
                         dir>/segments)
-  --ttl TTL             seconds a host counts as up after a heartbeat (default: 15)
   --retain-days N       remove runs with no activity for N days (default:
                         $CONTRAAGENT_RETENTION_DAYS; one of the two is required)
   --dry-run             remove nothing; report what would be removed
@@ -342,7 +342,8 @@ $ contraagent run --help
 usage: contraagent run [-h] [--config CONFIG] [--kwargs KWARGS] [--agent AGENT] [--model MODEL]
                        [--run-id RUN_ID] [--resume] [--runs-dir RUNS_DIR]
                        [--preflight {substitute,stop,off}] [--stub] [--execute PATTERN]
-                       [--record DIR] [--replay DIR] [--record-max-file-mb N] [--record-missing]
+                       [--record DIR] [--replay DIR] [--record-max-file-mb N]
+                       [--record-exclude PATTERN] [--record-missing]
                        flow
 
 positional arguments:
@@ -379,6 +380,11 @@ options:
   --record-max-file-mb N
                         with --record or --record-missing: keep a recorded file larger than N MB
                         by its SHA-256 and size only (default 4); its task cannot be replayed
+  --record-exclude PATTERN
+                        with --record or --record-missing: leave out of the undeclared changes
+                        what PATTERN matches, a glob relative to the working directory as in
+                        changes= ('.venv', '**/node_modules'); the comparison does not enter a
+                        directory it matches; repeatable
   --record-missing      with --replay: a task with no recording in DIR launches (or runs its
                         function) as in any run, and its recording is written into DIR; this can
                         spend tokens

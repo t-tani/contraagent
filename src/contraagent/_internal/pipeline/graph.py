@@ -254,6 +254,9 @@ class Node:
     credential: str = ""
     #: Its call options' `cancellable` (`Task.cancellable`). Not part of its fingerprint.
     cancellable: bool = False
+    #: An agent task's working directory, absolute, when its call options name one; None: the
+    #: run's (`Graph.cwd`). Not part of its fingerprint.
+    cwd: Path | None = None
     origin: Origin | None = None
     fingerprint: str = ""
     #: The JSON of its params with a Python task's defaults filled in, as its fingerprint holds them.
@@ -318,8 +321,9 @@ class Graph:
     `stub`: in a stub run, the stub agent that plays its Python tasks (`StubAgent.play_python`)
     but the kinds it executes (`StubAgent.plays`); None runs every function.
     `run_id`: the run's id, for the stub's record of what it played.
-    `cwd`: the working directory (`Pipeline(cwd=)`), which an input file's path is under
-    (`InputFile`); default: this process's.
+    `cwd`: the run's working directory (`Pipeline(cwd=)`): the working directory of a task
+    whose call options name none, and what a relative `cwd` of a task call's options is
+    under; default: this process's.
     """
 
     def __init__(self, out_dir: Path, *, max_passes: int = MAX_PASSES, cwd: Path | None = None) -> None:
@@ -414,6 +418,7 @@ class Graph:
         priority: float = 0.0,
         credential: str = "",
         cancellable: bool = False,
+        cwd: str | None = None,
     ) -> Pending[Any]:
         with not_flow_code():  # contraagent's own work, not the flow step's (`FlowLoop.slow_s`)
             call = self.driver.current if self.driver is not None else None
@@ -439,7 +444,10 @@ class Graph:
                 problems = self.check_credential(spec.kind, credential)
                 if problems:
                     raise ValueError(f"{key}: credential={credential!r}: {'; '.join(problems)}")
-            params, fingerprinted, files = _params_json(spec, unit, params, lambda file: bind(file, self.cwd, self.out_dir))
+            # Relative to the run's working directory; links not followed, as `Pipeline(cwd=)`.
+            own = Path(os.path.abspath(self.cwd / cwd)) if cwd is not None else None
+            base_dir = own or self.cwd
+            params, fingerprinted, files = _params_json(spec, unit, params, lambda file: bind(file, base_dir, self.out_dir))
             claims = _expand_claims(spec, unit, key, params)  # before the key is taken: a raise leaves no gap in ~n
             out, writer = None, None
             if _writes_output(spec):
@@ -481,6 +489,7 @@ class Graph:
                 priority=priority,
                 credential=credential,
                 cancellable=cancellable,
+                cwd=own,
                 fingerprinted=fingerprinted,
                 input_files=files,
             )
@@ -780,6 +789,7 @@ class Graph:
             priority=node.priority,
             credential=self._credential_of(node),
             cancellable=node.cancellable,
+            cwd=node.cwd,
             rerun_on_resume=getattr(node.spec, "rerun_on_resume", False),
             base_kind=getattr(node.spec, "base_kind", ""),
             payload=node,

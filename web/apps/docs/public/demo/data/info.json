@@ -1,1 +1,1 @@
-{"title":"contraagent demo","panels":[],"api_version":"3.7.0","hosts":false,"export":{"exported_at":"2026-10-20T22:47:41+00:00","runs":["docs","analyse"],"left_out":["transcripts","processes"],"redacted":["host","paths"]}}
+{"title":"contraagent demo","panels":[],"api_version":"3.8.0","hosts":false,"export":{"exported_at":"2026-10-21T12:41:54+00:00","runs":["docs","analyse"],"left_out":["transcripts","processes"],"redacted":["host","paths"]}}

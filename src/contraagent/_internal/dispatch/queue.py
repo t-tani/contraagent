@@ -11,10 +11,11 @@ ready when:
   A name's own entry outranks a pattern, and the longest matching pattern
   outranks the others. A capacity is a number, or a `ClaimCapacity` worked out
   each time the queue tries to start a task that claims the name, given how
-  many running tasks hold it (a `PerTask` entry, sized by the host's free memory
-  and cores). It may grow while tasks still run: the queue looks again each
-  second while any task runs (`POLL_S`, the wait in `run_async`), not only when one
-  finishes. A task's kind
+  many running tasks hold it (a `PerTask` entry, sized by the host's memory and
+  cores). It is told each time the queue begins to try to start tasks (`refresh`)
+  and when each task that claims the name starts and ends. It may grow while tasks
+  still run: the queue looks again each second while any task runs (`POLL_S`, the
+  wait in `run_async`), not only when one finishes. A task's kind
   or unit locks nothing: tasks that claim nothing run together whatever they are;
 * the kind's own cap (`runner.config(task).max_concurrent`) has room.
 
@@ -237,8 +238,17 @@ class ClaimCapacity(Protocol):
         """How many running tasks may hold the name, given that `held` hold it now."""
         ...
 
-    def started(self) -> None:
-        """A task that claims the name has started."""
+    def refresh(self) -> None:
+        """The queue begins to try to start tasks: what the capacity reads of the host, it
+        reads again for the questions that follow."""
+        ...
+
+    def started(self, key: str) -> None:
+        """The task with `key`, which claims the name, has started."""
+        ...
+
+    def ended(self, key: str) -> None:
+        """The task with `key`, which claims the name, has ended: one call for each `started`."""
         ...
 
 
@@ -669,6 +679,9 @@ class WorkQueue:
 
     def _start_ready(self, loop: asyncio.AbstractEventLoop, pool: ThreadPoolExecutor) -> None:
         now = time.monotonic()
+        for entry in self.claim_capacity.values():
+            if not isinstance(entry, int):
+                entry.refresh()
         self._defer_closed(now)
         for t in self._queued:  # each task's wait starts when it could start but for resources
             if t.id not in self._ready_since and self._startable(t, now):
@@ -788,13 +801,16 @@ class WorkQueue:
             self._held[name] = self._held.get(name, 0) + 1
             entry = self._entry(name)
             if not isinstance(entry, int):
-                entry.started()
+                entry.started(task.key)
 
     def _release(self, task: Task) -> None:
         for name in set(task.claims):
             self._held[name] -= 1
             if self._held[name] <= 0:
                 del self._held[name]
+            entry = self._entry(name)
+            if not isinstance(entry, int):
+                entry.ended(task.key)
 
     def _deferral(self, task: Task) -> Deferral | None:
         """The runner's `Deferral` of `task` now (`deferral`), if it gives one."""

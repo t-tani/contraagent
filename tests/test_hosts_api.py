@@ -37,24 +37,24 @@ def ship(hub: Hub, host: str, run: str, *, finished: bool = False, reading: dict
 def beat(hub: Hub, host: str, *runs: RunRef, at: str = AT) -> None:
     snap = {"launches": [], "tree": [], "python_tasks": []}
     hub.store.put_heartbeat(
-        Heartbeat(host_id=host, sent_at=at, interval_s=3, runs=[RunLiveness(run=r, alive=True, snapshot=snap) for r in runs]), at
+        Heartbeat(host_id=host, sent_at=at, interval_s=3, ttl_s=15, runs=[RunLiveness(run=r, alive=True, snapshot=snap) for r in runs]), at
     )
 
 
 def test_a_hub_names_each_runs_host_and_marks_runs_whose_host_went_quiet():
-    hub = Hub(MemoryHubStore(), MemoryBlobs(), ttl_s=15)
+    hub = Hub(MemoryHubStore(), MemoryBlobs())
     a = ship(hub, "h1", "r", reading=quota("2026-10-13T00:00:01+00:00", 40.0))
     b = ship(hub, "h2", "r", reading=quota("2026-10-13T00:00:05+00:00", 55.0))
     done = ship(hub, "h2", "old", finished=True)
     beat(hub, "h1", a)
     beat(hub, "h2", b, done)
 
-    fresh = Monitor(source=hub.source(), liveness=HeartbeatLiveness(hub.store, 15, clock=lambda: T0 + 5), many_hosts=True)
+    fresh = Monitor(source=hub.source(), liveness=HeartbeatLiveness(hub.store, clock=lambda: T0 + 5), many_hosts=True)
     rows = {r["run"]: r for r in fresh.runs()}
     assert rows["r@h1"]["host_id"] == "h1" and rows["r@h1"]["run_uid"] == "r-h1"  # the hub's host, not run.json's
     assert rows["r@h1"]["running"] and not rows["r@h1"]["unresponsive"]
 
-    quiet = Monitor(source=hub.source(), liveness=HeartbeatLiveness(hub.store, 15, clock=lambda: T0 + 60), many_hosts=True)
+    quiet = Monitor(source=hub.source(), liveness=HeartbeatLiveness(hub.store, clock=lambda: T0 + 60), many_hosts=True)
     rows = {r["run"]: r for r in quiet.runs()}
     assert not rows["r@h2"]["running"] and rows["r@h2"]["unresponsive"]
     assert not rows["old@h2"]["unresponsive"]  # finished: not waiting on its host

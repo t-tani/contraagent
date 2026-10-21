@@ -14,6 +14,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+from contraagent._internal.hub.protocol import Heartbeat
 from contraagent._internal.hub.store import BlobStore, HubStore
 from contraagent._internal.hub.streams import StreamLogs, is_stream
 from contraagent._internal.runs import layout
@@ -22,18 +23,16 @@ from contraagent._internal.runs.names import check_name, entry_parts
 from contraagent._internal.runs.source import LogPosition, RunFile, Stat, parse_info, poll_size
 from contraagent._internal.runs.times import parse_iso
 
-#: Seconds without a heartbeat after which a host's runs no longer count as live.
-DEFAULT_TTL_S = 15.0
-
 
 def _ns(iso: str | None) -> int:
     at = parse_iso(iso)
     return int(at.timestamp() * 1e9) if at is not None else 0
 
 
-def _seconds(iso: str) -> float | None:
-    at = parse_iso(iso)
-    return at.timestamp() if at is not None else None
+def _up(heartbeat: Heartbeat, received_at: str, now: float) -> bool:
+    """Whether the host is up at `now`: within the heartbeat's TTL after the hub received it."""
+    at = parse_iso(received_at)
+    return at is not None and now < at.timestamp() + heartbeat.ttl_s
 
 
 class HubSource:
@@ -161,12 +160,12 @@ class HubSource:
 
 
 class HeartbeatLiveness:
-    """A run is live while its host's latest heartbeat is younger than `ttl_s` and reports
-    the run alive; its snapshot is the one that heartbeat carried."""
+    """A run is live while its host is up, within the TTL of its latest heartbeat
+    (`Heartbeat.ttl_s`), and that heartbeat reports the run alive; its snapshot is the one
+    that heartbeat carried. `clock` is the hub's time in seconds since the epoch."""
 
-    def __init__(self, store: HubStore, ttl_s: float = DEFAULT_TTL_S, clock: Callable[[], float] = time.time) -> None:
+    def __init__(self, store: HubStore, clock: Callable[[], float] = time.time) -> None:
         self.store = store
-        self.ttl_s = ttl_s
         self.clock = clock
 
     def _reports(self) -> dict[str, dict]:
@@ -174,8 +173,7 @@ class HeartbeatLiveness:
         now = self.clock()
         out: dict[str, dict] = {}
         for heartbeat, received_at in self.store.heartbeats().values():
-            at = _seconds(received_at)
-            if at is None or now - at > self.ttl_s:
+            if not _up(heartbeat, received_at, now):
                 continue
             for report in heartbeat.runs:
                 if report.alive:
@@ -187,12 +185,11 @@ class HeartbeatLiveness:
 
     def unresponsive(self) -> set[str]:
         """Runs a host's latest heartbeat reported alive, when that heartbeat is older
-        than the TTL and the run's `run.json` does not say it finished."""
+        than its TTL and the run's `run.json` does not say it finished."""
         now = self.clock()
         out = set()
         for heartbeat, received_at in self.store.heartbeats().values():
-            at = _seconds(received_at)
-            if at is not None and now - at <= self.ttl_s:
+            if _up(heartbeat, received_at, now):
                 continue
             for report in heartbeat.runs:
                 if not report.alive:
@@ -206,11 +203,10 @@ class HeartbeatLiveness:
         now = self.clock()
         out = []
         for host_id, (heartbeat, received_at) in sorted(self.store.heartbeats().items()):
-            at = _seconds(received_at)
             out.append(
                 {
                     "host_id": host_id,
-                    "up": at is not None and now - at <= self.ttl_s,
+                    "up": _up(heartbeat, received_at, now),
                     "last_seen": received_at,
                     "interval_s": heartbeat.interval_s,
                 }

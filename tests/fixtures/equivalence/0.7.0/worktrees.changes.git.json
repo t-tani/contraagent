@@ -1,0 +1,68 @@
+{
+  "call": "examples/worktrees/flow.py:changes",
+  "config": false,
+  "flow": "worktrees.changes.git",
+  "kwargs": {
+    "goals": {
+      "alpha": "greet in French",
+      "beta": "greet in German"
+    }
+  },
+  "outputs": {
+    "implement/alpha.md": "725c546b990dd1b41f3d5791b37c3c0edcb1f08cf150bdae32a73dfd166e02d7",
+    "implement/beta.md": "725c546b990dd1b41f3d5791b37c3c0edcb1f08cf150bdae32a73dfd166e02d7",
+    "land/alpha.json": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+    "land/beta.json": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "git",
+  "tasks": {
+    "implement-alpha": {
+      "kind": "implement",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "implement-beta": {
+      "kind": "implement",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "python:land-alpha": {
+      "kind": "land",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "python:land-beta": {
+      "kind": "land",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "python:remove_worktree-alpha": {
+      "kind": "remove_worktree",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "python:remove_worktree-beta": {
+      "kind": "remove_worktree",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "python:worktree-alpha": {
+      "kind": "worktree",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "python:worktree-beta": {
+      "kind": "worktree",
+      "stop": "completed",
+      "unit": "beta"
+    }
+  },
+  "value": null
+}

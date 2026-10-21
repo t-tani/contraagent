@@ -37,7 +37,7 @@ from contraagent._internal.backends.credentials import (
     child_env,
     secret_value,
 )
-from contraagent._internal.backends.launch import ACCOUNT_SECRET, Launch, LaunchResult, account_digest
+from contraagent._internal.backends.launch import ACCOUNT_SECRET, Launch, LaunchResult, account_digest, writable_out
 from contraagent._internal.backends.process import via_stdin
 from contraagent._internal.backends.refusal import Signals
 from contraagent._internal.backends.wire import EventFold
@@ -276,6 +276,9 @@ class ClaudeBackend(ResumeById, Backend):
             a += ["--agent", launch.role]
         if launch.effort:
             a += ["--effort", launch.effort]
+        out = writable_out(launch)
+        if out is not None:  # the run's `out/`, outside the cwd: where the agent writes its outputs
+            a += ["--add-dir", str(out)]
         # Each text in a file of the launch's own (`_text_file`): one past 131072 bytes would
         # keep the process from starting. Claude Code reads it as UTF-8.
         if launch.system_prompt is not None:
