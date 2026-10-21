@@ -39,8 +39,9 @@ from contraagent._internal.dispatch.queue import GRACE_S, OVERDUE_S, RETRY_WAIT_
 from contraagent._internal.dispatch.task import STOP_CANCELLED, STOP_DEFERRED, STOP_INVALID_INPUT, STOP_PARTIAL, Deferral, Task, TaskResult
 from contraagent._internal.execution import teardown as _teardown
 from contraagent._internal.execution.adapter import McpServers
+from contraagent._internal.execution.changes import EXCLUDE
 from contraagent._internal.execution.python_tasks import recording
-from contraagent._internal.execution.recording import MAX_FILE_MB, Recorder, Replay
+from contraagent._internal.execution.recording import MAX_FILE_MB, UNDECLARED, Recorder, Replay, undeclared_warnings
 from contraagent._internal.execution.run import Run, resume_skip
 from contraagent._internal.execution.runner import AgentRunner, RetryingRunner
 from contraagent._internal.execution.services import Service, Services
@@ -205,6 +206,7 @@ class Pipeline:
         execute: Sequence[str] = (),
         record_missing: bool = False,
         record_max_file_mb: float | None = None,
+        record_exclude: Sequence[str] = (),
         deadline_s: float | None = None,
         grace_s: float = GRACE_S,
         slack_s: float | None = None,
@@ -283,9 +285,16 @@ class Pipeline:
         warning names it (default 4); such a recording cannot be played. The run ends with
         one line on what it recorded (files, size, files kept by hash, tasks that cannot be
         replayed). A recording run also compares the working directory at its start and its
-        end (but `.git`, `__pycache__`, the recordings and the run's own files): each path
-        created, modified or deleted that no task's outputs or `changes=` cover is an
-        undeclared change, written to `<recordings>/undeclared.json` and named in a warning.
+        end (but `.git`, `__pycache__`, the recordings, the run's own files and
+        `record_exclude`): each path created, modified or deleted that no task's outputs or
+        `changes=` cover is an undeclared change, written to `<recordings>/undeclared.json`
+        and named in a warning, one line per path, but one line for a directory of the
+        working directory's top level with more than 20.
+        `record_exclude`: with `record` or `record_missing`, `Path.glob` patterns, relative to
+        `cwd` as `changes=` patterns are, of what that comparison leaves out (`.venv`,
+        `**/node_modules`); one that matches a directory leaves out everything under it, and
+        the comparison does not enter it. A pattern cannot start with `!`: each one leaves
+        paths out. A task's outputs and `changes=` are recorded all the same.
 
         The rest schedule the run's tasks, as `WorkQueue` takes them:
         `deadline_s`: the run's deadline, in seconds from its start (None: none). Past it only
@@ -329,6 +338,17 @@ class Pipeline:
         if record_max_file_mb is not None and not record_max_file_mb > 0:
             raise ValueError(f"Pipeline: record_max_file_mb={record_max_file_mb!r} is not a positive number of MB")
         self.record_max_file_mb: float = record_max_file_mb if record_max_file_mb is not None else MAX_FILE_MB
+        if record_exclude and record is None and not record_missing:
+            raise TypeError(
+                "Pipeline: record_exclude= narrows a recording run's comparison; give record= (or replay= with record_missing=True)"
+            )
+        if isinstance(record_exclude, str):
+            raise TypeError(f"Pipeline: record_exclude={record_exclude!r} is one string; give a list of patterns")
+        if negated := [p for p in record_exclude if p.startswith(EXCLUDE)]:
+            raise ValueError(
+                f"Pipeline: record_exclude={negated!r}: a pattern there leaves paths out already; write it without {EXCLUDE!r}"
+            )
+        self.record_exclude: tuple[str, ...] = tuple(record_exclude)
         if record_missing and replay is None:
             raise TypeError("Pipeline: record_missing= fills in a replay's recordings; give replay= the recordings directory")
         if replay is not None:
@@ -537,6 +557,7 @@ class Pipeline:
                     max_file_mb=self.record_max_file_mb,
                     log=lambda line: run.progress(line, warning=True),
                     patterns=adapter.changes,
+                    exclude=self.record_exclude,
                 )
                 recorder.start()  # before the flow runs: its own side effects count too
 
@@ -704,8 +725,8 @@ class Pipeline:
             if failures := run._record_failures():
                 summary["record_failures"] = failures
             if recorder is not None:
-                for path in recorder.finish():
-                    run.progress(f"[record] undeclared change: {path}", warning=True)
+                for line in undeclared_warnings(recorder.finish(), (recorder.directory / UNDECLARED).as_posix()):
+                    run.progress(line, warning=True)
                 run.progress(recorder.summary())
             if (lost := run._journal_failure()) is not None:  # not finished: a resume runs those tasks again
                 raise lost
