@@ -31,7 +31,7 @@ from contraagent._internal.backends import live_processes
 from contraagent._internal.backends.launch import STDIN_THRESHOLD, Launch, Stop
 from contraagent._internal.errors import ContraagentError
 from contraagent._internal.platform.commands import commands
-from contraagent._internal.platform.groups import groups
+from contraagent._internal.platform.groups import KILL_AFTER_S, REAP_S, groups
 
 _logger = logging.getLogger(__name__)
 
@@ -172,7 +172,7 @@ def _drain(pipe, buf: list[str], sink: Sink | None = None, stops: list[Stop] | N
 
 
 def _terminate(proc: subprocess.Popen) -> None:
-    """Stop the whole process group (`groups`): asked first, killed after 10s. The child
+    """Stop the whole process group (`groups`): asked first, killed after `KILL_AFTER_S`. The child
     itself is always waited for, so it is never left unreaped: with no group left to
     signal (on macOS, `killpg` refuses a group whose processes have all ended), the child
     has ended or is ended on its own."""
@@ -181,12 +181,12 @@ def _terminate(proc: subprocess.Popen) -> None:
             if proc.poll() is None:
                 proc.kill()
         try:
-            proc.wait(timeout=10)
+            proc.wait(timeout=KILL_AFTER_S)
         except subprocess.TimeoutExpired:
             groups.kill(proc)
             proc.kill()
             try:
-                proc.wait(timeout=10)
+                proc.wait(timeout=REAP_S)
             except subprocess.TimeoutExpired:
                 pass  # stuck in the kernel; the caller still gets its result
     finally:
