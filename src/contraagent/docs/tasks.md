@@ -484,7 +484,8 @@ on, and the report joins the units that got through (see
   that differ (`AgentTask.differences`) raises `ValueError` at the second task
   call; two `agent_task` calls that declare it the same way are one kind.
 - An exception in a flow before its first task is queued is raised by
-  `Pipeline.run`. After it, the tasks already queued still run, and the
+  `Pipeline.run`; `contraagent run` prints it in one line, as `contraagent check`
+  does, with the flow's file and line, and exits 1. After it, the tasks already queued still run, and the
   exception is in `RunReport.flow_errors`: `ok` is False and `contraagent run`
   exits 1. A top flow call closed because it waited for what nothing would
   answer is there too, and so is any flow call that raised an exception of its

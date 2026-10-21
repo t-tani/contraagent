@@ -168,3 +168,63 @@ def test_files_of_one_name_load_in_turn_and_import_their_neighbours_when_they_ru
         for name in ("a", "b"):
             if str(tmp_path / name) in sys.path:
                 sys.path.remove(str(tmp_path / name))
+
+
+EARLY_FLOWS = """\
+import asyncio
+
+from contraagent import agent_task
+
+triage = agent_task("triage", instructions="t", output=str, max_turns=5, timeout_s=60)
+
+
+async def keywords():
+    await triage("u", text="hi")  # LINE
+
+
+async def sleeping():
+    await asyncio.sleep(1)  # LINE
+
+
+def generator():
+    yield triage("u")
+"""
+
+
+@pytest.fixture
+def early_flows(tmp_path):
+    """`early_flows.py`, whose flows raise before their first task."""
+    path = tmp_path / "early_flows.py"
+    path.write_text(EARLY_FLOWS, encoding="utf-8")
+    yield path
+    sys.modules.pop("early_flows", None)
+    if str(tmp_path) in sys.path:
+        sys.path.remove(str(tmp_path))
+
+
+@pytest.mark.parametrize(
+    ("name", "line", "said"),
+    [
+        ("keywords", 9, "TypeError: triage(...): text=: this task declares no params model, so it takes no params"),
+        ("sleeping", 13, "TypeError: a timer of 1s (asyncio.sleep, a timeout of asyncio.wait, call_later) needs a clock"),
+        ("generator", None, "early_flows.generator is a generator flow; a flow that waits for outputs is"),
+    ],
+)
+def test_run_reports_a_flow_that_raised_before_its_first_task_as_check_does(name, line, said, early_flows, capsys):
+    """One line with the flow's place, when there is one, and the guidance; exit 1, no traceback."""
+    if line is not None:
+        assert EARLY_FLOWS.splitlines()[line - 1].endswith("# LINE")
+    at = f"{early_flows}:{line}: " if line is not None else ""
+    for command in (["check"], ["run", "--stub", "--runs-dir", str(early_flows.parent / "runs")]):
+        assert main([command[0], f"{early_flows}:{name}", *command[1:]]) == 1
+        out = capsys.readouterr().out
+        [error] = [text for text in out.splitlines() if text.startswith("  error: ")]
+        assert at in error and said in error and "Traceback" not in out, out
+        assert out.rstrip().endswith("read: (contraagent docs tasks)")
+
+
+def test_run_keeps_the_traceback_of_an_exception_that_did_not_pass_through_the_flow(early_flows, monkeypatch):
+    """A bug of contraagent's own (here, a name it calls that is not callable) is raised."""
+    monkeypatch.setattr("contraagent._internal.pipeline.pipeline.Run", None)
+    with pytest.raises(TypeError, match="'NoneType' object is not callable"):
+        main(["run", f"{early_flows}:keywords", "--stub", "--runs-dir", str(early_flows.parent / "runs")])

@@ -175,8 +175,9 @@ def parser(command: str | None = "") -> argparse.ArgumentParser:
         run=_flow_command,
         long_running=True,
         epilog="exit status: 0 when the run is ok (RunReport.ok: no task and no flow call failed), 1 when it is not "
-        "(in a stub run too: a task whose example fails its validators has failed), or when the run is refused "
-        "before its first task (the config, the routing, a run id that holds a run, the preflight), "
+        "(in a stub run too: a task whose example fails its validators has failed), or when the run ends before "
+        "its first task: the flow raised, or the run was refused (the config, the routing, a run id that holds a run, "
+        "the preflight), "
         "2 on a usage error (the flow's name, --kwargs, options that do not go together)",
     )
     add_command(
@@ -320,6 +321,7 @@ def _spent(s: dict) -> str:
 
 
 def _flow_command(args) -> int:
+    import inspect
     import json
 
     from contraagent._internal.errors import ContraagentError
@@ -395,7 +397,15 @@ def _flow_command(args) -> int:
         )
         return 1
     except ContraagentError as exc:  # refused before anything ran (routing, the preflight), or a journal not written
-        print(f"✗ {args.flow}\n  error: {exc}")
+        print(f"✗ {args.flow}\n  error: {where(exc)}{exc}")
+        return 1
+    except Exception as exc:
+        # The flow raised before its first task, as `check` reports it: an exception that
+        # passed through flow code, or the refusal of a generator flow. Any other is
+        # contraagent's own, and keeps its traceback.
+        if not where(exc) and not inspect.isgeneratorfunction(flow):
+            raise
+        print(f"✗ {args.flow}\n  error: {where(exc)}{type(exc).__name__}: {exc}\n  read: (contraagent docs tasks)")
         return 1
     done = len(result.results) - len(result.failed) - len(result.deferred)
     spent = _spent(result.summary)
