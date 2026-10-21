@@ -328,18 +328,33 @@ for (const size of PHONES)
   });
 
 /**
- * The card at the middle of the steps once their scroll stands still (`centredStep`), or -1
- * while it moves: `scrollLeft` the same across two frames, a smooth scroll ended.
+ * Records where the steps' list is each time a scroll of it ends (`scrollend`), from now
+ * on, for `restingStep`; the list stands where it was loaded.
  */
-async function settledStep(page: Page): Promise<number> {
-  const still = await page.locator('.how-steps').evaluate(
-    (list) =>
-      new Promise<boolean>((done) => {
-        const at = list.scrollLeft;
-        requestAnimationFrame(() => requestAnimationFrame(() => done(list.scrollLeft === at)));
-      }),
-  );
-  return still ? centredStep(page) : -1;
+async function watchSteps(page: Page): Promise<void> {
+  await page.locator('.how-steps').evaluate((list) => {
+    const w = window as unknown as { stepsEnded: number };
+    w.stepsEnded = list.scrollLeft;
+    list.addEventListener('scrollend', () => (w.stepsEnded = list.scrollLeft));
+  });
+}
+
+/**
+ * The card the steps' list rests on, as its index, or -1: the list where it was when a
+ * scroll of it last ended (`watchSteps`), and that card at its snap position there, its
+ * middle at the list's middle within 2 px or, for a card at an end, the list at that end.
+ */
+async function restingStep(page: Page): Promise<number> {
+  return page.locator('.how-steps').evaluate((list) => {
+    if (list.scrollLeft !== (window as unknown as { stepsEnded: number }).stepsEnded) return -1;
+    const mid = list.getBoundingClientRect().left + list.clientWidth / 2;
+    const end = list.scrollWidth - list.clientWidth;
+    return [...list.querySelectorAll('.how-step')].findIndex((s) => {
+      const r = s.getBoundingClientRect();
+      const snap = Math.max(0, Math.min(end, list.scrollLeft + r.left + r.width / 2 - mid));
+      return Math.abs(snap - list.scrollLeft) <= 2;
+    });
+  });
 }
 
 for (const size of PHONES)
@@ -347,6 +362,7 @@ for (const size of PHONES)
     test(`on a phone at ${size.join('×')}, motion ${reducedMotion}, the steps scroll a card at a time`, async ({ browser }) => {
       test.setTimeout(60_000);
       const { context, page } = await phone(browser, size, 'light', reducedMotion);
+      await watchSteps(page);
       const list = page.locator('.how-steps');
       const count = page.locator('.how-at');
       const prev = page.getByRole('button', { name: 'Previous step' });
@@ -363,16 +379,17 @@ for (const size of PHONES)
       await expect(count).toContainText('Step 7 of 7');
       await expect(next).toHaveAttribute('aria-disabled', 'true');
       await expect(page.locator('.how-loop-step.is-on')).toHaveCount(5);
-      // The keyboard: the button before, by Enter; the swipe below comes once its scroll has ended there.
+      // The keyboard: the button before, by Enter; the scroll below comes once the list rests there.
       await prev.focus();
       await page.keyboard.press('Enter');
       await expect(count).toContainText('Step 6 of 7');
       await expect(page.locator('.how-loop-step.is-on')).toHaveCount(4);
-      await expect.poll(() => settledStep(page)).toBe(5);
-      // A swipe of part of a card back: the list snaps to the card before, not between two.
+      await expect.poll(() => restingStep(page)).toBe(5);
+      // A scroll the steps did not start, part of a card back (a trackpad's, or a script's): the
+      // list snaps to the card before, not between two, and that card is the step.
       const width = await page.locator('.how-step').first().evaluate((e) => (e as HTMLElement).offsetWidth);
       await list.evaluate((e, dx) => e.scrollBy({ left: dx, behavior: 'instant' }), Math.round(-width * 0.6));
-      await expect.poll(() => centredStep(page)).toBe(4);
+      await expect.poll(() => restingStep(page)).toBe(4);
       await expect(count).toContainText('Step 5 of 7');
       // A long output: cut, and open in full from its button.
       const card = page.locator('.how-step').nth(4);
@@ -424,6 +441,7 @@ for (const size of PHONES)
     test(`on a phone at ${size.join('×')}, motion ${reducedMotion}, a flick moves the steps one card`, async ({ browser }) => {
       test.setTimeout(60_000);
       const { context, page } = await phone(browser, size, 'light', reducedMotion, false);
+      await watchSteps(page);
       const list = page.locator('.how-steps');
       const count = page.locator('.how-at');
       await list.evaluate((e) => e.scrollIntoView({ block: 'center' }));
@@ -431,7 +449,7 @@ for (const size of PHONES)
       // A flick of 300 px in 40 ms, which the browser's own momentum carries two cards on: one card, either way.
       for (const [dx, step] of [[-300, 2], [-300, 3], [-300, 4], [300, 3], [300, 2], [300, 1]] as const) {
         await drag(page, dx, 0, 8);
-        await expect.poll(() => settledStep(page)).toBe(step === 1 ? -1 : step - 1);
+        await expect.poll(() => restingStep(page)).toBe(step - 1);
         await expect(count).toContainText(`Step ${step} of 7`);
         await expect(list).not.toHaveClass(/is-swiped/);
       }
@@ -439,15 +457,15 @@ for (const size of PHONES)
       expect(await list.evaluate((e) => e.scrollLeft)).toBe(0);
       // A short flick, fast: on to the next card; as short, slow: back to the card it began on.
       await drag(page, -60, 0, 8);
-      await expect.poll(() => settledStep(page)).toBe(1);
+      await expect.poll(() => restingStep(page)).toBe(1);
       await drag(page, -60, 0, 80);
-      await expect.poll(() => settledStep(page)).toBe(1);
+      await expect.poll(() => restingStep(page)).toBe(1);
       await expect(count).toContainText('Step 2 of 7');
       await expect(list).not.toHaveClass(/is-swiped/);
       // A finger up the steps scrolls the page, not the steps.
       const top = await page.evaluate(() => window.scrollY);
       await drag(page, 0, -200, 16);
       await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(top + 100);
-      expect(await settledStep(page)).toBe(1);
+      expect(await restingStep(page)).toBe(1);
       await context.close();
     });

@@ -1,8 +1,10 @@
 // The "how it works" scene on a narrow screen (HowItWorks.astro, ./how.css): the steps
 // are cards side by side that scroll one at a time (scroll snap), with a button to
-// the step before and after, a dot for each step and the step's number. The card on
-// screen is the scene's progress: the agent's loop lights its words up to that step,
-// and the list is as tall as that card (--how-h), so the buttons are right under it.
+// the step before and after, a dot for each step and the step's number. The step is
+// the scene's progress: the agent's loop lights its words up to it, and the list is as
+// tall as its card (--how-h), so the buttons are right under it. A button or a swipe
+// sets the step and scrolls the list to its card; any scroll that comes to an end
+// (`scrollend`) sets the step to the card the list rests on, whatever moved the list.
 // A sideways swipe moves the list here, not in the browser, and at most one card: the
 // browser's momentum carries a fast flick past the next card although every card has
 // `scroll-snap-stop: always`. The keyboard, a trackpad and a wheel scroll as usual.
@@ -27,17 +29,30 @@ if (how && list && nav) {
   const loop = [...how.querySelectorAll<HTMLElement>('.how-loop-step')];
   let current = -1;
 
-  /** The card whose middle is nearest the middle of the list. */
+  /**
+   * The scroll position at which card `k` snaps (CSS Scroll Snap, `scroll-snap-align:
+   * center`): the middle of its border box at the middle of the snapport, the list's
+   * box inside its scrollbars less its `scroll-padding`, within the positions the list
+   * can scroll to. Read from the layout, in fractions of a pixel.
+   */
+  const place = (k: number): number => {
+    const css = getComputedStyle(list);
+    const [start, end] = [parseFloat(css.scrollPaddingLeft) || 0, parseFloat(css.scrollPaddingRight) || 0];
+    const box = steps[k].getBoundingClientRect();
+    const left = box.left - list.getBoundingClientRect().left - list.clientLeft + list.scrollLeft;
+    const snap = left + box.width / 2 - (start + (list.clientWidth - start - end) / 2);
+    return Math.max(0, Math.min(list.scrollWidth - list.clientWidth, snap));
+  };
+  /** The card the list snaps to from where it is: the one whose snap position is nearest. */
   const nearest = (): number => {
-    const mid = list.scrollLeft + list.clientWidth / 2;
     let best = 0;
-    steps.forEach((s, k) => {
-      if (Math.abs(s.offsetLeft + s.offsetWidth / 2 - mid) < Math.abs(steps[best].offsetLeft + steps[best].offsetWidth / 2 - mid)) best = k;
+    steps.forEach((_, k) => {
+      if (Math.abs(place(k) - list.scrollLeft) < Math.abs(place(best) - list.scrollLeft)) best = k;
     });
     return best;
   };
 
-  /** The list as tall as the card on screen. */
+  /** The list as tall as the step's card. */
   const fit = (): void => {
     if (narrow.matches && current >= 0) list.style.setProperty('--how-h', `${steps[current].offsetHeight}px`);
     else list.style.removeProperty('--how-h');
@@ -62,61 +77,61 @@ if (how && list && nav) {
     fit();
   };
 
-  /**
-   * The card a button scrolls to, until the list reaches it or the reader moves the list:
-   * the cards it passes on the way are not the step.
-   */
-  let aim = -1;
   /** The swipe the list follows (see below), while a finger is on it. */
   let swipe: Swipe | undefined;
-  const landed = (): void => {
-    aim = -1;
-    if (!swipe?.own) list.classList.remove('is-swiped');
+  /**
+   * Where a swipe that let go sends the list, until the list is there. Snapping is off
+   * (`is-swiped`), so the list stops exactly where it is sent: the `scroll` that puts it
+   * there ends the swipe. Until then, the end of a scroll is that of one of the finger's
+   * moves (each scrolls the list), not the list at rest.
+   */
+  let release: number | undefined;
+  /**
+   * The list at `left`: the position the browser keeps for one it is sent to differs
+   * from it by less than a device pixel, at most a CSS pixel at a device pixel ratio of 1 or more.
+   */
+  const there = (left: number): boolean => Math.abs(list.scrollLeft - left) < Math.max(1, 1 / devicePixelRatio);
+  /** The swipe's scroll at its end: snapping on again, and the step the card the list rests on. */
+  const land = (): void => {
+    release = undefined;
+    list.classList.remove('is-swiped');
     if (narrow.matches) mark(nearest());
-  };
-  /** The scroll position that puts card `k` in the middle of the list. */
-  const place = (k: number): number => {
-    const s = steps[k];
-    return Math.max(0, Math.min(list.scrollWidth - list.clientWidth, s.offsetLeft - (list.clientWidth - s.offsetWidth) / 2));
   };
   const go = (k: number): void => {
     const to = Math.max(0, Math.min(steps.length - 1, k));
-    aim = to;
     mark(to);
-    // Already there: no scroll, so no scroll event at its place. The instant scroll ends one still under way.
-    if (Math.abs(list.scrollLeft - place(to)) < 1) {
-      list.scrollTo({ left: place(to) });
-      return landed();
-    }
-    list.scrollTo({ left: place(to), behavior: reduced.matches ? 'auto' : 'smooth' });
+    const left = place(to);
+    if (list.classList.contains('is-swiped')) release = left;
+    // The browser ends a scroll still under way, and does not scroll a list already there.
+    list.scrollTo({ left, behavior: reduced.matches ? 'auto' : 'smooth' });
+    // Already there, or there at once (an instant scroll): no end of a scroll to wait for.
+    if (release !== undefined && there(release)) land();
   };
   for (const b of [prev, next])
     b.addEventListener('click', () => {
       if (b.getAttribute('aria-disabled') !== 'true') go(current + Number(b.dataset['go']));
     });
 
-  let queued = false;
+  // A scroll of the list has ended (CSSOM View: `scrollend` comes when the scroll sequence
+  // is over and the position has changed; a smooth scroll that a newer scroll ends has
+  // none, nor has a scroll to where the list already is). Snapping has placed the list,
+  // so the card it rests on is the step, whatever moved it: a button, the reader, a script.
+  list.addEventListener('scrollend', () => {
+    if (!swipe?.own && release === undefined && narrow.matches) mark(nearest());
+  });
   list.addEventListener(
     'scroll',
     () => {
-      // The list at the aimed card's place: the button's scroll has reached it. A scroll that
-      // another press cut short never gets there; the newer scroll goes on from where it is.
-      if (aim >= 0 && Math.abs(list.scrollLeft - place(aim)) < 1) landed();
-      if (queued || aim >= 0) return;
-      queued = true;
-      requestAnimationFrame(() => {
-        queued = false;
-        if (narrow.matches && aim < 0) mark(nearest());
-      });
+      if (release !== undefined && there(release)) land();
     },
     { passive: true },
   );
-  // The reader's own input takes the list from a button's scroll: from then on, the card on screen is the step.
+  // The reader's own input takes the list from a swipe's scroll: snapping on again, from where it is.
   for (const type of ['pointerdown', 'wheel', 'keydown', 'focusin'])
     list.addEventListener(
       type,
       () => {
-        if (aim >= 0) landed();
+        if (release !== undefined) land();
       },
       { passive: true },
     );
@@ -187,7 +202,8 @@ if (how && list && nav) {
         if (Math.hypot(dx, dy) < SLOP) return;
         swipe.own = Math.abs(dx) > Math.abs(dy);
         if (!swipe.own) return;
-        // The swipe starts on the step, the card on screen: the finger down ended any button's scroll (pointerdown).
+        // The swipe starts on the step: the card a button sends the list to, or the one it rests on.
+        // Its first move ends a button's scroll still under way.
         Object.assign(swipe, { x: t.clientX, left: list.scrollLeft, from: current });
         list.classList.add('is-swiped');
       }
