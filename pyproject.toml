@@ -264,7 +264,6 @@ forbidden_modules = [
     "psycopg",
     "boto3",
     "zstandard",
-    "yaml",
 ]
 allow_indirect_imports = true
 
@@ -287,7 +286,6 @@ forbidden_modules = [
     "psycopg",
     "boto3",
     "zstandard",
-    "yaml",
 ]
 allow_indirect_imports = true
 
