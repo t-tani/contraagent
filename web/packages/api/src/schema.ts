@@ -441,7 +441,7 @@ export type components = {
         /**
          * Changes
          * @description The files one attempt changed under its task's `changes` patterns, as paths relative
-         *     to the working directory: those it `created`, `modified` and `deleted`. Of a failed
+         *     to its task's working directory (`Task.cwd`, else the run's): those it `created`, `modified` and `deleted`. Of a failed
          *     attempt's created files, `removed` lists those the runner removed, and `kept` those it
          *     left in place because the kind keeps them (`keep_failed_changes`).
          */
@@ -2123,6 +2123,12 @@ export type components = {
              * @default
              */
             credential?: string;
+            /**
+             * Cwd
+             * @description the task's working directory, absolute, when its call options name one (`.options(cwd=)`); empty when they name none: the run's (`run.json` `cwd`)
+             * @default
+             */
+            cwd?: string;
             /**
              * Executor
              * @default agent

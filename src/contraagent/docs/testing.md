@@ -140,8 +140,9 @@ A run with `--record DIR` (`Pipeline(record=DIR)`) runs as any run does and keep
 **recording** of each task attempt: `DIR/<kind>/<key>.json` with the facts of an agent
 task's last launch (how it ended, its final message, turns, agent, model) and its task's
 fingerprint, and beside it the final contents of its output files, the files its
-`changes=` patterns saw created or modified (and the paths they saw deleted), and its
-part of the transcript when transcripts are kept. A Python task attempt's recording holds
+`changes=` patterns saw created or modified (and the paths they saw deleted, each
+relative to the task's working directory, where a replay writes them), and its part of
+the transcript when transcripts are kept. A Python task attempt's recording holds
 how its call ended (a `Partial` is played as `partial` again, its reason too) and its output
 file, which is what the flow receives from it, and the rows and documents its call wrote with
 `contraagent.log` and `contraagent.save` (a replay writes them into the run's `pipeline/` again,
@@ -208,10 +209,12 @@ declares: its outputs and its `changes=` files. A file the recorded run wrote an
 else (a cache a Python task fills, a report the flow's own body writes, a file an agent
 edited outside its patterns) is not there in a replay, and a later task that reads it
 finds it missing, or finds what the CI checkout holds. So a recording run compares the
-working directory at its start and its end (by each file's modification time and size,
+run's working directory (`Pipeline(cwd=)`) at its start and its end (by each file's modification time and size,
 and outside Windows also its status change time and inode; `.git`, `__pycache__`, the
 recordings and the run's own files are left out, but its `out/` is compared like any other
-folder). Each path created, modified or deleted that no task's
+folder). A task's own working directory (the `cwd` of its call options) is compared only
+as part of the run's, when it is inside it; its `changes=` patterns and the paths they saw
+count there under its path. Each path created, modified or deleted that no task's
 outputs or `changes=` cover is an **undeclared change**: the run warns once per path
 
 ```
@@ -308,7 +311,7 @@ its next hop, or to `deferred`. A reply that writes and then stops
 (`writes(value, stop=Stop.TIMEOUT)`, `Stop` from `contraagent.backends`) plays a
 launch the runner stopped for its time, for a kind with
 [`partial_on`](contracts.md#a-launch-stopped-for-its-time). A callable reply is given
-the launch (`StubLaunch`): `launch.launch.cwd` is the working directory, where a reply
+the launch (`StubLaunch`): `launch.launch.cwd` is the task's working directory, where a reply
 can write the files of a task's `changes`, and `launch.launch.mcp_config` the file of
 its MCP servers (the plugin's `.mcp.json`, or those `Pipeline(mcp_servers=)` built for
 the task, a file that exists while the launch runs). Tests import the flow's module like any other code: one

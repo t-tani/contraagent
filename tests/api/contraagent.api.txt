@@ -53,6 +53,7 @@ class AgentTask[ParamsT: BaseModel | None, Out]
         priority: float | Literal[_Keep.KEEP] = _Keep.KEEP,
         credential: str | None | Literal[_Keep.KEEP] = _Keep.KEEP,
         cancellable: bool | Literal[_Keep.KEEP] = _Keep.KEEP,
+        cwd: str | os.PathLike[str] | None | Literal[_Keep.KEEP] = _Keep.KEEP,
     ) -> Self
     output: type | None
     @property output_format: str | None
@@ -508,6 +509,7 @@ class Task
         credential: str = '',
         fingerprint_parts: dict[str, str] = dict(),
         cancellable: bool = False,
+        cwd: Path | None = None,
     ) -> None
     after: tuple[str, ...] = ()
     attempt: int = 0
@@ -515,6 +517,7 @@ class Task
     cancellable: bool = False
     claims: tuple[str, ...] = ()
     credential: str = ''
+    cwd: Path | None = None
     @property declared_unit: str
     estimate_s: float | None = None
     @property executor: Executor
@@ -1419,6 +1422,7 @@ class Launch
         fallback_model: str | None = None,
         resume: str | None = None,
         session_dir: Path | None = None,
+        out_dir: Path | None = None,
     ) -> None
     allowed_tools: tuple[str, ...] = ()
     append_system_prompt: str | None = None
@@ -1434,6 +1438,7 @@ class Launch
     limits: Limits = field(default_factory=Limits)
     mcp_config: str | None = None
     model: str = ''
+    out_dir: Path | None = None
     permission_mode: str | None = None
     permission_prompts: str | None = 'none'
     persist_session: bool = False
@@ -2947,7 +2952,7 @@ def serve(
 
 ## contraagent.monitor.api
 
-API_VERSION = '3.7.0'
+API_VERSION = '3.8.0'
 
 class AccountQuota(Closed)
     account: str = Field('', description='the account the readings are of (`QuotaReading.account`); empty when not known')
@@ -3315,6 +3320,7 @@ class PlanNode(PlanRow)
     claims: list[str] = Field(default_factory=list, description="the names it holds while it runs, its kind's `claims` filled in")
     created_from: list[str] = Field(default_factory=list, description="keys of the results that reached its flow call between that flow call's previous resume and the one in which it created the task")
     credential: str = Field('', description='the credential its call options name (`.options(credential=)`), which every route of its kind ran it as; empty when it names none, or a run-wide override outranks it')
+    cwd: str = Field('', description="the task's working directory, absolute, when its call options name one (`.options(cwd=)`); empty when they name none: the run's (`run.json` `cwd`)")
     deferred: str = Field('', description='why the queue deferred it, never launched (`deferred.jsonl`): a deadline, a resting credential; empty when it was not')
     deferred_cause: DeferralCause | None = Field(None, description='the same as data; null when it was not deferred, or the run recorded no cause')
     executor: Executor = 'agent'

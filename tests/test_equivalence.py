@@ -127,6 +127,7 @@ NEW = {
     "cancel.review.block": "the same, where the first probe blocks the change and the probes still queued are cancelled",
     "input_file.reports": "the example of input files: a long text output given to a reviewer by its path and hash (InputFile)",
     "review.publish.approve": "the all-or-nothing example of keep going: one report only when every unit's loop got through (TaskGroup)",
+    "worktrees.changes.git": "the example of a working directory of its own: each unit's change in a git worktree (.options(cwd=))",
 }
 
 BASELINED = sorted(p.stem for p in BASELINE.glob("*.json"))

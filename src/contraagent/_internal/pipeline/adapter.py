@@ -89,7 +89,7 @@ class SpecAdapter(TaskAdapter):
             params=params,
             params_json_schema=spec.params_json_schema,
             output=output,
-            cwd=str(self.cwd.resolve()),
+            cwd=str((task.cwd or self.cwd).resolve()),
         )
 
     # --- TaskAdapter -------------------------------------------------------

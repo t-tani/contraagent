@@ -677,3 +677,51 @@ def test_the_docs_site_runs_no_command_when_it_renders():
         and re.search(r"child_process|\bexeca\b", f.read_text(encoding="utf-8"))
     ]
     assert running == []
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
+def test_the_worktrees_example_merges_two_units_that_change_one_line(tmp_path, monkeypatch):
+    from contraagent import Pipeline
+    from contraagent.docs.examples.worktrees import flow
+    from contraagent.testing import StubAgent
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    def git(*args: str, cwd: Path = repo) -> str:
+        return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout
+
+    git("init", "-q", "-b", "main")
+    git("config", "user.name", "t")
+    git("config", "user.email", "t@example.com")
+    (repo / "greeting.txt").write_text("hello\n")
+    git("add", "-A")
+    git("commit", "-q", "-m", "start")
+    monkeypatch.chdir(repo)  # `contraagent run` starts in the repository
+
+    def implement(launch):
+        (Path(launch.launch.cwd) / "greeting.txt").write_text(f"hello from {launch.unit}\n")
+        return f"greeting of {launch.unit}"
+
+    def resolve(launch):
+        tree = Path(launch.launch.cwd)
+        (tree / "greeting.txt").write_text("hello from a and b\n")
+        git("add", "greeting.txt", cwd=tree)
+        return "greeting.txt: both"
+
+    agent = StubAgent({"implement": implement, "resolve": resolve}, execute=["worktree", "land", "remove_worktree"])
+    report = Pipeline(runs_dir=tmp_path / "runs", stub=agent, cwd=repo).run(flow.changes, {"a": "greet from a", "b": "greet from b"})
+    assert report.ok, report.failed
+    assert sorted(launch.kind for launch in agent.launches) == ["implement", "implement", "resolve"]
+    assert (repo / "greeting.txt").read_text() == "hello from a and b\n"
+    assert git("status", "--porcelain") == "" and git("branch", "--list", "work/*") == ""
+    trees = tmp_path / "repo.worktrees"
+    assert not (trees / "a").exists() and not (trees / "b").exists()
+    plan = [json.loads(line) for line in (report.run_dir / "plan.jsonl").read_text().splitlines()]
+    cwd = {row["key"]: row.get("cwd") for row in plan if row["executor"] == "agent"}
+    [resolved] = [key for key in cwd if key.startswith("resolve-")]
+    assert cwd == {
+        "implement-a": (trees / "a").as_posix(),
+        "implement-b": (trees / "b").as_posix(),
+        resolved: (trees / resolved[-1]).as_posix(),
+    }

@@ -520,7 +520,7 @@ class Pipeline:
             if self.replay is not None:
                 run.update_info(stub=not self.replay.record_missing, replay=str(self.replay.directory.resolve()))
             run_dir = run.dir.resolve()  # call files and outputs are read from the agent's cwd
-            graph = Graph(run_dir / "out", max_passes=self.max_passes, cwd=self.cwd)
+            graph = Graph(run_dir / layout.OUT, max_passes=self.max_passes, cwd=self.cwd)
             graph.tail = run.estimator().tail
             graph.stub, graph.run_id = self.stub, run.run_id
             graph.credential_override = self.overrides.credential

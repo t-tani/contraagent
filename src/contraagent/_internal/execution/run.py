@@ -843,7 +843,8 @@ class Run:
         work that has not started yet (the journal only knows what finished).
         A task with no origin (built by hand) has an empty `flow` and `created_from`, and
         `flow_call` null. `base_kind` is there only for an implementation kind, `credential`
-        only for a task whose call names one (`Task.credential`), `input_files` only for a task
+        and `cwd` only for a task whose call names one (`Task.credential`, `Task.cwd`),
+        `input_files` only for a task
         whose params (its payload's, as JSON) hold input files."""
         origin = task.origin
         row = PlanRow(
@@ -861,6 +862,7 @@ class Run:
             flow_call=origin.flow_call if origin is not None else None,
             base_kind=task.base_kind,
             credential=task.credential,
+            cwd=task.cwd.as_posix() if task.cwd is not None else "",
             input_files=input_files_of(getattr(task.payload, "params", None)),
         ).to_dict()
         self._append(layout.PLAN, row)

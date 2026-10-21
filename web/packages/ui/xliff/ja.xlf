@@ -3410,6 +3410,14 @@
   <target>停止</target>
   <note from="lit-localize">Where a flow call stopped, and the failure that stopped it</note>
 </trans-unit>
+<trans-unit id="sde3961511d128fcd">
+  <source>Working directory <x id="0" equiv-text="${cwd}"/></source>
+  <target>作業ディレクトリ <x id="0" equiv-text="${cwd}"/></target>
+</trans-unit>
+<trans-unit id="sd6a08709ccdbf95c">
+  <source>Directory the task worked in, named by its task call in place of the run's (cwd)</source>
+  <target>タスク呼び出しが実行全体の代わりに指定した、このタスクの作業ディレクトリ（cwd）</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

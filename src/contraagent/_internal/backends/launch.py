@@ -145,6 +145,12 @@ class Launch:
     else the lone session under `session_dir` (`--continue`). omp prints
     no session id in text mode, so a launch that may need resuming gets
     its own `session_dir` and the directory is the handle.
+
+    `out_dir` is the run's `out/`, where the agent writes its output files: a coding agent
+    that writes only under its working directory by default is allowed to write there too when
+    it is outside `cwd` (`writable_out`): Codex's sandbox takes it as a writable root,
+    Claude Code as `--add-dir`, opencode as an allowed `external_directory`. None: no such
+    directory.
     """
 
     prompt: str
@@ -178,6 +184,19 @@ class Launch:
     fallback_model: str | None = None
     resume: str | None = None
     session_dir: Path | None = None
+    out_dir: Path | None = None
+
+
+def writable_out(launch: Launch) -> Path | None:
+    """The launch's `out_dir`, every symbolic link followed, when it is a directory outside
+    its `cwd`: the one directory beside `cwd` its agent must be allowed to write in. None when
+    there is none, or it is inside `cwd`."""
+    if launch.out_dir is None:
+        return None
+    out = Path(launch.out_dir).resolve()
+    if not out.is_dir() or out.is_relative_to(Path(launch.cwd).resolve()):
+        return None
+    return out
 
 
 @dataclass

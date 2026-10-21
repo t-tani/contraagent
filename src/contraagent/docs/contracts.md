@@ -224,8 +224,9 @@ declares `call` is given the path of an agent task's call file.
 
 A Python validator runs in the runner's process, in its current directory, for an
 agent task and a Python task alike: a relative path it opens (one from `params`)
-resolves there, not against `Pipeline(cwd=)`, which is where the coding agents and
-`CommandValidator`s run. `contraagent run` runs both in the directory it is started
+resolves there, not against the task's working directory (`Pipeline(cwd=)`, or the
+`cwd` of its call options), which is where the coding agent and its
+`CommandValidator`s run, and which a validator takes as `cwd`. `contraagent run` runs both in the directory it is started
 in; a test that passes `Pipeline(cwd=project)` runs the Python code in pytest's
 directory, so it calls `monkeypatch.chdir(project)` too.
 
