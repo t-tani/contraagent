@@ -29,7 +29,8 @@ version itself, with no `v` (`0.2.0`).
 
 The workflow checks that the tag, the four versions and the dependencies between
 the npm packages all name `X.Y.Z`, and that `CHANGELOG.md` has its section. It
-runs every job of `ci.yml`, builds the sdist and the wheel (`uv build`, `twine
+runs every job of `ci.yml`, which tests the monitor end to end but not the
+documentation site (`site.yml` does, before each deploy of the site), builds the sdist and the wheel (`uv build`, `twine
 check`) and the npm tarballs (`pnpm tarballs:registry`). Then it publishes to PyPI
 and to npm, in the order api, elements, ui, and creates the GitHub release with
 that section as its notes and the Python files attached. The `pypi` and `npm`

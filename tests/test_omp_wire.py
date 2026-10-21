@@ -51,6 +51,18 @@ def test_a_recorded_launch_reads_whole_and_counts_each_call_once(version, read):
 
 
 @pytest.mark.parametrize("version", VERSIONS)
+def test_omp_answers_get_state_after_stdin_s_eof(version):
+    """The recorder closes stdin right after `get_state` (`OmpRpcBackend._harvest_state`):
+    the response still comes, with the session id and the model's context window."""
+    rpc = RpcReader("t")
+    for frame in events(version, "rpc"):
+        rpc.feed(frame)
+    assert rpc.state_seen and rpc.session_id and rpc.context_window
+    result = rpc.result(LAUNCH, "omp-rpc", exit_code=None, killed=None)
+    assert result.unread_events == {}
+
+
+@pytest.mark.parametrize("version", VERSIONS)
 def test_both_wires_read_the_same_launch_alike(version):
     a, b = via_json(version), via_rpc(version)
     assert (a.tool_uses, a.web_queries, a.result_text) == (b.tool_uses, b.web_queries, b.result_text)

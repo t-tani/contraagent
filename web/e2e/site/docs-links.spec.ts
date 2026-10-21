@@ -14,7 +14,7 @@ import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BASE, DOCS } from './docs-site.js';
 
-const DIST = fileURLToPath(new URL('../apps/docs/dist/', import.meta.url));
+const DIST = fileURLToPath(new URL('../../apps/docs/dist/', import.meta.url));
 /** An origin for resolving the site's URLs; only the path matters. */
 const ORIGIN = 'http://site.invalid';
 

@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import shutil
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -456,3 +457,29 @@ def test_a_refused_token_is_an_error_retried_slowly(runs, caplog, status):
     errors = [rec for rec in caplog.records if rec.levelno == logging.ERROR]
     assert len(errors) == 1 and "hub refused the relay" in errors[0].getMessage() and f"HTTP {status}" in errors[0].getMessage()
     assert r.delay() == 60 and r.heartbeat_delay() == 60
+
+
+def test_ctrl_c_while_serving_ends_the_heartbeat_in_flight_before_serve_raises(tmp_path, monkeypatch):
+    """The caller closes the client once `serve` ends, so no heartbeat is in flight then."""
+    r = relay(DirectClient(new_hub()), tmp_path / "runs")
+    sending, sent = threading.Event(), threading.Event()
+    heartbeats: list[str] = []
+
+    def heartbeat_once() -> bool:
+        sending.set()
+        sent.wait()  # in flight until the pass below lets it end
+        heartbeats.append("sent")
+        return True
+
+    def pass_once() -> bool:
+        sending.wait()
+        sent.set()
+        raise KeyboardInterrupt  # as Ctrl-C while a heartbeat is in flight
+
+    monkeypatch.setattr(r, "heartbeat_once", heartbeat_once)
+    monkeypatch.setattr(r, "pass_once", pass_once)
+    stop = threading.Event()
+    with pytest.raises(KeyboardInterrupt):
+        r.serve(stop)
+    assert stop.is_set()
+    assert heartbeats == ["sent"]

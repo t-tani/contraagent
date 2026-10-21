@@ -155,8 +155,11 @@ credential (`Overrides(credential=...)`) is every hop's credential as well.
 
 The preflight probes every distinct route of the run's reachable kinds once,
 before the first task: a model its coding agent does not list is dropped
-without a launch, and every other route gets one minimal launch (`max_turns=1`);
-a route whose probe does not complete (a 429, an error, a timeout) is dropped.
+without a launch, and every other route gets one minimal launch (`max_turns=1`).
+The probes run at the same time. Each probe has the longest `timeout_s` of the
+kinds whose chain holds its route: a route that cannot answer one word in that
+time cannot finish any of their tasks. A route whose probe does not complete
+(a 429, an error, no answer in that time) is dropped.
 Past the first 8 routes the rest are kept unprobed. Each failover chain is rebuilt on the routes left. The preflight policy says what
 happens to a kind with no route left:
 
