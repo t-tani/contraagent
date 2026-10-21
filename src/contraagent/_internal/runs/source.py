@@ -31,6 +31,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, NamedTuple, Protocol
 
+from contraagent._internal.platform import sharing
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import lines_at as read_lines_at
 from contraagent._internal.runs.files import read_document, read_lines, seek_line, write_document
@@ -373,7 +374,7 @@ class DirectorySource:
     def file(self, run: str, path: str) -> RunFile | None:
         where = self._file(run, path)
         try:
-            with open(where, "rb") as f:
+            with sharing.open_shared(where) as f:
                 st = os.fstat(f.fileno())
                 data = f.read()
         except OSError:

@@ -17,16 +17,15 @@ transcript is a coding agent's raw output.
 
 from __future__ import annotations
 
-import glob
 import json
 import os
 import secrets
-import sys
 import threading
-import time
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import BinaryIO
+
+from contraagent._internal.platform import sharing
 
 #: How much of a log is read at a time while looking for a newline or counting lines.
 BLOCK = 1 << 20
@@ -37,20 +36,14 @@ _append_lock = threading.Lock()
 #: is opened in text mode otherwise, and each `\n` written becomes `\r\n`.
 BINARY = getattr(os, "O_BINARY", 0)
 
-#: Windows: how long `write_document` tries again to replace a document another process holds
-#: open (a reader's open file is replaced only once it is closed there), and how long
-#: `read_document` tries again to open one that is being replaced.
-REPLACE_WAIT_S = 2.0
-#: Whether this is Windows, where a file another process holds open cannot be replaced.
-WINDOWS = sys.platform == "win32"
-
 
 def write_document(path: str | os.PathLike[str], text: str | bytes, *, fsync: bool = False) -> Path:
     """Write the document `path` whole: `text` goes to a temporary file in the same
     folder, `.<name>.<pid>.<random>.tmp` (matched by no `*.json` or other suffix
     pattern), which then replaces `path`. A reader sees the old document or the new one,
-    never a part; of writers racing on one document, the last replace wins. With `fsync`,
-    the content is on disk before the replace. Returns `path`."""
+    never a part. A reader that holds the old one open does not stop the replace, on
+    Windows too (`platform.sharing.replace`). Of writers racing on one document, the last
+    replace wins. With `fsync`, the content is on disk before the replace. Returns `path`."""
     path = Path(path)
     tmp = path.with_name(f".{path.name}.{os.getpid()}.{secrets.token_hex(6)}.tmp")
     data = text.encode() if isinstance(text, str) else text
@@ -61,57 +54,19 @@ def write_document(path: str | os.PathLike[str], text: str | bytes, *, fsync: bo
             if fsync:
                 f.flush()
                 os.fsync(f.fileno())
-        _replace(tmp, path)
+        sharing.replace(tmp, path)
     except BaseException:
         tmp.unlink(missing_ok=True)
         raise
     return path
 
 
-def _replace(tmp: Path, path: Path) -> None:
-    """`os.replace`, tried again for `REPLACE_WAIT_S` on Windows while another process has
-    `path` open (`PermissionError`): Python opens a file there without letting it be replaced."""
-    if not WINDOWS:
-        os.replace(tmp, path)
-        return
-    deadline = time.monotonic() + REPLACE_WAIT_S
-    while True:
-        try:
-            os.replace(tmp, path)
-            return
-        except PermissionError:
-            if time.monotonic() >= deadline:
-                raise
-            time.sleep(0.01)
-
-
 def read_document(path: str | os.PathLike[str]) -> str:
     """The document `path` whole, as UTF-8 (a byte that is none is replaced): the old one or
-    the new one while `write_document` replaces it. On Windows, opening a file at the moment
-    it is replaced raises `PermissionError`, or `FileNotFoundError` while a temporary file
-    of `write_document` for it exists, so the open is tried again for `REPLACE_WAIT_S`.
-    `OSError` when `path` cannot be read."""
-    path = Path(path)
-    deadline = time.monotonic() + REPLACE_WAIT_S
-    while True:
-        try:
-            with open(path, encoding="utf-8", errors="replace") as f:
-                return f.read()
-        except (PermissionError, FileNotFoundError) as e:
-            if not WINDOWS or time.monotonic() >= deadline:
-                raise
-            # Absent, unless it is being replaced or the replace has just ended.
-            if isinstance(e, FileNotFoundError) and not (_being_replaced(path) or path.exists()):
-                raise
-            time.sleep(0.01)
-
-
-def _being_replaced(path: Path) -> bool:
-    """Whether a temporary file of `write_document` for `path` exists: it is being replaced."""
-    try:
-        return any(path.parent.glob(f".{glob.escape(path.name)}.*.tmp"))
-    except OSError:
-        return False
+    the new one while `write_document` replaces it, which this read does not stop (on
+    Windows too: see `platform.sharing`). `OSError` when `path` cannot be read."""
+    with sharing.open_text(path) as f:
+        return f.read()
 
 
 def append_lines(path: str | os.PathLike[str], lines: Iterable[str]) -> None:
@@ -198,7 +153,7 @@ def lines_at(
     unless the first line alone is longer. Returns them and the byte offset after the last
     one; `([], start)` when no complete line follows `start`. OSError when the log cannot
     be read."""
-    with open(path, "rb") as f:
+    with sharing.open_shared(path) as f:
         raw, end = _take(f, start, max_bytes, max_lines)
     return _decode(raw), end
 
@@ -207,7 +162,7 @@ def last_line(path: str | os.PathLike[str]) -> str | None:
     """The last complete line of the log `path`, without its newline, read backwards from
     the end a block at a time; None when it has no complete line. OSError when the log
     cannot be read."""
-    with open(path, "rb") as f:
+    with sharing.open_shared(path) as f:
         pos = f.seek(0, os.SEEK_END)
         buf = b""
         end: int | None = None  # where the last complete line's newline is, in `buf`
@@ -229,7 +184,7 @@ def last_line(path: str | os.PathLike[str]) -> str | None:
 def seek_line(path: str | os.PathLike[str], n: int) -> tuple[int, int]:
     """Line `n` of the log `path`: `(n, the byte offset where it starts)`; when the log has
     fewer complete lines, `(their count, the byte offset after the last)`."""
-    with open(path, "rb") as f:
+    with sharing.open_shared(path) as f:
         return _seek(f, n)
 
 
@@ -238,7 +193,7 @@ def read_lines(
 ) -> tuple[list[str], int]:
     """The complete lines `since`.. of the log `path`, bounded as `lines_at` bounds them, and
     how many complete lines it has. OSError when the log cannot be read."""
-    with open(path, "rb") as f:
+    with sharing.open_shared(path) as f:
         n, at = _seek(f, since)
         if n < since:
             return [], n
