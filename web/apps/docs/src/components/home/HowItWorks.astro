@@ -76,97 +76,100 @@ const LOOP = [
         <ol class="how-loop" aria-label="The agent's loop">
           {LOOP.map((s) => <li class="how-loop-step" data-from={s.from}>{s.word}</li>)}
         </ol>
-        <ol class="how-steps" id="how-steps" data-scroll="x" style={`--n:${STAGES}`}>
-          {/* The rail behind the numbers: grid items under the steps (the numbers are opaque). */}
-          <li class="how-rail how-rail-track" aria-hidden="true" />
-          <li class="how-rail how-rail-fill" aria-hidden="true" />
-          {
-            steps.map((s, k) => (
-              <li class="how-step" data-k={k} style={`--r:${k + 1}`}>
-                <span class="how-n" aria-hidden="true">{k + 1}</span>
-                <span class="how-glow" aria-hidden="true" />
-                <div class="how-words">
-                  <p class="how-who">{s.who}</p>
-                  <h3 class="how-step-title">{s.title}</h3>
-                  <p class="how-text">{s.text}</p>
-                  {s.link && <a class="how-link" href={s.link.href}>{s.link.text}</a>}
-                </div>
-                <div class="how-stage" id={`how-out-${k}`} data-k={k}>
-                  {k === 0 && (
-                    <div class="term">
-                      <p class="term-cmd"><span class="term-p">$</span> uv add 'contraagent[monitor]'</p>
-                      <p class="term-cmd"><span class="term-p">$</span> contraagent --version</p>
-                      <pre class="term-out">{h.version}</pre>
-                    </div>
-                  )}
-                  {k === 1 && (
-                    <div class="term">
-                      <p class="term-cmd"><span class="term-p">$</span> contraagent docs --pointer</p>
-                      <div class="term-out term-md">{h.pointer.split(/\n\s*\n/).map((para) => <p>{para.replace(/\n/g, ' ')}</p>)}</div>
-                    </div>
-                  )}
-                  {k === 2 && (
-                    <div class="chat">
-                      <p class="chat-who">You, to your coding agent</p>
-                      <p class="chat-msg">
-                        Use contraagent to write a pipeline that summarizes each document in inputs/, has a reviewer approve each
-                        summary or send it back for a revision, then writes a note for each document and one report. Check it with
-                        contraagent check and test it on a stub agent.
-                      </p>
-                    </div>
-                  )}
-                  {k === 3 && (
-                    <div class="term">
-                      <p class="term-cmd"><span class="term-p">$</span> contraagent docs</p>
-                      <ul class="term-topics">{h.topics.map((t) => <li>{t}</li>)}</ul>
-                      <p class="term-file">tasks.py</p>
-                      <div class="term-code">
-                        {h.code.map((l) => (l.n ? <div class="code-l"><span class="code-n">{l.n}</span><code set:html={l.html || ' '} /></div> : <div class="code-l code-gap"><span class="code-n">⋮</span></div>))}
+        {/* The steps' box: on a narrow screen, as tall as the card on screen (./how-carousel.ts); elsewhere no box of its own. */}
+        <div class="how-steps-box">
+          <ol class="how-steps" id="how-steps" data-scroll="x" style={`--n:${STAGES}`}>
+            {/* The rail behind the numbers: grid items under the steps (the numbers are opaque). */}
+            <li class="how-rail how-rail-track" aria-hidden="true" />
+            <li class="how-rail how-rail-fill" aria-hidden="true" />
+            {
+              steps.map((s, k) => (
+                <li class="how-step" data-k={k} style={`--r:${k + 1}`}>
+                  <span class="how-n" aria-hidden="true">{k + 1}</span>
+                  <span class="how-glow" aria-hidden="true" />
+                  <div class="how-words">
+                    <p class="how-who">{s.who}</p>
+                    <h3 class="how-step-title">{s.title}</h3>
+                    <p class="how-text">{s.text}</p>
+                    {s.link && <a class="how-link" href={s.link.href}>{s.link.text}</a>}
+                  </div>
+                  <div class="how-stage" id={`how-out-${k}`} data-k={k}>
+                    {k === 0 && (
+                      <div class="term">
+                        <p class="term-cmd"><span class="term-p">$</span> uv add 'contraagent[monitor]'</p>
+                        <p class="term-cmd"><span class="term-p">$</span> contraagent --version</p>
+                        <pre class="term-out">{h.version}</pre>
                       </div>
-                    </div>
-                  )}
-                  {k === 4 && (
-                    <div class="term term-loop">
-                      <div class="slip slip-1">
-                        <p class="term-cmd"><span class="term-p">$</span> {CHECK} '{h.slip.kwargs}'</p>
-                        <pre class="term-out">{out(h.slip.output).map((x) => <span class:list={['ln', x.t && `ln-${x.t}`]}>{x.l}{'\n'}</span>)}</pre>
+                    )}
+                    {k === 1 && (
+                      <div class="term">
+                        <p class="term-cmd"><span class="term-p">$</span> contraagent docs --pointer</p>
+                        <div class="term-out term-md">{h.pointer.split(/\n\s*\n/).map((para) => <p>{para.replace(/\n/g, ' ')}</p>)}</div>
                       </div>
-                      <div class="slip slip-2">
-                        <p class="term-file">The agent's fix</p>
-                        <pre class="term-out term-diff"><span class="ln ln-del">- --kwargs '{h.slip.kwargs}'{'\n'}</span><span class="ln ln-add">+ --kwargs '{KWARGS}'{'\n'}</span><span class="ln ln-del">- {h.slip.to}{'\n'}</span><span class="ln ln-add">+ {h.slip.from}</span></pre>
+                    )}
+                    {k === 2 && (
+                      <div class="chat">
+                        <p class="chat-who">You, to your coding agent</p>
+                        <p class="chat-msg">
+                          Use contraagent to write a pipeline that summarizes each document in inputs/, has a reviewer approve each
+                          summary or send it back for a revision, then writes a note for each document and one report. Check it with
+                          contraagent check and test it on a stub agent.
+                        </p>
                       </div>
-                      <div class="slip slip-3">
-                        <p class="term-cmd"><span class="term-p">$</span> {CHECK} '{KWARGS}'</p>
-                        <pre class="term-out">{out(h.check).map((x) => <span class:list={['ln', x.t && `ln-${x.t}`]}>{x.l}{'\n'}</span>)}</pre>
+                    )}
+                    {k === 3 && (
+                      <div class="term">
+                        <p class="term-cmd"><span class="term-p">$</span> contraagent docs</p>
+                        <ul class="term-topics">{h.topics.map((t) => <li>{t}</li>)}</ul>
+                        <p class="term-file">tasks.py</p>
+                        <div class="term-code">
+                          {h.code.map((l) => (l.n ? <div class="code-l"><span class="code-n">{l.n}</span><code set:html={l.html || ' '} /></div> : <div class="code-l code-gap"><span class="code-n">⋮</span></div>))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {k === 5 && (
-                    <div class="term">
-                      <p class="term-cmd"><span class="term-p">$</span> pytest test_demo.py -v</p>
-                      <pre class="term-out">{h.tests.map((l) => <span class:list={['ln', / passed/.test(l) ? 'ln-ok' : 'ln-pass']}>{l}{'\n'}</span>)}</pre>
-                    </div>
-                  )}
-                  {k === 6 && (
-                    <div class="term">
-                      <p class="term-cmd"><span class="term-p">$</span> {RUN}</p>
-                      <div class="run-marks">
-                        {h.marks.map((m, i) => <span class:list={['run-mark', m.agent ? 'is-agent' : 'is-python', m.corrected && 'is-fixed', m.switched && 'is-switched']} style={`--i:${i}`} />)}
+                    )}
+                    {k === 4 && (
+                      <div class="term term-loop">
+                        <div class="slip slip-1">
+                          <p class="term-cmd"><span class="term-p">$</span> {CHECK} '{h.slip.kwargs}'</p>
+                          <pre class="term-out">{out(h.slip.output).map((x) => <span class:list={['ln', x.t && `ln-${x.t}`]}>{x.l}{'\n'}</span>)}</pre>
+                        </div>
+                        <div class="slip slip-2">
+                          <p class="term-file">The agent's fix</p>
+                          <pre class="term-out term-diff"><span class="ln ln-del">- --kwargs '{h.slip.kwargs}'{'\n'}</span><span class="ln ln-add">+ --kwargs '{KWARGS}'{'\n'}</span><span class="ln ln-del">- {h.slip.to}{'\n'}</span><span class="ln ln-add">+ {h.slip.from}</span></pre>
+                        </div>
+                        <div class="slip slip-3">
+                          <p class="term-cmd"><span class="term-p">$</span> {CHECK} '{KWARGS}'</p>
+                          <pre class="term-out">{out(h.check).map((x) => <span class:list={['ln', x.t && `ln-${x.t}`]}>{x.l}{'\n'}</span>)}</pre>
+                        </div>
                       </div>
-                      <dl class="run-figs">
-                        <div><dt>Tasks done</dt><dd><cae-count data-value={h.done} /> of {h.total}</dd></div>
-                        <div><dt>Corrections</dt><dd><cae-count data-value={h.corrections} /></dd></div>
-                        <div><dt>Model switches</dt><dd><cae-count data-value={h.switches} /></dd></div>
-                      </dl>
-                      <p class="term-cmd"><span class="term-p">$</span> contraagent monitor --runs-dir runs</p>
-                    </div>
-                  )}
-                </div>
-                <button type="button" class="how-more" aria-expanded="false" aria-controls={`how-out-${k}`} hidden>Show full output</button>
-              </li>
-            ))
-          }
-        </ol>
+                    )}
+                    {k === 5 && (
+                      <div class="term">
+                        <p class="term-cmd"><span class="term-p">$</span> pytest test_demo.py -v</p>
+                        <pre class="term-out">{h.tests.map((l) => <span class:list={['ln', / passed/.test(l) ? 'ln-ok' : 'ln-pass']}>{l}{'\n'}</span>)}</pre>
+                      </div>
+                    )}
+                    {k === 6 && (
+                      <div class="term">
+                        <p class="term-cmd"><span class="term-p">$</span> {RUN}</p>
+                        <div class="run-marks">
+                          {h.marks.map((m, i) => <span class:list={['run-mark', m.agent ? 'is-agent' : 'is-python', m.corrected && 'is-fixed', m.switched && 'is-switched']} style={`--i:${i}`} />)}
+                        </div>
+                        <dl class="run-figs">
+                          <div><dt>Tasks done</dt><dd><cae-count data-value={h.done} /> of {h.total}</dd></div>
+                          <div><dt>Corrections</dt><dd><cae-count data-value={h.corrections} /></dd></div>
+                          <div><dt>Model switches</dt><dd><cae-count data-value={h.switches} /></dd></div>
+                        </dl>
+                        <p class="term-cmd"><span class="term-p">$</span> contraagent monitor --runs-dir runs</p>
+                      </div>
+                    )}
+                  </div>
+                  <button type="button" class="how-more" aria-expanded="false" aria-controls={`how-out-${k}`} hidden>Show full output</button>
+                </li>
+              ))
+            }
+          </ol>
+        </div>
         {/* A narrow screen: the steps one at a time (./how-carousel.ts shows these). */}
         <div class="how-nav" role="group" aria-label="Steps" hidden>
           <button type="button" class="how-go" data-go="-1" aria-controls="how-steps" aria-label="Previous step">

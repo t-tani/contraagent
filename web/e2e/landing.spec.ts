@@ -342,8 +342,8 @@ async function watchSteps(page: Page): Promise<void> {
 /**
  * The step the carousel shows, as its card's index (-1 when none is), and the facts it
  * was found from, which a failed check prints: where the list is and where it last
- * ended a scroll, its width and the page's, where each card snaps, the list's height
- * (`--how-h`) and its last scrolls and changes of size (`watchSteps`).
+ * ended a scroll, its width and the page's, where each card snaps, the height of the
+ * box around it (`--how-h`) and its last scrolls and changes of size (`watchSteps`).
  */
 interface Steps {
   step: number;
@@ -372,7 +372,7 @@ async function stepsAt(page: Page, resting: boolean): Promise<Steps> {
       pageWidth: document.documentElement.clientWidth,
       innerWidth,
       snaps,
-      howH: list.style.getPropertyValue('--how-h'),
+      howH: list.closest<HTMLElement>('.how-steps-box')?.style.getPropertyValue('--how-h'),
       log: w.stepsLog,
     };
     return { step: still ? snaps.findIndex((x) => Math.abs(x - list.scrollLeft) <= 2) : -1, facts };
@@ -441,7 +441,7 @@ for (const size of PHONES)
       await expect(card.locator('.how-more')).toHaveAttribute('aria-expanded', 'true');
       await expect(card.locator('.how-more')).toHaveText('Hide full output');
       expect(await stage.evaluate((e) => e.scrollHeight <= e.clientHeight + 1)).toBe(true);
-      // The list is as tall as the card on screen: the buttons right under it.
+      // The box around the list is as tall as the card on screen: the buttons right under it.
       const [cardBottom, navTop] = await page.evaluate(() => [
         document.querySelectorAll('.how-step')[4]!.getBoundingClientRect().bottom,
         document.querySelector('.how-nav')!.getBoundingClientRect().top,

@@ -287,6 +287,8 @@
 /* The button that shows a cut output in full, and the carousel's controls: a narrow screen's. */
 .how-more { display: none; }
 .how-nav[hidden] { display: none; }
+/* The steps' box is a narrow screen's: elsewhere the steps are laid out as if it were not there. */
+.how-steps-box { display: contents; }
 
 /*
  * A narrow screen, once ./how-carousel.ts has made the carousel (.how-carousel): the
@@ -308,17 +310,30 @@
   .how-carousel .how-loop-step::before { transition: opacity 0.3s ease; }
   .how-carousel .how-loop-step:not(.is-on)::before { opacity: 0; }
 
-  /* Each card as tall as it needs; the list as tall as the card on screen (./how-carousel.ts), the others cut at its foot. */
+  /*
+   * Each card as tall as it needs, and the list as tall as the tallest. The box around
+   * the list is as tall as the card on screen (--how-h, ./how-carousel.ts) and cuts the
+   * others at its foot, so the buttons are right under the card; it changes its height
+   * smoothly. The list, which scrolls, keeps its size while a card changes: a scroll
+   * container whose size changes while it scrolls may never end that scroll (Chromium
+   * sends no `scrollend` for it), and the step follows the end of a scroll.
+   */
+  .how-carousel .how-steps-box {
+    --how-pad-top: 0.25rem;
+    --how-pad-bottom: 0.5rem;
+    display: block;
+    height: calc(var(--how-h) + var(--how-pad-top) + var(--how-pad-bottom));
+    overflow: clip;
+    transition: height 0.3s ease;
+    margin: 1rem calc(-1 * var(--sl-content-pad-x, 1rem)) 0;
+  }
   .how-carousel .how-steps {
     display: flex;
     align-items: flex-start;
-    box-sizing: content-box;
-    height: var(--how-h, auto);
     overflow-y: hidden;
-    transition: height 0.3s ease;
     gap: 0.75rem;
-    margin: 1rem calc(-1 * var(--sl-content-pad-x, 1rem)) 0;
-    padding: 0.25rem var(--sl-content-pad-x, 1rem) 0.5rem;
+    margin: 0;
+    padding: var(--how-pad-top) var(--sl-content-pad-x, 1rem) var(--how-pad-bottom);
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scroll-snap-type: x mandatory;
@@ -411,5 +426,5 @@
 }
 .how-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 49.99rem) and (prefers-reduced-motion: reduce) {
-  .how-carousel .how-steps, .how-carousel .how-step, .how-carousel .how-loop-step::before, .how-dot, .how-go { transition: none; }
+  .how-carousel .how-steps-box, .how-carousel .how-step, .how-carousel .how-loop-step::before, .how-dot, .how-go { transition: none; }
 }

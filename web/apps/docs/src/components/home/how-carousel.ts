@@ -1,8 +1,9 @@
 // The "how it works" scene on a narrow screen (HowItWorks.astro, ./how.css): the steps
 // are cards side by side that scroll one at a time (scroll snap), with a button to
 // the step before and after, a dot for each step and the step's number. The step is
-// the scene's progress: the agent's loop lights its words up to it, and the list is as
-// tall as its card (--how-h), so the buttons are right under it. A button or a swipe
+// the scene's progress: the agent's loop lights its words up to it, and the box around
+// the list is as tall as its card (--how-h), so the buttons are right under it; the
+// list, which scrolls, keeps its size (./how.css says why). A button or a swipe
 // sets the step and scrolls the list to its card; any scroll that comes to an end
 // (`scrollend`) sets the step to the card the list rests on, whatever moved the list.
 // A sideways swipe moves the list here, not in the browser, and at most one card: the
@@ -14,11 +15,12 @@
 
 const how = document.querySelector<HTMLElement>('.how');
 const list = how?.querySelector<HTMLElement>('.how-steps');
+const box = how?.querySelector<HTMLElement>('.how-steps-box');
 const nav = how?.querySelector<HTMLElement>('.how-nav');
 const narrow = matchMedia('(max-width: 49.99rem)');
 const reduced = matchMedia('(prefers-reduced-motion: reduce)');
 
-if (how && list && nav) {
+if (how && list && box && nav) {
   const steps = [...list.querySelectorAll<HTMLElement>('.how-step')];
   const dots = [...nav.querySelectorAll<HTMLElement>('.how-dot')];
   const [prev, next] = [...nav.querySelectorAll<HTMLButtonElement>('.how-go')];
@@ -52,10 +54,10 @@ if (how && list && nav) {
     return best;
   };
 
-  /** The list as tall as the step's card. */
+  /** The box around the list as tall as the step's card; the list itself keeps its size. */
   const fit = (): void => {
-    if (narrow.matches && current >= 0) list.style.setProperty('--how-h', `${steps[current].offsetHeight}px`);
-    else list.style.removeProperty('--how-h');
+    if (narrow.matches && current >= 0) box.style.setProperty('--how-h', `${steps[current].offsetHeight}px`);
+    else box.style.removeProperty('--how-h');
   };
   for (const s of steps)
     new ResizeObserver(() => {
