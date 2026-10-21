@@ -155,7 +155,9 @@ reference to the task's future output:
   await the task call and pass its output, or give the task call in
   `.options(after=[...])` for an order with no output passed on. A value that is
   not JSON (an object pydantic cannot turn into JSON, a NaN) raises `TypeError`
-  there too.
+  there too. A field of a params model whose type is not `Any` refuses a `Pending`
+  when the model is built, with pydantic's `ValidationError`; `contraagent run` and
+  `contraagent check` add the same advice to its report.
 - A task called and never awaited, never given in `after=` and never returned runs
   all the same, for its output file and its changes: it is an unawaited task, which
   the end of its top flow call lists (`flow_calls.jsonl` `unawaited`). That is

@@ -40,7 +40,7 @@ from contraagent._internal.errors import ContraagentError, did_you_mean
 from contraagent._internal.execution.pipeline_files import writing_into
 from contraagent._internal.execution.services import env_clashes
 from contraagent._internal.pipeline.adapter import SpecAdapter
-from contraagent._internal.pipeline.graph import Graph, Node, kind_clash
+from contraagent._internal.pipeline.graph import Graph, Node, kind_clash, pending_guidance
 from contraagent._internal.pipeline.reach import reachable
 from contraagent._internal.platform import envvars
 from contraagent._internal.routing.plan import RoutingError, RoutingPlan, check_task_tables
@@ -139,7 +139,7 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
                 driven = _first_steps(flow, args, kwargs, driver)
             except Exception as exc:
                 report.built = False
-                report.add("tasks", [f"flow: {where(exc)}{type(exc).__name__}: {exc}"])
+                report.add("tasks", [f"flow: {where(exc)}{type(exc).__name__}: {exc}{pending_guidance(exc)}"])
                 return report
     report.add("tasks", [f"flow: {line}" for line in forgotten])
     # An error a flow call raised reaches the flow calls that await it: it is reported once,
@@ -150,7 +150,8 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
             raised.setdefault(id(call.error), call)
     for call in driver.calls.values():
         if call.error is not None and raised[id(call.error)] is call:
-            report.add("tasks", [f"flow call {call.id} ({call.function}): {where(call.error)}{type(call.error).__name__}: {call.error}"])
+            error = f"{type(call.error).__name__}: {call.error}{pending_guidance(call.error)}"
+            report.add("tasks", [f"flow call {call.id} ({call.function}): {where(call.error)}{error}"])
     top = driver.calls.get("0")
     report.built = bool(graph.nodes) or top is None or top.state != "raised"
     for node in graph.nodes:

@@ -228,3 +228,60 @@ def test_run_keeps_the_traceback_of_an_exception_that_did_not_pass_through_the_f
     monkeypatch.setattr("contraagent._internal.pipeline.pipeline.Run", None)
     with pytest.raises(TypeError, match="'NoneType' object is not callable"):
         main(["run", f"{early_flows}:keywords", "--stub", "--runs-dir", str(early_flows.parent / "runs")])
+
+
+PENDING_FLOWS = """\
+from pydantic import BaseModel
+
+from contraagent import agent_task
+
+
+class Found(BaseModel):
+    text: str
+
+
+class Review(BaseModel):
+    found: Found
+    more: list[Found] = []
+
+
+find = agent_task("find", instructions="f", output=Found, max_turns=5, timeout_s=60)
+review = agent_task("review", instructions="r", params=Review, output=str, max_turns=5, timeout_s=60)
+
+
+async def flow():
+    found = find("a")
+    await review("a", Review(found=found, more=[found]))
+"""
+
+
+def test_a_pending_a_params_model_refused_is_explained_by_run_and_check(tmp_path, capsys):
+    """pydantic refuses the `Pending` before contraagent sees it: run and check add, for each
+    field, what a task call says of a `Pending` in its params. The exception stays pydantic's."""
+    from pydantic import ValidationError
+
+    from contraagent import Pipeline
+    from contraagent._internal.commandline import load_attr
+    from contraagent.testing import StubAgent
+
+    path = tmp_path / "pending_flows.py"
+    path.write_text(PENDING_FLOWS, encoding="utf-8")
+    said = [
+        f"Review{where} is the Pending of find-a, the future output of a task call; a task is given values. In an "
+        f"async def flow, await the task call and pass its output ({field}=await ...); for an order with no output "
+        "passed on, give the task call in .options(after=[...]) (contraagent docs tasks)"
+        for where, field in ((".found", "found"), (".more[0]", "more"))
+    ]
+    try:
+        for command in (["check"], ["run", "--stub", "--runs-dir", str(tmp_path / "runs")]):
+            assert main([command[0], f"{path}:flow", *command[1:]]) == 1
+            out = capsys.readouterr().out
+            assert "ValidationError: 2 validation errors for Review" in out and all(text in out for text in said), out
+        agent = StubAgent({"find": lambda launch: {"text": "t"}})
+        pipeline = Pipeline(None, runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path, log=lambda line: None)
+        [call] = pipeline.run(load_attr(f"{path}:flow"), run_id="python").flow_errors
+        assert isinstance(call.error, ValidationError) and "Pending of" not in str(call.error)
+    finally:
+        sys.modules.pop("pending_flows", None)
+        if str(tmp_path) in sys.path:
+            sys.path.remove(str(tmp_path))

@@ -328,6 +328,7 @@ def _flow_command(args) -> int:
     from contraagent._internal.execution.run import RunExists
     from contraagent._internal.pipeline import Pipeline
     from contraagent._internal.pipeline.check import where
+    from contraagent._internal.pipeline.graph import pending_guidance
     from contraagent._internal.routing import Overrides
 
     try:
@@ -405,7 +406,7 @@ def _flow_command(args) -> int:
         # contraagent's own, and keeps its traceback.
         if not where(exc) and not inspect.isgeneratorfunction(flow):
             raise
-        print(f"✗ {args.flow}\n  error: {where(exc)}{type(exc).__name__}: {exc}\n  read: (contraagent docs tasks)")
+        print(f"✗ {args.flow}\n  error: {where(exc)}{type(exc).__name__}: {exc}{pending_guidance(exc)}\n  read: (contraagent docs tasks)")
         return 1
     done = len(result.results) - len(result.failed) - len(result.deferred)
     spent = _spent(result.summary)
@@ -422,7 +423,8 @@ def _flow_command(args) -> int:
         print(f"  {deferred.task.key}: deferred {deferred.reason[:300]}")
     for call in result.flow_errors:
         at = f" at {_shown(Path(call.raised_at.file))}:{call.raised_at.line}" if call.raised_at is not None else ""
-        print(f"  flow call {call.id} ({call.function}){at}: {type(call.error).__name__}: {str(call.error)[:300]}")
+        error = f"{type(call.error).__name__}: {str(call.error)[:300]}{pending_guidance(call.error)}"
+        print(f"  flow call {call.id} ({call.function}){at}: {error}")
     if stub is not None and (note := _examples_refused(result, stub)):
         print(note)
     return 0 if result.ok else 1
