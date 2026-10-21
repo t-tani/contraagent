@@ -21,8 +21,9 @@ from __future__ import annotations
 import os
 import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import NamedTuple, Protocol
+from typing import Any, NamedTuple, Protocol
 
 import psutil
 
@@ -105,12 +106,36 @@ class Proc(NamedTuple):
     started: float
 
 
-def scan() -> dict[int, Proc]:
+#: What reading a process's attributes raises when the process could not be read, beyond
+#: what `Process.as_dict` already turns into `None` (access denied, a zombie).
+#: `SystemError`: psutil 7.2.2 on macOS raises it from `cmdline()` and `environ()` when the
+#: process ends while they read it (https://github.com/giampaolo/psutil/issues/3024). It
+#: can go when the lowest psutil allowed is a release with
+#: https://github.com/giampaolo/psutil/pull/2854, which raises `AccessDenied` there instead.
+_UNREADABLE = (psutil.NoSuchProcess, SystemError)
+
+_SCANNED = ["ppid", "cmdline", "create_time", "status"]
+
+
+class Readable(Protocol):
+    """One process as `scan` reads it: a `psutil.Process`, or a fake in a test."""
+
+    @property
+    def pid(self) -> int: ...
+
+    def as_dict(self, attrs: list[str]) -> dict[str, Any]: ...
+
+
+def scan(procs: Iterable[Readable] | None = None) -> dict[int, Proc]:
     """The processes of the host that have a command line and have not ended, by pid. A
-    process this user may not read (another user's, a system process) is left out."""
+    process this user may not read (another user's, a system process) or that ends while
+    it is read is left out. `procs` is given in a test."""
     out: dict[int, Proc] = {}
-    for p in psutil.process_iter(["ppid", "cmdline", "create_time", "status"]):
-        info = p.info
+    for p in psutil.process_iter() if procs is None else procs:
+        try:
+            info = p.as_dict(_SCANNED)
+        except _UNREADABLE:
+            continue
         if info.get("status") == psutil.STATUS_ZOMBIE:
             continue
         cmd = " ".join(info.get("cmdline") or ()).strip()
@@ -125,7 +150,7 @@ def environ(pid: int, prefix: str = "") -> dict[str, str]:
     when the process is gone or its environment is not readable (another user's)."""
     try:
         env = psutil.Process(pid).environ()
-    except (psutil.Error, OSError, ValueError):
+    except (psutil.Error, OSError, ValueError, SystemError):  # SystemError: see _UNREADABLE
         return {}
     return {k: v for k, v in env.items() if k.startswith(prefix)}
 
