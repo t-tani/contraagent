@@ -1,1 +1,0 @@
-A coding agent can write its output files in the run's `out/` when that is outside its working directory: `Launch.out_dir` names it, Codex's sandbox takes it as a writable root, Claude Code gets it with `--add-dir`, and opencode allows it as an `external_directory`. Before, a Codex task of a run whose runs directory was outside `Pipeline(cwd=)` could not write its output.
