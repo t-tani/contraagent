@@ -168,3 +168,120 @@ def test_files_of_one_name_load_in_turn_and_import_their_neighbours_when_they_ru
         for name in ("a", "b"):
             if str(tmp_path / name) in sys.path:
                 sys.path.remove(str(tmp_path / name))
+
+
+EARLY_FLOWS = """\
+import asyncio
+
+from contraagent import agent_task
+
+triage = agent_task("triage", instructions="t", output=str, max_turns=5, timeout_s=60)
+
+
+async def keywords():
+    await triage("u", text="hi")  # LINE
+
+
+async def sleeping():
+    await asyncio.sleep(1)  # LINE
+
+
+def generator():
+    yield triage("u")
+"""
+
+
+@pytest.fixture
+def early_flows(tmp_path):
+    """`early_flows.py`, whose flows raise before their first task."""
+    path = tmp_path / "early_flows.py"
+    path.write_text(EARLY_FLOWS, encoding="utf-8")
+    yield path
+    sys.modules.pop("early_flows", None)
+    if str(tmp_path) in sys.path:
+        sys.path.remove(str(tmp_path))
+
+
+@pytest.mark.parametrize(
+    ("name", "line", "said"),
+    [
+        ("keywords", 9, "TypeError: triage(...): text=: this task declares no params model, so it takes no params"),
+        ("sleeping", 13, "TypeError: a timer of 1s (asyncio.sleep, a timeout of asyncio.wait, call_later) needs a clock"),
+        ("generator", None, "early_flows.generator is a generator flow; a flow that waits for outputs is"),
+    ],
+)
+def test_run_reports_a_flow_that_raised_before_its_first_task_as_check_does(name, line, said, early_flows, capsys):
+    """One line with the flow's place, when there is one, and the guidance; exit 1, no traceback."""
+    if line is not None:
+        assert EARLY_FLOWS.splitlines()[line - 1].endswith("# LINE")
+    at = f"{early_flows}:{line}: " if line is not None else ""
+    for command in (["check"], ["run", "--stub", "--runs-dir", str(early_flows.parent / "runs")]):
+        assert main([command[0], f"{early_flows}:{name}", *command[1:]]) == 1
+        out = capsys.readouterr().out
+        [error] = [text for text in out.splitlines() if text.startswith("  error: ")]
+        assert at in error and said in error and "Traceback" not in out, out
+        assert out.rstrip().endswith("read: (contraagent docs tasks)")
+
+
+def test_run_keeps_the_traceback_of_an_exception_that_did_not_pass_through_the_flow(early_flows, monkeypatch):
+    """A bug of contraagent's own (here, a name it calls that is not callable) is raised."""
+    monkeypatch.setattr("contraagent._internal.pipeline.pipeline.Run", None)
+    with pytest.raises(TypeError, match="'NoneType' object is not callable"):
+        main(["run", f"{early_flows}:keywords", "--stub", "--runs-dir", str(early_flows.parent / "runs")])
+
+
+PENDING_FLOWS = """\
+from pydantic import BaseModel
+
+from contraagent import agent_task
+
+
+class Found(BaseModel):
+    text: str
+
+
+class Review(BaseModel):
+    found: Found
+    more: list[Found] = []
+
+
+find = agent_task("find", instructions="f", output=Found, max_turns=5, timeout_s=60)
+review = agent_task("review", instructions="r", params=Review, output=str, max_turns=5, timeout_s=60)
+
+
+async def flow():
+    found = find("a")
+    await review("a", Review(found=found, more=[found]))
+"""
+
+
+def test_a_pending_a_params_model_refused_is_explained_by_run_and_check(tmp_path, capsys):
+    """pydantic refuses the `Pending` before contraagent sees it: run and check add, for each
+    field, what a task call says of a `Pending` in its params. The exception stays pydantic's."""
+    from pydantic import ValidationError
+
+    from contraagent import Pipeline
+    from contraagent._internal.commandline import load_attr
+    from contraagent.testing import StubAgent
+
+    path = tmp_path / "pending_flows.py"
+    path.write_text(PENDING_FLOWS, encoding="utf-8")
+    said = [
+        f"Review{where} is the Pending of find-a, the future output of a task call; a task is given values. In an "
+        f"async def flow, await the task call and pass its output ({field}=await ...); for an order with no output "
+        "passed on, give the task call in .options(after=[...]) (contraagent docs tasks)"
+        for where, field in ((".found", "found"), (".more[0]", "more"))
+    ]
+    try:
+        for command in (["check"], ["run", "--stub", "--runs-dir", str(tmp_path / "runs")]):
+            assert main([command[0], f"{path}:flow", *command[1:]]) == 1
+            out = capsys.readouterr().out
+            assert "ValidationError: 2 validation errors for Review" in out and all(text in out for text in said), out
+        agent = StubAgent({"find": lambda launch: {"text": "t"}})
+        pipeline = Pipeline(None, runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path, log=lambda line: None)
+        [call] = pipeline.run(load_attr(f"{path}:flow"), run_id="python").flow_errors
+        assert isinstance(call.error, ValidationError) and "Pending of" not in str(call.error)
+    finally:
+        sys.modules.pop("pending_flows", None)
+        if str(tmp_path) in sys.path:
+            sys.path.remove(str(tmp_path))

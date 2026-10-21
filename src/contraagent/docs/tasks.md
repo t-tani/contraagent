@@ -155,7 +155,9 @@ reference to the task's future output:
   await the task call and pass its output, or give the task call in
   `.options(after=[...])` for an order with no output passed on. A value that is
   not JSON (an object pydantic cannot turn into JSON, a NaN) raises `TypeError`
-  there too.
+  there too. A field of a params model whose type is not `Any` refuses a `Pending`
+  when the model is built, with pydantic's `ValidationError`; `contraagent run` and
+  `contraagent check` add the same advice to its report.
 - A task called and never awaited, never given in `after=` and never returned runs
   all the same, for its output file and its changes: it is an unawaited task, which
   the end of its top flow call lists (`flow_calls.jsonl` `unawaited`). That is
@@ -484,7 +486,8 @@ on, and the report joins the units that got through (see
   that differ (`AgentTask.differences`) raises `ValueError` at the second task
   call; two `agent_task` calls that declare it the same way are one kind.
 - An exception in a flow before its first task is queued is raised by
-  `Pipeline.run`. After it, the tasks already queued still run, and the
+  `Pipeline.run`; `contraagent run` prints it in one line, as `contraagent check`
+  does, with the flow's file and line, and exits 1. After it, the tasks already queued still run, and the
   exception is in `RunReport.flow_errors`: `ok` is False and `contraagent run`
   exits 1. A top flow call closed because it waited for what nothing would
   answer is there too, and so is any flow call that raised an exception of its
@@ -726,7 +729,8 @@ A flow call that raised records where and why it stopped, in `FlowCall.raised_at
 `FlowCall.raised_by`, at the end of its `flow_calls.jsonl` record and in the monitor.
 `raised_at` is the frame where the exception left the flow call's own code: mostly
 the line of the `await` that failed, or for a parent, the line where it awaits the
-child. `raised_by` is the key of the failed task the exception is (`TaskFailed.key`,
+child. An exception raised in a function that is not `async def`, such as a helper
+or a library, is at the line of the flow code that called the function. `raised_by` is the key of the failed task the exception is (`TaskFailed.key`,
 the first one in an exception group), the same in every flow call it passes through;
 it is null for an exception of flow code's own. `contraagent run` prints the place of
 each flow error.

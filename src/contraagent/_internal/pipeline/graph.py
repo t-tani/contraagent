@@ -997,12 +997,34 @@ def _refuse_pendings(kind: str, params: dict[str, Any]) -> None:
     It says where, and how to write the call."""
     for name, value in params.items():
         for where, pending in _pendings(value, name):
-            raise TypeError(
-                f"{kind}(): {where} is the Pending of {pending.key}, the future output of a task call; a task is "
-                f"given values. In an async def flow, await the task call and pass its output ({name}=await ...); "
-                f"for an order with no output passed on, give the task call in .options(after=[...]) "
-                f"(contraagent docs tasks)"
-            )
+            raise TypeError(f"{kind}(): {_given_a_pending(where, pending, name)}")
+
+
+def _given_a_pending(where: str, pending: Pending[Any], name: str) -> str:
+    """That `where` (in the field or param `name`) is `pending`, and how to write it instead."""
+    return (
+        f"{where} is the Pending of {pending.key}, the future output of a task call; a task is "
+        f"given values. In an async def flow, await the task call and pass its output ({name}=await ...); "
+        f"for an order with no output passed on, give the task call in .options(after=[...]) "
+        f"(contraagent docs tasks)"
+    )
+
+
+def pending_guidance(error: BaseException | None) -> str:
+    """For a pydantic `ValidationError` that refused a `Pending` as a field's value (a params
+    model built with a task call's `Pending`, before contraagent sees it), what a task call
+    says of a `Pending` among its params: where, and how to write it. One line per such
+    field, each after a newline; empty for any other exception. `error` is left as it is."""
+    if not isinstance(error, ValidationError):
+        return ""
+    lines: list[str] = []
+    for item in error.errors():
+        pending, loc = item.get("input"), item.get("loc", ())
+        if not isinstance(pending, Pending) or not loc:
+            continue
+        where = error.title + "".join(f"[{part}]" if isinstance(part, int) else f".{part}" for part in loc)
+        lines.append(f"\n{_given_a_pending(where, pending, str(loc[0]))}")
+    return "".join(dict.fromkeys(lines))
 
 
 def _input_files(value: Any, seen: set[int] | None = None) -> Iterator[InputFile]:

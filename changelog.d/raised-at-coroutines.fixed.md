@@ -1,0 +1,1 @@
+`FlowCall.raised_at` is the line of flow code that called a function that raised, when the function is not `async def`: a helper of the flow, or a library such as pydantic refusing a field's value. Before, it was the line inside that function, such as `pydantic/main.py:280`. Only the frames of the flow call's own coroutine and the coroutines it awaited count.
