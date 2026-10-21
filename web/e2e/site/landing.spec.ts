@@ -10,7 +10,7 @@
 // The replay's window fits one screen on a wide one: it starts once all of it is on
 // the screen, where all of it is under the site's header, at 1280×720, 1366×768,
 // 1440×900 and 1920×1080; and nothing in it is wider than its box or cut off at the
-// bottom (./fit.ts), while it plays and at its last frame. The replay's clock is the
+// bottom (../fit.ts), while it plays and at its last frame. The replay's clock is the
 // test's (`page.clock`): what it shows at a time does not depend on the machine.
 //
 // On a phone (390×844 and 360×740, light and dark, with motion and with reduced
@@ -22,7 +22,7 @@
 // or short, and a finger up or down scrolls the page; and its controls are at least
 // 44 px high.
 import { expect, firefox, test, type Browser, type Page } from '@playwright/test';
-import { clips, overflows, settle } from './fit.js';
+import { clips, overflows, settle } from '../fit.js';
 import { DOCS } from './docs-site.js';
 
 /** Fractions of the scroll from just before the scene to just after it. */

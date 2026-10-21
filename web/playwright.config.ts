@@ -1,12 +1,12 @@
-// End-to-end: the built page (src/contraagent/_internal/monitor/static), served by the
-// real Python monitor over the demo pipeline's runs, and by a hub over the same
-// runs shipped from two hosts (e2e/hub.py; hub.spec.ts), and by a monitor served under
-// a base path behind a proxy (base-path.spec.ts); and the documentation
-// site as built, under its base path, for its pages, links and live elements
-// (landing.spec.ts, mobile.spec.ts, fit.spec.ts, docs-links.spec.ts, code-tree.spec.ts). Run `pnpm build` first
-// (`pnpm e2e` does both).
+// End-to-end tests of the monitor and what ships with it: the built page
+// (src/contraagent/_internal/monitor/static), served by the real Python monitor over
+// the demo pipeline's runs, and by a hub over the same runs shipped from two hosts
+// (e2e/hub.py; hub.spec.ts), and by a monitor served under a base path behind a proxy
+// (base-path.spec.ts); the elements on a host page (embed.spec.ts, connection.spec.ts)
+// and an export of the runs (export.spec.ts). Every spec under e2e/ but e2e/site/.
+// Run `pnpm build` first (`pnpm e2e` does both). The documentation site's tests are
+// playwright.site.config.ts's (`pnpm e2e:site`).
 import { defineConfig } from '@playwright/test';
-import { DOCS, DOCS_PORT } from './e2e/docs-site.js';
 
 const PORT = Number(process.env["E2E_PORT"] ?? 18793);
 /** The hub's port; hub.spec.ts reads it from `E2E_HUB_PORT` too. */
@@ -16,6 +16,7 @@ const BASE_PATH_PORT = Number(process.env["E2E_BASE_PATH_PORT"] ?? 18797);
 
 export default defineConfig({
   testDir: 'e2e',
+  testIgnore: 'site/**',
   globalSetup: './e2e/global-setup.ts',
   // A spec file runs on one worker, in order; three files at once against the same servers,
   // which the specs only read.
@@ -44,15 +45,6 @@ export default defineConfig({
       url: `http://127.0.0.1:${HUB_PORT}/api/info`,
       reuseExistingServer: false,
       timeout: 120_000,
-    },
-    {
-      // The documentation site as built (apps/docs/dist), under its base path and nothing
-      // outside it (e2e/docs-site.ts), for its pages and live elements.
-      // --ignore-lock: another preview of the site may be running.
-      command: `pnpm exec astro preview --host 127.0.0.1 --port ${DOCS_PORT} --ignore-lock`,
-      cwd: 'apps/docs',
-      url: `${DOCS}/elements/`,
-      reuseExistingServer: false,
     },
   ],
 });

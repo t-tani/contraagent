@@ -17,7 +17,8 @@ pnpm build         # rebuilds src/contraagent/_internal/monitor/static (committe
 pnpm check:dist    # the packages as an npm consumer sees them, the gzip budgets (size-budgets.json), the registry tarballs (no image, no file: or workspace: dependency)
 pnpm gen           # the TypeScript types from the monitor's openapi.json
 pnpm i18n          # extract msg() strings to packages/ui/xliff, rebuild src/locales
-pnpm e2e           # build, then Playwright against the real monitor over the demo runs
+pnpm e2e           # build, then Playwright against the real monitor over the demo runs (playwright.config.ts)
+pnpm e2e:site      # build, then Playwright against the documentation site as built (playwright.site.config.ts, e2e/site/)
 pnpm dev           # live-reload UI against a monitor on :8787
 pnpm run docs      # the documentation site, live reload (`pnpm docs` is pnpm's own command)
 pnpm screenshots   # the READMEs' and docs' screenshots; --only readme,ui,elements
@@ -35,6 +36,13 @@ only the loopback interface:
 ```
 unshare -rn sh -c 'ip link set lo up && pnpm e2e'
 ```
+
+The two suites gate different things. `pnpm e2e` covers the monitor and what ships in
+the Python package and the npm packages; it is a required check of every pull request
+and of a release (`.github/workflows/ci.yml`). `pnpm e2e:site` covers the
+documentation site; it runs on a pull request that changes the site's inputs
+(`.github/workflows/site.yml`) and before each deploy of the site
+(`.github/workflows/pages.yml`), and it gates neither a merge nor a release.
 
 ## Layers
 
@@ -121,7 +129,7 @@ The site is served under the base path that `apps/docs/site.ts` names
 component or a page of `src/` writes each link and file reference as a path from the
 site's root passed through `withBase()` (`src/lib/base.ts`); the collected pages link
 to each other with relative URLs. The end-to-end tests serve the built site under the
-base only, and `e2e/docs-links.spec.ts` fails on a link or a request that misses it.
+base only, and `e2e/site/docs-links.spec.ts` fails on a link or a request that misses it.
 
 Screenshots are for readers of the repository: a package's `docs/images/` stays out
 of its tarball (`"!docs/images"`). The root README's screenshots in
