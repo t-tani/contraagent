@@ -35,8 +35,8 @@ def test_no_two_tracked_paths_differ_only_in_case():
     assert not clashes, f"paths that are one file on macOS and Windows: {clashes[:10]}"
 
 
-def test_no_tracked_file_names_a_directory_of_this_machine():
-    home = Path.home()
+def test_no_tracked_file_names_a_directory_of_this_machine(host_home):
+    home = host_home
     # The home directory itself, and the checkout as the export writes it (`~/...`).
     private = {str(ROOT)}
     if home.parent != home:  # a filesystem root (HOME=/ in some containers) is no one's directory

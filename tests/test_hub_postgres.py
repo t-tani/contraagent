@@ -11,7 +11,7 @@ from contraagent._internal.hub.postgres import NOTIFY_CHANNEL, PostgresHubStore
 from contraagent._internal.hub.protocol import Heartbeat, LogChunk, RecordBatch, RunRef
 from contraagent._internal.runs import layout
 from hub_services import (
-    hub_services,  # noqa: F401  # the fixture that stops the containers
+    hub_services,  # noqa: F401  # the fixture that gives a test the services' credentials
     postgres_dsn,
 )
 

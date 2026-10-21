@@ -21,7 +21,7 @@ from contraagent._internal.hub.segments import MemorySegmentIndex, PostgresSegme
 from contraagent._internal.hub.store import MemoryBlobs, MemoryHubStore
 from contraagent._internal.runs import layout
 from hub_services import (
-    hub_services,  # noqa: F401  # the fixture that stops the containers
+    hub_services,  # noqa: F401  # the fixture that gives a test the services' credentials
     postgres_dsn,
     s3_url,
 )

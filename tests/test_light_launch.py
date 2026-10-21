@@ -81,7 +81,7 @@ def test_claude_code_gets_no_tools_and_the_role_as_its_system_prompt(plugin, tmp
     judge = judge_task(plugin)
     stub = StubAgent({"judge": {"same": False}})
     run(tmp_path, lambda: judge("a", Titles(first="x", second="y")), stub)
-    argv = ClaudeBackend().argv(stub.launches[0].launch)
+    argv = ClaudeBackend(base_env={"PATH": str(tmp_path)}).argv(stub.launches[0].launch)  # no claude to ask its version
     role = Path(argv[argv.index("--system-prompt-file") + 1])  # a file: the text is never on the command line
     assert role.read_text(encoding="utf-8") == "- Answer whether the two titles name one subject."
     assert argv[argv.index("--tools") + 1] == "" and argv[argv.index("--setting-sources") + 1] == ""
