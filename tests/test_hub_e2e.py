@@ -141,7 +141,7 @@ class Env:
             *(sys.executable, "-m", "contraagent", "hub", "--port", str(self.port)),
             *("--store", self.dsn, "--blobs", self.blobs, "--streams-dir", str(self.hot), "--segments", self.segments),
             *("--ingest-token-file", str(self.tmp / "ingest"), "--read-token-file", str(self.tmp / "read")),
-            *("--ttl", str(TTL_S), "--seal-bytes", "65536", "--seal-idle", "1", "--seal-tick", "0.5"),
+            *("--seal-bytes", "65536", "--seal-idle", "1", "--seal-tick", "0.5"),
         ]
         self.hub = hub = Proc(argv, self.tmp / "hub.log", env=S3_ENV)  # started before `hub_services` runs
 
@@ -157,7 +157,7 @@ class Env:
     def start_relay(self, host: str) -> None:
         argv = [
             *(sys.executable, "-c", RELAY, "--runs-dir", str(self.runs[host]), "--hub", self.url),
-            *("--token-file", str(self.tmp / f"{host}.token"), "--host-id", host, "--interval", str(INTERVAL_S)),
+            *("--token-file", str(self.tmp / f"{host}.token"), "--host-id", host, "--interval", str(INTERVAL_S), "--ttl", str(TTL_S)),
             *("--progress-file", str(self.tmp / f"{host}.relay.json"), "--timeout", "5"),
         ]
         self.relays[host] = Proc(argv, self.tmp / f"relay-{host}.log", env={"E2E_SENT": str(self.sent_file(host))})
@@ -546,7 +546,7 @@ def test_a_run_stops_being_live_when_its_host_s_heartbeats_stop(env, live):
     env.relays["h1"].stop()
     _until(lambda: env.summary(name)["running"] is False, "the run no longer running", TTL_S + 10)
     took = time.monotonic() - stopped
-    print(f"\nliveness: not running {took:.1f}s after the relay was stopped (--ttl {TTL_S:g})")
+    print(f"\nliveness: not running {took:.1f}s after the relay was stopped (relay --ttl {TTL_S:g})")
     # The TTL counts from the last heartbeat, which can be up to one interval before the stop.
     assert took >= TTL_S - INTERVAL_S - 0.5
     assert env.summary("analyse@h2")["running"] is False

@@ -841,15 +841,31 @@ run at once:
 ::code{file="examples/claims/flow.py" from="lookup = agent_task(" to="def topics("}
 
 `Pipeline(claim_capacity=CLAIM_CAPACITY)` gives it, or
-`index = { memory_mb = 1500, cores = 1 }` in `[defaults.claim_capacity]`. Each
-time the queue tries to start such a task, the capacity is the tasks that hold the
-name plus as many more as the free memory holds, and at most the usable cores
-divided by `cores`. While no task holds the name it is at least 1, so a run always
-goes on even on a host short of memory. The free memory is what the OS reports as
-available (on Linux `MemAvailable` of `/proc/meminfo`), less `memory_mb` for each
-such task started in the last 30 seconds, since a server just started has not taken
-its memory yet; where the OS reports none, memory does not limit the name. The capacity grows
-as memory frees, and a waiting task starts then, while the others still run.
+`index = { memory_mb = 1500, cores = 1 }` in `[defaults.claim_capacity]`. Give as
+`memory_mb` the most memory one task takes, its coding agent and every process it
+starts included.
+
+Each running task with a `PerTask` claim holds its `memory_mb` from its start until
+it ends, or what its processes take when that is more. A server that takes its
+memory late is held all the same, and one that took its memory is counted once.
+Each time the queue tries to start such a task, it reads the free memory and what
+the running tasks' processes take, and checks two conditions. The holds, the new
+task's `memory_mb` and the memory that other programs took must fit in the
+baseline: the free memory read while no such task runs. The free memory now must
+also hold the new task's `memory_mb` and what the running tasks hold but have not
+taken yet. Tasks that start on one reading count each other's `memory_mb`, so a
+burst of starts does not take more than the memory holds.
+
+The free memory is what the OS reports as available (on Linux `MemAvailable` of
+`/proc/meminfo`); where the OS reports none, memory does not limit the name. What a
+task's processes take is the memory that the processes in its coding agents'
+process groups do not share with other processes. A Python task runs inside the
+run's own process, and a process can leave its agent's group, so what they take
+counts as other programs' memory while the task's `memory_mb` stays held. The cores allow at most the
+usable cores divided by `cores`. While no task holds the name, one starts anyway,
+so a run always goes on even on a host short of memory. A larger `memory_mb` than a
+task takes holds back other tasks. A waiting task starts as soon as a task ends or
+the memory frees, while the others still run.
 
 A claim that names `{params.<name>}`, where `<name>` is no field of the task's params
 model (for a Python task, no parameter of its function), raises where the task is

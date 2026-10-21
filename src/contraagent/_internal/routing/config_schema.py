@@ -19,6 +19,8 @@ from contraagent._internal.routing.preflight import PreflightPolicy
 
 #: A `context_warn_pct`: a whole percent from 1 to 99.
 WarnPct = Annotated[StrictInt, Field(ge=1, le=99)]
+#: A `timeout_s`: seconds above 0.
+Timeout = Union[Annotated[StrictInt, Field(gt=0)], Annotated[StrictFloat, Field(gt=0, allow_inf_nan=False)]]  # noqa: UP007
 #: A `max_corrections`: the corrections in all, the stop hook's and the resumes.
 Corrections = Annotated[StrictInt, Field(ge=0, le=MAX_CORRECTIONS_LIMIT)]
 
@@ -92,6 +94,7 @@ class _TaskRouting(_Routing):
 
 
 _TASK_FIELDS: dict[str, Any] = {key: (_budget(want), None) for key, want in TASK_TABLE_KEYS.items()}
+_TASK_FIELDS["timeout_s"] = (Union[Timeout, None], None)  # noqa: UP007
 _TASK_FIELDS["context_warn_pct"] = (Union[WarnPct, None], None)  # noqa: UP007
 _TASK_FIELDS["max_corrections"] = (Union[Corrections, None], None)  # noqa: UP007
 

@@ -136,8 +136,8 @@ def test_absent_things_are_empty(store):
 
 
 def test_the_latest_heartbeat_of_each_host_is_kept(store):
-    store.put_heartbeat(Heartbeat(host_id="h1", sent_at="s1", interval_s=3), "t1")
-    store.put_heartbeat(Heartbeat(host_id="h1", sent_at="s2", interval_s=3), "t2")
+    store.put_heartbeat(Heartbeat(host_id="h1", sent_at="s1", interval_s=3, ttl_s=12), "t1")
+    store.put_heartbeat(Heartbeat(host_id="h1", sent_at="s2", interval_s=3, ttl_s=12), "t2")
     (hb, at) = store.heartbeats()["h1"]
     assert hb.sent_at == "s2" and at == "t2"
 
@@ -161,8 +161,8 @@ def test_delete_run_removes_everything_held_of_the_run(store):
 
 
 def test_delete_heartbeat_removes_the_hosts_heartbeat(store):
-    store.put_heartbeat(Heartbeat(host_id="h1", sent_at="s1", interval_s=3), "t1")
-    store.put_heartbeat(Heartbeat(host_id="h2", sent_at="s1", interval_s=3), "t1")
+    store.put_heartbeat(Heartbeat(host_id="h1", sent_at="s1", interval_s=3, ttl_s=12), "t1")
+    store.put_heartbeat(Heartbeat(host_id="h2", sent_at="s1", interval_s=3, ttl_s=12), "t1")
     assert store.delete_heartbeat("h1") and not store.delete_heartbeat("h1")
     assert set(store.heartbeats()) == {"h2"}
 
@@ -230,16 +230,16 @@ def test_storing_a_held_blob_again_keeps_its_age(tmp_path):
 
 
 def test_a_run_is_live_while_its_host_heartbeats_report_it(store):
-    hub = Hub(store, MemoryBlobs(), ttl_s=15)
+    hub = Hub(store, MemoryBlobs())
     store.put_batch(batch(documents=[DocumentPut(name=layout.RUN_INFO, text='{"run_id": "r1", "pid": 7}')]), "t0")
     snap = {"run": "r1", "alive": True, "launches": [{"key": "k"}], "tree": [], "python_tasks": []}
     report = RunLiveness(run=RUN, alive=True, snapshot=snap)
-    store.put_heartbeat(Heartbeat(host_id="h1", sent_at="s", interval_s=3, runs=[report]), "2026-10-13T00:00:00+00:00")
+    store.put_heartbeat(Heartbeat(host_id="h1", sent_at="s", interval_s=3, ttl_s=15, runs=[report]), "2026-10-13T00:00:00+00:00")
     t0 = 1_791_849_600.0  # 2026-10-13T00:00:00Z
-    fresh = HeartbeatLiveness(hub.store, 15, clock=lambda: t0 + 10)
+    fresh = HeartbeatLiveness(hub.store, clock=lambda: t0 + 14.9)
     assert fresh.live() == {"r1@h1"}
     assert fresh.snapshot("r1@h1")["launches"] == [{"key": "k"}] and fresh.snapshot("r1@h1")["run"] == "r1@h1"
-    stale = HeartbeatLiveness(hub.store, 15, clock=lambda: t0 + 16)
+    stale = HeartbeatLiveness(hub.store, clock=lambda: t0 + 15)  # the TTL counts from when the hub received the heartbeat
     assert stale.live() == set()
     assert stale.snapshot("r1@h1") | {} == {**stale.snapshot("r1@h1"), "alive": False, "pid": 7, "launches": []}
 

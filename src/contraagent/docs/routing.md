@@ -39,7 +39,8 @@ anything launches.
 
 ## Budgets
 
-`max_turns` and `timeout_s` are required for every kind. `max_budget_usd` caps
+`max_turns` and `timeout_s` are required for every kind; `timeout_s` is a number of
+seconds above 0, so every launch has a deadline. `max_budget_usd` caps
 a launch's cost as the coding agent reports it: Claude Code enforces it itself;
 on omp, opencode and pi contraagent sums the cost the agent reports for each API
 call and ends the launch (`budget`) once it passes the cap; Codex reports no

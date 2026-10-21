@@ -47,7 +47,7 @@ def ship(store: MemoryHubStore, run_id: str, at: datetime, host: str = "h1") -> 
 
 def heartbeat(store: MemoryHubStore, host: str, at: datetime, alive: list[str]) -> None:
     runs = [RunLiveness(run=RunRef(host_id=host, run_id=r, run_uid=f"uid-{r}"), alive=True, snapshot={}) for r in alive]
-    store.put_heartbeat(Heartbeat(host_id=host, sent_at=iso(at), interval_s=3, runs=runs), iso(at))
+    store.put_heartbeat(Heartbeat(host_id=host, sent_at=iso(at), interval_s=3, ttl_s=15, runs=runs), iso(at))
 
 
 # --- arguments -----------------------------------------------------------------------------
