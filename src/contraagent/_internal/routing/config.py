@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from contraagent._internal.backends.credentials import AMBIENT, CredentialError, parse_credentials
+from contraagent._internal.backends.launch import TIMEOUT_RANGE, is_timeout
 from contraagent._internal.errors import ContraagentError, did_you_mean
 from contraagent._internal.routing.kind_config import MAX_CORRECTIONS_LIMIT, PARTIAL_STOPS, SAFETY_STOP_FAILOVER, TASK_TABLE_KEYS
 
@@ -297,6 +298,8 @@ class PipelineConfig:
                 )
                 continue
             table[key] = val
+        if "timeout_s" in table and not is_timeout(table["timeout_s"]):
+            _problem(errors, f"{self.source}: [tasks.{kind}].timeout_s = {table.pop('timeout_s')!r} {TIMEOUT_RANGE}")
         if "context_warn_pct" in table and not _is_warn_pct(table["context_warn_pct"]):
             _problem(errors, f"{self.source}: [tasks.{kind}].context_warn_pct = {table.pop('context_warn_pct')!r} {WARN_PCT_RANGE}")
         if "max_corrections" in table and not _is_corrections(table["max_corrections"]):
