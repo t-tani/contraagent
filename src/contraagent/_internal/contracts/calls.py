@@ -32,7 +32,7 @@ from contraagent._internal.contracts.rows import row_of, rows_file
 from contraagent._internal.contracts.validators import CommandValidator
 from contraagent._internal.dispatch.records import RecordModel
 from contraagent._internal.platform import envvars
-from contraagent._internal.runs.files import write_document
+from contraagent._internal.runs.files import read_document, write_document
 
 
 class SchemaRef(RecordModel):
@@ -89,7 +89,7 @@ class CallFile(RecordModel):
 
     @classmethod
     def read(cls, path: Path) -> CallFile:
-        return cls.model_validate_json(Path(path).read_text(encoding="utf-8"))
+        return cls.model_validate_json(read_document(path))
 
     @staticmethod
     def path_of(launch: Launch) -> Path | None:

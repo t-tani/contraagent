@@ -7,8 +7,8 @@ Layers, bottom up (each imports only the ones above it in this list):
 
 * `errors`      `ContraagentError`, the base of every error raised on purpose
 * `platform/`   the host, on Linux, macOS and Windows alike: its processes (`processes`),
-                a child in a group of its own (`groups`), a file lock (`locks`), and the
-                line and variables that name a live agent process's run and task
+                a child in a group of its own (`groups`), a file lock (`locks`), a file
+                replaced while others read it (`sharing`), and the line and variables that name a live agent process's run and task
                 (`telemetry`, `envvars`); leaf modules, importing nothing else of the package
 * `commandline` the parts every command's arguments share; a leaf module
 * `public`      how a public module publishes what it re-exports
