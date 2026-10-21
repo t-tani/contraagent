@@ -123,8 +123,10 @@ def test_a_light_launch_runs_as_its_own_agent_with_no_tool(tmp_path):
     agent = json.loads(env["OPENCODE_CONFIG_CONTENT"])["agent"][LIGHT_AGENT]
     assert agent["mode"] == "primary" and agent["permission"] == {"*": "deny"}
     # The prompt is opencode's reference to a file, which it replaces with the file's text.
-    assert agent["prompt"].startswith("{file:/") and agent["prompt"].endswith("}")
-    assert Path(agent["prompt"][len("{file:") : -1]).read_text(encoding="utf-8") == "Answer in digits."
+    assert agent["prompt"].startswith("{file:") and agent["prompt"].endswith("}")
+    prompt_file = Path(agent["prompt"][len("{file:") : -1])
+    assert prompt_file.is_absolute()  # `/tmp/...` on POSIX, `C:/...` on Windows
+    assert prompt_file.read_text(encoding="utf-8") == "Answer in digits."
     assert env["XDG_CONFIG_HOME"] != "/home/u/.config"  # no user config: with no tool, nothing else reads it
 
 
