@@ -1,5 +1,6 @@
 """The host's processes and room: one known pid's identity, the processes running, and the
-host's free memory and usable cores. Every read of another process's state in the package
+host's free memory and usable cores, and the memory this interpreter's descendants hold
+(`descendants`). Every read of another process's state in the package
 is here.
 
 Linux, macOS and Windows alike, read through `psutil`, but for a process's start: a
@@ -128,6 +129,56 @@ def environ(pid: int, prefix: str = "") -> dict[str, str]:
     except (psutil.Error, OSError, ValueError):
         return {}
     return {k: v for k, v in env.items() if k.startswith(prefix)}
+
+
+class Descendant(NamedTuple):
+    """One live process this interpreter started, or one of their children: its parent, its
+    command line (the arguments joined by spaces), its variables whose names start with the
+    prefix asked for (empty where the OS does not show them), and the memory it holds of its
+    own in MB (`own_mb`)."""
+
+    pid: int
+    ppid: int
+    cmd: str
+    env: dict[str, str]
+    own_mb: int
+
+
+def own_mb(proc: psutil.Process) -> int:
+    """The memory `proc` holds that no other process shares, in MB, as the OS reports it
+    cheaply: on Linux its resident memory less its shared pages (`/proc/<pid>/statm`),
+    elsewhere its unique set size; 0 when it is not readable. Never more than the process
+    holds: what it shares with others is left out."""
+    try:
+        if sys.platform == "linux":
+            info = proc.memory_info()
+            return max(0, info.rss - info.shared) // (1024 * 1024)
+        return proc.memory_full_info().uss // (1024 * 1024)
+    except (psutil.Error, OSError, AttributeError):
+        return 0
+
+
+def descendants(prefix: str) -> list[Descendant]:
+    """This interpreter's live descendants, each with its variables that start with
+    `prefix` and the memory it holds of its own (`own_mb`). A process that ends while it is
+    read is left out."""
+    out: list[Descendant] = []
+    try:
+        children = psutil.Process().children(recursive=True)
+    except (psutil.Error, OSError):
+        return out
+    for p in children:
+        try:
+            ppid = p.ppid()
+            cmd = " ".join(p.cmdline()).strip()
+        except (psutil.Error, OSError):
+            continue
+        try:
+            env = {k: v for k, v in p.environ().items() if k.startswith(prefix)}
+        except (psutil.Error, OSError, ValueError):
+            env = {}
+        out.append(Descendant(p.pid, ppid, cmd, env, own_mb(p)))
+    return out
 
 
 def mem_available_mb() -> int | None:

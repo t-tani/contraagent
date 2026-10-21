@@ -1,22 +1,32 @@
-"""A claim capacity sized by the host (`PerTask`): free memory and usable cores."""
+"""A claim capacity sized by the host (`PerTask`): free memory, what each task takes, and
+usable cores."""
 
 import asyncio
+import os
+import subprocess
+import sys
 import threading
-import time
 from types import SimpleNamespace
 
 import pytest
 
 from contraagent import ConfigError, PerTask, Pipeline, PipelineConfig, Task, TaskResult, python_task
+from contraagent._internal.execution import run as run_module
 from contraagent._internal.platform import processes
-from contraagent._internal.routing.capacity import HostCapacity, sized
+from contraagent._internal.routing.capacity import HostCapacity, sized, task_usage_mb
 from contraagent.engine import WorkQueue
 from contraagent.testing import StubAgent
 
 
-def host(mem: list, cores: int = 64) -> HostCapacity:
-    """A host whose free memory is `mem[0]` MB (None: not reported)."""
-    return HostCapacity(mem_available_mb=lambda: mem[0], cores=cores)
+def host(mem: list, cores: int = 64, usage: dict | None = None) -> HostCapacity:
+    """A host whose free memory is `mem[0]` MB (None: not reported), where the processes of
+    each running task take `usage[key]` MB (none: nothing found)."""
+    taken = usage if usage is not None else {}
+    return HostCapacity(
+        mem_available_mb=lambda: mem[0],
+        usage_mb=lambda keys: {k: taken[k] for k in keys if k in taken},
+        cores=cores,
+    )
 
 
 # --- reading the host ----------------------------------------------------------------
@@ -28,79 +38,180 @@ def test_the_host_reports_its_free_memory_and_cores():
     assert processes.usable_cores() >= 1
 
 
+def test_the_host_reports_what_a_child_holds_and_its_variables():
+    env = {**os.environ, "CONTRAAGENT_TASK": "t1", "CONTRAAGENT_RUN": "r1"}
+    code = "import sys; print('ready', flush=True); sys.stdin.read()"
+    with subprocess.Popen([sys.executable, "-c", code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env) as child:
+        assert child.stdin is not None and child.stdout is not None
+        try:
+            assert child.stdout.readline() == "ready\n"  # it runs its own program
+            seen = {p.pid: p for p in processes.descendants("CONTRAAGENT_")}
+            assert child.pid in seen and seen[child.pid].ppid == os.getpid()
+            assert seen[child.pid].own_mb >= 0
+            if sys.platform != "darwin":  # macOS shows no other process's environment
+                assert seen[child.pid].env == {"CONTRAAGENT_TASK": "t1", "CONTRAAGENT_RUN": "r1"}
+                assert set(task_usage_mb(["t1"], run="r1")) == {"t1"}
+        finally:
+            child.stdin.close()
+
+
+def test_a_process_counts_for_the_task_it_or_its_parent_names(monkeypatch):
+    me = os.getpid()
+    tele = "claude -p TELEMETRY run=r1 kind=k unit=- key=t2 role=-"
+    procs = [
+        processes.Descendant(10, me, "claude -p", {"CONTRAAGENT_RUN": "r1", "CONTRAAGENT_TASK": "t1"}, 300),
+        processes.Descendant(11, 10, "index-server", {}, 1200),  # its variables not shown: its parent's task
+        processes.Descendant(12, 11, "worker", {}, 100),
+        processes.Descendant(20, me, tele, {}, 250),  # no variables shown: its telemetry line
+        processes.Descendant(30, me, "claude -p", {"CONTRAAGENT_RUN": "r0", "CONTRAAGENT_TASK": "t1"}, 999),  # another run's
+        processes.Descendant(40, me, "python helper.py", {}, 500),  # no task named: other work
+    ]
+    monkeypatch.setattr(processes, "descendants", lambda prefix: procs)
+    assert task_usage_mb(["t1", "t2", "t3"], run="r1") == {"t1": 1600, "t2": 250}
+    assert task_usage_mb([], run="r1") == {}
+
+
 # --- the capacity -----------------------------------------------------------------------
 
 
 def test_as_many_start_as_the_baseline_holds_while_none_runs():
     mem = [5000]
-    index = host(mem).capacity(PerTask(memory_mb=1500))
+    room = host(mem)
+    index = room.capacity(PerTask(memory_mb=1500))
     assert index.allowed(0) == 3
     mem[0] = 1000
+    room.refresh()
     assert index.allowed(0) == 1  # nothing holds it: one starts, so the run goes on
 
 
-def test_a_task_reserves_its_memory_until_it_ends_however_late_it_takes_it():
+def test_one_reading_serves_each_time_the_queue_starts_tasks():
+    reads: list[int] = []
+
+    def free() -> int:
+        reads.append(1)
+        return 4000
+
+    room = HostCapacity(mem_available_mb=free, usage_mb=lambda keys: {}, cores=4)
+    index = room.capacity(PerTask(memory_mb=1000))
+    index.allowed(0)
+    index.allowed(0)
+    assert len(reads) == 1
+    room.refresh()
+    index.allowed(0)
+    assert len(reads) == 2
+
+
+def test_a_task_that_takes_its_memory_late_holds_it_until_it_ends():
+    mem, usage = [5000], {}
+    room = host(mem, usage=usage)
+    index = room.capacity(PerTask(memory_mb=1500))
+    index.allowed(0)
+    index.started("a")
+    index.started("b")
+    room.refresh()  # neither has taken its memory yet, however long it has run
+    assert index.allowed(2) == 3  # 3000 of the 5000 held
+    usage["a"], mem[0] = 1500, 3500  # `a` takes it at last
+    room.refresh()
+    assert index.allowed(2) == 3
+    index.ended("a")
+    mem[0] = 5000
+    room.refresh()
+    assert index.allowed(1) == 3  # its hold ended with it
+
+
+def test_a_task_that_took_its_memory_is_counted_once():
+    mem, usage = [5000], {}
+    room = host(mem, usage=usage)
+    index = room.capacity(PerTask(memory_mb=1500))
+    index.allowed(0)
+    index.started("a")
+    usage["a"], mem[0] = 1500, 3500
+    room.refresh()
+    assert index.allowed(1) == 3  # 1500 held of the 5000; the 3500 free holds two more
+
+
+def test_a_task_that_takes_more_than_it_declared_holds_what_it_takes():
+    mem, usage = [5000], {}
+    room = host(mem, usage=usage)
+    index = room.capacity(PerTask(memory_mb=1500))
+    index.allowed(0)
+    index.started("a")
+    usage["a"], mem[0] = 3000, 2000
+    room.refresh()
+    assert index.allowed(1) == 2  # 3000 held: room for one more
+
+
+def test_memory_other_work_takes_and_gives_back_counts():
+    mem, usage = [5000], {"a": 500}
+    room = host(mem, usage=usage)
+    index = room.capacity(PerTask(memory_mb=1500))
+    index.allowed(0)
+    index.started("a")
+    mem[0] = 1000  # other work took 3500 since the baseline; `a` has 1000 still to take
+    room.refresh()
+    assert index.allowed(1) == 1
+    mem[0] = 3500  # it gave back 2500
+    room.refresh()
+    assert index.allowed(1) == 2
+
+
+def test_a_burst_of_starts_on_one_reading_counts_each_new_one():
+    """Other work took 2000 after the baseline: the declarations alone would let two more
+    start beside `a`; the free memory, less what `a` and each one started on this reading
+    will take, lets one."""
     mem = [5000]
     room = host(mem)
     index = room.capacity(PerTask(memory_mb=1500))
-    index.started()
-    index.started()
-    assert index.allowed(2) == 3  # 3000 of the 5000 reserved, and 5000 free now
-    index.started()
-    assert index.allowed(3) == 3  # 4500 reserved: no room for 1500 more
-    mem[0] = 4000  # none has taken its memory yet, or long after it started
-    assert index.allowed(3) == 3
-    index.ended()
-    assert index.allowed(2) == 3  # the reservation ends with the task
+    index.allowed(0)
+    index.started("a")
+    mem[0] = 3000  # `a` has taken nothing yet
+    room.refresh()
+    assert index.allowed(1) == 2
+    index.started("b")  # the same reading: `b` counts as held and not yet taken
+    assert index.allowed(2) == 2
+    index.ended("a")
+    index.ended("b")
+    room.refresh()
+    assert room.tasks == {} and index.allowed(0) == 2  # none runs: the baseline is read again
 
 
-def test_a_task_that_took_its_memory_is_not_counted_twice():
-    mem = [5000]
-    index = host(mem).capacity(PerTask(memory_mb=1500))
-    index.started()
-    mem[0] = 3500  # it took its 1500: the baseline and the reservation count it once
-    assert index.allowed(1) == 3
+def test_a_task_with_two_per_task_names_holds_both_and_counts_its_usage_once():
+    mem, usage = [6000], {}
+    room = host(mem, usage=usage)
+    index, db = room.capacity(PerTask(memory_mb=1500)), room.capacity(PerTask(memory_mb=1000))
+    index.allowed(0)
+    index.started("t")
+    db.started("t")  # one task that needs both
+    usage["t"], mem[0] = 2500, 3500
+    room.refresh()
+    assert room.tasks == {"t": [2500, 2]}
+    assert db.allowed(0) == 3  # 2500 held of the 6000, its 2500 taken counted once
+    index.ended("t")
+    assert room.tasks == {"t": [1000, 1]}
+    db.ended("t")
+    assert room.tasks == {}
 
 
-def test_memory_that_other_work_took_holds_a_task_back():
-    mem = [5000]
-    index = host(mem).capacity(PerTask(memory_mb=1500))
-    index.started()
-    mem[0] = 1000  # another program took memory after the baseline
-    assert index.allowed(1) == 1
-    mem[0] = 2000
-    assert index.allowed(1) == 3  # 1500 reserved of the 5000: two more fit
-
-
-def test_every_per_task_name_of_the_queue_shares_the_host():
-    mem = [5000]
-    room = host(mem)
-    index, other = room.capacity(PerTask(memory_mb=1500)), room.capacity(PerTask(memory_mb=1000))
-    other.started()
-    other.started()
-    assert index.allowed(0) == 2  # 2000 reserved: 3000 left of the baseline
-    index.started()
-    assert other.allowed(2) == 3
-
-
-def test_the_baseline_is_read_again_when_none_runs():
+def test_the_baseline_is_read_while_none_runs_and_only_then():
     mem = [5000]
     room = host(mem)
     index = room.capacity(PerTask(memory_mb=1000))
     index.allowed(0)
-    index.started()
-    mem[0] = 9000  # read while a task runs: not the baseline
-    assert index.allowed(1) == 5
-    index.ended()
-    assert index.allowed(0) == 9
-    assert room.baseline_mb == 9000
+    index.started("a")
+    mem[0] = 9000
+    room.refresh()
+    assert index.allowed(1) == 5 and room.baseline_mb == 5000
+    index.ended("a")
+    room.refresh()
+    assert index.allowed(0) == 9 and room.baseline_mb == 9000
 
 
 def test_a_cores_only_task_reads_the_baseline_before_it_starts():
     mem = [5000]
     room = host(mem)
-    room.capacity(PerTask(cores=1)).started()
+    room.capacity(PerTask(cores=1)).started("a")
     mem[0] = 100
+    room.refresh()
     assert room.baseline_mb == 5000
     assert room.capacity(PerTask(memory_mb=1000)).allowed(0) == 1
 
@@ -160,13 +271,13 @@ def test_the_queue_starts_a_holder_once_memory_frees_while_the_others_still_run(
     still running, and the queue starts `b` without waiting for `a` to finish."""
     idle, busy = 3000, [500]  # free while nothing runs; while `a` runs
     runner = Holders(busy)
-    room = HostCapacity(mem_available_mb=lambda: busy[0] if room.running else idle, cores=64)
+    room = HostCapacity(mem_available_mb=lambda: busy[0] if room.tasks else idle, usage_mb=lambda keys: {}, cores=64)
     q = WorkQueue(runner, max_concurrent=4, claim_capacity=sized({"index": PerTask(memory_mb=1000)}, room))
     q.add(Task("serve", key="a", claims=("index",)))
     q.add(Task("serve", key="b", claims=("index",)))
     q.run()
     assert runner.seen == ["memory frees", "b starts", "a saw b"]
-    assert (room.running, room.reserved_mb) == (0, 0)  # the queue told it each end
+    assert room.tasks == {}  # the queue told it of each end
 
 
 def test_a_pattern_sizes_each_name_on_its_own_and_the_guard_sees_room():
@@ -205,26 +316,28 @@ def test_the_config_holds_a_per_task_capacity_as_a_table(tmp_path):
         Pipeline(config, runs_dir=tmp_path, backends=StubAgent().backends(), claim_capacity={"index": 1.5})
 
 
-_running: list[int] = [0, 0]  # now, most at once
-_lock = threading.Lock()
-
-
 @python_task(claims=["index"])
 def serve(unit: str) -> int:
-    with _lock:
-        _running[0] += 1
-        _running[1] = max(_running[1], _running[0])
-    time.sleep(0.05)
-    with _lock:
-        _running[0] -= 1
     return 1
 
 
-def test_a_run_sizes_a_per_task_capacity_by_the_host(tmp_path):
+def test_a_run_sizes_a_per_task_capacity_by_the_host(tmp_path, monkeypatch):
+    """The run's queue holds the `PerTask` entry as this host's capacity, and tells it of
+    every start and end."""
+    made: list[dict] = []
+
+    def keep(claim_capacity, host=None):
+        made.append(sized(claim_capacity, host))
+        return made[-1]
+
+    monkeypatch.setattr(run_module, "sized", keep)
+
     async def flow():
         return await asyncio.gather(*[serve(u) for u in "abcd"])
 
-    _running[:] = [0, 0]
     whole = PerTask(cores=processes.usable_cores())  # one task takes every core
     p = Pipeline(None, runs_dir=tmp_path, backends=StubAgent().backends(), log=lambda line: None, claim_capacity={"index": whole})
-    assert p.run(flow).ok and _running[1] == 1
+    assert p.run(flow).ok
+    index = made[0]["index"]
+    assert index.allowed(1) == 1  # one at a time
+    assert index.host.tasks == {} and index.host.baseline_mb is not None  # each start had its end
