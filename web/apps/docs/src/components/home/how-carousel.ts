@@ -3,8 +3,8 @@
 // the step before and after, a dot for each step and the step's number. The step is
 // the scene's progress: the agent's loop lights its words up to it, and the list is as
 // tall as its card (--how-h), so the buttons are right under it. A button or a swipe
-// sets the step and scrolls the list to its card; any scroll that comes to an end
-// (`scrollend`) sets the step to the card the list rests on, whatever moved the list.
+// sets the step and scrolls the list to its card; any other scroll that comes to an
+// end (`scrollend`) sets the step to the card the list rests on, whatever moved the list.
 // A sideways swipe moves the list here, not in the browser, and at most one card: the
 // browser's momentum carries a fast flick past the next card although every card has
 // `scroll-snap-stop: always`. The keyboard, a trackpad and a wheel scroll as usual.
@@ -92,28 +92,31 @@ if (how && list && nav) {
    */
   const there = (left: number): boolean => Math.abs(list.scrollLeft - left) < Math.max(1, 1 / devicePixelRatio);
   /**
-   * The card a button's smooth scroll leaves, until that scroll ends or the reader takes
-   * the list. A scroll that completed before the press may still have its `scrollend`
-   * to come (input runs before the scroll steps that send it): that one finds the list
-   * still on this card, as the new scroll has not moved it off yet, and is not the
-   * list at rest. The new scroll ends on another card, or a newer press records its own.
+   * Where a button's smooth scroll sends the list, until the list is there or the reader
+   * takes it. A smooth scroll ends at its destination and does not pass it, so the
+   * `scroll` that finds the list there is its end. No `scrollend` before that one is the
+   * list at rest: a scroll that completed before the press may still have its `scrollend`
+   * to come (input runs before the scroll steps that send it), and Chromium sends the
+   * `scrollend` of a smooth scroll that replaced another one while the list still moves,
+   * and none when it arrives. A newer press records its own destination. A script's
+   * scroll that cuts a button's short ends nothing: the step stays the button's card
+   * until the list arrives or the reader's input.
    */
-  let leaving: number | undefined;
+  let sending: number | undefined;
   /** The swipe's scroll at its end: snapping on again, and the step the card the list rests on. */
   const land = (): void => {
     release = undefined;
-    leaving = undefined;
+    sending = undefined;
     list.classList.remove('is-swiped');
     if (narrow.matches) mark(nearest());
   };
   const go = (k: number): void => {
     const to = Math.max(0, Math.min(steps.length - 1, k));
-    const on = nearest();
     mark(to);
     const left = place(to);
     if (list.classList.contains('is-swiped')) release = left;
-    // An instant scroll is there at once, and its `scrollend` finds the list there; a list on `to` does not move.
-    else leaving = !reduced.matches && on !== to ? on : undefined;
+    // An instant scroll is there at once, and its `scrollend` finds the list there; a list there does not move.
+    else sending = !reduced.matches && !there(left) ? left : undefined;
     // The browser ends a scroll still under way, and does not scroll a list already there.
     list.scrollTo({ left, behavior: reduced.matches ? 'auto' : 'smooth' });
     // Already there, or there at once (an instant scroll): no end of a scroll to wait for.
@@ -128,17 +131,15 @@ if (how && list && nav) {
   // is over and the position has changed; a smooth scroll that a newer scroll ends has
   // none, nor has a scroll to where the list already is). Snapping has placed the list,
   // so the card it rests on is the step, whatever moved it: a button, the reader, a script,
-  // unless it is the end of a scroll from before a button's (`leaving`).
+  // except while a button's scroll is on its way (`sending`) or a swipe's (`release`).
   list.addEventListener('scrollend', () => {
-    if (swipe?.own || release !== undefined) return;
-    const on = nearest();
-    if (on === leaving) return;
-    leaving = undefined;
-    if (narrow.matches) mark(on);
+    if (swipe?.own || release !== undefined || sending !== undefined) return;
+    if (narrow.matches) mark(nearest());
   });
   list.addEventListener(
     'scroll',
     () => {
+      if (sending !== undefined && there(sending)) sending = undefined;
       if (release !== undefined && there(release)) land();
     },
     { passive: true },
@@ -149,7 +150,7 @@ if (how && list && nav) {
     list.addEventListener(
       type,
       () => {
-        leaving = undefined;
+        sending = undefined;
         if (release !== undefined) land();
       },
       { passive: true },
@@ -269,6 +270,7 @@ if (how && list && nav) {
     how.classList.toggle('how-carousel', narrow.matches);
     nav.hidden = !narrow.matches;
     cut();
+    sending = undefined;
     current = -1;
     mark(narrow.matches ? nearest() : 0);
   };
