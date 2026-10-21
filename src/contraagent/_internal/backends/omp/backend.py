@@ -398,7 +398,7 @@ class OmpBackend(Backend):
         )
 
     def model_chains(self, cwd: Path | None = None) -> ModelChains:
-        """omp's configured `retry:` block, read once per backend.
+        """omp's `retry` settings as omp reports them (`load_model_chains`), asked once per backend.
 
         `cwd` is the directory omp will be launched in, which is what
         decides the project file — not the reader's own directory. The

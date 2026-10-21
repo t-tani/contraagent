@@ -9,7 +9,7 @@ anything under `web/`, read `web/AGENTS.md`.
 
 ```
 uv run ruff check . && uv run ruff format --check .
-uv run pyright                # 0 errors; the "yaml" source warning is expected
+uv run pyright                # 0 errors, 0 warnings
 uv run pytest                 # parallel (xdist, at most 6 workers; -n0 for one); runs lint-imports too
 uv run pytest -m e2e          # the hub and relays as processes over Postgres and RustFS (docker)
 CONTRAAGENT_LIVE=1 uv run pytest -m live   # real coding agents; spends tokens
