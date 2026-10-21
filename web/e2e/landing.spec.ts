@@ -247,17 +247,6 @@ async function smallTargets(page: Page): Promise<string[]> {
   });
 }
 
-/** The step the carousel shows: the card whose middle is the list's, within 2 px, as its index; -1 when none is. */
-async function centredStep(page: Page): Promise<number> {
-  return page.locator('.how-steps').evaluate((list) => {
-    const mid = list.getBoundingClientRect().left + list.clientWidth / 2;
-    return [...list.querySelectorAll('.how-step')].findIndex((s) => {
-      const r = s.getBoundingClientRect();
-      return Math.abs(r.left + r.width / 2 - mid) <= 2;
-    });
-  });
-}
-
 for (const size of PHONES)
   for (const colorScheme of ['dark', 'light'] as const)
     for (const reducedMotion of ['no-preference', 'reduce'] as const)
@@ -329,33 +318,71 @@ for (const size of PHONES)
 
 /**
  * Records where the steps' list is each time a scroll of it ends (`scrollend`), from now
- * on, for `restingStep`; the list stands where it was loaded.
+ * on, for `restingStep`; the list stands where it was loaded. It also keeps the list's
+ * last scrolls and changes of size, which a failed check shows (`Steps`).
  */
 async function watchSteps(page: Page): Promise<void> {
   await page.locator('.how-steps').evaluate((list) => {
-    const w = window as unknown as { stepsEnded: number };
+    const w = window as unknown as { stepsEnded: number; stepsLog: string[] };
     w.stepsEnded = list.scrollLeft;
-    list.addEventListener('scrollend', () => (w.stepsEnded = list.scrollLeft));
+    w.stepsLog = [];
+    const log = (s: string): void => {
+      w.stepsLog.push(`${Math.round(performance.now())} ${s}`);
+      w.stepsLog.splice(0, w.stepsLog.length - 40);
+    };
+    list.addEventListener('scrollend', () => {
+      w.stepsEnded = list.scrollLeft;
+      log(`scrollend ${list.scrollLeft}`);
+    });
+    list.addEventListener('scroll', () => log(`scroll ${list.scrollLeft}`), { passive: true });
+    new ResizeObserver(() => log(`size ${list.clientWidth}×${list.clientHeight} page ${document.documentElement.clientWidth}×${document.documentElement.scrollHeight}`)).observe(list);
   });
 }
 
 /**
- * The card the steps' list rests on, as its index, or -1: the list where it was when a
- * scroll of it last ended (`watchSteps`), and that card at its snap position there, its
- * middle at the list's middle within 2 px or, for a card at an end, the list at that end.
+ * The step the carousel shows, as its card's index (-1 when none is), and the facts it
+ * was found from, which a failed check prints: where the list is and where it last
+ * ended a scroll, its width and the page's, where each card snaps, the list's height
+ * (`--how-h`) and its last scrolls and changes of size (`watchSteps`).
  */
-async function restingStep(page: Page): Promise<number> {
-  return page.locator('.how-steps').evaluate((list) => {
-    if (list.scrollLeft !== (window as unknown as { stepsEnded: number }).stepsEnded) return -1;
+interface Steps {
+  step: number;
+  facts: Record<string, unknown>;
+}
+
+/**
+ * The card whose snap position the list is at, within 2 px: its middle at the list's
+ * middle or, for a card at an end, the list at that end. `resting`: only while the list
+ * is where a scroll of it last ended (`watchSteps`).
+ */
+async function stepsAt(page: Page, resting: boolean): Promise<Steps> {
+  return page.locator('.how-steps').evaluate((list, resting) => {
+    const w = window as unknown as { stepsEnded?: number; stepsLog?: string[] };
     const mid = list.getBoundingClientRect().left + list.clientWidth / 2;
     const end = list.scrollWidth - list.clientWidth;
-    return [...list.querySelectorAll('.how-step')].findIndex((s) => {
+    const snaps = [...list.querySelectorAll('.how-step')].map((s) => {
       const r = s.getBoundingClientRect();
-      const snap = Math.max(0, Math.min(end, list.scrollLeft + r.left + r.width / 2 - mid));
-      return Math.abs(snap - list.scrollLeft) <= 2;
+      return Math.max(0, Math.min(end, list.scrollLeft + r.left + r.width / 2 - mid));
     });
-  });
+    const still = !resting || list.scrollLeft === w.stepsEnded;
+    const facts = {
+      scrollLeft: list.scrollLeft,
+      stepsEnded: w.stepsEnded,
+      listWidth: list.clientWidth,
+      pageWidth: document.documentElement.clientWidth,
+      innerWidth,
+      snaps,
+      howH: list.style.getPropertyValue('--how-h'),
+      log: w.stepsLog,
+    };
+    return { step: still ? snaps.findIndex((x) => Math.abs(x - list.scrollLeft) <= 2) : -1, facts };
+  }, resting);
 }
+
+/** The card at its snap position, whether or not the list is still moving: `{ step }` to compare. */
+const centredStep = (page: Page): Promise<Steps> => stepsAt(page, false);
+/** The card the steps' list rests on: at that card's snap position, where a scroll of it last ended. */
+const restingStep = (page: Page): Promise<Steps> => stepsAt(page, true);
 
 for (const size of PHONES)
   for (const reducedMotion of ['no-preference', 'reduce'] as const)
@@ -374,7 +401,7 @@ for (const size of PHONES)
       // The buttons: a card at a time, the loop lighting up to the card's step.
       await next.click();
       await expect(count).toContainText('Step 2 of 7');
-      await expect.poll(() => centredStep(page)).toBe(1);
+      await expect.poll(() => centredStep(page)).toMatchObject({ step: 1 });
       for (let k = 2; k < 7; k++) await next.click();
       await expect(count).toContainText('Step 7 of 7');
       await expect(next).toHaveAttribute('aria-disabled', 'true');
@@ -384,12 +411,12 @@ for (const size of PHONES)
       await page.keyboard.press('Enter');
       await expect(count).toContainText('Step 6 of 7');
       await expect(page.locator('.how-loop-step.is-on')).toHaveCount(4);
-      await expect.poll(() => restingStep(page)).toBe(5);
+      await expect.poll(() => restingStep(page)).toMatchObject({ step: 5 });
       // A scroll the steps did not start, part of a card back (a trackpad's, or a script's): the
       // list snaps to the card before, not between two, and that card is the step.
       const width = await page.locator('.how-step').first().evaluate((e) => (e as HTMLElement).offsetWidth);
       await list.evaluate((e, dx) => e.scrollBy({ left: dx, behavior: 'instant' }), Math.round(-width * 0.6));
-      await expect.poll(() => restingStep(page)).toBe(4);
+      await expect.poll(() => restingStep(page)).toMatchObject({ step: 4 });
       await expect(count).toContainText('Step 5 of 7');
       // A long output: cut, and open in full from its button.
       const card = page.locator('.how-step').nth(4);
@@ -449,7 +476,7 @@ for (const size of PHONES)
       // A flick of 300 px in 40 ms, which the browser's own momentum carries two cards on: one card, either way.
       for (const [dx, step] of [[-300, 2], [-300, 3], [-300, 4], [300, 3], [300, 2], [300, 1]] as const) {
         await drag(page, dx, 0, 8);
-        await expect.poll(() => restingStep(page)).toBe(step - 1);
+        await expect.poll(() => restingStep(page)).toMatchObject({ step: step - 1 });
         await expect(count).toContainText(`Step ${step} of 7`);
         await expect(list).not.toHaveClass(/is-swiped/);
       }
@@ -457,15 +484,15 @@ for (const size of PHONES)
       expect(await list.evaluate((e) => e.scrollLeft)).toBe(0);
       // A short flick, fast: on to the next card; as short, slow: back to the card it began on.
       await drag(page, -60, 0, 8);
-      await expect.poll(() => restingStep(page)).toBe(1);
+      await expect.poll(() => restingStep(page)).toMatchObject({ step: 1 });
       await drag(page, -60, 0, 80);
-      await expect.poll(() => restingStep(page)).toBe(1);
+      await expect.poll(() => restingStep(page)).toMatchObject({ step: 1 });
       await expect(count).toContainText('Step 2 of 7');
       await expect(list).not.toHaveClass(/is-swiped/);
       // A finger up the steps scrolls the page, not the steps.
       const top = await page.evaluate(() => window.scrollY);
       await drag(page, 0, -200, 16);
       await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(top + 100);
-      expect(await restingStep(page)).toBe(1);
+      expect(await restingStep(page)).toMatchObject({ step: 1 });
       await context.close();
     });
