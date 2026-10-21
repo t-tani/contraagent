@@ -163,6 +163,7 @@ class AgentRunner:
         env: Mapping[str, str] | None = None,
         keep_transcripts: bool = False,
         cwd: Path | str | None = None,
+        input_roots: Mapping[str, Path] | None = None,
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
         rests: CredentialRests | None = None,
@@ -180,6 +181,8 @@ class AgentRunner:
         (`RoutingPlan.credentials`); `ambient` is always there.
         `model`, `model_failover`, `env`: run-wide launch defaults a kind's own
         config outranks.
+        `input_roots`: the run's input roots by name (`Pipeline(input_roots=)`), each
+        directory absolute: every launch is allowed to read them (`Launch.input_roots`).
         `rests`: the run's credential rests (`CredentialRests`): a hop whose credential rests is
         skipped without a launch, a pool's resting members too, and a task with no hop
         left is deferred, or fails `auth_failed` when every one was refused. Each launch's
@@ -209,6 +212,7 @@ class AgentRunner:
         self.env: dict[str, str] = dict(env or {})
         self.keep_transcripts = keep_transcripts
         self.cwd: Path = Path(cwd) if cwd else Path.cwd()
+        self.input_roots: dict[str, Path] = {name: Path(d) for name, d in (input_roots or {}).items()}
         self.scopes = tuple(scopes)
         self.enrichers = tuple(enrichers)
         self.rests = rests
@@ -311,6 +315,7 @@ class AgentRunner:
             env=env,
             cwd=self._cwd_of(task),
             out_dir=(self.run_dir / layout.OUT).resolve(),
+            input_roots=tuple(self.input_roots.values()),
             preamble=task.params.get("preamble"),
             context_files=self.adapter.context_files(task, be),
             plugin_dirs=plugin_dirs,

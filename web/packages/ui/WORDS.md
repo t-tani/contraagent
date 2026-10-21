@@ -98,6 +98,7 @@ written are in `web/AGENTS.md`.
 | selection, inspector | selected item; links: Task detail, Tasks of `kind`, Inside `function`, Passes of the loop | 選択中の項目; タスク詳細, `kind` のタスク, `function` の内部, ループの各周 |
 | an attempt of a later run start (`runStarts`) | attempt N \| resumed run | N 回目 \| 再開後 |
 | an input file (`TaskIO.input_files`: an `InputFile` param, by its path and hash) and its check as the task was about to start (`passed`, `refused`, `not_checked`) | Input files; Param `name` \| sha256 `12 digits` \| Output of `kind · unit`; same content at the start, changed before the start, not checked | 入力ファイル; パラメータ `name`; 開始時も同じ内容, 開始前に変更された, 未確認 |
+| an input file's input root (`TaskInputFile.root`): a root the run names, or `out` (an output file of the run) | `data: 2026/x.csv`; `out/review/a.md`; tooltip: `2026/x.csv` in the input root `data` | 入力ルート data の 2026/x.csv |
 | a file an input contract checks (`TaskIO.inputs`, `InputContract`, from an engine `TaskAdapter`) and its origin | Checked files it reads; Output of `kind · unit`; File from before the run | 読み込むファイル（検証あり）; `kind · unit` の出力; 実行前からあるファイル |
 | host (`host_id`), shown only on a hub (`Info.hosts`) | host; `Host h1` as a fact; the hosts page: Hosts | ホスト; ホスト h1; ホスト一覧 |
 | a host's `up` / not `up` (heartbeats stopped, or never sent) | up / no report; no report since `time` (a run picker's host header) | 稼働中 / 報告なし; `time` 以降報告なし |

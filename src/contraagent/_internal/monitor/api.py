@@ -62,7 +62,7 @@ from contraagent._internal.execution.schemas import JournalRow, PlanRow, QuotaRe
 from contraagent._internal.routing.preflight import PreflightRecord
 from contraagent._internal.routing.quota import QuotaCap
 
-API_VERSION = "3.8.0"
+API_VERSION = "3.9.0"
 
 
 class Closed(BaseModel):
@@ -861,13 +861,16 @@ InputFileCheck = Literal["passed", "refused", "not_checked"]
 
 class TaskInputFile(Closed):
     """An input file among the task's params (`plan.jsonl` `input_files`): its place in the
-    params, its path and the SHA-256 of its content taken at the task call, the task whose
-    output file it is, and its check as the task was about to start."""
+    params, its input root, its path and the SHA-256 of its content taken at the task call,
+    the task whose output file it is, and its check as the task was about to start."""
 
     param: str = Field(description="its place in the params: the param's name, then a list's index or a field's name (`notes/0`)")
-    path: str = Field(
-        description="as the params hold it: relative to the run's working directory, or absolute for an output file outside it"
+    root: str | None = Field(
+        None,
+        description="its input root (`InputFile.root`): a name of the run's `input_roots`, or `out` for an output file of "
+        "the run; null for a file of the task's working directory",
     )
+    path: str = Field(description="as the params hold it: relative to its input root, else to the task's working directory")
     sha256: str
     writer: str | None = Field(None, description="the key of the task it was given from whose output file it is; null for another file")
     check: InputFileCheck

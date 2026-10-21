@@ -35,6 +35,7 @@ from typing import Any, Literal, Protocol
 from pydantic import BaseModel, ValidationError
 
 from contraagent._internal.backends.streams import normalize_stream_line, resolve_format
+from contraagent._internal.contracts.input_file import OUT
 from contraagent._internal.dispatch.records import DeferralCause, Rest, RestEvent, ServiceEvent, TimeBoxRecord
 from contraagent._internal.execution.cursor import parse_cursor
 from contraagent._internal.execution.estimates import TailKey, latest_finished, row_tail_key, run_shape
@@ -1303,7 +1304,8 @@ def lineage_of(node: Mapping[str, Any]) -> dict[str, list[str]]:
 
 def _input_files(node: Mapping[str, Any], records: Mapping[Any, Mapping[str, Any]], rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """A task's input files (its plan row's `input_files`), each with `writer`, the task it
-    was given from whose output file it is (by the path), and `check`: `refused` when its
+    was given from whose output file it is (a file of the input root `out`, by its path
+    under `out/`), and `check`: `refused` when its
     last journal row is a refusal (`invalid_input`) that names its path, `passed` when a
     journal row shows the task started, else `not_checked`."""
     last = rows[-1] if rows else None
@@ -1314,15 +1316,20 @@ def _input_files(node: Mapping[str, Any], records: Mapping[Any, Mapping[str, Any
         if not isinstance(f, Mapping) or not isinstance(f.get("path"), str):
             continue
         path = f["path"]
+        root = f.get("root") if isinstance(f.get("root"), str) else None
+        # An output file of the run is of the root `out`; a run of an earlier release held it
+        # by its path, relative to the working directory or absolute.
+        written = f"{OUT}/{path}" if root == OUT else path if root is None else None
         writers = [
             k
             for k in node.get("given_from") or ()
-            if any(_same_file(o.get("path"), path) for o in (records.get(k) or {}).get("outputs", ()))
+            if written is not None and any(_same_file(o.get("path"), written) for o in (records.get(k) or {}).get("outputs", ()))
         ]
         check = "refused" if refusal and path in refusal else "passed" if started else "not_checked"
         out.append(
             {
                 "param": str(f.get("param", "")),
+                "root": root,
                 "path": path,
                 "sha256": str(f.get("sha256", "")),
                 "writer": writers[0] if writers else None,

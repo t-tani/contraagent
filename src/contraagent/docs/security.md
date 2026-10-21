@@ -45,6 +45,13 @@ A pipeline can give a session more than its plugin holds:
   a task that claims no service gets no such variable. The pipeline's own process
   starts a service, with its rights, outside any sandbox of a coding agent.
   `services.jsonl` and the monitor show its address, so an address holds no secret.
+- [Input roots](tasks.md#files-outside-the-working-directory-input-roots):
+  `Pipeline(input_roots=)` and `--input-root` name directories outside the working
+  directory, and every agent task's coding agent may read them, not only the files its
+  call file names. Claude Code gets each one as `--add-dir`, which does not limit it to
+  reading, and opencode as an allowed `external_directory`. Codex's sandbox reads
+  every directory already and writes in none of them. So a root names only a directory
+  that every task of the run may read.
 - [Files a task changes](tasks.md#files-a-task-changes): a kind declared with
   `keep_failed_changes` leaves the files a failed attempt created in the working
   directory, and the next attempt, and any later task, sees them. Nothing marks them

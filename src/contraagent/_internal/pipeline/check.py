@@ -31,6 +31,7 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 from contraagent._internal.backends.base import temp_root
 from contraagent._internal.contracts.calls import schema_ref_of
 from contraagent._internal.contracts.contract import example
+from contraagent._internal.contracts.input_file import missing_roots
 from contraagent._internal.contracts.rows import is_rows, row_of
 from contraagent._internal.contracts.validators import CommandValidator
 from contraagent._internal.dispatch.flow import FlowDriver, generator_flow_error, never_awaited
@@ -122,8 +123,9 @@ class CheckReport:
 
 def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs: dict[str, Any]) -> CheckReport:
     report = CheckReport()
+    report.add("tasks", [f"Pipeline(input_roots=): {problem}" for problem in missing_roots(pipeline.input_roots)])
     with tempfile.TemporaryDirectory(prefix="check-", dir=temp_root()) as tmp:
-        graph = Graph(Path(tmp) / "out", max_passes=pipeline.max_passes, cwd=pipeline.cwd)
+        graph = Graph(Path(tmp) / "out", max_passes=pipeline.max_passes, cwd=pipeline.cwd, input_roots=pipeline.input_roots)
         driver = FlowDriver(waits_for=graph.waits_for, answer=graph.answer, on_flow_call=graph.on_flow_call)
         graph.driver = driver
         name = f"{getattr(flow, '__module__', '')}.{getattr(flow, '__qualname__', repr(flow))}"
@@ -323,7 +325,7 @@ def _mcp_errors(pipeline: Pipeline, graph: Graph, run_dir: Path) -> list[str]:
     value that is no table of servers."""
     if pipeline.mcp_servers is None:
         return []
-    adapter = SpecAdapter("check", run_dir, pipeline.cwd, mcp_servers=pipeline.mcp_servers)
+    adapter = SpecAdapter("check", run_dir, pipeline.cwd, mcp_servers=pipeline.mcp_servers, input_roots=pipeline.input_roots)
     errs: list[str] = []
     for node in graph.nodes:
         if node.spec.executor != "agent" or node.spec.light:

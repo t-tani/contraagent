@@ -36,7 +36,9 @@ It reads `runs/<id>/` and shows, live, one tab each:
   attempt changed, those a failed attempt created marked as removed or as kept
   (`keep_failed_changes`). Its input gives its params, its input files (each
   [`InputFile`](tasks.md) param with its path, its hash, the earlier task whose output
-  file it is, and whether the file still had that content as the task started), then
+  file it is, and whether the file still had that content as the task started; a file
+  of an input root other than `out` shows the root's name before its path,
+  `data: 2026/x.csv`), then
   its earlier tasks, each tagged with its lineage: given output, runs after (order
   only), created after result. Its later tasks are tagged the same way. A task whose
   failure stopped a flow call names where: "This failure stopped review_loop at

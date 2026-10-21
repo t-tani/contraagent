@@ -1,7 +1,8 @@
 """`SpecAdapter`: the `TaskAdapter` a pipeline hands its runner, built from `agent_task` declarations.
 
 For each agent task it writes the call file (its params, copied as JSON at the task
-call, their JSON Schema, and its output contract) just before launch, points the CLI at the task's plugin
+call, each input file of an input root by its absolute path, their JSON Schema, and its
+output contract) just before launch, points the CLI at the task's plugin
 and role, and declares the contract the runner checks after the turn: the output it
 must leave behind with its validators.
 """
@@ -19,6 +20,7 @@ from contraagent._internal.backends import plugin_files
 from contraagent._internal.backends.base import Backend, exit_dir, safe_label
 from contraagent._internal.contracts.calls import CallFile, CallOutput, call_prompt, inline_prompt, schema_ref_of
 from contraagent._internal.contracts.contract import OutputContract
+from contraagent._internal.contracts.input_file import OUT, with_absolute_paths
 from contraagent._internal.contracts.validators import CommandValidator
 from contraagent._internal.dispatch.task import Task
 from contraagent._internal.execution.adapter import McpServers, TaskAdapter
@@ -49,12 +51,22 @@ def checked_mcp_servers(key: str, given: object) -> dict[str, dict[str, Any]]:
 
 
 class SpecAdapter(TaskAdapter):
-    """`mcp_servers`: the run's `McpServers` function (`Pipeline(mcp_servers=)`), or None."""
+    """`mcp_servers`: the run's `McpServers` function (`Pipeline(mcp_servers=)`), or None.
+    `input_roots`: the run's input roots by name (`Pipeline(input_roots=)`), each directory
+    absolute: the call file holds a file of one, or of the run's `out/`, by its absolute path."""
 
-    def __init__(self, run_id: str, run_dir: Path, cwd: Path | None = None, mcp_servers: McpServers | None = None) -> None:
+    def __init__(
+        self,
+        run_id: str,
+        run_dir: Path,
+        cwd: Path | None = None,
+        mcp_servers: McpServers | None = None,
+        input_roots: Mapping[str, Path] | None = None,
+    ) -> None:
         self.run_id = run_id
         self.calls_dir = Path(run_dir) / layout.CALLS
         self.cwd = Path(cwd) if cwd is not None else Path.cwd()
+        self.roots: dict[str, Path] = {**(input_roots or {}), OUT: Path(run_dir) / layout.OUT}
         self.mcp_servers = mcp_servers
         self._mcp_dir: Path | None = None
 
@@ -68,7 +80,7 @@ class SpecAdapter(TaskAdapter):
     def call(self, task: Task) -> CallFile:
         node = self._node(task)
         spec = node.spec
-        params = copy.deepcopy(node.params)
+        params = with_absolute_paths(copy.deepcopy(node.params), self.roots)
         output = None
         if node.output_path is not None:
             schema = spec.output_schema

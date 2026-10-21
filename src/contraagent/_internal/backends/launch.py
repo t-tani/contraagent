@@ -164,6 +164,12 @@ class Launch:
     it is outside `cwd` (`writable_out`): Codex's sandbox takes it as a writable root,
     Claude Code as `--add-dir`, opencode as an allowed `external_directory`. None: no such
     directory.
+
+    `input_roots` are the directories of the run's input roots (`Pipeline(input_roots=)`),
+    where the agent reads the input files its call file names by their absolute paths: a
+    coding agent that reads only under its working directory by default is allowed to read
+    each one outside `cwd` too (`readable_roots`): Claude Code takes it as `--add-dir`,
+    opencode as an allowed `external_directory`. Codex's sandbox reads every directory.
     """
 
     prompt: str
@@ -198,6 +204,7 @@ class Launch:
     resume: str | None = None
     session_dir: Path | None = None
     out_dir: Path | None = None
+    input_roots: tuple[Path, ...] = ()
 
 
 def writable_out(launch: Launch) -> Path | None:
@@ -210,6 +217,20 @@ def writable_out(launch: Launch) -> Path | None:
     if not out.is_dir() or out.is_relative_to(Path(launch.cwd).resolve()):
         return None
     return out
+
+
+def readable_roots(launch: Launch) -> list[Path]:
+    """The launch's `input_roots`, every symbolic link followed, that are directories outside
+    its `cwd` and its `writable_out`: the directories beside them its agent must be allowed to
+    read in."""
+    cwd = Path(launch.cwd).resolve()
+    out = writable_out(launch)
+    found: list[Path] = []
+    for root in launch.input_roots:
+        d = Path(root).resolve()
+        if d.is_dir() and not d.is_relative_to(cwd) and not (out is not None and d.is_relative_to(out)) and d not in found:
+            found.append(d)
+    return found
 
 
 @dataclass

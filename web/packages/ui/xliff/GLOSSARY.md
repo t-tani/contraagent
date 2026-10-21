@@ -177,6 +177,7 @@ wherever the UI shows a state or a count to the reader.
 | 29 of 31 tasks done / 5 of 31 tasks not done; review: 1 of 1 done | 31 タスク中 29 件完了 / 31 タスク中 5 件が未完了; review: 1 件中 1 件完了 |
 | Given output of / Runs after / Created after / Later tasks (the graph's table and a node's label) | 入力元 / 順序のみの依存先 / 作成元 / 後続タスク |
 | input file (an `InputFile` param) / same content at the start / changed before the start / not checked | 入力ファイル / 開始時も同じ内容 / 開始前に変更された / 未確認 |
+| input root (`TaskInputFile.root`: a directory, by a name, whose files a task is given) / `2026/x.csv` in the input root `data` | 入力ルート / 入力ルート data の 2026/x.csv |
 | Checked files it reads (input contracts) | 読み込むファイル（検証あり） |
 | This failure stopped X at flow.py:42 / Stopped at flow.py:42 by the failure of Y | この失敗で X が flow.py:42 で停止 / Y の失敗により flow.py:42 で停止 |
 | unawaited task (no flow awaited it) | 待たれなかったタスク |

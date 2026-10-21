@@ -187,8 +187,16 @@ none of its own plays the first recording of its base key after it that no task 
 played. A recording made by another definition of the task (another fingerprint) is
 played all the same, and the task's reason says so: record again when the change
 matters. A task's outside state (`outside_state=`) is worked out in the replay's own
-working directory; a recording made with another one is played the same way. A replay walks no failover hop and is not combined with `--stub` or `--record`. A recording
-directory holds:
+working directory; a recording made with another one is played the same way. A replay walks no failover hop and is not combined with `--stub` or `--record`.
+
+The input files of an [input root](tasks.md#files-outside-the-working-directory-input-roots)
+are held by the root's name, so a replay on another host points each root at its own
+directory, `--input-root data=/ci/corpus` (`Pipeline(replay=DIR, input_roots={"data":
+"/ci/corpus"})`), and the fingerprints stay those of the recording. Each file is hashed
+at its task call as in any run, so the directory must hold the same files. An output file
+of the run is a file of the root `out`, which every run has.
+
+A recording directory holds:
 
 ```
 recordings/<kind>/<key>.json         the task's recording: one entry per attempt, in order

@@ -321,26 +321,32 @@ task that did not finish is listed, not imported
 
 $ contraagent check --help
 usage: contraagent check [-h] [--config CONFIG] [--kwargs KWARGS] [--agent AGENT] [--model MODEL]
-                         [--stub]
+                         [--input-root NAME=DIR] [--stub]
                          flow
 
 positional arguments:
-  flow             the flow function: path/to/tasks.py:flow or package.module:flow
+  flow                  the flow function: path/to/tasks.py:flow or package.module:flow
 
 options:
-  -h, --help       show this help message and exit
-  --config CONFIG  the pipeline's TOML file (default: each task's declared defaults)
-  --kwargs KWARGS  the flow's keyword arguments, as a JSON object
-  --agent AGENT    run every kind on this coding agent, with no failover hops (an override)
-  --model MODEL    run every kind on this model, with no failover hops (an override)
-  --stub           the stub agent stands in for every coding agent (a config naming a custom one)
+  -h, --help            show this help message and exit
+  --config CONFIG       the pipeline's TOML file (default: each task's declared defaults)
+  --kwargs KWARGS       the flow's keyword arguments, as a JSON object
+  --agent AGENT         run every kind on this coding agent, with no failover hops (an override)
+  --model MODEL         run every kind on this model, with no failover hops (an override)
+  --input-root NAME=DIR
+                        an input root: the directory DIR, relative to the working directory or
+                        absolute, whose files a task is given as InputFile(path, root=NAME); the
+                        params hold NAME and the path under DIR, so DIR can move between a run and
+                        its resume or replay; repeatable
+  --stub                the stub agent stands in for every coding agent (a config naming a custom
+                        one)
 
 exit status: 0 when every check passes (warnings included), 1 when one fails or the flow's module
 cannot be loaded, 2 on a usage error (the flow's name, --kwargs, options)
 
 $ contraagent run --help
 usage: contraagent run [-h] [--config CONFIG] [--kwargs KWARGS] [--agent AGENT] [--model MODEL]
-                       [--run-id RUN_ID] [--resume] [--runs-dir RUNS_DIR]
+                       [--input-root NAME=DIR] [--run-id RUN_ID] [--resume] [--runs-dir RUNS_DIR]
                        [--preflight {substitute,stop,off}] [--stub] [--execute PATTERN]
                        [--record DIR] [--replay DIR] [--record-max-file-mb N]
                        [--record-exclude PATTERN] [--record-missing]
@@ -355,6 +361,11 @@ options:
   --kwargs KWARGS       the flow's keyword arguments, as a JSON object
   --agent AGENT         run every kind on this coding agent, with no failover hops (an override)
   --model MODEL         run every kind on this model, with no failover hops (an override)
+  --input-root NAME=DIR
+                        an input root: the directory DIR, relative to the working directory or
+                        absolute, whose files a task is given as InputFile(path, root=NAME); the
+                        params hold NAME and the path under DIR, so DIR can move between a run and
+                        its resume or replay; repeatable
   --run-id RUN_ID       the run's id (default: the flow's name)
   --resume              continue the run: skip the tasks it already finished
   --runs-dir RUNS_DIR   where run directories are written (default: runs)

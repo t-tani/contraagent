@@ -1,8 +1,9 @@
 // How a task is joined to an earlier one (`Lineage`), in the words of the graph's
 // edges: each word names the edge from the earlier task to the later one, in the
-// task's earlier and later tasks alike. And an input file's check at the start.
+// task's earlier and later tasks alike. And an input file's check at the start, and
+// its path with its input root.
 import type { InputFileCheck, Lineage } from '@contraagent/api';
-import { msg } from '@lit/localize';
+import { msg, str } from '@lit/localize';
 
 /** A lineage as the graph's legend names its edge: given output (solid), runs after (dotted), created after result (dashed). */
 export function lineageWord(l: Lineage): string {
@@ -27,6 +28,19 @@ export function lineageTip(l: Lineage): string {
       return msg('Its result reached the flow call just before the flow call created the later task (created_from)');
   }
 }
+
+/**
+ * An input file's path as the task detail shows it (`TaskInputFile`): `data: 2026/x.csv` for
+ * a file of an input root the run names, `out/review/a.md` for an output file of the run
+ * (the root `out`), else its path; null for a file of no input root.
+ */
+export function inputRootPath(f: { root?: string | null; path: string }): string | null {
+  if (!f.root) return null;
+  return f.root === 'out' ? `out/${f.path}` : `${f.root}: ${f.path}`;
+}
+
+/** The tooltip of a file of an input root the run names: its path under the root. */
+export const inputRootTip = (root: string, path: string): string => msg(str`${path} in the input root ${root}`);
 
 /** An input file's check as its task was about to start. */
 export function inputFileCheckWord(c: InputFileCheck): string {

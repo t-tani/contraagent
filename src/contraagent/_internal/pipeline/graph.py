@@ -60,8 +60,8 @@ is numbered:
   fingerprint. A task whose function raised or returned what is not JSON is refused
   (`refusal`);
 * an input file among its params (`InputFile`, at any depth) is hashed at the task call
-  (`bind`), which refuses one outside the working directory and the run's `out/`; its
-  params hold the file's path and hash. A task whose input file no longer has that
+  (`bind`), which refuses one outside the working directory and the input roots (`roots`,
+  the run's `out/` among them); its params hold the file's root, path and hash. A task whose input file no longer has that
   content when it is about to start is refused (`refusal`);
 * a resume skips a task whose journal row matches its fingerprint only when its output
   file still reads under its output schema (`output_reads`); else the task runs again.
@@ -82,7 +82,7 @@ import math
 import os
 import re
 import string
-from collections.abc import Callable, Generator, Iterator, Sequence
+from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -92,7 +92,7 @@ from pydantic import BaseModel, RootModel, ValidationError
 from pydantic_core import PydanticSerializationError, to_jsonable_python
 
 from contraagent._internal.contracts.contract import OutputContract, check_file
-from contraagent._internal.contracts.input_file import BINDINGS, Bound, InputFile, bind, changed
+from contraagent._internal.contracts.input_file import BINDINGS, OUT, Bound, InputFile, bind, changed
 from contraagent._internal.contracts.rows import is_rows, row_of, rows_text
 from contraagent._internal.dispatch.flow import TaskFailed, result_or_raise
 from contraagent._internal.dispatch.flowloop import not_flow_code
@@ -172,7 +172,8 @@ class Pending[Out]:
 
     def input_file(self) -> InputFile:
         """The task's output file as an input file, to give another task: a long text
-        output by its path and hash instead of its text. Its task call hashes the file, so
+        output by its path and hash instead of its text, a file of the input root `out`
+        (`InputFile(<path under out/>, root="out")`). Its task call hashes the file, so
         the flow awaits this task first. ValueError for a task with no output file, one that
         has not finished, or one that did not succeed."""
         path = self._node.output_path
@@ -183,7 +184,7 @@ class Pending[Out]:
             raise ValueError(f"{self.key} has not finished: await it before you give its output file as an input file")
         if not result.ok:
             raise ValueError(f"{self.key} ended {result.stop}: its output file is not given as an input file")
-        return InputFile(path)
+        return InputFile(path.relative_to(self._graph.out_dir).as_posix(), root=OUT)
 
     @property
     def origin(self) -> Origin | None:
@@ -324,11 +325,17 @@ class Graph:
     `cwd`: the run's working directory (`Pipeline(cwd=)`): the working directory of a task
     whose call options name none, and what a relative `cwd` of a task call's options is
     under; default: this process's.
+    `input_roots`: the run's input roots by name (`Pipeline(input_roots=)`), each directory
+    absolute; `roots` holds them and `out`, the run's `out/`.
     """
 
-    def __init__(self, out_dir: Path, *, max_passes: int = MAX_PASSES, cwd: Path | None = None) -> None:
+    def __init__(
+        self, out_dir: Path, *, max_passes: int = MAX_PASSES, cwd: Path | None = None, input_roots: Mapping[str, Path] | None = None
+    ) -> None:
         self.out_dir = Path(out_dir)
         self.cwd = Path(os.path.abspath(cwd)) if cwd is not None else Path.cwd()
+        #: The directories of the input roots by name, `out` among them.
+        self.roots: dict[str, Path] = {**(input_roots or {}), OUT: Path(os.path.abspath(self.out_dir))}
         self.max_passes = max_passes
         self.nodes: list[Node] = []
         self.results: dict[str, TaskResult] = {}
@@ -447,7 +454,7 @@ class Graph:
             # Relative to the run's working directory; links not followed, as `Pipeline(cwd=)`.
             own = Path(os.path.abspath(self.cwd / cwd)) if cwd is not None else None
             base_dir = own or self.cwd
-            params, fingerprinted, files = _params_json(spec, unit, params, lambda file: bind(file, base_dir, self.out_dir))
+            params, fingerprinted, files = _params_json(spec, unit, params, lambda file: bind(file, base_dir, self.roots))
             claims = _expand_claims(spec, unit, key, params)  # before the key is taken: a raise leaves no gap in ~n
             out, writer = None, None
             if _writes_output(spec):
@@ -741,7 +748,8 @@ class Graph:
         """See the module docstring: the digest of each part of the task's work (`Node.parts`,
         named as `Task.fingerprint_parts`), and the fingerprint of them. `definition`: its
         declaration's digest; `params`: the JSON of its params, a Python task's defaults
-        filled in; `input_files`: the path and hash of each input file among its params,
+        filled in; `input_files`: the input root, the path and the hash of each input file
+        among its params (the path and the hash of a file of the working directory),
         which the params hold too, so a resume tells a changed file from a divergence;
         `outside`: its outside state, for a task that declares one, once it is
         worked out (`starting`; before, and when it could not be, empty); `output_of`: the
@@ -752,7 +760,7 @@ class Graph:
             self._digests[id(spec)] = spec.digest()
         parts = {"definition": self._digests[id(spec)], "params": hashlib.sha256(node.fingerprinted.encode()).hexdigest()}
         if node.input_files:
-            files = sorted([bound.shown, bound.sha256] for bound in node.input_files)
+            files = sorted([*([bound.root] if bound.root is not None else []), bound.shown, bound.sha256] for bound in node.input_files)
             parts["input_files"] = hashlib.sha256(_canonical(files).encode()).hexdigest()
         if getattr(spec, "outside_state", None) is not None:
             parts["outside"] = node.outside
@@ -805,14 +813,14 @@ class Graph:
             partial = None
             if self.stub is not None and self.stub.plays(node.spec.kind):
                 params = copy.deepcopy(node.params)
-                node.spec.arguments(node.unit, params, cwd=self.cwd)  # a stub run refuses what a run refuses
+                node.spec.arguments(node.unit, params, cwd=self.cwd, roots=self.roots)  # a stub run refuses what a run refuses
                 rows = is_rows(schema)
                 json_schema = row_of(schema).model_json_schema() if node.output_path is not None and schema is not None else None
                 has_output, value = self.stub.play_python(self.run_id, node.key, node.spec.kind, node.unit, params, json_schema, rows=rows)
                 if not has_output:
                     return None
             else:
-                value = node.spec.invoke(node.unit, copy.deepcopy(node.params), cwd=self.cwd)
+                value = node.spec.invoke(node.unit, copy.deepcopy(node.params), cwd=self.cwd, roots=self.roots)
                 if isinstance(value, Partial):
                     partial, value = value, value.value
             # A Python task is given an output path only when it declares an output schema.
@@ -1052,26 +1060,27 @@ def _input_files(value: Any, seen: set[int] | None = None) -> Iterator[InputFile
         yield from _input_files(inner, seen)
 
 
-def _bound_files(kind: str, params: dict[str, Any], hashed: Callable[[InputFile], Bound]) -> dict[Path, Bound]:
-    """The input files among `params`, by the path each holds, hashed (`bind`). ValueError,
-    naming the task, for one outside the working directory or that names no file."""
-    out: dict[Path, Bound] = {}
+def _bound_files(kind: str, params: dict[str, Any], hashed: Callable[[InputFile], Bound]) -> dict[tuple[str | None, Path], Bound]:
+    """The input files among `params`, by the root and the path each holds, hashed (`bind`).
+    ValueError, naming the task, for one outside the working directory and its root, or that
+    names no file."""
+    out: dict[tuple[str | None, Path], Bound] = {}
     for file in _input_files(params):
-        if file.path not in out:
+        if (file.root, file.path) not in out:
             try:
-                out[file.path] = hashed(file)
+                out[file.root, file.path] = hashed(file)
             except ValueError as exc:
                 raise ValueError(f"{kind}(): {exc}") from None
     return out
 
 
-def _input_file_json(bindings: dict[Path, Bound]) -> Callable[[Any], Any]:
+def _input_file_json(bindings: dict[tuple[str | None, Path], Bound]) -> Callable[[Any], Any]:
     """`to_jsonable_python`'s fallback: an input file as its task call hashed it; any other
     value it has no JSON for is refused as before."""
 
     def fallback(value: Any) -> Any:
-        if isinstance(value, InputFile) and value.path in bindings:
-            return bindings[value.path].json()
+        if isinstance(value, InputFile) and (value.root, value.path) in bindings:
+            return bindings[value.root, value.path].json()
         raise PydanticSerializationError(f"Unable to serialize unknown type: {type(value)}")
 
     return fallback

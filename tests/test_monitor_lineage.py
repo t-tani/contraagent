@@ -212,7 +212,19 @@ def test_a_run_s_input_files_show_their_writer_and_their_check(tmp_path):
     Pipeline(None, runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path, log=lambda line: None).run(flow, run_id="r")
     mon = Monitor(tmp_path / "runs")
     [given] = mon.task_detail("r", "review-a")["io"]["input_files"]
-    assert (given["param"], given["path"], given["writer"], given["check"]) == ("note", "runs/r/out/note/a.md", "note-a", "passed")
+    assert (given["param"], given["root"], given["path"], given["writer"], given["check"]) == (
+        "note",
+        "out",
+        "note/a.md",
+        "note-a",
+        "passed",
+    )
     [changed] = mon.task_detail("r", "python:words-a")["io"]["input_files"]
-    assert (changed["param"], changed["path"], changed["writer"], changed["check"]) == ("text", "in/spec.md", None, "refused")
+    assert (changed["param"], changed["root"], changed["path"], changed["writer"], changed["check"]) == (
+        "text",
+        None,
+        "in/spec.md",
+        None,
+        "refused",
+    )
     assert changed["reason"].startswith("input file in/spec.md changed after the task call")

@@ -318,7 +318,29 @@ def _flow_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument("--kwargs", default="{}", help="the flow's keyword arguments, as a JSON object")
     parser.add_argument("--agent", default="", help="run every kind on this coding agent, with no failover hops (an override)")
     parser.add_argument("--model", default="", help="run every kind on this model, with no failover hops (an override)")
+    parser.add_argument(
+        "--input-root",
+        action="append",
+        default=[],
+        metavar="NAME=DIR",
+        help="an input root: the directory DIR, relative to the working directory or absolute, whose files a task is "
+        "given as InputFile(path, root=NAME); the params hold NAME and the path under DIR, so DIR can move between a run "
+        "and its resume or replay; repeatable",
+    )
     return parser
+
+
+def _input_roots(given: list[str]) -> dict[str, str]:
+    """`--input-root NAME=DIR` options as a table; ValueError for one with no `=` or a name given twice."""
+    roots: dict[str, str] = {}
+    for item in given:
+        name, eq, directory = item.partition("=")
+        if not eq or not name or not directory:
+            raise ValueError(f"--input-root {item!r}: give NAME=DIR")
+        if name in roots:
+            raise ValueError(f"--input-root: {name} is given twice")
+        roots[name] = directory
+    return roots
 
 
 def _spent(s: dict) -> str:
@@ -333,6 +355,7 @@ def _flow_command(args) -> int:
     import inspect
     import json
 
+    from contraagent._internal.contracts.input_file import missing_roots
     from contraagent._internal.errors import ContraagentError
     from contraagent._internal.execution.run import RunExists
     from contraagent._internal.pipeline import Pipeline
@@ -351,6 +374,11 @@ def _flow_command(args) -> int:
             raise ValueError("not a JSON object")
     except ValueError as exc:
         print(f"--kwargs: {exc}", file=sys.stderr)
+        return 2
+    try:
+        input_roots = _input_roots(args.input_root)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
         return 2
     try:
         flow = load_attr(args.flow)
@@ -381,6 +409,7 @@ def _flow_command(args) -> int:
             runs_dir=getattr(args, "runs_dir", "runs"),
             backends=backends,
             overrides=overrides,
+            input_roots=input_roots,
             stub=stub,
             preflight=getattr(args, "preflight", None),
             record=record,
@@ -398,6 +427,9 @@ def _flow_command(args) -> int:
         report = pipeline.check(flow, **kwargs)
         print(report)
         return 0 if report.ok else 1
+    if missing := missing_roots(pipeline.input_roots):
+        print(f"✗ {args.flow}\n  error: --input-root: {'; '.join(missing)}")
+        return 1
     setup_logging("%(asctime)s %(message)s", "%H:%M:%S")
     try:
         result = pipeline.run(flow, run_id=args.run_id or None, resume=args.resume, **kwargs)

@@ -25,6 +25,7 @@ task's declared defaults, an `AgentRunner` with failover and retry, and a
 from __future__ import annotations
 
 import inspect
+import os
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -32,6 +33,7 @@ from types import GeneratorType
 from typing import Any
 
 from contraagent._internal.backends import Backend, create_backend, known_agents
+from contraagent._internal.contracts.input_file import checked_roots, missing_roots
 from contraagent._internal.dispatch.entry import run_sync
 from contraagent._internal.dispatch.flow import SECOND_RUN, FlowCall, FlowDriver, driven_here, generator_flow_error, never_awaited
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
@@ -190,6 +192,7 @@ class Pipeline:
         backends: Mapping[str, Backend] | None = None,
         overrides: Overrides = Overrides(),
         cwd: str | Path | None = None,
+        input_roots: Mapping[str, str | os.PathLike[str]] | None = None,
         max_concurrent: int = 4,
         preflight: PreflightPolicy | None = None,
         keep_transcripts: bool = True,
@@ -226,6 +229,14 @@ class Pipeline:
         (`contraagent.testing.StubAgent().backends()` in a test).
         `overrides`: choices that outrank the config (agent, model, effort, credential).
         `cwd`: where the agents run (default: this process's directory).
+        `input_roots`: the directories, by name, whose files a task is given as input files
+        of an input root (`InputFile(path, root=name)`): the params and the fingerprint hold
+        the name and the path relative to the directory, so the directory can move between a
+        run and its resume or replay. A relative directory is under `cwd`. A name is lowercase
+        letters, digits, `_` and `-`, starting with a letter, and not `out`, the run's own
+        `out/` (ValueError); each directory must be one when a run starts (ValueError, before
+        anything is written). `run.json` records them (`input_roots`), and every coding agent
+        is allowed to read them.
         `max_concurrent`: tasks running at once, across kinds (a kind's own
         `max_concurrent` caps it further).
         `preflight`: before the first task, probe every route once (a launch each, so it
@@ -377,6 +388,8 @@ class Pipeline:
         self.backends: dict[str, Backend] = dict(backends) if backends is not None else {n: create_backend(n) for n in known_agents()}
         self.overrides = overrides
         self.cwd: Path = Path(cwd) if cwd else Path.cwd()
+        #: The input roots by name, each directory absolute (`input_roots`).
+        self.input_roots: dict[str, Path] = checked_roots(input_roots, self.cwd, "Pipeline")
         self.max_concurrent = max_concurrent
         # A malformed [defaults] preflight is reported by the routing plan, with the rest.
         self.preflight: PreflightPolicy = check_policy(
@@ -523,6 +536,8 @@ class Pipeline:
             raise generator_flow_error(_name(flow))
         suffix = "-stub" if self.stub is not None else "-replay" if self.replay is not None else ""
         run_id = run_id or f"{portable(flow.__name__)}{suffix}"
+        if missing := missing_roots(self.input_roots):
+            raise ValueError(f"Pipeline: {'; '.join(missing)}; an input root is a directory when the run starts")
         with Run(
             run_id, self.runs_dir, fresh=not resume, log=self.log, cwd=self.cwd, row_extras=self.row_extras, config=self.config
         ) as run:
@@ -536,16 +551,18 @@ class Pipeline:
                 cooloff_s=self.service_cooloff_s,
             )
             run.on_teardown(services.interrupted)  # SIGTERM or Ctrl-C stops them too
+            if self.input_roots:
+                run.update_info(input_roots={name: d.as_posix() for name, d in self.input_roots.items()})
             if self.stub is not None:
                 run.update_info(stub=True)
             if self.replay is not None:
                 run.update_info(stub=not self.replay.record_missing, replay=str(self.replay.directory.resolve()))
             run_dir = run.dir.resolve()  # call files and outputs are read from the agent's cwd
-            graph = Graph(run_dir / layout.OUT, max_passes=self.max_passes, cwd=self.cwd)
+            graph = Graph(run_dir / layout.OUT, max_passes=self.max_passes, cwd=self.cwd, input_roots=self.input_roots)
             graph.tail = run.estimator().tail
             graph.stub, graph.run_id = self.stub, run.run_id
             graph.credential_override = self.overrides.credential
-            adapter = SpecAdapter(run.run_id, run_dir, self.cwd, mcp_servers=self.mcp_servers)
+            adapter = SpecAdapter(run.run_id, run_dir, self.cwd, mcp_servers=self.mcp_servers, input_roots=self.input_roots)
             recorder = None
             into = self.record or (self.replay.directory if self.replay is not None and self.replay.record_missing else None)
             if into is not None:
@@ -664,6 +681,7 @@ class Pipeline:
                         adapter=adapter,
                         keep_transcripts=self.keep_transcripts,
                         cwd=self.cwd,
+                        input_roots=self.input_roots,
                         env=self.env,
                         rests=rests,
                         scopes=self.scopes,

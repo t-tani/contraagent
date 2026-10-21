@@ -211,6 +211,22 @@
       "title": "Cwd",
       "type": "string"
     },
+    "input_roots": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "the run's input roots (`Pipeline(input_roots=)`, `--input-root`): each name and its directory, absolute; absent when it names none",
+      "title": "Input Roots"
+    },
     "started_at": {
       "description": "when the latest run start began",
       "title": "Started At",
