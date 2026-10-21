@@ -1,1 +1,0 @@
-`contraagent.testing.StubAgent` runs a plugin's Stop hooks within the launch's `timeout_s`, as the coding agent it plays does. It gave each hook 120 seconds and let `subprocess.TimeoutExpired` out of the launch when a hook took longer. A hook still running at the end of `timeout_s` is now stopped with the processes it started, and the launch ends with `Stop.TIMEOUT`.
