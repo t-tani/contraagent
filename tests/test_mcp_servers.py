@@ -149,7 +149,7 @@ def test_omp_gets_a_copy_of_the_plugin_whose_mcp_json_is_the_task_s(tmp_path, pl
 
 def test_claude_and_codex_take_the_task_s_file_as_they_take_a_plugin_s(tmp_path):
     path = _servers_file(tmp_path, {"index": {"command": "index-server", "args": ["--root", "r"]}})
-    argv = ClaudeBackend().argv(Launch(prompt="p", mcp_config=path))
+    argv = ClaudeBackend(base_env={"PATH": str(tmp_path)}).argv(Launch(prompt="p", mcp_config=path))  # no claude to ask its version
     assert argv[argv.index("--mcp-config") + 1] == path and "--strict-mcp-config" in argv
     codex = CodexBackend().argv(Launch(prompt="p", mcp_config=path))
     assert any(a.startswith("mcp_servers.") and "index" in a and "index-server" in a for a in codex)

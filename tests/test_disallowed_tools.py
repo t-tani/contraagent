@@ -39,9 +39,9 @@ def test_the_config_file_s_list_outranks_the_declaration_s():
     assert plan.configs["w"].disallowed_tools == ("WebSearch",)
 
 
-def test_each_coding_agent_denies_them_its_own_way():
+def test_each_coding_agent_denies_them_its_own_way(tmp_path):
     launch = Launch(prompt="p", model="m", limits=Limits(disallowed_tools=DENIED))
-    claude = ClaudeBackend().argv(launch)
+    claude = ClaudeBackend(base_env={"PATH": str(tmp_path)}).argv(launch)  # no claude to ask its version
     assert claude[claude.index("--disallowedTools") + 1 : claude.index("--disallowedTools") + 3] == list(DENIED)
     pi = PiBackend().argv(Launch(prompt="p", model="m", limits=Limits(disallowed_tools=("Bash", "WebFetch", "Glob"))))
     assert pi[pi.index("--exclude-tools") + 1] == "bash,webfetch,find"

@@ -24,7 +24,7 @@ from contraagent._internal.hub.segments import (
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.source import page
 from hub_services import (
-    hub_services,  # noqa: F401  # the fixture that stops the containers
+    hub_services,  # noqa: F401  # the fixture that gives a test the services' credentials
     postgres_dsn,
     s3_url,
 )
