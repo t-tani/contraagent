@@ -243,6 +243,11 @@ def test_the_cli_records_and_replays(tmp_path, monkeypatch, capsys):
     assert main([*args, "--execute", "count"]) == 2
     assert main([*args, "--record-missing"]) == 2
     assert main([*args, "--replay", "rec", "--record-missing", "--stub"]) == 2
+    assert (
+        main([*args, "--stub", "--record", "rec", "--record-exclude", ".venv", "--record-exclude", "**/node_modules", "--run-id", "x"]) == 0
+    )
+    assert json.loads((tmp_path / "rec" / "undeclared.json").read_text())["excluded"] == [".venv", "**/node_modules"]
+    assert main([*args, "--stub", "--record-exclude", ".venv", "--run-id", "y"]) == 1
 
 
 def test_the_monitor_names_a_replay_and_its_recordings(tmp_path):
@@ -331,6 +336,12 @@ def test_record_missing_is_refused_where_it_cannot_record(tmp_path):
         Pipeline(record_max_file_mb=10)
     with pytest.raises(ValueError, match="not a positive number"):
         Pipeline(record=tmp_path / "x", record_max_file_mb=0)
+    with pytest.raises(TypeError, match="record_exclude= narrows a recording run's comparison"):
+        Pipeline(record_exclude=[".venv"])
+    with pytest.raises(ValueError, match=r"record_exclude=\['!keep'\]: .* without '!'"):
+        Pipeline(record=tmp_path / "x", record_exclude=[".venv", "!keep"])
+    with pytest.raises(TypeError, match="is one string"):
+        Pipeline(record=tmp_path / "x", record_exclude=".venv")
 
 
 stray: list[Path] = []
@@ -362,7 +373,7 @@ def test_a_recording_run_reports_the_changes_no_task_declared(tmp_path):
     assert report.ok, report.failed
     body = json.loads((rec / "undeclared.json").read_text())
     # topics/alpha/** is write's changes=, so its files are declared; .git and __pycache__ are left out.
-    assert body == {"run": report.run_id, "created": ["report.txt"], "modified": [], "deleted": ["old-report.txt"]}
+    assert body == {"run": report.run_id, "excluded": [], "created": ["report.txt"], "modified": [], "deleted": ["old-report.txt"]}
     warned = [line for line in lines if "undeclared" in line]
     assert warned == ["[record] undeclared change: old-report.txt", "[record] undeclared change: report.txt"]
 
@@ -379,6 +390,50 @@ def test_with_the_run_directory_as_cwd_only_its_outputs_are_compared(tmp_path):
     assert (cwd / "journal.jsonl").exists() and (cwd / "out" / "write" / "alpha.json").exists()
     body = json.loads((rec / "undeclared.json").read_text())
     assert body["created"] == ["out/extra.json"] and body["modified"] == body["deleted"] == []
+
+
+def test_record_exclude_leaves_a_directory_out_and_the_comparison_does_not_enter_it(tmp_path, monkeypatch):
+    cwd = tree(tmp_path / "live")
+    (cwd / ".venv" / "lib").mkdir(parents=True)
+    (cwd / ".venv" / "lib" / "site.py").write_text("old")
+    stray[:] = [cwd / "report.txt", cwd / ".venv" / "lib" / "site.py", cwd / "web" / "node_modules" / "m.js", cwd / "web" / "app.js"]
+    entered: list[tuple[str, ...]] = []
+    scandir = os.scandir
+    monkeypatch.setattr(os, "scandir", lambda path: entered.append(Path(path).parts) or scandir(path))
+    rec = tmp_path / "rec"
+    agent = StubAgent({"write": edit}, execute=["publish"])
+    pipeline = Pipeline(runs_dir=tmp_path / "runs", cwd=cwd, stub=agent, record=rec, record_exclude=[".venv", "**/node_modules", "topics"])
+    report = pipeline.run(lambda: [write("alpha"), publish(title="done")])
+    assert report.ok, report.failed
+    body = json.loads((rec / "undeclared.json").read_text())
+    assert body == {
+        "run": report.run_id,
+        "excluded": [".venv", "**/node_modules", "topics"],
+        "created": ["report.txt", "web/app.js"],
+        "modified": [],
+        "deleted": [],
+    }
+    assert entered and not [parts for parts in entered if ".venv" in parts or "node_modules" in parts]
+    # An exclusion narrows the comparison only: write's changes= under topics/ are recorded all the same.
+    assert [p.read_text() for p in rec.rglob("files/topics/alpha/new/a.md")] == ["new from write-alpha"]
+
+
+def test_a_top_level_directory_with_more_than_20_undeclared_changes_is_one_warning(tmp_path):
+    cwd = tmp_path / "live"
+    cwd.mkdir()
+    stray[:] = [cwd / "build" / f"{n:02}.o" for n in range(21)] + [cwd / "docs" / f"{n:02}.md" for n in range(20)] + [cwd / "z.txt"]
+    lines: list[str] = []
+    rec = tmp_path / "rec"
+    pipeline = Pipeline(runs_dir=tmp_path / "runs", cwd=cwd, stub=StubAgent(execute=["publish"]), record=rec, log=lines.append)
+    report = pipeline.run(lambda: publish(title="done"))
+    assert report.ok, report.failed
+    warned = [line for line in lines if "undeclared" in line]
+    assert warned == [
+        f"[record] undeclared changes: build/ (21 paths), see {(rec / 'undeclared.json').as_posix()}",
+        *[f"[record] undeclared change: docs/{n:02}.md" for n in range(20)],
+        "[record] undeclared change: z.txt",
+    ]
+    assert json.loads((rec / "undeclared.json").read_text())["created"] == sorted(p.relative_to(cwd).as_posix() for p in stray)
 
 
 looked_up: list[str] = []

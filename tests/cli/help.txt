@@ -342,7 +342,8 @@ $ contraagent run --help
 usage: contraagent run [-h] [--config CONFIG] [--kwargs KWARGS] [--agent AGENT] [--model MODEL]
                        [--run-id RUN_ID] [--resume] [--runs-dir RUNS_DIR]
                        [--preflight {substitute,stop,off}] [--stub] [--execute PATTERN]
-                       [--record DIR] [--replay DIR] [--record-max-file-mb N] [--record-missing]
+                       [--record DIR] [--replay DIR] [--record-max-file-mb N]
+                       [--record-exclude PATTERN] [--record-missing]
                        flow
 
 positional arguments:
@@ -379,6 +380,11 @@ options:
   --record-max-file-mb N
                         with --record or --record-missing: keep a recorded file larger than N MB
                         by its SHA-256 and size only (default 4); its task cannot be replayed
+  --record-exclude PATTERN
+                        with --record or --record-missing: leave out of the undeclared changes
+                        what PATTERN matches, a glob relative to the working directory as in
+                        changes= ('.venv', '**/node_modules'); the comparison does not enter a
+                        directory it matches; repeatable
   --record-missing      with --replay: a task with no recording in DIR launches (or runs its
                         function) as in any run, and its recording is written into DIR; this can
                         spend tokens

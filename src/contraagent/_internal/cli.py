@@ -281,6 +281,15 @@ def _run_arguments(run: argparse.ArgumentParser) -> None:
         "(default 4); its task cannot be replayed",
     )
     run.add_argument(
+        "--record-exclude",
+        action="append",
+        default=[],
+        metavar="PATTERN",
+        help="with --record or --record-missing: leave out of the undeclared changes what PATTERN matches, a glob "
+        "relative to the working directory as in changes= ('.venv', '**/node_modules'); the comparison does not enter "
+        "a directory it matches; repeatable",
+    )
+    run.add_argument(
         "--record-missing",
         action="store_true",
         help="with --replay: a task with no recording in DIR launches (or runs its function) as in any run, and its "
@@ -379,6 +388,7 @@ def _flow_command(args) -> int:
             execute=args.execute if replay is not None else (),
             record_missing=bool(getattr(args, "record_missing", False)),
             record_max_file_mb=getattr(args, "record_max_file_mb", None),
+            record_exclude=getattr(args, "record_exclude", ()),
         )
     except Exception as exc:  # the declarations themselves: a missing role, an unknown key, a bad config
         kind = "" if isinstance(exc, ContraagentError) else f"{type(exc).__name__}: "
