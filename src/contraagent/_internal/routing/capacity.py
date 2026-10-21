@@ -5,10 +5,11 @@
 for each running task with a `PerTask` claim, its declared memory `m` (the `memory_mb` of
 its `PerTask` names, added up) and reads, once each time the queue begins to start tasks
 (`refresh`), the free memory `F` (`processes.mem_available_mb`) and each such task's
-usage `u`: the memory its processes hold of their own (`task_usage_mb`). A task holds
-`h = max(m, u)`: its declaration until it takes more. The baseline `B` is `F` read while
-no such task runs. Memory gone from the baseline that these tasks do not account for is
-other work's, `other = max(0, B - F - sum(u))`. A task with `memory_mb` `n` starts only
+usage `u`: the memory the processes of its agents' groups hold of their own
+(`task_usage_mb`; each launch registers its group with its task's key,
+`live_processes.register`). A task holds `h = max(m, u)`: its declaration until it takes
+more. The baseline `B` is `F` read while no such task runs. Memory gone from the baseline
+that these tasks do not account for is other work's, `other = max(0, B - F - sum(u))`. A task with `memory_mb` `n` starts only
 when both hold:
 
 * `sum(h) + n + other <= B`: the tasks' holds, the new one and other work fit in the
@@ -20,9 +21,9 @@ So a task that takes its memory late keeps it reserved until it does, one that t
 counted once, one that takes more than it declared counts what it takes, and other work's
 memory counts as it grows and shrinks. A task started since the reading counts with
 `u = 0`: several start on one reading only as far as their declarations fit. Readings
-err on the safe side where they cannot be exact: a process's own memory leaves out what it
-shares with others, and memory a task holds where it cannot be found (inside this
-interpreter, as a Python task's; in a process that left the task's process tree) is
+err on the safe side where they cannot be exact: a process's own memory leaves out what
+it shares with others, and memory a task holds outside its agents' groups (inside this
+interpreter, as a Python task's; in a process that left its agent's group and tree) is
 `other` while the task's declaration stays reserved too.
 
 `cores` caps the name at the usable cores divided by it.
@@ -33,66 +34,36 @@ from __future__ import annotations
 import sys
 from collections.abc import Callable, Collection, Mapping
 
+from contraagent._internal.backends import live_processes
 from contraagent._internal.dispatch import ClaimCapacity
-from contraagent._internal.platform import envvars, processes, telemetry
+from contraagent._internal.platform import processes
 from contraagent._internal.routing.config import PerTask
 
 
-def task_usage_mb(keys: Collection[str], run: str | None = None) -> dict[str, int]:
+def task_usage_mb(keys: Collection[str]) -> dict[str, int]:
     """The memory in MB the processes of each task of `keys` hold of their own
-    (`processes.own_mb`): this interpreter's descendants, each counted for the task its
-    `CONTRAAGENT_TASK` names (of `run`, when given), else the task its command line's
-    telemetry line names, else its parent's task. A task with no process found is left out."""
-    wanted = set(keys)
-    if not wanted:
-        return {}
-    procs = processes.descendants(envvars.PREFIX)
-    by_pid = {p.pid: p for p in procs}
-    memo: dict[int, str | None] = {}
-
-    def task_of(pid: int) -> str | None:
-        if pid not in memo:
-            p = by_pid.get(pid)
-            memo[pid] = None if p is None else _named(p, run) or task_of(p.ppid)
-        return memo[pid]
-
-    out: dict[str, int] = {}
-    for p in procs:
-        key = task_of(p.pid)
-        if key in wanted:
-            out[key] = out.get(key, 0) + p.own_mb
-    return out
-
-
-def _named(p: processes.Descendant, run: str | None) -> str | None:
-    """The task a process's own variables or telemetry line name, of `run` when given."""
-    key, of = p.env.get(envvars.TASK), p.env.get(envvars.RUN)
-    if not key:
-        tele = telemetry.parse(p.cmd)
-        if tele is None:
-            return None
-        key, of = tele.key, tele.run
-    return key if run is None or of == run else None
+    (`processes.own_mb`): the processes of the agents launched for it, as each launch
+    registered its group (`live_processes.task_pids`). A task with no live agent is left
+    out."""
+    return {key: sum(processes.own_mb(pid) for pid in pids) for key, pids in live_processes.task_pids(keys).items()}
 
 
 class HostCapacity:
     """The host's room for tasks with a `PerTask` claim capacity: one per queue.
 
-    `run`: the run whose tasks' processes are counted; `mem_available_mb()`: the free memory
-    in MB, None where the host does not report it; `usage_mb(keys)`: the memory in MB the
-    processes of each task of `keys` hold (`task_usage_mb`); `cores`: the usable cores.
-    Each is given in a test."""
+    `mem_available_mb()`: the free memory in MB, None where the host does not report it;
+    `usage_mb(keys)`: the memory in MB the processes of each task of `keys` hold
+    (`task_usage_mb`); `cores`: the usable cores. Each is given in a test."""
 
     def __init__(
         self,
         *,
-        run: str | None = None,
         mem_available_mb: Callable[[], int | None] = processes.mem_available_mb,
         usage_mb: Callable[[Collection[str]], Mapping[str, int]] | None = None,
         cores: int | None = None,
     ) -> None:
         self._free = mem_available_mb
-        self._usage = usage_mb if usage_mb is not None else lambda keys: task_usage_mb(keys, run)
+        self._usage = usage_mb if usage_mb is not None else task_usage_mb
         self.cores = cores if cores is not None else processes.usable_cores()
         self.tasks: dict[str, list[int]] = {}  # key -> [memory_mb of its PerTask names, names]
         self.baseline_mb: int | None = None

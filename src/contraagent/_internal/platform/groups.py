@@ -1,4 +1,5 @@
-"""A child process in a group of its own, and how to stop the whole group.
+"""A child process in a group of its own, how to stop the whole group, and which processes
+it holds (`members`: a Windows job lists them; a POSIX group keeps no list).
 
 An agent CLI starts children of its own (hooks, a model client, a tool's server), so
 stopping an agent stops its group, never its first process alone. Each OS has its own
@@ -58,6 +59,11 @@ class Groups(Protocol):
         """End every process of the child's group now; never raises."""
         ...
 
+    def members(self, proc: subprocess.Popen) -> list[int] | None:
+        """The pids of the child's group as the OS lists them; None where it keeps no list
+        (a POSIX group, or a child outside a job), so the child's descendants stand for it."""
+        ...
+
 
 class PosixGroups:
     """A session of its own (`start_new_session`); SIGTERM, then SIGKILL, to its process group.
@@ -83,6 +89,9 @@ class PosixGroups:
     def kill(self, proc: subprocess.Popen) -> None:
         self._signal(proc, getattr(signal, "SIGKILL", signal.SIGTERM))
 
+    def members(self, proc: subprocess.Popen) -> list[int] | None:
+        return None
+
     def _signal(self, proc: subprocess.Popen, sig: int) -> bool:
         try:
             self._killpg(proc.pid, sig)  # type: ignore[misc]
@@ -97,6 +106,10 @@ CREATE_NEW_PROCESS_GROUP = 0x00000200
 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
 #: Windows: `JobObjectExtendedLimitInformation`, of `SetInformationJobObject`'s classes.
 _EXTENDED_LIMIT_INFORMATION = 9
+#: Windows: `JobObjectBasicProcessIdList`, of `QueryInformationJobObject`'s classes.
+_PROCESS_ID_LIST = 3
+#: The most pids one query of a job reads.
+_MAX_PIDS = 4096
 _PROCESS_TERMINATE = 0x0001
 _PROCESS_SET_QUOTA = 0x0100
 
@@ -137,6 +150,21 @@ def _limit_information(flags: int):
     return info
 
 
+def _pid_list(n: int):
+    """A `JOBOBJECT_BASIC_PROCESS_ID_LIST` with room for `n` pids (two DWORDs, then
+    ULONG_PTRs)."""
+    import ctypes
+
+    class PidList(ctypes.Structure):
+        _fields_ = [
+            ("NumberOfAssignedProcesses", ctypes.c_uint32),
+            ("NumberOfProcessIdsInList", ctypes.c_uint32),
+            ("ProcessIdList", ctypes.c_size_t * n),
+        ]
+
+    return PidList()
+
+
 def _kernel32():
     import ctypes
 
@@ -150,6 +178,7 @@ def _kernel32():
     k.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
     k.AssignProcessToJobObject.argtypes = (wintypes.HANDLE, wintypes.HANDLE)
     k.TerminateJobObject.argtypes = (wintypes.HANDLE, wintypes.UINT)
+    k.QueryInformationJobObject.argtypes = (wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD, wintypes.LPDWORD)
     k.CloseHandle.argtypes = (wintypes.HANDLE,)
     return k
 
@@ -157,7 +186,8 @@ def _kernel32():
 class WindowsGroups:
     """A process group of its own and a kill-on-close Job Object; CTRL_BREAK to the group,
     then the job terminated. `kernel32` (its `CreateJobObjectW`, `SetInformationJobObject`,
-    `OpenProcess`, `AssignProcessToJobObject`, `TerminateJobObject`, `CloseHandle`) and
+    `OpenProcess`, `AssignProcessToJobObject`, `TerminateJobObject`,
+    `QueryInformationJobObject`, `CloseHandle`) and
     `send_break` (`os.kill(pid, CTRL_BREAK_EVENT)`) are given in a test."""
 
     dies_with_interpreter = True
@@ -229,6 +259,21 @@ class WindowsGroups:
             proc.kill()
         except OSError:
             pass
+
+    def members(self, proc: subprocess.Popen) -> list[int] | None:
+        with self._lock:
+            job = self._jobs.get(proc.pid)
+        if job is None:
+            return None
+        try:
+            import ctypes
+
+            info = _pid_list(_MAX_PIDS)
+            if not self._kernel.QueryInformationJobObject(job, _PROCESS_ID_LIST, ctypes.byref(info), ctypes.sizeof(info), None):
+                return None
+            return [int(pid) for pid in info.ProcessIdList[: info.NumberOfProcessIdsInList]]
+        except OSError:
+            return None
 
     def _has_job(self, proc: subprocess.Popen) -> bool:
         with self._lock:

@@ -11,8 +11,10 @@ from types import SimpleNamespace
 import pytest
 
 from contraagent import ConfigError, PerTask, Pipeline, PipelineConfig, Task, TaskResult, python_task
+from contraagent._internal.backends import live_processes
 from contraagent._internal.execution import run as run_module
 from contraagent._internal.platform import processes
+from contraagent._internal.platform.groups import groups
 from contraagent._internal.routing.capacity import HostCapacity, sized, task_usage_mb
 from contraagent.engine import WorkQueue
 from contraagent.testing import StubAgent
@@ -38,37 +40,45 @@ def test_the_host_reports_its_free_memory_and_cores():
     assert processes.usable_cores() >= 1
 
 
-def test_the_host_reports_what_a_child_holds_and_its_variables():
-    env = {**os.environ, "CONTRAAGENT_TASK": "t1", "CONTRAAGENT_RUN": "r1"}
+def test_a_registered_agent_group_counts_for_its_task():
+    """A launch registers its group with its task's key; the task's usage is what that
+    group's processes hold, and nothing once it is unregistered."""
     code = "import sys; print('ready', flush=True); sys.stdin.read()"
-    with subprocess.Popen([sys.executable, "-c", code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env) as child:
+    with subprocess.Popen(
+        [sys.executable, "-c", code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, **groups.popen_options()
+    ) as child:
         assert child.stdin is not None and child.stdout is not None
+        assert live_processes.register(child, task="t1")
         try:
-            assert child.stdout.readline() == "ready\n"  # it runs its own program
-            seen = {p.pid: p for p in processes.descendants("CONTRAAGENT_")}
-            assert child.pid in seen and seen[child.pid].ppid == os.getpid()
-            assert seen[child.pid].own_mb >= 0
-            if sys.platform != "darwin":  # macOS shows no other process's environment
-                assert seen[child.pid].env == {"CONTRAAGENT_TASK": "t1", "CONTRAAGENT_RUN": "r1"}
-                assert set(task_usage_mb(["t1"], run="r1")) == {"t1"}
+            assert child.stdout.readline() == "ready\n"
+            assert child.pid in processes.tree(child.pid)
+            assert child.pid in live_processes.task_pids(["t1", "t2"])["t1"]
+            assert set(task_usage_mb(["t1", "t2"])) == {"t1"} and processes.own_mb(child.pid) >= 0
         finally:
+            live_processes.unregister(child)
             child.stdin.close()
+    assert live_processes.task_pids(["t1"]) == {}
+    assert processes.own_mb(child.pid) == 0  # gone
 
 
-def test_a_process_counts_for_the_task_it_or_its_parent_names(monkeypatch):
-    me = os.getpid()
-    tele = "claude -p TELEMETRY run=r1 kind=k unit=- key=t2 role=-"
-    procs = [
-        processes.Descendant(10, me, "claude -p", {"CONTRAAGENT_RUN": "r1", "CONTRAAGENT_TASK": "t1"}, 300),
-        processes.Descendant(11, 10, "index-server", {}, 1200),  # its variables not shown: its parent's task
-        processes.Descendant(12, 11, "worker", {}, 100),
-        processes.Descendant(20, me, tele, {}, 250),  # no variables shown: its telemetry line
-        processes.Descendant(30, me, "claude -p", {"CONTRAAGENT_RUN": "r0", "CONTRAAGENT_TASK": "t1"}, 999),  # another run's
-        processes.Descendant(40, me, "python helper.py", {}, 500),  # no task named: other work
-    ]
-    monkeypatch.setattr(processes, "descendants", lambda prefix: procs)
-    assert task_usage_mb(["t1", "t2", "t3"], run="r1") == {"t1": 1600, "t2": 250}
-    assert task_usage_mb([], run="r1") == {}
+@pytest.mark.skipif(sys.platform != "linux", reason="the children lists of Linux's /proc")
+def test_a_tree_on_linux_reads_each_process_s_own_children(tmp_path):
+    def proc(pid: int, *children: int, tid: int | None = None) -> None:
+        d = tmp_path / str(pid) / "task" / str(tid or pid)
+        d.mkdir(parents=True)
+        (d / "children").write_text(" ".join(map(str, children)) + (" " if children else ""))
+
+    me = tmp_path / "self" / "task" / str(os.getpid())
+    me.mkdir(parents=True)
+    (me / "children").write_text("")
+    proc(10, 11)
+    (tmp_path / "10" / "task" / "15").mkdir()  # a second thread, which started 12
+    (tmp_path / "10" / "task" / "15" / "children").write_text("12 ")
+    proc(11, 13)
+    proc(12)
+    proc(13)
+    assert sorted(processes.tree(10, proc_root=str(tmp_path))) == [10, 11, 12, 13]
+    assert processes.tree(99, proc_root=str(tmp_path)) == []  # gone
 
 
 # --- the capacity -----------------------------------------------------------------------

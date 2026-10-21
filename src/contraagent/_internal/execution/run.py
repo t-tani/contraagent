@@ -54,7 +54,7 @@ from contraagent._internal.execution.runner import AgentRunner
 from contraagent._internal.execution.schemas import DeferredRow, FlowCallRow, PlanRow
 from contraagent._internal.platform import processes
 from contraagent._internal.platform.locks import locks
-from contraagent._internal.routing.capacity import HostCapacity, sized
+from contraagent._internal.routing.capacity import sized
 from contraagent._internal.routing.config import PerTask, PipelineConfig
 from contraagent._internal.routing.kind_config import KindConfig
 from contraagent._internal.routing.quota import CredentialRests, QuotaRule, caps_of
@@ -724,7 +724,7 @@ class Run:
         `launch_failed`) and of its rate limit (`rate_limited`); `estimate`, to what the
         recent runs' journals say (`Run.estimator`), and then `finish_chance` to the same
         estimates' (`JournalEstimates.finish_chance`). A `PerTask` entry of `claim_capacity`
-        is sized by this host and the memory this run's tasks' processes hold.
+        is sized by this host and the memory its tasks' agents hold.
         """
         if skip is None and resume:
             skip = resume_skip(self.journal.last_rows(), self.journal.reruns, warn=lambda line: self._log(logging.WARNING, line))
@@ -742,7 +742,7 @@ class Run:
             retry_on=retry_on,
             throttle_on=throttle_on,
             finishing_kinds=tuple(finishing_kinds),
-            claim_capacity=sized(claim_capacity, HostCapacity(run=self.run_id)) if claim_capacity else None,
+            claim_capacity=sized(claim_capacity) if claim_capacity else None,
             estimate=estimate if estimate is not None else self.estimator().estimate,
             overdue_s=overdue_s,
             slack_s=slack_s,

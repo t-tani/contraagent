@@ -43,6 +43,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Collection
 
 from contraagent._internal.backends import watchdog
 from contraagent._internal.platform import processes
@@ -50,6 +51,8 @@ from contraagent._internal.platform.groups import groups
 
 _lock = threading.Lock()
 _live: list[subprocess.Popen] = []
+#: The task key each live agent was launched for (`register(task=)`), by pid.
+_task_of: dict[int, str] = {}
 #: Bumped each time a teardown starts. A launch notes it before spawning
 #: (`epoch()`) and hands it back to `register`: a different value means a
 #: teardown began while the child was being started, so the sweep may already
@@ -155,9 +158,10 @@ def launches_refused() -> bool:
     return _refused
 
 
-def register(proc: subprocess.Popen, since: int | None = None) -> bool:
+def register(proc: subprocess.Popen, since: int | None = None, task: str = "") -> bool:
     """Publish a spawned agent so the teardown can reach it; False when it was refused (and
-    stopped) instead.
+    stopped) instead. `task`: the key of the task it was launched for, which `task_pids`
+    answers by.
 
     A process registered while a teardown is running, or whose launch began
     (`since`, from `epoch()`) before a teardown that has since started, is
@@ -179,6 +183,8 @@ def register(proc: subprocess.Popen, since: int | None = None) -> bool:
         late = _refused or _stopping > 0 or (since is not None and since != _epoch)
         if not late:
             _live.append(proc)
+            if task:
+                _task_of[proc.pid] = task
     if late:
         _kill_group(proc)
         groups.release(proc)
@@ -212,8 +218,23 @@ def unregister(proc: subprocess.Popen) -> None:
             _live.remove(proc)
         except ValueError:
             return
+        _task_of.pop(proc.pid, None)
     groups.release(proc)
     _tell_watchdog(f"-{proc.pid}")
+
+
+def task_pids(keys: Collection[str]) -> dict[str, list[int]]:
+    """The live processes of the agents launched for each task of `keys`, by key: each
+    agent's group as the OS lists it (`groups.members`), else the agent and its
+    descendants (`processes.tree`). A task with no live agent is left out."""
+    wanted = set(keys)
+    with _lock:
+        procs = [(p, _task_of[p.pid]) for p in _live if _task_of.get(p.pid) in wanted]
+    out: dict[str, list[int]] = {}
+    for proc, key in procs:
+        pids = groups.members(proc)
+        out.setdefault(key, []).extend(pids if pids is not None else processes.tree(proc.pid))
+    return out
 
 
 def live_count() -> int:

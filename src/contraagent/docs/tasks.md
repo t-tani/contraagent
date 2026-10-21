@@ -858,9 +858,10 @@ burst of starts does not take more than the memory holds.
 
 The free memory is what the OS reports as available (on Linux `MemAvailable` of
 `/proc/meminfo`); where the OS reports none, memory does not limit the name. What a
-task's processes take is the memory they do not share with other processes; a
-Python task runs inside the run's own process, so what it takes counts as other
-programs' memory while its `memory_mb` stays held. The cores allow at most the
+task's processes take is the memory that the processes in its coding agents'
+process groups do not share with other processes. A Python task runs inside the
+run's own process, and a process can leave its agent's group, so what they take
+counts as other programs' memory while the task's `memory_mb` stays held. The cores allow at most the
 usable cores divided by `cores`. While no task holds the name, one starts anyway,
 so a run always goes on even on a host short of memory. A larger `memory_mb` than a
 task takes holds back other tasks. A waiting task starts as soon as a task ends or

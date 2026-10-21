@@ -1,6 +1,6 @@
 """The host's processes and room: one known pid's identity, the processes running, and the
-host's free memory and usable cores, and the memory this interpreter's descendants hold
-(`descendants`). Every read of another process's state in the package
+host's free memory and usable cores, a process's descendants (`tree`) and the memory it
+holds of its own (`own_mb`). Every read of another process's state in the package
 is here.
 
 Linux, macOS and Windows alike, read through `psutil`, but for a process's start: a
@@ -131,54 +131,44 @@ def environ(pid: int, prefix: str = "") -> dict[str, str]:
     return {k: v for k, v in env.items() if k.startswith(prefix)}
 
 
-class Descendant(NamedTuple):
-    """One live process this interpreter started, or one of their children: its parent, its
-    command line (the arguments joined by spaces), its variables whose names start with the
-    prefix asked for (empty where the OS does not show them), and the memory it holds of its
-    own in MB (`own_mb`)."""
-
-    pid: int
-    ppid: int
-    cmd: str
-    env: dict[str, str]
-    own_mb: int
-
-
-def own_mb(proc: psutil.Process) -> int:
-    """The memory `proc` holds that no other process shares, in MB, as the OS reports it
-    cheaply: on Linux its resident memory less its shared pages (`/proc/<pid>/statm`),
-    elsewhere its unique set size; 0 when it is not readable. Never more than the process
-    holds: what it shares with others is left out."""
+def tree(pid: int, proc_root: str = "/proc") -> list[int]:
+    """`pid` and its live descendants. On Linux read from each process's own list of children
+    (`/proc/<pid>/task/<tid>/children`), so no other process is read; elsewhere, and where
+    that list is missing, from the parent of every process (`psutil`). Empty when `pid` is
+    gone. `proc_root` is given in a test."""
+    if sys.platform == "linux" and Path(proc_root, "self", "task", str(os.getpid()), "children").exists():
+        out: list[int] = []
+        todo = [pid]
+        while todo:
+            p = todo.pop()
+            tasks = Path(proc_root, str(p), "task")
+            try:
+                lists = [(t / "children").read_text(encoding="ascii") for t in tasks.iterdir()]
+            except OSError:
+                continue  # it ended
+            out.append(p)
+            todo.extend(int(c) for text in lists for c in text.split())
+        return out
     try:
+        leader = psutil.Process(pid)
+        return [pid, *(c.pid for c in leader.children(recursive=True))]
+    except (psutil.Error, OSError):
+        return []
+
+
+def own_mb(pid: int) -> int:
+    """The memory process `pid` holds that no other process shares, in MB, as the OS reports
+    it cheaply: on Linux its resident memory less its shared pages (`/proc/<pid>/statm`),
+    elsewhere its unique set size; 0 when it is gone or not readable. Never more than the
+    process holds: what it shares with others is left out."""
+    try:
+        proc = psutil.Process(pid)
         if sys.platform == "linux":
             info = proc.memory_info()
             return max(0, info.rss - info.shared) // (1024 * 1024)
         return proc.memory_full_info().uss // (1024 * 1024)
     except (psutil.Error, OSError, AttributeError):
         return 0
-
-
-def descendants(prefix: str) -> list[Descendant]:
-    """This interpreter's live descendants, each with its variables that start with
-    `prefix` and the memory it holds of its own (`own_mb`). A process that ends while it is
-    read is left out."""
-    out: list[Descendant] = []
-    try:
-        children = psutil.Process().children(recursive=True)
-    except (psutil.Error, OSError):
-        return out
-    for p in children:
-        try:
-            ppid = p.ppid()
-            cmd = " ".join(p.cmdline()).strip()
-        except (psutil.Error, OSError):
-            continue
-        try:
-            env = {k: v for k, v in p.environ().items() if k.startswith(prefix)}
-        except (psutil.Error, OSError, ValueError):
-            env = {}
-        out.append(Descendant(p.pid, ppid, cmd, env, own_mb(p)))
-    return out
 
 
 def mem_available_mb() -> int | None:
