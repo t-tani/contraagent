@@ -15,6 +15,7 @@
     "test": "vitest run",
     "check": "pnpm gen --check && pnpm --filter @contraagent/ui i18n:check && pnpm typecheck && pnpm lint && pnpm test",
     "e2e": "pnpm build && playwright test",
+    "e2e:site": "pnpm build && playwright test -c playwright.site.config.ts",
     "check:dist": "tsc -p apps/monitor/tsconfig.dist.json && node scripts/packed.mjs && node scripts/size.mjs && node consumer/consumer.test.mjs",
     "docs": "pnpm --filter @contraagent/docs dev",
     "tarballs": "pnpm --filter \"./packages/**\" build && node scripts/tarballs.mjs",

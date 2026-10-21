@@ -902,7 +902,7 @@ export type components = {
             credential: string;
             /**
              * Reason
-             * @description not in its coding agent's model list, or how its probe ended (`rate limited`, ...)
+             * @description not in its coding agent's model list, or how its probe ended (`rate limited`, `timeout: ...`: no answer within the longest `timeout_s` of the kinds whose chain held it, ...)
              */
             reason: string;
             /**

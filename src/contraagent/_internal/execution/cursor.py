@@ -33,7 +33,7 @@ from typing import Any
 from contraagent._internal.execution.schemas import Cursor, HistoryEntry, Inflight, UnitCursor
 from contraagent._internal.platform import processes
 from contraagent._internal.platform.locks import locks
-from contraagent._internal.runs.files import write_document
+from contraagent._internal.runs.files import read_document, write_document
 from contraagent._internal.runs.times import now, now_iso
 
 CURSOR_SCHEMA_VERSION = "1.0"
@@ -103,14 +103,15 @@ class CursorStore:
         try:
             if not self.path.is_file():
                 return None
-            return parse_cursor(self.path.read_text(encoding="utf-8"))
+            return parse_cursor(read_document(self.path))
         except OSError:
             return None
 
     def load(self) -> Cursor:
         """The cursor, or a fresh one when none exists yet. A malformed file raises."""
-        if self.path.is_file() and self.path.read_text(encoding="utf-8").strip():
-            return Cursor.model_validate_json(self.path.read_text(encoding="utf-8"))
+        text = read_document(self.path) if self.path.is_file() else ""
+        if text.strip():
+            return Cursor.model_validate_json(text)
         return Cursor(schema_version=CURSOR_SCHEMA_VERSION, run=self.run, updated_at=now())
 
     # --- mutations ---------------------------------------------------------

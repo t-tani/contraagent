@@ -10,12 +10,14 @@ agent's own list. A local read, no network, and it catches the typo. It
 does not catch a quota.
 
 **A live probe.** One minimal launch per distinct (agent, model, credential)
-the run will actually use, `max_turns=1` and a short timeout. This is the
+the run will actually use, `max_turns=1`, all of them at once. This is the
 pass that catches what cost a run its work before: a provider that
 answers `429 Go usage limit exceeded` in about two seconds. The question
 is not "did the launch succeed" but "is this route worth keeping" — a
 route that cannot answer is dropped, and the surviving chain is rebuilt
-around the ones that did.
+around the ones that did. A probe has the time of the longest `timeout_s`
+among the kinds whose chain holds its route: a route that cannot answer one
+word in that time cannot finish any of their tasks either.
 
 A route that cannot answer is dropped and each chain is rebuilt on the
 rest. What happens to a kind left with no route that answered is the
@@ -28,9 +30,11 @@ records it (`preflight`).
 
 from __future__ import annotations
 
+import contextvars
 import dataclasses
 import logging
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import ClassVar, Literal, get_args
 
@@ -54,7 +58,6 @@ PreflightPolicy = Literal["substitute", "stop", "off"]
 PREFLIGHT_POLICIES: tuple[str, ...] = get_args(PreflightPolicy)
 
 # One token of output is enough to know the route answers.
-PROBE_TIMEOUT_S = 90
 PROBE_PROMPT = "Reply with the single word: ok"
 # A plan can name more distinct models than it is worth a launch each;
 # past the cap the rest are left to fail their first task, loudly.
@@ -128,8 +131,9 @@ def catalogue_check(backend: Backend | None, route: Route) -> tuple[bool, str]:
     return False, f"not in the {route.agent} model list"
 
 
-def probe(route: Route, backend: Backend, fallback: str | None = None, credential: Credential = AMBIENT) -> RouteVerdict:
-    """One minimal launch, shaped like the real one.
+def probe(route: Route, backend: Backend, timeout_s: float, fallback: str | None = None, credential: Credential = AMBIENT) -> RouteVerdict:
+    """One minimal launch, shaped like the real one, stopped after `timeout_s`: the
+    longest `timeout_s` of the kinds whose chain holds `route` (`_wanted_routes`).
 
     `fallback` is the model-level chain the launch will actually carry
     (Claude Code's --fallback-model). Probing without it would answer a
@@ -144,7 +148,7 @@ def probe(route: Route, backend: Backend, fallback: str | None = None, credentia
             model=route.model,
             fallback_model=fallback,
             credential=credential,
-            limits=Limits(timeout_s=PROBE_TIMEOUT_S, max_turns=1),
+            limits=Limits(timeout_s=timeout_s, max_turns=1),
         )
     )
     stop = launch_result.stop
@@ -160,26 +164,27 @@ def probe(route: Route, backend: Backend, fallback: str | None = None, credentia
     return RouteVerdict(route, False, f"{stop.value}: {first[:70]}", launch_result.wall_s, quota)
 
 
-def _wanted_routes(configs: Mapping, routers: Mapping) -> list[Route]:
-    """Distinct (agent, model, credential) routes this run will actually launch.
+def _wanted_routes(configs: Mapping, routers: Mapping) -> dict[tuple[str, str, str], tuple[Route, float]]:
+    """Distinct (agent, model, credential) routes this run will actually launch, by
+    `Route.identity`, each with the longest `timeout_s` of the kinds whose chain holds it:
+    the time its probe has.
 
     Per-Kind routers repeat the same pair for every kind that does not
     name its own model, so the union collapses to a handful of probes
-    rather than one per kind.
+    rather than one per kind. The kinds' own routes come first, then their hops.
     """
-    seen: set[tuple[str, str, str]] = set()
-    out: list[Route] = []
+    out: dict[tuple[str, str, str], tuple[Route, float]] = {}
 
-    def add(r: Route) -> None:
-        if r.identity not in seen:
-            seen.add(r.identity)
-            out.append(r)
+    def add(r: Route, timeout_s: float) -> None:
+        held = out.get(r.identity)
+        out[r.identity] = (r, timeout_s if held is None else max(held[1], timeout_s))
 
     for rc in configs.values():
-        add(Route(agent=rc.agent, model=rc.model, credential=rc.credential))
-    for router in routers.values():
-        for r in router.routes[1:]:
-            add(r)
+        add(Route(agent=rc.agent, model=rc.model, credential=rc.credential), rc.timeout_s)
+    for kind, rc in configs.items():
+        router = routers.get(kind)
+        for r in router.routes[1:] if router is not None else ():
+            add(r, rc.timeout_s)
     return out
 
 
@@ -224,7 +229,10 @@ class DroppedRoute(RecordModel):
     agent: str
     model: str = Field(description="empty: the coding agent's default model")
     credential: str
-    reason: str = Field(description="not in its coding agent's model list, or how its probe ended (`rate limited`, ...)")
+    reason: str = Field(
+        description="not in its coding agent's model list, or how its probe ended (`rate limited`, `timeout: ...`: no answer "
+        "within the longest `timeout_s` of the kinds whose chain held it, ...)"
+    )
     kinds: tuple[str, ...] = Field(description="the kinds whose chain held it")
 
     def __str__(self) -> str:
@@ -300,14 +308,14 @@ def run_preflight(
     agent's model list, or whose probe did not complete, is not `ok`. A route past
     `cap` has no verdict: its first task tells.
     """
-    wanted = _wanted_routes(configs, routers)
+    wanted = list(_wanted_routes(configs, routers).values())
     probes, skipped = wanted[:cap], wanted[cap:]
     if skipped:
         _logger.warning(f"[preflight] {len(skipped)} further route(s) not probed (cap {cap}); a bad one fails its first task instead")
 
     _logger.info(f"[preflight] 1/2 model catalogue: {len(probes)} route(s)")
     verdicts: dict[tuple[str, str, str], RouteVerdict] = {}
-    for r in probes:
+    for r, _ in probes:
         ok, why = catalogue_check(backends.get(r.agent), r)
         if not ok:
             verdicts[r.identity] = RouteVerdict(r, False, why)
@@ -316,7 +324,8 @@ def run_preflight(
         _logger.info(f"[preflight]   all {len(probes)} known to their agent")
 
     _logger.info("[preflight] 2/2 reachability")
-    for r in probes:
+    launched: list[tuple[Route, Backend, str | None, float]] = []
+    for r, timeout_s in probes:
         if r.identity in verdicts:
             continue
         be = backends.get(r.agent)
@@ -324,8 +333,18 @@ def run_preflight(
             verdicts[r.identity] = RouteVerdict(r, False, f"no {r.agent} backend in this run")
             _logger.warning(f"[preflight]   {r}  DROPPED (no backend)")
             continue
-        native = _native_chain(r, routers, be)
-        v = probe(r, be, native, first_member(credentials or {}, r.credential) or AMBIENT)
+        launched.append((r, be, _native_chain(r, routers, be), timeout_s))
+
+    def launch(one: tuple[Route, Backend, str | None, float]) -> RouteVerdict:
+        r, be, native, timeout_s = one
+        return probe(r, be, timeout_s, native, first_member(credentials or {}, r.credential) or AMBIENT)
+
+    # The probes run at once, each in a copy of this context: each waits on its own provider,
+    # so the preflight takes as long as its slowest probe.
+    contexts = [contextvars.copy_context() for _ in launched]
+    with ThreadPoolExecutor(max_workers=max(1, len(launched)), thread_name_prefix="preflight") as pool:
+        answers = list(pool.map(lambda context, one: context.run(launch, one), contexts, launched))
+    for (r, be, native, _), v in zip(launched, answers, strict=True):
         verdicts[r.identity] = v
         mark = "ok" if v.ok else f"DROPPED ({v.reason})"
         extra = f"  [{v.quota}]" if v.quota else ""
@@ -346,7 +365,7 @@ def run_preflight(
         _logger.log(logging.INFO if v.ok else logging.WARNING, f"[preflight]   {r}  {mark} ({v.wall_s:.1f}s){extra}{via}")
         if v.ok and _tight(v.quota):
             _logger.warning("[preflight]   ^ low headroom: this route will likely fail partway through the run")
-    return verdicts
+    return {r.identity: verdicts[r.identity] for r, _ in probes}
 
 
 def apply_preflight(

@@ -122,25 +122,42 @@ time.sleep(60)
 @pytest.mark.parametrize("how", ["terminate", "kill"])
 def test_a_posix_group_stops_with_its_children(how):
     g = PosixGroups()
-    proc = subprocess.Popen([sys.executable, "-c", _TREE], stdout=subprocess.PIPE, text=True, **g.popen_options())
-    g.adopt(proc)
-    assert proc.stdout is not None
-    child = int(proc.stdout.readline())
-    if how == "terminate":
-        assert g.terminate(proc)
-    else:
-        g.kill(proc)
-    proc.wait(timeout=10)
-    deadline = time.monotonic() + 10
-    while processes.alive(child) and time.monotonic() < deadline:
-        time.sleep(0.05)
-    assert not processes.alive(child)
-    g.release(proc)
-    proc.stdout.close()
-    # A dead child stays in the group as a zombie until its new parent reaps it.
-    while g.terminate(proc) and time.monotonic() < deadline:
-        time.sleep(0.05)
-    assert not g.terminate(proc)  # no group left
+    with subprocess.Popen([sys.executable, "-c", _TREE], stdout=subprocess.PIPE, text=True, **g.popen_options()) as proc:
+        g.adopt(proc)
+        assert proc.stdout is not None
+        child = int(proc.stdout.readline())
+        if how == "terminate":
+            assert g.terminate(proc)
+        else:
+            g.kill(proc)
+        # The child holds the write end of the parent's stdout and never closes it, so the
+        # end of that stdout means both have ended: the exit of a process closes its files.
+        try:
+            out, _ = proc.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            state = _state(child)
+            g.kill(proc)
+            pytest.fail(state)
+        g.release(proc)
+    assert out == ""
+
+
+def _state(pid: int) -> str:
+    """What psutil reports of `pid`, for a failure's message."""
+    try:
+        p = psutil.Process(pid)
+        return f"pid {pid}: {p.status()}, parent {p.ppid()}, group {os.getpgid(pid)}"
+    except (psutil.Error, OSError) as e:
+        return f"pid {pid}: {type(e).__name__}"
+
+
+@posix
+def test_a_posix_group_that_has_ended_is_not_signalled():
+    g = PosixGroups()
+    with _sleeper(**g.popen_options()) as proc:
+        proc.kill()
+    # Its only process has been reaped (`Popen.__exit__` waits): no group is left.
+    assert not g.terminate(proc)
 
 
 @posix

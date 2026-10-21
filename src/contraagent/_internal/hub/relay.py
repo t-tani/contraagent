@@ -70,7 +70,7 @@ from contraagent._internal.commandline import UsageError, add_runs_dir, setup_lo
 from contraagent._internal.hub.client import HttpClient, HubClient, HubRefused, HubUnavailable
 from contraagent._internal.hub.protocol import Accepted, DocumentPut, FileRef, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
 from contraagent._internal.runs import layout
-from contraagent._internal.runs.files import parse_rows, write_document
+from contraagent._internal.runs.files import parse_rows, read_document, write_document
 from contraagent._internal.runs.liveness import Liveness
 from contraagent._internal.runs.procs import ProcLiveness
 from contraagent._internal.runs.source import DirectorySource, LogPosition
@@ -205,7 +205,7 @@ class Relay:
 
     def _load(self) -> dict[str, RunProgress]:
         try:
-            data = json.loads(self.progress_path.read_text(encoding="utf-8"))
+            data = json.loads(read_document(self.progress_path))
         except FileNotFoundError:
             return {}
         except (OSError, ValueError) as exc:
@@ -514,7 +514,10 @@ class Relay:
     def serve(self, stop: threading.Event) -> None:
         """Send heartbeats (in a thread of their own), passes and the fast path until `stop`
         is set: a pass every `delay()` seconds, the fast path every `FAST_S` seconds in
-        between while the hub takes requests."""
+        between while the hub takes requests. It returns once the heartbeat's thread has
+        ended, so no heartbeat is in flight when the caller closes the client; the
+        longest that can take is one request, which the client's timeout bounds. A
+        KeyboardInterrupt sets `stop` too, and is raised once the thread has ended."""
 
         def beat() -> None:
             while not stop.is_set():
@@ -524,14 +527,17 @@ class Relay:
         beats = threading.Thread(target=beat, name="relay-heartbeat", daemon=True)
         beats.start()
         next_pass = 0.0
-        while not stop.is_set():
-            if time.monotonic() >= next_pass:
-                self.pass_once()
-                next_pass = time.monotonic() + self.delay()
-            elif not self.failures:
-                self.fast_once()
-            stop.wait(max(0.0, min(FAST_S, next_pass - time.monotonic())))
-        beats.join(timeout=1.0)
+        try:
+            while not stop.is_set():
+                if time.monotonic() >= next_pass:
+                    self.pass_once()
+                    next_pass = time.monotonic() + self.delay()
+                elif not self.failures:
+                    self.fast_once()
+                stop.wait(max(0.0, min(FAST_S, next_pass - time.monotonic())))
+        finally:
+            stop.set()
+            beats.join()
 
     # --- heartbeat ---
 

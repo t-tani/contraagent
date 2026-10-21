@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "contraagent"
-version = "0.7.1"
+version = "0.7.2"
 description = "Run coding-agent CLIs (claude -p, omp) as typed, supervised, observable tasks: contracts, failover, scheduling, resume, live monitor"
 readme = "src/contraagent/docs/README.md"
 license = "MIT"
@@ -264,7 +264,6 @@ forbidden_modules = [
     "psycopg",
     "boto3",
     "zstandard",
-    "yaml",
 ]
 allow_indirect_imports = true
 
@@ -287,7 +286,6 @@ forbidden_modules = [
     "psycopg",
     "boto3",
     "zstandard",
-    "yaml",
 ]
 allow_indirect_imports = true
 

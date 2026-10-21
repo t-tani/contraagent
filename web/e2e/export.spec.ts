@@ -6,7 +6,7 @@ import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-// Not the documentation site's port (playwright.config.ts, E2E_DOCS_PORT).
+// Not the documentation site's port (playwright.site.config.ts, E2E_DOCS_PORT).
 const PORT = Number(process.env['E2E_EXPORT_PORT'] ?? 18796);
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const project = fileURLToPath(new URL('../..', import.meta.url));

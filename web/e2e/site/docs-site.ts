@@ -1,7 +1,7 @@
-// The documentation site as the end-to-end tests serve it (playwright.config.ts):
+// The documentation site as the end-to-end tests serve it (playwright.site.config.ts):
 // apps/docs/dist under the base path it is built for (apps/docs/site.ts), and
 // nothing outside it, so that a link or a file that misses the base is not found.
-import { BASE } from '../apps/docs/site.js';
+import { BASE } from '../../apps/docs/site.js';
 
 export { BASE };
 /** The port of the documentation site; `E2E_DOCS_PORT` sets it. */

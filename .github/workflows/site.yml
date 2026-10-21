@@ -1,0 +1,61 @@
+# The documentation site's end-to-end tests (web/playwright.site.config.ts,
+# web/e2e/site/): its pages, links and live elements, as built. They run on a
+# pull request that changes what the site is built from, and pages.yml runs
+# them before each deploy. They are not a required check, and release.yml does
+# not run them: a fault of the site holds back only the site's deploy.
+name: Site
+
+on:
+  pull_request:
+    paths:
+      # The site itself and its tests.
+      - web/apps/docs/**
+      - web/e2e/site/**
+      - web/e2e/fit.ts
+      - web/playwright.site.config.ts
+      # What scripts/collect.py collects: the Python package's documentation, its
+      # examples and the expander of their quotes, and the npm packages'
+      # documentation; and the packages whose sources the live examples render.
+      - src/contraagent/docs/**
+      - src/contraagent/_internal/docs.py
+      - web/packages/**
+      - docs/assets/brand/**
+      # The workspace's dependencies, and this workflow.
+      - web/package.json
+      - web/pnpm-lock.yaml
+      - web/pnpm-workspace.yaml
+      - .github/workflows/site.yml
+  workflow_call:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch cancels the run still going for an older one;
+# a deploy's run (pages.yml) is never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-site-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  site-e2e:
+    name: Documentation site end to end
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v6
+      # The site renders the packages' documentation with `contraagent.docs`.
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+        working-directory: .
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      # Builds the packages and the site, then serves the site under its base path.
+      - run: pnpm e2e:site

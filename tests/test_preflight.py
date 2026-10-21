@@ -108,6 +108,34 @@ def test_stop_with_every_kind_answering_trims_the_chains_and_goes_on():
     assert record.stopped == [] and [d.model for d in record.dropped] == ["dead-hop"]
 
 
+def test_a_probe_has_the_longest_timeout_of_the_kinds_whose_chain_holds_its_route():
+    limits = {}
+
+    class Timed(Agent):
+        def run(self, launch):
+            limits[launch.model] = launch.limits.timeout_s
+            return super().run(launch)
+
+    backends = {"claude": Timed("claude", dead_on())}
+    configs = {
+        "a": KindConfig(agent="claude", model="shared", max_turns=3, timeout_s=30),
+        "b": KindConfig(agent="claude", model="own", max_turns=3, timeout_s=300),
+    }
+    routers = {"b": Router(Route("claude", "own", "ambient"), (Route("claude", "shared", "ambient"),))}
+    RoutingPlan(PipelineConfig(), backends, configs=configs, routers=routers).preflight("stop")
+    assert limits == {"shared": 300, "own": 300}  # "shared" is a hop of b's chain too
+
+
+def test_a_probe_with_no_answer_in_its_time_drops_the_route():
+    backends = {"claude": Agent("claude", lambda m: Stop.TIMEOUT if m == "slow" else Stop.COMPLETED)}
+    configs = {"a": kind("claude", "slow")}
+    routers = {"a": Router(Route("claude", "slow", "ambient"), (Route("claude", "quick", "ambient"),))}
+    plan = RoutingPlan(PipelineConfig(), backends, configs=configs, routers=routers)
+    record = plan.preflight("stop")
+    assert [str(r) for r in plan.routers["a"].routes] == ["claude/quick"]
+    assert [(d.model, d.reason.split(":")[0]) for d in record.dropped] == [("slow", "timeout")]
+
+
 def test_off_probes_nothing():
     claude = Agent("claude", dead_on("dead"))
     plan = RoutingPlan(PipelineConfig(), {"claude": claude}, configs={"b": kind("claude", "dead")})

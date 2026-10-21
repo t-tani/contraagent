@@ -60,7 +60,7 @@ from contraagent._internal.routing.kind_config import KindConfig
 from contraagent._internal.routing.quota import CredentialRests, QuotaRule, caps_of
 from contraagent._internal.routing.router import Router
 from contraagent._internal.runs import layout
-from contraagent._internal.runs.files import append_lines, parse_rows, read_rows, write_document
+from contraagent._internal.runs.files import append_lines, parse_rows, read_document, read_rows, write_document
 from contraagent._internal.runs.names import check_portable
 from contraagent._internal.runs.source import DirectorySource, parse_info
 from contraagent._internal.runs.times import iso_of, now_iso
@@ -482,7 +482,7 @@ class Run:
     def _info(self) -> dict[str, Any] | None:
         """`run.json` as this run directory holds it; None before the first write."""
         try:
-            return parse_info((self.dir / layout.RUN_INFO).read_text(encoding="utf-8"))
+            return parse_info(read_document(self.dir / layout.RUN_INFO))
         except OSError:
             return None
 
