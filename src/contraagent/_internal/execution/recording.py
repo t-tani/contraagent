@@ -33,11 +33,13 @@ are written, so a reader sees the old recording or the new one.
 
 A recording run compares the working directory at its start and its end (`Recorder.start`,
 `Recorder.finish`), leaving out `.git`, `__pycache__`, the recordings and the run's own
-files (`layout.OWN`; its `out/` is compared like any other folder). A path created,
-modified or deleted that no task's outputs, nor its `changes=` patterns, cover is an
-**undeclared change**: a replay cannot make it again, since no recording holds it. They are
-written to `recordings/undeclared.json` (`run`, `created`, `modified`, `deleted`), replaced
-by each recording run. Tasks run at once, so they are the run's, not a task's.
+files (`layout.OWN`; its `out/` is compared like any other folder), and what the
+recording's exclusions match (`Pipeline(record_exclude=)`, `--record-exclude`; the walk does
+not enter such a directory). A path created, modified or deleted that no task's outputs,
+nor its `changes=` patterns, cover is an **undeclared change**: a replay cannot make it
+again, since no recording holds it. They are written to `recordings/undeclared.json` (`run`,
+`excluded`, `created`, `modified`, `deleted`), replaced by each recording run, and named in
+warnings (`undeclared_warnings`). Tasks run at once, so they are the run's, not a task's.
 
 A **replay** (`Pipeline(replay="recordings/")`, `contraagent run --replay DIR`) plays a
 task's recording in place of a launch, or of a Python task's function: attempt 1 the first
@@ -76,6 +78,7 @@ import secrets
 import shutil
 import threading
 import time
+from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -89,7 +92,7 @@ from contraagent._internal.contracts.contract import OutputContract, Stamp
 from contraagent._internal.dispatch.records import SafetyStop
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_matches, kind_name
 from contraagent._internal.errors import ContraagentError
-from contraagent._internal.execution.changes import EXCLUDE, compare, excluded, recent_digests, scan, scan_tree
+from contraagent._internal.execution.changes import EXCLUDE, compare, excluded, matcher, recent_digests, scan, scan_tree
 from contraagent._internal.execution.pipeline_files import Written, write_captured
 from contraagent._internal.platform import envvars
 from contraagent._internal.runs import layout
@@ -122,6 +125,10 @@ _TILDE = re.compile(r"^(?P<base>.+)~(?P<n>[0-9]+)$")
 #: The file in a recordings directory that names the last recording run's undeclared changes.
 UNDECLARED = "undeclared.json"
 
+#: How many undeclared changes under one directory of the working directory's top level
+#: are named one by one; more are named in one line (`undeclared_warnings`).
+UNDECLARED_LINES = 20
+
 #: The size above which a recorded file is kept by hash only, in MB (MiB).
 MAX_FILE_MB = 4.0
 _MB = 1024 * 1024
@@ -131,6 +138,23 @@ def megabytes(size: int) -> str:
     """A file size in MB, for a line: `120 MB`, `4.5 MB`, `<0.1 MB`."""
     mb = size / _MB
     return f"{mb:,.0f} MB" if mb >= 10 else f"{mb:.1f} MB" if mb >= 0.05 else "<0.1 MB"
+
+
+def undeclared_warnings(paths: Sequence[str], where: str) -> list[str]:
+    """The warning lines for the undeclared changes `paths` (in path order), whose list is
+    the file `where`: a line per path, but one line for a directory of the working
+    directory's top level with more than `UNDECLARED_LINES` of them, where its first is."""
+    under = Counter(p.split("/", 1)[0] for p in paths if "/" in p)
+    lines: list[str] = []
+    named: set[str] = set()
+    for path in paths:
+        top = path.split("/", 1)[0] if "/" in path else ""
+        if under[top] <= UNDECLARED_LINES:
+            lines.append(f"[record] undeclared change: {path}")
+        elif top not in named:
+            named.add(top)
+            lines.append(f"[record] undeclared changes: {top}/ ({under[top]} paths), see {where}")
+    return lines
 
 
 def _sha256(path: Path) -> str:
@@ -212,7 +236,9 @@ class Recorder:
     `max_file_mb`: an output or changed file larger is kept by hash only, and `log` is given
     a line naming it; `summary()` is the line that sums up what this run recorded.
     `patterns(task)`: an agent task's `changes=` patterns, which declare what it may change
-    (`start` and `finish` find the changes nothing declared).
+    (`start` and `finish` find the changes nothing declared). `exclude`: `Path.glob`
+    patterns, relative to `cwd`, that `start` and `finish` leave out; one that matches a
+    directory leaves out everything under it, and the walk does not enter it.
     """
 
     def __init__(
@@ -226,9 +252,11 @@ class Recorder:
         max_file_mb: float = MAX_FILE_MB,
         log: Callable[[str], None] | None = None,
         patterns: Callable[[Task], Sequence[str]] = lambda task: (),
+        exclude: Sequence[str] = (),
     ) -> None:
         self.directory: Path = Path(directory)
         self._patterns = patterns
+        self._exclude = tuple(exclude)
         self._tree: dict[str, Stamp] | None = None
         self._digests: dict[str, str] = {}  # of the files `start` found just written (`recent_digests`)
         self._declared: set[str] = set()  # paths relative to cwd: outputs, and what changes= saw
@@ -384,11 +412,15 @@ class Recorder:
 
     def _skip(self) -> Callable[[Path], bool]:
         """What the working directory's comparison leaves out: `.git`, `__pycache__`, the
-        recordings, and the run's own files (`layout.OWN`) and lock, wherever they are."""
+        recordings, and the run's own files (`layout.OWN`) and lock, wherever they are, and
+        what `exclude` matches."""
         own = {(self._run_dir / name).resolve() for name in layout.OWN}
         own |= {self.directory.resolve(), self._run_dir.parent.resolve() / f"{self._run_dir.name}.lock"}
         names = {".git", "__pycache__"}
-        return lambda path: path.name in names or path in own
+        if not self._exclude:
+            return lambda path: path.name in names or path in own
+        cwd, matches = self._cwd.resolve(), matcher(self._exclude)
+        return lambda path: path.name in names or path in own or matches(path.relative_to(cwd).as_posix())
 
     def start(self) -> None:
         """Stamp every file of the working directory, before the run's flow runs, with the
@@ -415,6 +447,7 @@ class Recorder:
 
         body = {
             "run": self._run_id,
+            "excluded": list(self._exclude),
             "created": [p for p in found.created if not declared(p)],
             "modified": [p for p in found.modified if not declared(p)],
             "deleted": [p for p in found.deleted if not declared(p)],

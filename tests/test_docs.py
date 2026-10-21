@@ -558,6 +558,47 @@ def test_the_runner_s_quota_rule_rests_past_80_percent():
     assert isinstance(rest, tuple) and rest[0] == "5-hour usage 91% is past 80%" and rest[1].hour == 12
 
 
+def test_the_converge_loop_stops_flat_at_its_ceiling_or_its_time_box_and_resumes_to_the_same_document(tmp_path):
+    """The tasks topic's loop that stops when it stops improving: alpha's open issues stay
+    at 2, beta's keep falling until the range ends, and a time box already past defers
+    the first critique. A resume skips every task and saves the same documents."""
+    from contraagent import Pipeline
+    from contraagent.docs.examples.converge import flow
+    from contraagent.testing import StubAgent
+
+    issues = {"alpha": [5, 2, 2, 2, 2], "beta": [9, 8, 7, 6, 5]}
+
+    def critique(launch):
+        n = int(launch.key.partition("~")[2] or 1)  # critique-beta~3 is beta's third critique
+        return {"open_issues": issues[launch.unit][n - 1], "notes": []}
+
+    def draft(launch):
+        return {"unit": launch.unit, "text": launch.key}
+
+    agent = StubAgent({"write": draft, "revise": draft, "critique": critique})
+    pipeline = Pipeline(runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path)
+
+    def documents(report):
+        return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in sorted((report.run_dir / "pipeline").glob("*.json"))}
+
+    report = pipeline.run(flow.improve, units=["alpha", "beta"], passes=5)
+    assert report.ok, report.failed
+    saved = documents(report)
+    assert saved == {
+        "refine-alpha": {"open_issues": [5, 2, 2, 2], "why": "flat"},
+        "refine-beta": {"open_issues": [9, 8, 7, 6, 5], "why": "ceiling"},
+    }
+    assert sorted(p.name for p in (report.run_dir / "pipeline").iterdir()) == ["refine-alpha.json", "refine-beta.json"]
+    launched = len(agent.launches)
+    resumed = pipeline.run(flow.improve, units=["alpha", "beta"], passes=5, resume=True)
+    assert resumed.ok and len(agent.launches) == launched  # every task skipped
+    assert documents(resumed) == saved
+
+    boxed = pipeline.run(flow.improve, units=["alpha"], deadline_s=1e-9, run_id="boxed")  # a deadline past at once
+    assert boxed.ok and [r.task.key for r in boxed.deferred] == ["critique-alpha"]
+    assert documents(boxed) == {"refine-alpha": {"open_issues": [], "why": "time box"}}
+
+
 def test_routing_names_every_key_defaults_takes():
     from contraagent._internal.routing.config import DEFAULTS_KEYS
 

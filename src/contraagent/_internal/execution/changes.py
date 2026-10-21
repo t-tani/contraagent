@@ -91,14 +91,22 @@ def _segment(seg: str) -> str:
     return out
 
 
+def matcher(patterns: Sequence[str]) -> Callable[[str], bool]:
+    """Whether one of `patterns` (`Path.glob` patterns, with no `!`) matches a POSIX path
+    relative to the working directory: the path itself, not a directory it is under."""
+    regexes = [_regex(p) for p in patterns]
+    return lambda rel: any(r.match(rel) for r in regexes)
+
+
 def excluded(patterns: Sequence[str], rel: str) -> bool:
     """Whether the `!` patterns among `patterns` leave out `rel` (a POSIX path relative to
     the working directory): it, or a directory it is under, matches one."""
-    out = [_regex(p) for p in split(patterns)[1]]
-    if not out:
+    leaving = split(patterns)[1]
+    if not leaving:
         return False
+    matches = matcher(leaving)
     parts = rel.split("/")
-    return any(r.match("/".join(parts[:n])) for r in out for n in range(1, len(parts) + 1))
+    return any(matches("/".join(parts[:n])) for n in range(1, len(parts) + 1))
 
 
 def scan(cwd: Path, patterns: Sequence[str]) -> tuple[dict[str, Stamp], frozenset[str]]:

@@ -125,6 +125,7 @@ DIFFERENCES: dict[str, list[Allowed]] = {
 NEW = {
     "cancel.review": "the example of cancellable tasks: probes whose answers stop being needed (.options(cancellable=True))",
     "cancel.review.block": "the same, where the first probe blocks the change and the probes still queued are cancelled",
+    "converge.improve": "the example of a loop that stops when it stops improving: a range, a measure that stays flat, a time box",
     "input_file.reports": "the example of input files: a long text output given to a reviewer by its path and hash (InputFile)",
     "review.publish.approve": "the all-or-nothing example of keep going: one report only when every unit's loop got through (TaskGroup)",
     "worktrees.changes.git": "the example of a working directory of its own: each unit's change in a git worktree (.options(cwd=))",

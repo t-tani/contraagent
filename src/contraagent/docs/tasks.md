@@ -609,6 +609,51 @@ Passes are counted from the loops' back edges as the flow runs
 code goes back to the start of a loop. When the two monitoring tool ids it can
 use (3 and 4) are both taken, `pass` is null and no loop is bounded.
 
+### A loop that stops when it stops improving
+
+A loop that revises a draft until a critique finds nothing may never get there. Each
+pass costs tasks, and after a few passes the draft often stays as good as it is. Such
+a loop needs three ends: a measure that has not changed for a few passes, a largest
+number of passes, and a deadline. Each one is plain flow code over what contraagent
+already has, and the loop returns the last draft whichever end it reaches.
+
+::code{file="examples/converge/flow.py" from="async def refine("}
+
+The measure is a value the flow computes from the outputs it receives, here the
+critique's `open_issues`, compared with `==` to the values of the passes before.
+`refine` stops when it has not changed for `flat` passes in a row. A resume gives the flow
+the recorded outputs of the skipped tasks in the same order, so the loop computes the
+same values and stops at the same pass.
+
+The largest number of passes is the range of a `for` loop. When `range(passes)`
+ends, the loop ends as any `for` loop does, and the flow goes on with the last draft.
+A `while` loop under `max_passes` does not end that way: `max_passes` guards against a
+loop that never ends by mistake, and the pass after it raises `TooManyPasses`, a flow
+error that leaves the run not ok. A loop whose bound is part of its design takes a
+range, and `max_passes` stays the guard.
+
+The deadline is a time box: `improve` runs each `refine` in `time_box(...,
+deadline_s=)`, since flow code has no clock to read. Past the deadline, the next
+critique or revision is deferred, and `refine` receives `TaskDeferred` at its `await`,
+catches it and returns the draft it has. The box counts from its flow call's start in
+each run, so a resume gives the loop the whole `deadline_s` again: the passes an earlier
+run finished are skipped at once, and the time goes to the passes that are left. A
+loop that stopped on its time box may therefore go further on a resume.
+
+The measures and why the loop stopped are kept with `contraagent.save` in the
+pipeline document `refine-<unit>` ([A pipeline's own records](#a-pipelines-own-records)), not with
+`contraagent.log`. A resume runs the flow again from its start, so a row logged after
+the loop would be appended once more on each resume, while `save` writes the same
+value in place of the old one. After a run in which alpha's critiques find 5 open
+issues, then 2 three times, `pipeline/refine-alpha.json` holds the following, and a
+resume leaves it the same:
+
+```json
+{"open_issues": [5, 2, 2, 2], "why": "flat"}
+```
+
+`why` is `flat`, `ceiling` when the range ended, or `time box`.
+
 ## Large inputs: input files
 
 A task call copies its params into the call file. A long text that one task wrote and
