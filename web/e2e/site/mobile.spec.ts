@@ -1,7 +1,7 @@
 // Every page of the documentation site but the landing page (apps/docs/dist, built by
 // `pnpm build`) on a phone, at 360 px in the light theme and at 390 px in the dark one:
 // - the page is no wider than the screen, and nothing on it, the live elements as they are drawn
-//   there included, is wider than its box (./fit.ts), but for the boxes meant to scroll sideways:
+//   there included, is wider than its box (../fit.ts), but for the boxes meant to scroll sideways:
 //   a code block (Expressive Code's `pre`) and a table of two columns (`data-scroll="x"`);
 // - no text is smaller than 14 px, a card's column names included (`td[data-label]::before`),
 //   except inside a live element's frame, whose elements size their own text;
@@ -14,7 +14,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { existsSync, readdirSync } from 'node:fs';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { overflows, settle } from './fit.js';
+import { overflows, settle } from '../fit.js';
 import { DOCS } from './docs-site.js';
 
 const PHONES = [
@@ -24,7 +24,7 @@ const PHONES = [
 
 /** Every page of the built site but the landing page. */
 function pages(): string[] {
-  const dist = fileURLToPath(new URL('../apps/docs/dist/', import.meta.url));
+  const dist = fileURLToPath(new URL('../../apps/docs/dist/', import.meta.url));
   if (!existsSync(dist)) return [];
   return readdirSync(dist, { recursive: true, encoding: 'utf8' })
     .filter((f) => f.endsWith(`${sep}index.html`))
@@ -117,7 +117,7 @@ for (const { width, height, colorScheme } of PHONES) {
         await open(page, path);
         const wide = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
         expect(wide, 'the page is wider than the screen').toBeLessThanOrEqual(0);
-        // The monitor on a page of its own (/demo/monitor/): the monitor's own fit is fit.spec.ts's.
+        // The monitor on a page of its own (/demo/monitor/): the monitor's own fit is ../fit.spec.ts's.
         if (!(await page.locator('div.page main').count())) return;
         const misfits = (await overflows(page, 'main')).filter((s) => !s.includes('sl-anchor-link'));
         expect(misfits, 'boxes wider than they are').toEqual([]);

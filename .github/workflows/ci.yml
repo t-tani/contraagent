@@ -127,5 +127,6 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
         working-directory: web
       # Builds the page, runs the demo pipeline, serves it with the real monitor.
+      # The documentation site's tests are site.yml's, which gates no merge or release.
       - run: pnpm e2e
         working-directory: web
