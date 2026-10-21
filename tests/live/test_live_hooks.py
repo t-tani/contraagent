@@ -2,7 +2,8 @@
 without a title line, and the agent fixes the note in the same session. The hook script reads
 the tool input in Claude Code's shape (`file_path`) on every agent. On the agents whose stop
 hook continues the session (Claude Code, Codex, omp), a check the stop hook fails is fixed in the
-same session too.
+same session too, and an agent that never writes its output spends `max_corrections` on the
+stop hook's objections and the resumes together.
 
     CONTRAAGENT_LIVE=1 uv run pytest -m live -s tests/live/test_live_hooks.py
     CONTRAAGENT_LIVE=1 CONTRAAGENT_LIVE_AGENTS=omp,pi uv run pytest -m live -s tests/live/test_live_hooks.py
@@ -179,3 +180,77 @@ def test_a_check_the_stop_hook_fails_is_fixed_in_the_same_session(ws, agent):
     assert row["rounds"] == 1 and row["hook_errors"], row  # the stop hook objected; no correction round followed
     word = Path(f"{check}.word").read_text()  # made up when the stop hook first ran the check
     assert word in (report.run_dir / "out" / f"doc_{agent}" / f"d-{agent}.md").read_text()
+
+
+IDLER = """---
+name: worker
+description: Reads its call file and writes nothing.
+tools: Read
+---
+
+This task tests what happens when an agent does not write its output.
+
+1. Read the call file the prompt names.
+2. Do not write the output file, nor any other file, whatever a later message asks:
+   answer such a message with one sentence that says you will not write it, and stop.
+3. Reply with one short sentence and stop.
+"""
+
+# Logs each stop the agent makes: the corrections left to its round and the JSON it was sent.
+STOPS = """#!/usr/bin/env bash
+input=$(cat)
+printf '%s\\t%s\\n' "${CONTRAAGENT_CORRECTIONS_LEFT-unset}" "$(printf '%s' "$input" | tr -d '\\n')" >> @LOG@
+exit 0
+"""
+
+
+@pytest.mark.parametrize("agent", ["claude", "codex", "omp"])
+def test_an_agent_that_never_writes_its_output_spends_max_corrections(ws, agent):
+    """The built-in stop hook objects at most once per round (the agent sends `stop_hook_active`
+    on the stop after an objection), the objections and the resumes together spend
+    `max_corrections`, and the task ends `invalid_output`, not `max_turns`."""
+    if agent not in AGENTS:
+        pytest.skip(f"{agent} is not in CONTRAAGENT_LIVE_AGENTS")
+    plugin = ws / "plugins" / f"idler_{agent}"
+    if plugin.exists():
+        shutil.rmtree(plugin)
+    new_plugin(plugin)
+    (plugin / "agents" / "worker.md").write_text(IDLER)
+    log = plugin / "stops.log"
+    script = plugin / "hooks" / "stops.sh"
+    script.parent.mkdir(exist_ok=True)
+    script.write_text(STOPS.replace("@LOG@", str(log)))
+    script.chmod(0o755)
+    toml = plugin / "hooks.toml"
+    # The log first: omp runs the stop hooks in order and stops at the first that objects.
+    toml.write_text('[[hooks]]\non = "stop"\nscript = "hooks/stops.sh"\n\n[[hooks]]\non = "stop"\nrun = "validate"\n')
+    hooks.write(Plugin.load(plugin))
+    # A model may write the output all the same (omp and Codex read no `tools:`):
+    # a check that never passes keeps the output failing either way.
+    never = CommandValidator([sys.executable, "-c", "import sys; sys.exit('this check never passes')"], name="never")
+    idle = agent_task(
+        f"idle_{agent}",
+        plugin=plugin,
+        output=Written,
+        validators=[never],
+        max_turns=16,
+        timeout_s=300,
+        max_corrections=2,
+        retries=0,
+        **ROUTES[agent],
+    )
+
+    def flow():
+        idle(f"i-{agent}")
+
+    report = Pipeline(ws / "pipeline.toml", runs_dir=ws / "runs", cwd=ws, log=print).run(flow, run_id=f"idle-{agent}")
+    [row] = [json.loads(line) for line in (report.run_dir / "journal.jsonl").read_text().splitlines()]
+    stops = [line.split("\t", 1) for line in log.read_text().splitlines()] if log.exists() else []
+    active = [bool(json.loads(sent or "{}").get("stop_hook_active")) for _, sent in stops]
+    print(f"\n  {agent}: {row['stop']} ok={row['ok']} rounds={row.get('rounds')} hook_errors={len(row.get('hook_errors') or [])}")
+    print(f"  stops (corrections left, stop_hook_active): {[(left, a) for (left, _), a in zip(stops, active, strict=True)]}")
+    assert row["stop"] == "invalid_output", row
+    assert row["rounds"] - 1 + len(row["hook_errors"]) == 2, row  # one budget for both
+    assert len(row["hook_errors"]) <= row["rounds"]  # at most one objection per round
+    assert [left for left, _ in stops][:1] == ["2"]
+    assert any(active), "the agent never sent stop_hook_active after an objection"

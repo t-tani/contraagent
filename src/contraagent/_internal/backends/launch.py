@@ -377,7 +377,7 @@ class LaunchResult:
     #: (`OutputContract.unwrap`); the whole message is kept beside the output file.
     unwrapped: bool = False
     #: What the plugin's stop hook sent back within the launch, before the agent
-    #: ended its turn (Claude Code): one list of errors per time it objected.
+    #: ended its turn: one list of errors per time it objected, each a correction.
     hook_errors: list[list[str]] = field(default_factory=list)
     #: The `Limits.context_budget` the launch ran under, and whether its peak context passed
     #: `Limits.context_warn_pct`% of it (`Limits.context_warned`; over folded rounds and

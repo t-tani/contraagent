@@ -56,7 +56,7 @@ context_warn_pct = 80               # warn (journal context_warned, a log line) 
 max_denials = 5                     # stop a launch after this many permission denials
 # What a launch stopped for its time wrote is a partial result when it passes its checks.
 partial_on = ["timeout", "stalled"]  # stops after which the output is kept; outranks agent_task(..., partial_on=)
-max_corrections = 2                 # correction rounds after the first, 0 to 20 (default 3): an output that fails its checks goes back to the session with the errors
+max_corrections = 2                 # 0 to 20 (default 3): how many times in all an output that fails its checks goes back to the session with the errors, by the stop hook or a resume
 # Scheduling and retries.
 max_concurrent = 2                  # tasks of this kind at once (the run's own cap still applies)
 retries = 2                         # fresh-session attempts after the first, each after one that made no progress

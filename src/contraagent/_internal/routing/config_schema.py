@@ -19,7 +19,7 @@ from contraagent._internal.routing.preflight import PreflightPolicy
 
 #: A `context_warn_pct`: a whole percent from 1 to 99.
 WarnPct = Annotated[StrictInt, Field(ge=1, le=99)]
-#: A `max_corrections`: correction rounds after the first launch.
+#: A `max_corrections`: the corrections in all, the stop hook's and the resumes.
 Corrections = Annotated[StrictInt, Field(ge=0, le=MAX_CORRECTIONS_LIMIT)]
 
 

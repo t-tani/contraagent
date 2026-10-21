@@ -288,7 +288,7 @@ class TaskResult:
     `hops`: each launch of the attempt, in order, one `Hop` per route it launched on.
     `rounds`: the rounds its output checks took (1: passed at once); 0 or None when none ran (refused, or no output contract).
     `round_errors`: the errors of each round that failed its checks, in order; the last is what stayed wrong.
-    `max_corrections`: the correction rounds its kind allowed after the first; None when no output contract ran.
+    `max_corrections`: the corrections its kind allowed, the stop hook's and the resumes in all; None when no output contract ran.
     `changes`: the files the attempt changed under its `changes` patterns; None when it declares none.
     `skipped_hops`: the hops passed over without a launch, in order, each with why its credential rests.
     `cause`: a `deferred` result's cause as data (`Deferral.cause`); None for any other result.

@@ -65,8 +65,9 @@ a `context_warn_pct` but no `context_budget` is refused before anything launches
 `[defaults].context_warn_pct` applies to every kind with a `context_budget` and
 none of its own.
 
-`max_corrections` (0 to 20, default 3, in a task table or `agent_task(...)`) caps the correction rounds of a kind: how many times an output that
-fails its checks goes back to the same session ([contracts](contracts.md#checked-twice-by-the-same-rules)).
+`max_corrections` (0 to 20, default 3, in a task table or `agent_task(...)`) caps the corrections of a kind: how many times in all an output that
+fails its checks goes back to the same session, by the stop hook within a round or by a
+resume ([contracts](contracts.md#checked-twice-by-the-same-rules)).
 A value out of that range is refused before anything launches.
 
 `keep_failed_changes = true` (in a task table, which outranks `agent_task(...)`) leaves
@@ -120,6 +121,13 @@ the launch is for its stop, the launch's own stop stands. The stops a hop can na
 every stop but `completed`, `invalid_input` and `credential_mismatch`; the `[route]` line
 of a kind shows them (`hop 2/3 omp/... on rate_limited, api_error`). Claude Code's own
 model failover (`model_failover`) never takes a hop that names its stops.
+
+An output still off-contract once its corrections are spent ends the launch
+`invalid_output`, which moves the task to the next hop and is retried as any other
+failure, so each hop and each fresh attempt spends `max_corrections` again. Both
+are on by default, because whether an agent writes its output can depend on the
+model: another hop may write it. A hop whose `stops` leave out `invalid_output` is not
+taken for it, and the kind's `retries` bounds the fresh attempts (`retries = 0`: none).
 
 A launch refused for its credential (`auth_failed`: a 401 or 403, such as an expired or
 revoked key, or a model the key may not use) is refused the same way on every later

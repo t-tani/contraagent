@@ -22,6 +22,9 @@ PYTHON = "CONTRAAGENT_PYTHON"
 #: contract. The params reach an agent only there: a value in the environment counts toward
 #: the operating system's limit on a launch's arguments and environment.
 CALL = "CONTRAAGENT_CALL"
+#: The corrections a round may still make (`max_corrections` less those made before it): a
+#: stop hook that sends the output's errors back makes one, so at 0 it lets the agent stop.
+CORRECTIONS_LEFT = "CONTRAAGENT_CORRECTIONS_LEFT"
 #: The bash a plugin's hook scripts run under, set where it is not the `bash` on PATH
 #: (on Windows, the one of Git for Windows: `commands.bash`).
 BASH = "CONTRAAGENT_BASH"
