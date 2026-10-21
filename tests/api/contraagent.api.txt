@@ -1159,7 +1159,6 @@ class Backend(abc.ABC)
         argv: list[str] | None = None,
         started_at: str = '',
         t0: float | None = None,
-        retryable: bool = True,
     ) -> LaunchResult
     light_launch: bool = False
     def mark_launch(self, launch: Launch) -> None

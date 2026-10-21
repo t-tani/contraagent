@@ -307,9 +307,10 @@ class Backend(abc.ABC):
         try:
             _, stderr, exit_code, killed = self.exchange(launch, argv, env, fold, LimitsWatch(launch.limits, self.watched_limits, fold))
         except LaunchError as exc:
+            failed = self.launch_failed(launch, str(exc), argv=argv, started_at=started_at, t0=t0)
             # A command the operating system refuses fails the same way on every launch.
-            retryable = not isinstance(exc, SpawnRefused)
-            return self.launch_failed(launch, str(exc), argv=argv, started_at=started_at, t0=t0, retryable=retryable)
+            failed.retryable = not isinstance(exc, SpawnRefused)
+            return failed
         result = fold.result(launch, self.name, exit_code=exit_code, killed=killed)
         result.argv = argv
         result.credential = launch.credential.label
@@ -325,18 +326,9 @@ class Backend(abc.ABC):
         return result
 
     def launch_failed(
-        self,
-        launch: Launch,
-        why: str,
-        *,
-        argv: list[str] | None = None,
-        started_at: str = "",
-        t0: float | None = None,
-        retryable: bool = True,
+        self, launch: Launch, why: str, *, argv: list[str] | None = None, started_at: str = "", t0: float | None = None
     ) -> LaunchResult:
-        """The result of a launch that never ran: `why` is its reason; `retryable` False when
-        another launch of the same command fails the same way (the operating system
-        refused to start it)."""
+        """The result of a launch that never ran: `why` is its reason."""
         return LaunchResult(
             label=launch.label,
             agent=self.name,
@@ -349,7 +341,6 @@ class Backend(abc.ABC):
             model=launch.model,
             credential=launch.credential.label,
             stderr_tail=why,
-            retryable=retryable,
         )
 
     # --- what the CLI says about itself ---------------------------------------
