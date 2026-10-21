@@ -351,12 +351,12 @@ interface Steps {
 }
 
 /**
- * The card whose snap position the list is at, within 2 px: its middle at the list's
- * middle or, for a card at an end, the list at that end. `resting`: only while the list
- * is where a scroll of it last ended (`watchSteps`).
+ * The card whose snap position the list is at, within 2 px (`arrived`: less than 1 px):
+ * its middle at the list's middle or, for a card at an end, the list at that end.
+ * `resting`: only while the list is where a scroll of it last ended (`watchSteps`).
  */
-async function stepsAt(page: Page, resting: boolean): Promise<Steps> {
-  return page.locator('.how-steps').evaluate((list, resting) => {
+async function stepsAt(page: Page, at: 'centred' | 'arrived' | 'resting'): Promise<Steps> {
+  return page.locator('.how-steps').evaluate((list, at) => {
     const w = window as unknown as { stepsEnded?: number; stepsLog?: string[] };
     const mid = list.getBoundingClientRect().left + list.clientWidth / 2;
     const end = list.scrollWidth - list.clientWidth;
@@ -364,7 +364,8 @@ async function stepsAt(page: Page, resting: boolean): Promise<Steps> {
       const r = s.getBoundingClientRect();
       return Math.max(0, Math.min(end, list.scrollLeft + r.left + r.width / 2 - mid));
     });
-    const still = !resting || list.scrollLeft === w.stepsEnded;
+    const still = at !== 'resting' || list.scrollLeft === w.stepsEnded;
+    const within = at === 'arrived' ? (d: number) => d < 1 : (d: number) => d <= 2;
     const facts = {
       scrollLeft: list.scrollLeft,
       stepsEnded: w.stepsEnded,
@@ -375,14 +376,22 @@ async function stepsAt(page: Page, resting: boolean): Promise<Steps> {
       howH: list.style.getPropertyValue('--how-h'),
       log: w.stepsLog,
     };
-    return { step: still ? snaps.findIndex((x) => Math.abs(x - list.scrollLeft) <= 2) : -1, facts };
-  }, resting);
+    return { step: still ? snaps.findIndex((x) => within(Math.abs(x - list.scrollLeft))) : -1, facts };
+  }, at);
 }
 
 /** The card at its snap position, whether or not the list is still moving. */
-const centredStep = (page: Page): Promise<Steps> => stepsAt(page, false);
+const centredStep = (page: Page): Promise<Steps> => stepsAt(page, 'centred');
+/**
+ * The card a button's smooth scroll sent the list to, once the list is there: at its snap
+ * position to less than a pixel, as the steps take it (`there` in how-carousel.ts). A
+ * smooth scroll ends at its destination and does not pass it, so the list is then at
+ * rest; its `scrollend` may not come (Chromium sends that of a smooth scroll that
+ * replaced another one while the list still moves, and none when it arrives).
+ */
+const arrivedStep = (page: Page): Promise<Steps> => stepsAt(page, 'arrived');
 /** The card the steps' list rests on: at that card's snap position, where a scroll of it last ended. */
-const restingStep = (page: Page): Promise<Steps> => stepsAt(page, true);
+const restingStep = (page: Page): Promise<Steps> => stepsAt(page, 'resting');
 
 /**
  * Waits until `read` finds card `step`; a failure carries the facts read after it, since a
@@ -418,12 +427,13 @@ for (const size of PHONES)
       await expect(count).toContainText('Step 7 of 7');
       await expect(next).toHaveAttribute('aria-disabled', 'true');
       await expect(page.locator('.how-loop-step.is-on')).toHaveCount(5);
-      // The keyboard: the button before, by Enter; the scroll below comes once the list rests there.
+      // The keyboard: the button before, by Enter, while the list may still be on its way to
+      // the last card; the scroll below comes once the list is at the card before it.
       await prev.focus();
       await page.keyboard.press('Enter');
       await expect(count).toContainText('Step 6 of 7');
       await expect(page.locator('.how-loop-step.is-on')).toHaveCount(4);
-      await expectStep(page, restingStep, 5);
+      await expectStep(page, arrivedStep, 5);
       // A scroll the steps did not start, part of a card back (a trackpad's, or a script's): the
       // list snaps to the card before, not between two, and that card is the step.
       const width = await page.locator('.how-step').first().evaluate((e) => (e as HTMLElement).offsetWidth);
