@@ -41,7 +41,7 @@ from contraagent._internal.backends.process import STOPPED, LaunchError, spawn_e
 from contraagent._internal.backends.refusal import FAILED_STOPS, Signals
 from contraagent._internal.backends.wire import EventFold, LimitsWatch, positive_int
 from contraagent._internal.platform.commands import commands
-from contraagent._internal.platform.groups import groups
+from contraagent._internal.platform.groups import KILL_AFTER_S, REAP_S, groups
 
 #: The id of the post-turn `get_state` request (`OmpRpcBackend._harvest_state`).
 STATE_REQUEST = "harvest-state"
@@ -223,13 +223,18 @@ class OmpRpcBackend(OmpBackend):
                 pass
             # At stdin's EOF omp finishes the commands it took and exits (its RPC docs). A
             # launch that ended in time waits for that until its deadline, as `run_process`
-            # waits for an exit; a stopped or aborted one gets the termination grace.
-            until = deadline if in_time and deadline > time.monotonic() else time.monotonic() + 10
+            # waits for an exit; a stopped or aborted one waits `KILL_AFTER_S`, as any group
+            # asked to stop does, and a killed one `REAP_S`.
+            until = deadline if in_time and deadline > time.monotonic() else time.monotonic() + KILL_AFTER_S
             try:
                 proc.wait(timeout=until - time.monotonic())
             except subprocess.TimeoutExpired:
                 groups.kill(proc)
-                proc.wait()
+                until = time.monotonic() + REAP_S
+                try:
+                    proc.wait(timeout=REAP_S)
+                except subprocess.TimeoutExpired:
+                    pass  # stuck in the kernel; the launch still gets its result
             live_processes.unregister(proc)
             # The process is gone: its stderr is read to its end before the tail is taken. A
             # process it left behind may hold the pipe open: the drain has the exit's bound.

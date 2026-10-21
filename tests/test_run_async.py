@@ -179,17 +179,23 @@ def test_ctrl_c_in_the_flow_code_stops_it_at_once(tmp_path):
     assert went_on == []
 
 
-def test_after_ctrl_c_a_task_that_ignores_its_cancellation_is_left_after_the_time_limit(monkeypatch, caplog):
+def test_after_ctrl_c_the_tasks_left_are_waited_for_until_a_second_ctrl_c_leaves_them(caplog):
     from contraagent._internal.dispatch import entry
 
-    monkeypatch.setattr(entry, "CANCEL_S", 0.2)
     ended: list[str] = []
 
+    def second_ctrl_c() -> None:
+        raise KeyboardInterrupt  # as a second Ctrl-C while the loop waits
+
     async def stubborn():
+        cancelled = False
         while True:
             try:
                 await asyncio.sleep(3600)
             except asyncio.CancelledError:
+                if not cancelled:  # the wait for the cancelled tasks has begun
+                    cancelled = True
+                    asyncio.get_running_loop().call_soon(second_ctrl_c)
                 continue  # ignores its cancellation
 
     async def polite():
@@ -208,5 +214,32 @@ def test_after_ctrl_c_a_task_that_ignores_its_cancellation_is_left_after_the_tim
         entry.run_sync(main, called="test", instead="main()")
     assert ended == ["polite"]
     assert [r.getMessage() for r in caplog.records if r.name == entry.__name__] == [
-        "1 task(s) did not end within 0.2s of being cancelled and are left behind: stubborn"
+        "waiting for 2 cancelled task(s) to end; press Ctrl-C again to leave them: polite, stubborn",
+        "1 task(s) did not end after their cancellation and are left behind: stubborn",
+    ]
+
+
+def test_after_ctrl_c_the_tasks_left_are_waited_for_until_they_end(caplog):
+    from contraagent._internal.dispatch import entry
+
+    ended: list[str] = []
+
+    async def slow_teardown():
+        try:
+            await asyncio.sleep(3600)
+        finally:
+            for _ in range(100):  # a teardown that takes many turns of the loop
+                await asyncio.sleep(0)
+            ended.append("slow")
+
+    async def main():
+        asyncio.get_running_loop().create_task(slow_teardown(), name="slow")
+        await asyncio.sleep(0)
+        raise KeyboardInterrupt
+
+    with caplog.at_level("WARNING", logger=entry.__name__), pytest.raises(KeyboardInterrupt):
+        entry.run_sync(main, called="test", instead="main()")
+    assert ended == ["slow"]
+    assert [r.getMessage() for r in caplog.records if r.name == entry.__name__] == [
+        "waiting for 1 cancelled task(s) to end; press Ctrl-C again to leave them: slow"
     ]

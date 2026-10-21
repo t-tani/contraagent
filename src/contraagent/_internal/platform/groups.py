@@ -31,6 +31,19 @@ import sys
 import threading
 from typing import Any, Protocol
 
+#: The seconds a group has, once asked to stop (`Groups.terminate`), before it is killed
+#: (`Groups.kill`). A process may ignore the request, so some wait is needed; its length
+#: comes from the supervisor that stops contraagent itself, which kills it in turn after a
+#: wait of its own. The shortest such wait in common use is `docker stop`'s 10 seconds on
+#: Linux, and contraagent's teardown must end within it: this wait and the reap after the
+#: kill (`REAP_S`) together stay under 10 seconds. Every stop of a group uses it: a
+#: launch's end, the teardown of a run, and the watchdog (given it on its command line).
+KILL_AFTER_S = 5.0
+
+#: The seconds a killed group's child has to be reaped. A kill ends a process at once,
+#: unless it is stuck in the kernel; a child still there after this is left unreaped.
+REAP_S = 2.0
+
 
 class Groups(Protocol):
     """A child process in a group of its own, on one OS."""

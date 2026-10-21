@@ -46,7 +46,7 @@ import time
 
 from contraagent._internal.backends import watchdog
 from contraagent._internal.platform import processes
-from contraagent._internal.platform.groups import groups
+from contraagent._internal.platform.groups import KILL_AFTER_S, REAP_S, groups
 
 _lock = threading.Lock()
 _live: list[subprocess.Popen] = []
@@ -67,11 +67,6 @@ _refused = False
 
 #: Why a launch is refused while the process stops.
 REFUSED = "refused: the run is stopping on a signal"
-
-#: How long a group gets to exit once asked (SIGTERM, CTRL_BREAK) before it is killed. Long enough
-#: for the CLI to write its own farewell and release its ports, short enough
-#: that a teardown does not feel like a hang.
-_TERM_GRACE_S = 5.0
 
 #: The watchdog's process (`watchdog`) and this interpreter's end of its socket.
 _watchdog: subprocess.Popen | None = None
@@ -96,7 +91,7 @@ def _tell_watchdog(line: str) -> None:
                 if sys.platform == "darwin":  # no MSG_NOSIGNAL there: the socket's own option
                     ours.setsockopt(socket.SOL_SOCKET, getattr(socket, "SO_NOSIGPIPE", 0x1022), 1)
                 _watchdog = subprocess.Popen(
-                    [sys.executable, "-I", watchdog.__file__, processes.__file__],
+                    [sys.executable, "-I", watchdog.__file__, processes.__file__, str(KILL_AFTER_S)],
                     stdin=theirs.fileno(),
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
@@ -194,13 +189,13 @@ def _kill_group(proc: subprocess.Popen) -> None:
     if not groups.terminate(proc):
         return
     try:
-        proc.wait(timeout=_TERM_GRACE_S)
+        proc.wait(timeout=KILL_AFTER_S)
         return
     except (subprocess.TimeoutExpired, OSError):
         pass
     groups.kill(proc)
     try:
-        proc.wait(timeout=5.0)
+        proc.wait(timeout=REAP_S)
     except (subprocess.TimeoutExpired, OSError):
         pass
 
@@ -221,7 +216,7 @@ def live_count() -> int:
         return len([p for p in _live if p.poll() is None])
 
 
-def stop_all(timeout: float = _TERM_GRACE_S) -> int:
+def stop_all(timeout: float = KILL_AFTER_S) -> int:
     """Stop every live agent group. Returns how many were signalled.
 
     Idempotent, and nothing here raises, because a teardown that failed while
