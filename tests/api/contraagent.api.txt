@@ -3045,7 +3045,7 @@ class DroppedRoute(RecordModel)
     kinds: tuple[str, ...] = Field(description='the kinds whose chain held it')
     model: str = Field(description="empty: the coding agent's default model")
     model_config: ConfigDict = ConfigDict(frozen=True)
-    reason: str = Field(description="not in its coding agent's model list, or how its probe ended (`rate limited`, ...)")
+    reason: str = Field(description="not in its coding agent's model list, or how its probe ended (`rate limited`, `timeout: ...`: no answer within the longest `timeout_s` of the kinds whose chain held it, ...)")
 
 class ExportInfo(Closed)
     exported_at: str = Field(description='when it was written, ISO 8601')

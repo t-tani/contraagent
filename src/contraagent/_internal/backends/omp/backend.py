@@ -405,7 +405,7 @@ class OmpBackend(Backend):
         driver passes its repo root, matching `Launch.cwd`.
         """
         if self._chains is None:
-            self._chains = load_model_chains(self._base_env, cwd or Path.cwd())
+            self._chains = load_model_chains(self._base_env, cwd or Path.cwd(), self.binary)
         return self._chains
 
     def env(self, launch: Launch) -> dict[str, str]:

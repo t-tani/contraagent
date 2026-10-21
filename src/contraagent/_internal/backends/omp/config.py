@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 from pathlib import Path
 
-#: How long `omp config path` may take.
-CONFIG_PATH_TIMEOUT_S = 30
+from contraagent._internal.platform.commands import commands
 
 
 class OmpModelChains:
@@ -24,10 +22,12 @@ class OmpModelChains:
     Documented at omp.sh/docs/roles.
     """
 
-    def __init__(self, enabled: bool, chains: dict, source=None):
+    def __init__(self, enabled: bool, chains: dict, source=None, unread: str = ""):
         self.enabled = enabled
         self.chains = chains
         self.source = source
+        #: Why omp's global config was not read (`omp config path failed: ...`); empty when it was.
+        self.unread = unread
 
     def covers(self, model: str) -> list:
         """The selectors omp would try after `model`, in order.
@@ -70,6 +70,9 @@ class OmpModelChains:
         """
         got = self.covers(model)
         where = self.source or "omp config"
+        if not self.chains and self.unread:
+            # Without omp's own answer the global config is not known, so its chains are not either.
+            return f"not known: {self.unread}"
         if not self.chains:
             return (
                 f"none configured in {where} — model failover is omp's "
@@ -81,28 +84,36 @@ class OmpModelChains:
         return f"{where} -> " + ", ".join(got)
 
 
-def load_model_chains(env: dict, launch_cwd: Path) -> OmpModelChains:
+def load_model_chains(env: dict, launch_cwd: Path, binary: str = "omp") -> OmpModelChains:
     """Read `retry:` from omp's config, project first then global.
 
     Both locations are omp's, not ours to guess. The project file is
     `<launch cwd>/.omp/config.yml` and omp checks that one directory
     only, not ancestors — so the cwd that matters is the one the launch
     carries, not whatever directory the driver was typed in. The global
-    one is whatever `omp config path` reports, which already accounts
-    for PI_CODING_AGENT_DIR, PI_CONFIG_DIR and a named profile.
+    one is in the directory `<binary> config path` reports, which already
+    accounts for PI_CODING_AGENT_DIR, PI_CONFIG_DIR and a named profile.
+    When that command fails, the global config is not read, and `describe`
+    says why (`unread`) instead of saying that no chain is configured.
 
     `retry.modelFallback` defaults to true, so a config with no retry
     block still *claims* model failover and has none — that gap is worth
     reporting rather than passing over.
     """
-    import yaml
-
-    agent_dir = _omp_agent_dir(env)
-    candidates = [launch_cwd / ".omp" / "config.yml", agent_dir / "config.yml", Path.home() / ".omp" / "agent" / "config.yml"]
+    agent_dir = _omp_agent_dir(binary, env)
+    candidates = [launch_cwd / ".omp" / "config.yml"]
+    if isinstance(agent_dir, Path):
+        candidates.append(agent_dir / "config.yml")
     for cand in candidates:
         try:
-            data = yaml.safe_load(cand.read_text(encoding="utf-8")) or {}
-        except (OSError, ValueError, yaml.YAMLError):
+            text = cand.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        import yaml  # only for a config file that exists
+
+        try:
+            data = yaml.safe_load(text) or {}
+        except (ValueError, yaml.YAMLError):
             continue
         if not isinstance(data, dict):
             continue
@@ -112,25 +123,31 @@ def load_model_chains(env: dict, launch_cwd: Path) -> OmpModelChains:
         chains = retry.get("fallbackChains")
         chains = chains if isinstance(chains, dict) else {}
         return OmpModelChains(bool(retry.get("modelFallback", True)), {k: list(v) for k, v in chains.items() if isinstance(v, list)}, cand)
-    return OmpModelChains(True, {}, candidates[-1])
+    if isinstance(agent_dir, Path):
+        return OmpModelChains(True, {}, candidates[-1])
+    return OmpModelChains(True, {}, unread=agent_dir)
 
 
-def _omp_agent_dir(env: dict) -> Path:
-    """omp's active agent directory, as it reports it."""
-    if shutil.which("omp", path=env.get("PATH")):
-        try:
-            proc = subprocess.run(
-                ["omp", "config", "path"],
-                capture_output=True,
-                text=True,
-                timeout=CONFIG_PATH_TIMEOUT_S,
-                env={**env, "NO_COLOR": "1"},
-                encoding="utf-8",
-                errors="replace",
-            )
-            out = (proc.stdout or "").strip().splitlines()
-            if proc.returncode == 0 and out:
-                return Path(out[-1].strip())
-        except (OSError, subprocess.SubprocessError):
-            pass
-    return Path.home() / ".omp" / "agent"
+def _omp_agent_dir(binary: str, env: dict) -> Path | str:
+    """omp's active agent directory, as `<binary> config path` reports it; else why that
+    command failed (`omp config path failed: <its last stderr line>`)."""
+    try:
+        proc = subprocess.run(
+            commands.resolve([binary, "config", "path"], env.get("PATH")),
+            capture_output=True,
+            text=True,
+            env={**env, "NO_COLOR": "1"},
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError as e:
+        return f"omp config path failed: {e}"
+    out = (proc.stdout or "").strip().splitlines()
+    if proc.returncode == 0 and out:
+        return Path(out[-1].strip())
+    said = (proc.stderr or "").strip().splitlines()
+    if said:
+        return f"omp config path failed: {said[-1].strip()}"
+    if proc.returncode == 0:
+        return "omp config path failed: it printed no path"
+    return f"omp config path failed: exit code {proc.returncode}"
