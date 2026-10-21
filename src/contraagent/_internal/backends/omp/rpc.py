@@ -207,7 +207,7 @@ class OmpRpcBackend(OmpBackend):
             )
         except OSError as exc:
             raise spawn_error(exc) from exc
-        live_processes.register(proc, since=since)
+        live_processes.register(proc, since=since, task=launch.label)
         stderr: list[str] = []
         drain: threading.Thread | None = None
         in_time = False

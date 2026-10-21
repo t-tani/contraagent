@@ -117,14 +117,24 @@ class PerTask:
     name needs. `memory_mb`: memory in MB; `cores`: CPU cores. Give one or both, each a
     positive integer; a mistake raises `ConfigError`.
 
-    Each time the queue tries to start a task that claims the name, the capacity is the
-    tasks that hold it now plus as many more as the free memory holds, and at most the
-    usable cores divided by `cores`; at least 1 while no task holds the name, so a run
-    always goes on. Free memory is `MemAvailable` of `/proc/meminfo`, less `memory_mb` for
-    each task with a `PerTask` claim started in the last 30 seconds (one just started has
-    not grown yet); where there is no `/proc/meminfo` (not Linux), memory does not limit
-    it. A pattern with a `PerTask` sizes each name it matches on its own: one name,
-    claimed by every such task, shares one limit.
+    `memory_mb` is the most memory the task takes, its coding agent and every process
+    it starts included. Each time the queue tries to start a task that claims the name,
+    the task may start when the memory holds it and fewer tasks hold the name than the
+    usable cores divided by `cores`; while no task holds the name one may start anyway,
+    so a run always goes on. Each running task with a `PerTask` claim holds its
+    `memory_mb` (of all its `PerTask` names, added up) until it ends, or what its
+    processes take when that is more. The memory holds a new task when two conditions
+    hold. First, the holds, the new task's `memory_mb` and the memory other work took
+    fit in the baseline, the free memory read while no such task runs. Second, the free
+    memory now holds the new task's `memory_mb` and what the running tasks hold but have
+    not taken yet. Free memory is what the OS reports as available (on Linux
+    `MemAvailable` of `/proc/meminfo`); where it reports none, memory does not limit the
+    name. What a task's processes take is the memory that the processes of its coding
+    agents' process groups do not share with other processes; a Python task runs inside
+    this interpreter, and a process can leave its agent's group, so what they take counts
+    as other work's while the task's `memory_mb` stays held. A `memory_mb` larger than a task takes holds back
+    other tasks. A pattern with a `PerTask` sizes each name it matches on its own: one
+    name, claimed by every such task, shares one limit.
     """
 
     memory_mb: int | None = None
