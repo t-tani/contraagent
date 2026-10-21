@@ -1,1 +1,0 @@
-An agent's process group that is asked to stop now has 5 seconds to end before it is killed, at the end of a launch, in a run's teardown and in the watchdog alike. A launch's end gave it 10 seconds, and 10 more after the kill, longer than `docker stop` waits on Linux before it kills contraagent itself.
