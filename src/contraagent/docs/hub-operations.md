@@ -59,6 +59,12 @@ Set `User=`, `CONTRAAGENT_HUB_URL` and `CONTRAAGENT_RUNS_DIR` in the unit (or in
 `<runs-dir>.relay.json`; it retries an unreachable hub with backoff and catches up from
 the runs directory, so a host never waits for the hub.
 
+The relay sends a heartbeat every `--interval` seconds, 3 by default. The hub counts the
+host as up for `--ttl` seconds after it receives each heartbeat, four times `--interval`
+by default; the relay refuses a `--ttl` that is not more than `--interval`. On a network
+that loses requests, a longer `--ttl` keeps the host up through more lost heartbeats,
+and the monitor shows a stopped host as down later.
+
 A hub behind a reverse proxy, under a path of a site, is started with `--base-path`,
 and each relay names it with that path; [the hub](hub.md#start-a-hub) says what the
 proxy needs for the relays, and [the monitor](monitor.md#behind-a-reverse-proxy) what
@@ -137,7 +143,7 @@ upgrade the hub first, then the relays.
 | What you see | Where it comes from | What to check |
 |---|---|---|
 | `/healthz` 503 `records` / `blobs` / `transcripts` | that store does not answer | `docker compose ps`, the store's logs, the hub's log (it logs each change of a store's state once) |
-| a host shows "no report from host" | its relay's heartbeats stopped arriving | the relay's service (`journalctl -u contraagent-relay`), the network to the hub |
+| a host shows "no report from host" | no heartbeat of its relay arrived within the relay's `--ttl` | the relay's service (`journalctl -u contraagent-relay`), the network to the hub |
 | a relay logs "hub unavailable" | the hub did not answer | `/healthz`; the relay catches up when the hub is back |
 | a relay logs 401 or 403 | a wrong token or host id | the Tokens table above |
 | `hub-data` grows | open segments of running tasks | segments are sealed when a task ends, at 64 MiB, after ten idle minutes or an hour |

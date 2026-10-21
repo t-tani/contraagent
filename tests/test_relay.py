@@ -7,6 +7,7 @@ import logging
 import os
 import shutil
 import threading
+from datetime import datetime
 from pathlib import Path
 
 import httpx2
@@ -305,9 +306,26 @@ def test_the_heartbeat_carries_the_live_runs(runs):
     assert r.heartbeat_once()
     [beat] = rec.heartbeats
     uid = json.loads((first(runs) / layout.RUN_INFO).read_text())["run_uid"]
-    assert beat.host_id == "h1" and beat.interval_s == 3 and beat.sent_at.startswith("2026-10-13T00:00:00")
+    assert beat.host_id == "h1" and beat.interval_s == 3 and beat.ttl_s == 12 and beat.sent_at.startswith("2026-10-13T00:00:00")
     assert [(b.run, b.alive, b.snapshot) for b in beat.runs] == [(RunRef(host_id="h1", run_id="analyse", run_uid=uid), True, snap)]
     assert HeartbeatLiveness(hub.store).live() == {"analyse@h1"}
+
+
+@pytest.mark.parametrize(("interval_s", "ttl_s", "up_for"), [(20, None, 80), (3, 5, 5)])
+def test_the_host_is_up_for_the_ttl_its_relay_sends(runs, interval_s, ttl_s, up_for):
+    hub = new_hub()
+    assert relay(DirectClient(hub), runs, interval_s=interval_s, ttl_s=ttl_s).heartbeat_once()
+    [(beat, received_at)] = hub.store.heartbeats().values()
+    assert beat.ttl_s == up_for
+    received = datetime.fromisoformat(received_at).timestamp()  # the hub's clock, not the relay's
+    assert [h["up"] for h in HeartbeatLiveness(hub.store, clock=lambda: received + up_for - 0.1).hosts()] == [True]
+    assert [h["up"] for h in HeartbeatLiveness(hub.store, clock=lambda: received + up_for).hosts()] == [False]
+
+
+@pytest.mark.parametrize("ttl_s", [3, 1])
+def test_a_ttl_not_more_than_the_interval_is_refused(runs, ttl_s):
+    with pytest.raises(ValueError, match="must be more than interval_s"):
+        relay(DirectClient(new_hub()), runs, interval_s=3, ttl_s=ttl_s)
 
 
 def test_since_leaves_out_old_runs_not_shipped_yet(runs):
@@ -370,7 +388,7 @@ def test_http_client_speaks_the_protocol():
         run=ref, logs=[LogChunk(log=layout.JOURNAL, offset=2, lines=["x"])], documents=[DocumentPut(name="run.json", text="{}")]
     )
     assert client.send_records(batch) == Accepted(logs={layout.JOURNAL: 3})
-    assert client.send_heartbeat(Heartbeat(host_id="h", sent_at="s", interval_s=3)).ttl_s == 15
+    assert client.send_heartbeat(Heartbeat(host_id="h", sent_at="s", interval_s=3, ttl_s=12)).ttl_s == 15
     sha = hashlib.sha256(b"data").hexdigest()
     assert not client.has_blob(sha)
     client.put_blob(sha, b"data")
@@ -432,7 +450,7 @@ def test_main_needs_a_token(runs, monkeypatch, capsys):
 def test_a_refused_token_is_an_error_retried_slowly(runs, caplog, status):
     client = HttpClient("http://hub:8790", "t", transport=httpx2.MockTransport(lambda request: httpx2.Response(status, text="no")))
     with pytest.raises(HubRefused):
-        client.send_heartbeat(Heartbeat(host_id="h", sent_at="s", interval_s=3))
+        client.send_heartbeat(Heartbeat(host_id="h", sent_at="s", interval_s=3, ttl_s=12))
     r = relay(client, runs, interval_s=3)
     caplog.set_level(logging.WARNING, logger="contraagent._internal.hub.relay")
     assert not r.pass_once() and not r.heartbeat_once() and not r.pass_once()
