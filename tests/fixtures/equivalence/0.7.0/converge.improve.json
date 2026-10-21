@@ -1,0 +1,99 @@
+{
+  "call": "examples/converge/flow.py:improve",
+  "config": false,
+  "flow": "converge.improve",
+  "kwargs": {
+    "units": [
+      "alpha",
+      "beta"
+    ]
+  },
+  "outputs": {
+    "critique/alpha.json": "69892fb5973530429f9604e4d9ff4f6a83848caacb6cfe7ec34718b7bb5677c4",
+    "critique/alpha~2.json": "69892fb5973530429f9604e4d9ff4f6a83848caacb6cfe7ec34718b7bb5677c4",
+    "critique/alpha~3.json": "69892fb5973530429f9604e4d9ff4f6a83848caacb6cfe7ec34718b7bb5677c4",
+    "critique/beta.json": "69892fb5973530429f9604e4d9ff4f6a83848caacb6cfe7ec34718b7bb5677c4",
+    "critique/beta~2.json": "69892fb5973530429f9604e4d9ff4f6a83848caacb6cfe7ec34718b7bb5677c4",
+    "critique/beta~3.json": "69892fb5973530429f9604e4d9ff4f6a83848caacb6cfe7ec34718b7bb5677c4",
+    "revise/alpha.json": "819ff7603dad6d5ce5fd3f35b8532009cd05e291612f64720fc337bfb1c8c7e9",
+    "revise/alpha~2.json": "819ff7603dad6d5ce5fd3f35b8532009cd05e291612f64720fc337bfb1c8c7e9",
+    "revise/beta.json": "819ff7603dad6d5ce5fd3f35b8532009cd05e291612f64720fc337bfb1c8c7e9",
+    "revise/beta~2.json": "819ff7603dad6d5ce5fd3f35b8532009cd05e291612f64720fc337bfb1c8c7e9",
+    "write/alpha.json": "819ff7603dad6d5ce5fd3f35b8532009cd05e291612f64720fc337bfb1c8c7e9",
+    "write/beta.json": "819ff7603dad6d5ce5fd3f35b8532009cd05e291612f64720fc337bfb1c8c7e9"
+  },
+  "report": {
+    "deferred": 0,
+    "failed": 0,
+    "flow_errors": [],
+    "ok": true,
+    "partial": 0
+  },
+  "scenario": "stub",
+  "tasks": {
+    "critique-alpha": {
+      "kind": "critique",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "critique-alpha~2": {
+      "kind": "critique",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "critique-alpha~3": {
+      "kind": "critique",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "critique-beta": {
+      "kind": "critique",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "critique-beta~2": {
+      "kind": "critique",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "critique-beta~3": {
+      "kind": "critique",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "revise-alpha": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "revise-alpha~2": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "revise-beta": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "revise-beta~2": {
+      "kind": "revise",
+      "stop": "completed",
+      "unit": "beta"
+    },
+    "write-alpha": {
+      "kind": "write",
+      "stop": "completed",
+      "unit": "alpha"
+    },
+    "write-beta": {
+      "kind": "write",
+      "stop": "completed",
+      "unit": "beta"
+    }
+  },
+  "value": {
+    "alpha": "",
+    "beta": ""
+  }
+}

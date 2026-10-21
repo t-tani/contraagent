@@ -92,6 +92,7 @@ FLOWS = [
     Flow("changes", "flow", "topics", {"subjects": {"alpha": "caching", "beta": "retries"}}),
     Flow("claims", "flow", "topics", {"names": UNITS}),
     Flow("concurrency", "flow", "reports", {"units": UNITS}),
+    Flow("converge", "flow", "improve", {"units": UNITS}),
     Flow("credentials", "flow", "summarize_all", {"documents": ["plan", "contract"]}, config=True),
     Flow("demo", "tasks", "docs", {"units": UNITS}, config=True),
     Flow("demo", "tasks", "docs_one_review", {"units": UNITS}, config=True),
