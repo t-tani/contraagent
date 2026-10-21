@@ -63,7 +63,7 @@ Past the deadline only the box's `finishing_kinds` still launch, for its grace
 window (`grace_s`); every other task in it is deferred. So the earliest deadline
 of a task's boxes stops it, and a finishing kind launches past a deadline only
 while each box it is in lets it. On top sit one retry for the stop values in
-`retry_on`, and throttling (two `throttle_on` results in a row halve the slots
+`retry_on`, for a result that is retryable (`TaskResult.retryable`), and throttling (two `throttle_on` results in a row halve the slots
 for `throttle_s`).
 
 Every `Task` carries two identities (`dispatch/task.py`): `.id`, fresh per
@@ -848,7 +848,7 @@ class WorkQueue:
             self._consec_throttled = 0
 
         past_a_deadline = any(time.monotonic() >= box.deadline_at for box in self._boxes(task))
-        if res.stop in self.retry_on and self._attempt.get(task.id, 1) < 2 and not past_a_deadline and not cancelled:
+        if res.stop in self.retry_on and res.retryable and self._attempt.get(task.id, 1) < 2 and not past_a_deadline and not cancelled:
             # Full jitter (AWS's "Exponential Backoff and Jitter"): with a
             # fixed wait, every task that failed in the same outage would
             # retry at the same instant.

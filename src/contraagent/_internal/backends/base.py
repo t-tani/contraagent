@@ -32,7 +32,7 @@ from typing import Any, Protocol
 
 from contraagent._internal.backends.credentials import Ambient, Credential, CredentialBinding, CredentialError
 from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
-from contraagent._internal.backends.process import LaunchError, Sink, run_process, write_launch_marker
+from contraagent._internal.backends.process import LaunchError, Sink, SpawnRefused, run_process, write_launch_marker
 from contraagent._internal.backends.refusal import Signals, quota_refusal
 from contraagent._internal.backends.wire import EventFold, LimitsWatch
 from contraagent._internal.dispatch.records import QuotaReading
@@ -307,7 +307,10 @@ class Backend(abc.ABC):
         try:
             _, stderr, exit_code, killed = self.exchange(launch, argv, env, fold, LimitsWatch(launch.limits, self.watched_limits, fold))
         except LaunchError as exc:
-            return self.launch_failed(launch, str(exc), argv=argv, started_at=started_at, t0=t0)
+            failed = self.launch_failed(launch, str(exc), argv=argv, started_at=started_at, t0=t0)
+            # A command the operating system refuses fails the same way on every launch.
+            failed.retryable = not isinstance(exc, SpawnRefused)
+            return failed
         result = fold.result(launch, self.name, exit_code=exit_code, killed=killed)
         result.argv = argv
         result.credential = launch.credential.label

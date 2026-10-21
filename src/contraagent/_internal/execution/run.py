@@ -67,7 +67,8 @@ from contraagent._internal.runs.times import iso_of, now_iso
 
 _logger = logging.getLogger(__name__)
 
-#: A launch that never ran is retried once by the queue; a rate limit counts
+#: A launch that never ran is retried once by the queue, unless its result is not
+#: retryable (a command the operating system refused to start); a rate limit counts
 #: toward its throttle. These are the stop values naming those cases.
 RETRY_ON = frozenset({Stop.API_ERROR.value, Stop.NO_OUTPUT.value, Stop.LAUNCH_FAILED.value})
 THROTTLE_ON = frozenset({Stop.RATE_LIMITED.value})

@@ -292,7 +292,6 @@ class AgentRunner:
             envvars.TASK: task.key,
             envvars.KIND: kind_name(task.kind),
             envvars.UNIT: task.unit,
-            envvars.PARAMS: json.dumps({k: v for k, v in (task.params or {}).items() if isinstance(v, (str, int, float))}),
         }
         prompt = f"{telemetry_line(task, self.run_id, role)}\n\n{self.adapter.prompt(task, be)}"
         return Launch(
@@ -807,7 +806,8 @@ class RetryingRunner:
     backoff, up to the kind's `KindConfig.retries` of them after the first (`retries=2`:
     3 attempts at most); a safeguard refusal is not
     retried (the hop walk already tried every route), nor a task refused for its credential
-    (`auth_failed`: the credential rests for the run). This sits beside the
+    (`auth_failed`: the credential rests for the run), nor a result that is not retryable
+    (`TaskResult.retryable`: a command the operating system refused to start). This sits beside the
     queue's own `retry_on`, which covers a launch that never ran.
 
     `max_concurrent_overrides` sizes a per-kind budget for one queue without

@@ -48,8 +48,10 @@ class Stop(str, enum.Enum):
     usage-limit message. `refused`: a safety refusal. `aborted`: stopped in the middle of a
     tool call. `denied`: more permission denials than `Limits.max_denials`. `error`: a
     nonzero exit with no result (a Python task: it raised). `no_output`: the process ended
-    with no result line. `launch_failed`: the program is missing or the launch could not
-    be set up. `invalid_output`: the output was still off-contract after every round.
+    with no result line. `launch_failed`: the program is missing, the launch could not
+    be set up, or the operating system refused to start it (`LaunchResult.retryable`
+    False: the same command is refused every time). `invalid_output`: the output was
+    still off-contract after every round.
     `invalid_input`: an input the task reads is off-contract; nothing was launched.
     `credential_mismatch`: the agent reported another credential than the one chosen.
     """
@@ -386,7 +388,8 @@ class LaunchResult:
     #: rounds and hops, the window of the launch whose call is the peak context (`fold_spend`).
     context_window: int | None = None
     #: False when another attempt cannot end otherwise: the stub agent's example
-    #: that failed its checks would be written again (`TaskResult.retryable`).
+    #: that failed its checks would be written again, and a command the operating system
+    #: refused to start would be refused again (`TaskResult.retryable`).
     retryable: bool = True
     #: What of the launch's tokens its reader could not read ('' when it read all the coding
     #: agent reports). `calls`: the tokens of each API call are unknown, and `usage` holds one

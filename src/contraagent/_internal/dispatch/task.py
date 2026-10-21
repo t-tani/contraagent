@@ -142,8 +142,8 @@ class Task:
     `priority`: a tie-breaker in the queue's order, higher first: it orders tasks
     the bottom level, overdue waiting and the deadlines leave equal, never
     against them. Scheduling, not work: no part of the fingerprint.
-    `params`: what the task is given (scalars reach an agent as
-    `CONTRAAGENT_PARAMS`).
+    `params`: what the task is given (an agent reads them in its call file,
+    `CONTRAAGENT_CALL`).
     `attempt`: retry ordinal; 0 is the first try.
     `id`: a fresh, meaningless-by-design value per `Task` object, used only
     as the scheduler's own internal bookkeeping key.
@@ -293,7 +293,8 @@ class TaskResult:
     `skipped_hops`: the hops passed over without a launch, in order, each with why its credential rests.
     `cause`: a `deferred` result's cause as data (`Deferral.cause`); None for any other result.
     `retryable`: False when another attempt cannot end otherwise (a replay with no recording, the stub agent's
-    example that failed its checks).
+    example that failed its checks, a command the operating system refused to start). Neither the retrying
+    runner nor the queue's `retry_on` tries it again.
     `replayed`: True when the attempt was played from a recording, not launched or called.
     `payload`: domain data a `ResultEnricher` attached; never read by this module.
     """
