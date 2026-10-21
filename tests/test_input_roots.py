@@ -37,7 +37,7 @@ def sha256(text: str) -> str:
 
 def corpus(path: Path, text: str = "a,b\n1,2\n") -> Path:
     (path / "2026").mkdir(parents=True)
-    (path / "2026" / "x.csv").write_text(text, encoding="utf-8")
+    (path / "2026" / "x.csv").write_bytes(text.encode())  # the bytes `sha256` hashes, on every OS
     return path
 
 
