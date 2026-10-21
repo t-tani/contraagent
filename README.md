@@ -387,15 +387,3 @@ this README.
 
 [AGENTS.md](AGENTS.md) is for work on contraagent itself, and
 [CHANGELOG.md](CHANGELOG.md) lists the changes. contraagent is MIT licensed.
-
-## Citation
-
-```bibtex
-@misc{contraagent2026,
-  title = {contraagent: coding agents as typed, checked and supervised tasks},
-  author = {Tomoaki Tani},
-  year = {2026},
-  publisher = {GitHub},
-  howpublished = {\url{https://github.com/t-tani/contraagent}},
-}
-```
