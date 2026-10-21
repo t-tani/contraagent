@@ -263,7 +263,7 @@ def run_process(
         )
     except OSError as exc:
         raise spawn_error(exc) from exc
-    if not live_processes.register(proc, since=since):  # stopped already; waited for here
+    if not live_processes.register(proc, since=since, task=launch.label):  # stopped already; waited for here
         _terminate(proc)
         for pipe in (proc.stdin, proc.stdout, proc.stderr):
             if pipe is not None:

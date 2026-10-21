@@ -724,7 +724,7 @@ class Run:
         `launch_failed`) and of its rate limit (`rate_limited`); `estimate`, to what the
         recent runs' journals say (`Run.estimator`), and then `finish_chance` to the same
         estimates' (`JournalEstimates.finish_chance`). A `PerTask` entry of `claim_capacity`
-        is sized by this host.
+        is sized by this host and the memory its tasks' agents hold.
         """
         if skip is None and resume:
             skip = resume_skip(self.journal.last_rows(), self.journal.reruns, warn=lambda line: self._log(logging.WARNING, line))
