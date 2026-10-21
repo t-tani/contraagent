@@ -14,7 +14,8 @@ Each entry of `FLOWS` is one run: an example's flow function with its keyword ar
 on the stub agent (`stub`: what `contraagent run --stub` does, no model called and no
 Python task's function run; `approve`: the same, but the reviews approve; `block`: the
 same, one task at a time, and the security probe finds a blocking problem, so the probes
-still queued are cancelled), or on the
+still queued are cancelled; `git`: the same, in a git repository whose Python tasks of git
+run, as the worktrees example says to run it), or on the
 stub that the example's own tests script (`demo`, `tutorial`: their Python tasks run,
 and some replies fail). A run is recorded as its `summary`: every task by key (kind,
 unit, final stop), each file under the run directory's `out/` by the SHA-256 of its
@@ -33,6 +34,7 @@ import hashlib
 import importlib
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from collections.abc import Callable, Iterator
@@ -117,6 +119,7 @@ FLOWS = [
     Flow("services", "flow", "topics", {"names": UNITS}),
     Flow("skills", "tasks", "notes", {"units": UNITS}),
     Flow("time_box", "flow", "cycle", {"topics": UNITS}),
+    Flow("worktrees", "flow", "changes", {"goals": {"alpha": "greet in French", "beta": "greet in German"}}, scenario="git"),
     Flow("tutorial", "tasks", "triage_all", {"reports": REPORTS}, config=True),
     Flow("tutorial", "tasks", "triage_and_plan", {"reports": REPORTS}, config=True),
     Flow("tutorial", "tasks", "triage_all", {"reports": REPORTS}, config=True, scenario="tutorial"),
@@ -143,6 +146,19 @@ def _demo_inputs(work: Path) -> None:
         (work / "inputs" / f"{u}.md").write_text(f"# {u}\nThe {u} component parses a config file.\n", encoding="utf-8", newline="\n")
 
 
+def _repository(work: Path) -> None:
+    """`work` as a git repository with one commit, for the worktrees example."""
+    (work / ".gitignore").write_text("runs/\n", encoding="utf-8", newline="\n")
+    for args in (
+        ["init", "-q", "-b", "main"],
+        ["config", "user.name", "equivalence"],
+        ["config", "user.email", "equivalence@example.com"],
+        ["add", "-A"],
+        ["commit", "-q", "-m", "start"],
+    ):
+        subprocess.run(["git", *args], cwd=work, check=True, capture_output=True)
+
+
 def _pipeline(flow: Flow, work: Path) -> Pipeline:
     """The pipeline the example's tests build: its `pipeline()` factory when it has one."""
     module = _module(flow)
@@ -156,6 +172,9 @@ def _pipeline(flow: Flow, work: Path) -> Pipeline:
     elif flow.scenario == "block":
         options["stub"] = StubAgent(BLOCK)
         options["max_concurrent"] = 1  # the security probe runs first, the others wait in the queue
+    elif flow.scenario == "git":
+        _repository(work)
+        options["stub"] = StubAgent(default=writes_example(), execute=["worktree", "land", "remove_worktree"])
     elif flow.scenario == "demo":
         from contraagent.docs.examples.demo import test_demo
 

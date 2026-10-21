@@ -3422,6 +3422,14 @@
   <source>Failed checks sent back to the same agent session, within its round or in a correction round (hook_errors, rounds)</source>
   <target>検証エラーを示し、同じエージェントのセッションで出力の修正を求める依頼。ラウンドの途中、または修正ラウンドで（hook_errors, rounds）</target>
 </trans-unit>
+<trans-unit id="sde3961511d128fcd">
+  <source>Working directory <x id="0" equiv-text="${cwd}"/></source>
+  <target>作業ディレクトリ <x id="0" equiv-text="${cwd}"/></target>
+</trans-unit>
+<trans-unit id="sd6a08709ccdbf95c">
+  <source>Directory the task worked in, named by its task call in place of the run's (cwd)</source>
+  <target>タスク呼び出しが実行全体の代わりに指定した、このタスクの作業ディレクトリ（cwd）</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

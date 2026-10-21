@@ -17,8 +17,8 @@ rows left out):
   them.
 * an agent task: its output files as they are now, the whole final message of an
   unwrapped output (`<output>.message.txt`), and the files its `changes=` patterns saw
-  created or modified, as they are now in the run's working directory (`run.json` `cwd`),
-  and the paths they saw deleted. The facts of the launch come from the journal row and
+  created or modified, as they are now in the task's working directory (its `plan.jsonl`
+  row's `cwd`, else the run's: `run.json` `cwd`), and the paths they saw deleted. The facts of the launch come from the journal row and
   the task's last row of `launches.jsonl`; the final message of a task whose output is
   its message (`output_from="message"`) is read back from its output file, since the
   runner writes the message there. Its transcript is imported when the journal holds one
@@ -175,6 +175,8 @@ def import_recording(run_dir: str | Path, directory: str | Path, *, record_max_f
     if not rows:
         raise RecordingError(f"import: {run_dir} has no journal row ({layout.JOURNAL}): nothing finished")
     cwd = str(info.get("cwd") or "")
+    # A task whose call options named a working directory: its changes are relative to it.
+    own_cwd = {str(r["key"]): str(r["cwd"]) for r in read_rows(run_dir / layout.PLAN) if r.get("key") and r.get("cwd")}
     run_id = str(info.get("run_id") or run_dir.name)
     imported_from = {"run": run_id, "run_uid": str(info.get("run_uid") or ""), "imported_at": now_iso()}
     launches = {str(r.get("label")): r for r in read_rows(run_dir / layout.LAUNCHES)}
@@ -200,7 +202,7 @@ def import_recording(run_dir: str | Path, directory: str | Path, *, record_max_f
         key = str(row["key"])
         paths = [p for pair in outputs[key] for p in pair] if row.get("ok") else []
         written, deleted = _changes(row)
-        paths += [layout.file_path(p, cwd) for p in (*written, *deleted)]
+        paths += [layout.file_path(p, own_cwd.get(key) or cwd) for p in (*written, *deleted)]
         for p in paths:
             writers.setdefault(p, []).append((i, key))
 
@@ -219,7 +221,7 @@ def import_recording(run_dir: str | Path, directory: str | Path, *, record_max_f
         written, deleted = _changes(row)
         files = [(p, f"output-{n}") for n, (p, _) in enumerate(outputs[key])]
         files += [(m, f"output-{n}.message.txt") for n, (_, m) in enumerate(outputs[key]) if _size(m) is not None]
-        files += [(layout.file_path(rel, cwd), f"files/{rel}") for rel in written]
+        files += [(layout.file_path(rel, own_cwd.get(key) or cwd), f"files/{rel}") for rel in written]
         why = ""
         for path, _ in files:
             size = _size(path)

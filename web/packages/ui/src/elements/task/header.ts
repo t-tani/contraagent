@@ -6,7 +6,7 @@ import { html, nothing, type TemplateResult } from 'lit';
 import { toneAttr } from '@contraagent/elements';
 import { pill } from '@contraagent/elements/primitives';
 import { facts, fmtDur, kindUnit, listText, localTime, tokenCount, unreadEvents, usageUnknown, usageUnknownWords, usd } from '../../words/format.js';
-import { attemptNames, deferredText, changedFiles, changedFilesTip, changeLabel, credentialLabel, credentialTip, locksLabel, locksTip, modelSwitch, outcomeLabel, priorityText, priorityTip, replayedLabel, replayedTip, stopLabel, type ChangeKind } from '../../words/index.js';
+import { attemptNames, deferredText, changedFiles, changedFilesTip, changeLabel, credentialLabel, credentialTip, locksLabel, locksTip, modelSwitch, outcomeLabel, priorityText, priorityTip, replayedLabel, replayedTip, stopLabel, workingDirectoryText, workingDirectoryTip, type ChangeKind } from '../../words/index.js';
 import { contextWarnedText, contextWarnedTip, peakContextLine, peakContextTip, peakTry } from '../../words/context.js';
 import { readingShort, readingTip } from '../../words/quota.js';
 import { safetyStopCount, safetyStopLine, safetyStopTip } from '../../words/safety.js';
@@ -140,6 +140,7 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
               </div>`
             : nothing}
           ${node?.priority ? html`<div class="meta" title=${priorityTip()}>${priorityText(node.priority)}</div>` : nothing}
+          ${node?.cwd ? html`<div class="meta" title=${workingDirectoryTip()}>${workingDirectoryText(node.cwd)}</div>` : nothing}
           ${rerunMeta(rows, node?.rerun)}
           ${stoppedFlowCalls(c)}
           ${session

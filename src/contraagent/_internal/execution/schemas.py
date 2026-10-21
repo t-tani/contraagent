@@ -237,7 +237,7 @@ class PlanRow(RecordModel):
     """One line of `runs/<run>/plan.jsonl`: a task a queue accepted, with its dependencies
     and its origin. A task with no origin (built by hand) has an empty `flow` and
     `created_from`, and `flow_call` null; `base_kind` is set only for an implementation kind,
-    `credential` only for a task whose call names one."""
+    `credential` and `cwd` only for a task whose call names one."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", serialize_by_alias=True)
 
@@ -252,6 +252,11 @@ class PlanRow(RecordModel):
         "",
         description="the credential its call options name (`.options(credential=)`), which every route of its kind ran it as; "
         "empty when it names none, or a run-wide override outranks it",
+    )
+    cwd: str = Field(
+        "",
+        description="the task's working directory, absolute, when its call options name one (`.options(cwd=)`); "
+        "empty when they name none: the run's (`run.json` `cwd`)",
     )
     executor: Executor = "agent"
     flow: list[Frame] = Field(default_factory=list, description="the flow path: frames of flow code that created it, outermost first")
@@ -277,8 +282,8 @@ class PlanRow(RecordModel):
     )
 
     def to_dict(self) -> dict[str, Any]:
-        """The row as `plan.jsonl` records it: `base_kind`, `credential` and `input_files` only when set."""
-        unset = {name for name in ("base_kind", "credential", "input_files") if not getattr(self, name)}
+        """The row as `plan.jsonl` records it: `base_kind`, `credential`, `cwd` and `input_files` only when set."""
+        unset = {name for name in ("base_kind", "credential", "cwd", "input_files") if not getattr(self, name)}
         return self.model_dump(mode="json", exclude=unset or None)
 
 

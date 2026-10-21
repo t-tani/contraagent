@@ -69,6 +69,7 @@ DEFINITIONS = "definitions"
 CALLS = "calls"
 INFLIGHT = "inflight"
 PIPELINE = "pipeline"
+OUT = "out"
 
 #: The folders whose `*.json` files are documents, one per entry.
 FOLDERS = (CONTRACTS, DEFINITIONS, CALLS, INFLIGHT, PIPELINE)

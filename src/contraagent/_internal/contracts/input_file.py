@@ -8,9 +8,10 @@ hold the hash, so a file with other content at the same path runs the task again
 resume. When the task is about to start, the file must still have that content
 (`changed`), or the task is refused (`invalid_input`).
 
-The path is one of the working directory (`Pipeline(cwd=)`) or of the run's `out/`
-directory, where the tasks' output files are. The params hold it relative to the
-working directory, or absolute for an output file of a run directory outside it. A
+The path is one of the task's working directory (the `cwd` of its call options, else
+`Pipeline(cwd=)`) or of the run's `out/` directory, where the tasks' output files are.
+The params hold it relative to that working directory, or absolute for an output file of
+a run directory outside it. A
 path that leads outside both, itself or through a symbolic link, raises `ValueError`
 at the task call; a relative path that climbs out with `..` raises where the
 `InputFile` is made.
@@ -54,15 +55,16 @@ class InputFile:
 
     It is a field of an agent task's params model (`note: InputFile = Field(description=...)`)
     or a Python task's parameter (`def count(note: InputFile)`). The params hold
-    `{"path": ..., "sha256": ...}`, the path relative to the working directory
-    (`Pipeline(cwd=)`), and the JSON Schema of the params model tells the agent to read the
+    `{"path": ..., "sha256": ...}`, the path relative to the task's working directory
+    (the `cwd` of its call options, else `Pipeline(cwd=)`), and the JSON Schema of the params model tells the agent to read the
     file with its tools. The fingerprint holds the path and the hash: a file with other
     content runs the task again on a resume, and so does the same content at another path.
 
-    The path is a file of the working directory, or an output file of the run (under its
-    `out/`). A relative path that climbs out with `..` raises `ValueError` here; one that
-    leads outside both directories at the task call, itself or through a symbolic link,
-    or names no file, raises `ValueError` at the call. When the task is about to start,
+    The path is a file of the task's working directory, or an output file of the run (under
+    its `out/`); a relative path is under that working directory. A relative path that
+    climbs out with `..` raises `ValueError` here; one that leads outside both directories
+    at the task call, itself or through a symbolic link, or names no file, raises
+    `ValueError` at the call. When the task is about to start,
     the file must still have the content it had at the call, or the task is refused
     (`invalid_input`). A Python task is given an `InputFile` whose `path` is absolute and
     whose `sha256` is the hash taken at the call; `read_bytes` and `read_text` check the
