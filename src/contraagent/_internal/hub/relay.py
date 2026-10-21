@@ -70,7 +70,7 @@ from contraagent._internal.commandline import UsageError, add_runs_dir, setup_lo
 from contraagent._internal.hub.client import HttpClient, HubClient, HubRefused, HubUnavailable
 from contraagent._internal.hub.protocol import Accepted, DocumentPut, FileRef, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
 from contraagent._internal.runs import layout
-from contraagent._internal.runs.files import parse_rows, write_document
+from contraagent._internal.runs.files import parse_rows, read_document, write_document
 from contraagent._internal.runs.liveness import Liveness
 from contraagent._internal.runs.procs import ProcLiveness
 from contraagent._internal.runs.source import DirectorySource, LogPosition
@@ -205,7 +205,7 @@ class Relay:
 
     def _load(self) -> dict[str, RunProgress]:
         try:
-            data = json.loads(self.progress_path.read_text(encoding="utf-8"))
+            data = json.loads(read_document(self.progress_path))
         except FileNotFoundError:
             return {}
         except (OSError, ValueError) as exc:
