@@ -93,19 +93,33 @@ def _become_new_user(monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
     monkeypatch.setenv("DOCKER_CONFIG", docker_config)
 
 
+def _live(item: pytest.Item) -> bool:
+    """A live test runs the real coding agents with the host's own logins and credentials."""
+    return item.get_closest_marker("live") is not None
+
+
 @pytest.fixture(scope="session", autouse=True)
-def isolated_session(tmp_path_factory) -> Iterator[None]:
-    """The session's and the modules' fixtures run as a user of their own (`_become_new_user`)."""
+def isolated_session(request, tmp_path_factory) -> Iterator[None]:
+    """The session's and the modules' fixtures run as a user of their own (`_become_new_user`),
+    unless the session has selected a live test: the live modules' fixtures launch the coding
+    agents, which need the host's logins. The selected items are what this process runs (a
+    pytest-xdist worker collects and deselects them as its controller does), so a default run,
+    which deselects the live tests, is isolated."""
+    if any(_live(item) for item in request.session.items):
+        yield
+        return
     with pytest.MonkeyPatch.context() as monkeypatch:
         _become_new_user(monkeypatch, tmp_path_factory.mktemp("session-user"))
         yield
 
 
 @pytest.fixture(autouse=True)
-def isolated_test(tmp_path_factory, monkeypatch) -> None:
+def isolated_test(request, tmp_path_factory, monkeypatch) -> None:
     """Each test runs as a user of its own (`_become_new_user`): what it sees is the same on
-    every machine, and it reads and writes none of the developer's files."""
-    _become_new_user(monkeypatch, tmp_path_factory.mktemp("user"))
+    every machine, and it reads and writes none of the developer's files. A live test runs in
+    the host's environment, with the host's logins."""
+    if not _live(request.node):
+        _become_new_user(monkeypatch, tmp_path_factory.mktemp("user"))
 
 
 @pytest.fixture(scope="session")
