@@ -212,16 +212,28 @@ working directory at its start and its end (by each file's modification time and
 and outside Windows also its status change time and inode; `.git`, `__pycache__`, the
 recordings and the run's own files are left out, but its `out/` is compared like any other
 folder). Each path created, modified or deleted that no task's
-outputs or `changes=` cover is an **undeclared change**: the run warns once per path
+outputs or `changes=` cover is an **undeclared change**: the run warns once per path,
+but once for a directory of the working directory's top level that holds more than 20
 
 ```
 [record] undeclared change: cache/index.json
+[record] undeclared changes: build/ (412 paths), see recordings/undeclared.json
 ```
 
-and writes them to `DIR/undeclared.json` (`created`, `modified`, `deleted`). Tasks run at
-once, so a change is the run's, not a task's. Declare it where it is made: a `changes=`
-pattern on the agent task, the Python task's output, or a Python task in place of the
-flow's own side effect.
+and writes every one of them to `DIR/undeclared.json` (`excluded`, `created`, `modified`,
+`deleted`). Tasks run at once, so a change is the run's, not a task's. Declare it where it
+is made: a `changes=` pattern on the agent task, the Python task's output, or a Python task
+in place of the flow's own side effect.
+
+A file that no replay needs, such as a virtual environment the run builds again, is left
+out with `--record-exclude PATTERN` (`Pipeline(record_exclude=[".venv", "**/node_modules"])`),
+once per pattern. A pattern is a `Path.glob` pattern relative to the working directory, as
+in `changes=`, and one that matches a directory leaves out everything under it; the
+comparison does not enter that directory, so a large one costs no time. Every pattern
+leaves paths out, so none starts with `!`. `.gitignore` is not read: a file it names, such
+as a generated one, is often what a CI checkout lacks, and so what a replay needs most.
+`undeclared.json` names the patterns (`excluded`). A task's outputs and `changes=` files
+are recorded all the same.
 
 ### Fill in what is missing
 
