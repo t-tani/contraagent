@@ -514,7 +514,10 @@ class Relay:
     def serve(self, stop: threading.Event) -> None:
         """Send heartbeats (in a thread of their own), passes and the fast path until `stop`
         is set: a pass every `delay()` seconds, the fast path every `FAST_S` seconds in
-        between while the hub takes requests."""
+        between while the hub takes requests. It returns once the heartbeat's thread has
+        ended, so no heartbeat is in flight when the caller closes the client; the
+        longest that can take is one request, which the client's timeout bounds. A
+        KeyboardInterrupt sets `stop` too, and is raised once the thread has ended."""
 
         def beat() -> None:
             while not stop.is_set():
@@ -524,14 +527,17 @@ class Relay:
         beats = threading.Thread(target=beat, name="relay-heartbeat", daemon=True)
         beats.start()
         next_pass = 0.0
-        while not stop.is_set():
-            if time.monotonic() >= next_pass:
-                self.pass_once()
-                next_pass = time.monotonic() + self.delay()
-            elif not self.failures:
-                self.fast_once()
-            stop.wait(max(0.0, min(FAST_S, next_pass - time.monotonic())))
-        beats.join(timeout=1.0)
+        try:
+            while not stop.is_set():
+                if time.monotonic() >= next_pass:
+                    self.pass_once()
+                    next_pass = time.monotonic() + self.delay()
+                elif not self.failures:
+                    self.fast_once()
+                stop.wait(max(0.0, min(FAST_S, next_pass - time.monotonic())))
+        finally:
+            stop.set()
+            beats.join()
 
     # --- heartbeat ---
 

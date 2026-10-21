@@ -1,0 +1,1 @@
+`contraagent relay` waits, as it stops, for a heartbeat in flight to end before it closes its connection to the hub; the relay's `--timeout` bounds that request. It waited 1 second, and not at all on Ctrl-C.
