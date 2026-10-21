@@ -200,6 +200,15 @@ On every agent, a `post_tool` script that exits 2 has the agent fix what it says
 in the same session, and on Claude Code, Codex and omp a `stop` hook that exits 2
 does the same (checked live on each).
 
+Each objection of a `stop` hook sends the agent back to work, so a `stop` script of
+the plugin's own must let the agent stop at some point, as `run = "validate"` does. It
+exits 0 when the JSON it reads holds `stop_hook_active` true: the agent sends it on a
+stop after a stop hook objected, and a script that objects again keeps the agent
+working until `max_turns`. It also exits 0 when `CONTRAAGENT_CORRECTIONS_LEFT` is `0`:
+each objection is a correction, the runner sets this variable to the corrections left
+to the round, and at 0 the task's `max_corrections` are spent
+([contracts](contracts.md#checked-twice-by-the-same-rules)).
+
 Codex reads hooks in Claude Code's format, from each layer of its config. The Codex
 backend passes `codex/hooks.json` as the launch's config (`-c hooks=...`), with
 each `${CLAUDE_PLUGIN_ROOT}` replaced by the plugin's directory; nothing is

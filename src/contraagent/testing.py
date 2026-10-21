@@ -56,7 +56,10 @@ Under a name whose coding agent continues its turn when a stop hook objects
 does: once it has written its output it runs the Stop hooks of the launch's
 plugins (their rendered `hooks/hooks.json`, `codex/hooks.json` or `omp/hooks.json`,
 with the agent's working directory and environment), and when one exits 2 it is sent
-the hook's message and replies again in the same launch (`StubLaunch.in_turn`). The
+the hook's message and replies again in the same launch (`StubLaunch.in_turn`). After
+the first objection it sends the hooks `stop_hook_active` true, and it stops once the
+objections reach the corrections the round has left (`CONTRAAGENT_CORRECTIONS_LEFT`),
+even for a hook that reads neither. The
 hooks run within the launch's `timeout_s`: a hook still running at its end is stopped
 with the processes it started, and the launch ends with `Stop.TIMEOUT`. Under the other
 names (opencode, pi) it stops, as those agents do.

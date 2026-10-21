@@ -918,14 +918,6 @@
   <source>The task failed before it wrote a file that passes its checks</source>
   <target>検証を通るファイルを書き込む前に、タスクが失敗</target>
 </trans-unit>
-<trans-unit id="s87cfcf0fecad5ace">
-  <source>after 1 correction</source>
-  <target>修正依頼 1 回後</target>
-</trans-unit>
-<trans-unit id="s843c1705315bbf4e">
-  <source>after <x id="0" equiv-text="${n}"/> corrections</source>
-  <target>修正依頼 <x id="0" equiv-text="${n}"/> 回後</target>
-</trans-unit>
 <trans-unit id="s2216c1ec1d2b68a8">
   <source>Not JSON</source>
   <target>JSON ではありません</target>
@@ -1349,10 +1341,6 @@
 <trans-unit id="sda800fa8314eb82c">
   <source>Show all (<x id="0" equiv-text="${n}"/> characters)</source>
   <target>すべて表示（<x id="0" equiv-text="${n}"/> 文字）</target>
-</trans-unit>
-<trans-unit id="s88e6f151026426e7">
-  <source>Correction <x id="0" equiv-text="${r.fixupNo}"/></source>
-  <target>修正依頼 <x id="0" equiv-text="${r.fixupNo}"/></target>
 </trans-unit>
 <trans-unit id="s3d99e317c3b7b422">
   <source>same agent session, after failed checks</source>
@@ -1889,10 +1877,6 @@
 <trans-unit id="s47a6fad95948980d">
   <source><x id="0" equiv-text="${e.read}"/> read by this task</source>
   <target>このタスクの入力 <x id="0" equiv-text="${e.read}"/> 件</target>
-</trans-unit>
-<trans-unit id="s2fea0e9e542e5b47">
-  <source>correction <x id="0" equiv-text="${r.fixupNo}"/></source>
-  <target>修正依頼 <x id="0" equiv-text="${r.fixupNo}"/></target>
 </trans-unit>
 <trans-unit id="se5ad61b61dc5c4f6">
   <source>model switch</source>
@@ -2942,10 +2926,6 @@
   <source>Retry</source>
   <target>リトライ</target>
 </trans-unit>
-<trans-unit id="s685f61cef2e55d31">
-  <source>Correction</source>
-  <target>修正依頼</target>
-</trans-unit>
 <trans-unit id="sdf14d39488c16f16">
   <source>Done on attempt <x id="0" equiv-text="${tries.length}"/> | 1 failed attempt | first failure: <x id="1" equiv-text="${why}"/></source>
   <target><x id="0" equiv-text="${tries.length}"/> 回目で完了 | 失敗 1 回 | 最初の失敗: <x id="1" equiv-text="${why}"/></target>
@@ -3409,6 +3389,38 @@
   <source>Stopped</source>
   <target>停止</target>
   <note from="lit-localize">Where a flow call stopped, and the failure that stopped it</note>
+</trans-unit>
+<trans-unit id="s9c64a5e5cd2b70e9">
+  <source>Correction round</source>
+  <target>修正ラウンド</target>
+</trans-unit>
+<trans-unit id="s0094a2c710d4521a">
+  <source>after 1 correction round</source>
+  <target>修正ラウンド 1 回後</target>
+</trans-unit>
+<trans-unit id="s9da88e027753b536">
+  <source>after <x id="0" equiv-text="${n}"/> correction rounds</source>
+  <target>修正ラウンド <x id="0" equiv-text="${n}"/> 回後</target>
+</trans-unit>
+<trans-unit id="s5657377baae212e4">
+  <source>1 correction round</source>
+  <target>修正ラウンド 1 回</target>
+</trans-unit>
+<trans-unit id="s49c85c93fd66fbe4">
+  <source><x id="0" equiv-text="${n}"/> correction rounds</source>
+  <target>修正ラウンド <x id="0" equiv-text="${n}"/> 回</target>
+</trans-unit>
+<trans-unit id="se5af45314a3a6b0f">
+  <source>correction round <x id="0" equiv-text="${r.fixupNo}"/></source>
+  <target>修正ラウンド <x id="0" equiv-text="${r.fixupNo}"/></target>
+</trans-unit>
+<trans-unit id="s3850111242895c2f">
+  <source>Correction round <x id="0" equiv-text="${r.fixupNo}"/></source>
+  <target>修正ラウンド <x id="0" equiv-text="${r.fixupNo}"/></target>
+</trans-unit>
+<trans-unit id="s4fca51e2e890a0f0">
+  <source>Failed checks sent back to the same agent session, within its round or in a correction round (hook_errors, rounds)</source>
+  <target>検証エラーを示し、同じエージェントのセッションで出力の修正を求める依頼。ラウンドの途中、または修正ラウンドで（hook_errors, rounds）</target>
 </trans-unit>
 <trans-unit id="sde3961511d128fcd">
   <source>Working directory <x id="0" equiv-text="${cwd}"/></source>

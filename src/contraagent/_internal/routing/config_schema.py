@@ -21,7 +21,7 @@ from contraagent._internal.routing.preflight import PreflightPolicy
 WarnPct = Annotated[StrictInt, Field(ge=1, le=99)]
 #: A `timeout_s`: seconds above 0.
 Timeout = Union[Annotated[StrictInt, Field(gt=0)], Annotated[StrictFloat, Field(gt=0, allow_inf_nan=False)]]  # noqa: UP007
-#: A `max_corrections`: correction rounds after the first launch.
+#: A `max_corrections`: the corrections in all, the stop hook's and the resumes.
 Corrections = Annotated[StrictInt, Field(ge=0, le=MAX_CORRECTIONS_LIMIT)]
 
 

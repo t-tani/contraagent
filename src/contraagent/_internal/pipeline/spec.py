@@ -796,9 +796,9 @@ def agent_task(
     `keep_failed_changes`: leave the files a failed attempt created under `changes` in place,
     as the evidence of why it failed, instead of removing them; its journal row lists them
     as `changes.kept`. The next attempt, and a resume, start from the tree with them in it.
-    `max_corrections`: the correction rounds after the first launch, 0 to 20 (default 3):
-    how many times an output that fails its checks goes
-    back to the same session with the errors before the task ends `invalid_output`; 0
+    `max_corrections`: the corrections, 0 to 20 (default 3): how many times in all an output
+    that fails its checks goes back to the same session with the errors, by the plugin's
+    stop hook within a round or by a resume, before the task ends `invalid_output`; 0
     sends none back.
     """
     # The task table keys, as given (`TASK_KEYS`: a test holds them equal to these parameters).

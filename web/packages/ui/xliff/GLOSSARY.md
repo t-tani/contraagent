@@ -89,7 +89,8 @@ wherever the UI shows a state or a count to the reader.
 | outcome (how one attempt ended) | 結果 |
 | attempt N | N 回目 (not 「N 回目の試行」) |
 | error (stop `error`: the process failed without a result) | エラー |
-| correction (the agent asked to fix its output in the same session) | 修正依頼（「差し戻し」は使わない） |
+| correction (the agent asked to fix its output in the same session, within a round or in a correction round) | 修正依頼（「差し戻し」は使わない） |
+| correction round (a round after the first, the same session resumed with failed checks) | 修正ラウンド |
 | model switch (to the next failover hop, after a failure) | モデル切り替え |
 | retry (an attempt after a failed attempt of the same task) | リトライ |
 | permission denied (stop `denied`) / Denied tool calls (the trends' table; never "refused") | 権限エラー / 権限エラーになったツール呼び出し |

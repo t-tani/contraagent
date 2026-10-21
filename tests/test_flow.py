@@ -12,8 +12,9 @@ from contraagent import CommandValidator, ConfigError, Overrides, Pipeline, Pipe
 from contraagent._internal.cli import _spent
 from contraagent._internal.contracts.calls import validate_call
 from contraagent._internal.platform import envvars
+from contraagent._internal.plugins import hooks
 from contraagent.backends import CallFile, Stop
-from contraagent.plugins import new_plugin
+from contraagent.plugins import Plugin, new_plugin
 from contraagent.testing import StubAgent, fails, writes_nothing
 
 
@@ -427,6 +428,53 @@ def test_a_stop_hook_sends_a_command_check_back_within_the_turn(tmp_path, plugin
     assert "JSON output" not in second.prompt  # a text output is not told about JSON
     row = json.loads((rep.run_dir / "journal.jsonl").read_text().splitlines()[0])
     assert row["rounds"] == 1 and row["hook_errors"] == [[second.prompt.split("- ", 1)[1].strip()]]
+
+
+def _always_objecting(plugin_dir: Path) -> None:
+    """Add a stop hook that objects every time: it reads neither `stop_hook_active` nor the
+    corrections left, as a custom stop script might."""
+    script = plugin_dir / "hooks" / "always.sh"
+    script.write_text("#!/usr/bin/env bash\ncat > /dev/null\necho 'not yet' >&2\nexit 2\n")
+    script.chmod(0o755)
+    toml = plugin_dir / "hooks.toml"
+    toml.write_text(toml.read_text() + '\n[[hooks]]\non = "stop"\nscript = "hooks/always.sh"\n')
+    hooks.write(Plugin.load(plugin_dir))
+
+
+@pytest.mark.parametrize("coding_agent", ["claude", "opencode"])
+@pytest.mark.parametrize("max_corrections", [0, 1, 3])
+def test_stop_hook_objections_and_resumes_share_max_corrections(tmp_path, plugin_dir, coding_agent, max_corrections):
+    """A correction is any send-back of the checks' errors: a stop hook's objection within a
+    round or a resume. `max_corrections` bounds their total, even for a hook that always objects."""
+    _always_objecting(plugin_dir)
+    summarize, _ = declare(plugin_dir, max_corrections=max_corrections, retries=0)
+    agent = StubAgent({"summarize": writes_nothing()})
+    rep = pipeline(tmp_path, agent, overrides=Overrides(agent=coding_agent)).run(lambda: summarize("u", Doc(path="x")))
+    result = rep.results["summarize-u"].launch_result
+    assert result.stop is Stop.INVALID_OUTPUT and not result.ok
+    assert result.rounds - 1 + len(result.hook_errors) == max_corrections
+    assert result.round_errors and "file was not written" in result.round_errors[-1][0]  # the last errors
+    if max_corrections == 0:
+        assert result.rounds == 1 and result.hook_errors == []
+    if coding_agent == "opencode":  # no stop hook: every correction is a resume
+        assert result.hook_errors == [] and result.rounds == max_corrections + 1
+
+
+@pytest.mark.parametrize("coding_agent", ["claude", "codex", "omp"])
+def test_each_round_is_told_the_corrections_it_has_left(tmp_path, plugin_dir, coding_agent):
+    """The built-in stop hook objects once per round (`stop_hook_active`), each objection and
+    each resume spends one of `max_corrections`, and the resumed rounds get what is left."""
+    summarize, _ = declare(plugin_dir, max_corrections=3, retries=0)
+    agent = StubAgent({"summarize": writes_nothing()})
+    rep = pipeline(tmp_path, agent, overrides=Overrides(agent=coding_agent)).run(lambda: summarize("u", Doc(path="x")))
+    result = rep.results["summarize-u"].launch_result
+    rounds = [launch for launch in agent.launches if not launch.in_turn]
+    assert [launch.launch.env[envvars.CORRECTIONS_LEFT] for launch in rounds] == ["3", "1"]
+    assert [launch.resumed for launch in rounds] == [False, True]
+    assert result.stop is Stop.INVALID_OUTPUT and result.rounds == 2 and len(result.hook_errors) == 2
+    call = {envvars.CALL: rounds[0].launch.env[envvars.CALL]}
+    assert validate_call(env={**call, envvars.CORRECTIONS_LEFT: "0"}) == (0, "")  # spent: the agent may stop
+    assert validate_call(env={**call, envvars.CORRECTIONS_LEFT: "1"})[0] == 2
 
 
 @pytest.mark.parametrize("run_id", ["a:b", "q?", "CON", "nul.x", "com1", "end.", "end ", "../x", ".hidden", "a/b"])

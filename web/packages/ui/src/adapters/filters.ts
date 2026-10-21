@@ -26,8 +26,16 @@ const JOURNAL_TEXT = ['key', 'unit', 'stop', 'kind', 'route', 'reason'] as const
 /** Keys of tasks that were retried: a try ran after one that ran and failed (`retries`). */
 export const retriedKeys = (rows: readonly JournalRow[]): Set<string> => new Set(retries(rows).map((r) => r.key));
 
-/** A row whose output was sent back to the agent at least once (a fix-up in the same session). */
-export const hadFixup = (r: JournalRow): boolean => (r.rounds ?? 1) > 1;
+/**
+ * The corrections of an attempt: each time its output's failed checks went back to the
+ * agent session, by the stop hook within a round (`hook_errors`) or in a correction
+ * round (`rounds` after the first). `max_corrections` bounds this count.
+ */
+export const correctionCount = (r: Pick<JournalRow, 'rounds' | 'hook_errors'>): number =>
+  Math.max((r.rounds ?? 1) - 1, 0) + (r.hook_errors ?? []).length;
+
+/** A row whose output was sent back to the agent at least once (a correction). */
+export const hadFixup = (r: JournalRow): boolean => correctionCount(r) > 0;
 
 /**
  * Journal rows of `kind` with `stop` that contain `q`. Besides a stop value,

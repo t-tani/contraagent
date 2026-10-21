@@ -6,6 +6,7 @@ import type { Fact } from '@contraagent/elements/primitives';
 import type { StatTile } from '@contraagent/elements/tiles';
 import { msg, str } from '@lit/localize';
 import { problemTone } from '../lib/tone.js';
+import { correctionCount, hadFixup } from './filters.js';
 import { factList, facts, fmtDur, kindUnit, tokenCount, usd } from '../words/format.js';
 import { stateCount } from '../words/index.js';
 import { retryTip } from '../words/attempts.js';
@@ -49,7 +50,7 @@ export function kpis(journal: readonly JournalRow[]): Kpis {
   const keys = (xs: readonly JournalRow[]) => [...new Set(xs.map((e) => e.key))];
   const tasks = (xs: readonly JournalRow[]) => keys(xs).length;
   const retried = retries(journal);
-  const fixed = ran.filter((e) => (e.rounds || 1) > 1);
+  const fixed = ran.filter(hadFixup);
   const switched = ran.filter((e) => (e.hops || []).length > 1);
   return {
     attempts: ran.length,
@@ -62,7 +63,7 @@ export function kpis(journal: readonly JournalRow[]): Kpis {
     retriedTasks: tasks(retried),
     retriedKeys: keys(retried),
     fixupKeys: keys(fixed),
-    fixups: fixed.reduce((a, e) => a + (e.rounds || 1) - 1, 0),
+    fixups: fixed.reduce((a, e) => a + correctionCount(e), 0),
     fixupTasks: tasks(fixed),
     switches: switched.reduce((a, e) => a + (e.hops || []).length - 1, 0),
     switchTasks: tasks(switched),

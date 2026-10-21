@@ -24,19 +24,18 @@ from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResul
 from contraagent._internal.backends.streams import resolve_format
 from contraagent._internal.backends.wire import feedback_errors
 from contraagent._internal.contracts.calls import CallFile
-from contraagent._internal.contracts.contract import example
+from contraagent._internal.contracts.contract import DEFAULT_MAX_CORRECTIONS, example
 from contraagent._internal.contracts.rows import rows_text
 from contraagent._internal.dispatch.records import QuotaReading, SafetyStop
 from contraagent._internal.dispatch.task import kind_matches
 from contraagent._internal.dispatch.templates import fill_example
+from contraagent._internal.platform import envvars
 from contraagent._internal.platform.commands import commands
 from contraagent._internal.platform.groups import groups
 from contraagent._internal.routing.preflight import PROBE_PROMPT
 from contraagent._internal.runs.times import now_iso
 
 _UNSET: Any = object()
-#: How many times a stop hook may send the output back within one launch.
-_MAX_HOOK_OBJECTIONS = 5
 
 
 @dataclass(frozen=True)
@@ -275,6 +274,7 @@ class StubAgent(Backend):
         reply = self._play(launch, call, record, message)
         fixed = self._fixed_example(record) and reply.stop is Stop.COMPLETED and call.output is not None
         objections: list[list[str]] = []
+        left = _corrections_left(launch)
         # A stop hook's objection to the example would get the same value back.
         while reply.stop is Stop.COMPLETED and not fixed and self._continues_on_stop_hook():
             try:
@@ -283,7 +283,7 @@ class StubAgent(Backend):
                 reason = f"stub: past timeout_s ({launch.limits.timeout_s:g}s) while a Stop hook ran"
                 reply = dataclasses.replace(reply, stop=Stop.TIMEOUT, reason=reason)
                 break
-            if said is None or len(objections) >= _MAX_HOOK_OBJECTIONS:
+            if said is None or len(objections) >= left:  # a hook that ignores both is held to the budget
                 break
             objections.append(feedback_errors(said))
             self._text(launch, f"stop hook: {said}")
@@ -500,6 +500,15 @@ class StubAgent(Backend):
             context_window=reply.context_window,
             safety_stops=list(reply.safety_stops),
         )
+
+
+def _corrections_left(launch: Launch) -> int:
+    """The corrections the launch may still make (`CONTRAAGENT_CORRECTIONS_LEFT`, which the
+    runner sets on each round of a task with an output); `max_corrections`' default when unset."""
+    try:
+        return max(int(launch.env.get(envvars.CORRECTIONS_LEFT, DEFAULT_MAX_CORRECTIONS)), 0)
+    except ValueError:
+        return DEFAULT_MAX_CORRECTIONS
 
 
 class _PastTimeout(Exception):

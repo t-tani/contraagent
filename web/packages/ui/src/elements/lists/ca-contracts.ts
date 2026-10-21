@@ -9,7 +9,7 @@ import type { TaskView } from '../../core/view-route.js';
 import { base } from '@contraagent/elements/styles';
 import { executorIcon, executorIconStyles } from '../../words/executor.js';
 import { kindUnit } from '../../words/format.js';
-import { correctionTip, correctionsLabel, notRunText, type Producer } from '../../words/contract.js';
+import { correctionRoundTip, correctionRoundsLabel, notRunText, type Producer } from '../../words/contract.js';
 import { contractChip, contractStyles, fieldCheckTable, fileConditions, inputChip } from '../shared/contract-parts.js';
 
 const CT_ORDER: readonly ContractStatus[] = ['invalid', 'refused', 'failed', 'running', 'pending', 'valid'];
@@ -166,7 +166,7 @@ export class CaContracts extends LitElement {
     return this.details(
       `out|${c.key}|${o.path}`,
       html`${contractChip(status)}
-        ${rounds > 1 ? html`<span class="meta" title=${correctionTip()}>${correctionsLabel(rounds, status === 'valid')}</span>` : nothing}
+        ${rounds > 1 ? html`<span class="meta" title=${correctionRoundTip()}>${correctionRoundsLabel(rounds, status === 'valid')}</span>` : nothing}
         ${this.who(c)}
         <span class="jmono jdim ct-path" title=${o.path}>${shortPath(o.path)}</span>
         ${status === 'failed' && this.reasonOf(c.key) ? html`<span class="why">${this.reasonOf(c.key)}</span>` : nothing}

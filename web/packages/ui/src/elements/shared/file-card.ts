@@ -3,7 +3,7 @@
 import { runRelative, type ContractSpec } from '@contraagent/api';
 import { msg } from '@lit/localize';
 import { html, nothing, type TemplateResult } from 'lit';
-import { correctionTip, correctionsLabel, notRunText, type Producer } from '../../words/contract.js';
+import { correctionRoundTip, correctionRoundsLabel, notRunText, type Producer } from '../../words/contract.js';
 import { contractChip, fieldCheckTable, fileConditions, inputChip } from './contract-parts.js';
 
 /**
@@ -27,7 +27,7 @@ export function ioFileCard(
   const stat =
     role === 'output'
       ? html`${contractChip(o.status)}${(o.rounds ?? 0) > 1
-            ? html` <span class="meta" title=${correctionTip()}>${correctionsLabel(o.rounds, o.status === 'valid')}</span>`
+            ? html` <span class="meta" title=${correctionRoundTip()}>${correctionRoundsLabel(o.rounds, o.status === 'valid')}</span>`
             : nothing}`
       : inputChip(o);
   const head = html`<div class="io-hd">${opts.chip ?? stat}<span class="jmono ct-path" title=${o.path}>${runRelative(o.path, run)}</span></div>${opts.origin

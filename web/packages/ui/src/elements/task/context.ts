@@ -16,6 +16,7 @@ import {
   type UpstreamTask,
 } from '@contraagent/api';
 import { html } from 'lit';
+import { correctionCount } from '../../adapters/filters.js';
 import { emit, type RoundInfo } from '../../core/events.js';
 import { kindUnit } from '../../words/format.js';
 import { correctionsText, inputCause, notStartedCause } from '../../words/index.js';
@@ -95,7 +96,7 @@ export function culprit(c: TaskContext): { key: string; kind: string; unit: stri
 }
 
 /** `N corrections` for a journal row whose attempt needed them ('' when none). */
-export const correctionsOf = (r: { rounds?: number | null }): string => correctionsText((r.rounds || 1) - 1);
+export const correctionsOf = (r: Pick<JournalRow, 'rounds' | 'hook_errors'>): string => correctionsText(correctionCount(r));
 
 /** A task's name as a link that sends `ca-open-task`. */
 export const taskLink = (c: TaskContext, u: { key: string; kind: string; unit: string }) =>
