@@ -37,7 +37,7 @@ from contraagent._internal.backends.omp.backend import (
     session_args,
 )
 from contraagent._internal.backends.omp.wire import TraceReader
-from contraagent._internal.backends.process import STOPPED, LaunchError, stop_requested
+from contraagent._internal.backends.process import STOPPED, LaunchError, spawn_error, stop_requested
 from contraagent._internal.backends.refusal import FAILED_STOPS, Signals
 from contraagent._internal.backends.wire import EventFold, LimitsWatch, positive_int
 from contraagent._internal.platform.commands import commands
@@ -200,7 +200,7 @@ class OmpRpcBackend(OmpBackend):
                 errors="replace",
             )
         except OSError as exc:
-            raise LaunchError(str(exc)) from exc
+            raise spawn_error(exc) from exc
         live_processes.register(proc, since=since)
         stderr: list[str] = []
         drain: threading.Thread | None = None

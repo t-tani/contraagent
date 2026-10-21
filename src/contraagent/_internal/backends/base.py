@@ -32,7 +32,7 @@ from typing import Any, Protocol
 
 from contraagent._internal.backends.credentials import Ambient, Credential, CredentialBinding, CredentialError
 from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
-from contraagent._internal.backends.process import LaunchError, Sink, run_process, write_launch_marker
+from contraagent._internal.backends.process import LaunchError, Sink, SpawnRefused, run_process, write_launch_marker
 from contraagent._internal.backends.refusal import Signals, quota_refusal
 from contraagent._internal.backends.wire import EventFold, LimitsWatch
 from contraagent._internal.dispatch.records import QuotaReading
@@ -307,7 +307,9 @@ class Backend(abc.ABC):
         try:
             _, stderr, exit_code, killed = self.exchange(launch, argv, env, fold, LimitsWatch(launch.limits, self.watched_limits, fold))
         except LaunchError as exc:
-            return self.launch_failed(launch, str(exc), argv=argv, started_at=started_at, t0=t0)
+            # A command the operating system refuses fails the same way on every launch.
+            retryable = not isinstance(exc, SpawnRefused)
+            return self.launch_failed(launch, str(exc), argv=argv, started_at=started_at, t0=t0, retryable=retryable)
         result = fold.result(launch, self.name, exit_code=exit_code, killed=killed)
         result.argv = argv
         result.credential = launch.credential.label
@@ -323,9 +325,18 @@ class Backend(abc.ABC):
         return result
 
     def launch_failed(
-        self, launch: Launch, why: str, *, argv: list[str] | None = None, started_at: str = "", t0: float | None = None
+        self,
+        launch: Launch,
+        why: str,
+        *,
+        argv: list[str] | None = None,
+        started_at: str = "",
+        t0: float | None = None,
+        retryable: bool = True,
     ) -> LaunchResult:
-        """The result of a launch that never ran: `why` is its reason."""
+        """The result of a launch that never ran: `why` is its reason; `retryable` False when
+        another launch of the same command fails the same way (the operating system
+        refused to start it)."""
         return LaunchResult(
             label=launch.label,
             agent=self.name,
@@ -338,6 +349,7 @@ class Backend(abc.ABC):
             model=launch.model,
             credential=launch.credential.label,
             stderr_tail=why,
+            retryable=retryable,
         )
 
     # --- what the CLI says about itself ---------------------------------------

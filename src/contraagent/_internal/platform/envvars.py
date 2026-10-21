@@ -16,11 +16,11 @@ RUN = "CONTRAAGENT_RUN"
 TASK = "CONTRAAGENT_TASK"
 KIND = "CONTRAAGENT_KIND"
 UNIT = "CONTRAAGENT_UNIT"
-#: JSON object of the task's scalar params (`Task.params`).
-PARAMS = "CONTRAAGENT_PARAMS"
 #: The interpreter a plugin's hook should run `python -m contraagent` with.
 PYTHON = "CONTRAAGENT_PYTHON"
-#: The task's call file (`contraagent._internal.contracts.calls`): its parameters and output contract.
+#: The task's call file (`contraagent._internal.contracts.calls`): its parameters and output
+#: contract. The params reach an agent only there: a value in the environment counts toward
+#: the operating system's limit on a launch's arguments and environment.
 CALL = "CONTRAAGENT_CALL"
 #: The bash a plugin's hook scripts run under, set where it is not the `bash` on PATH
 #: (on Windows, the one of Git for Windows: `commands.bash`).

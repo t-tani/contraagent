@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
+import errno
 import json
 import logging
 import os
@@ -57,6 +58,30 @@ def signal_of(exit_code: int | None) -> int | None:
 
 class LaunchError(ContraagentError):
     """The child process could not be started (missing binary, bad cwd, ...)."""
+
+
+class SpawnRefused(LaunchError):
+    """The operating system refused to start the process for its own command: its arguments
+    and environment are too long (`E2BIG`), its executable is not one it can run
+    (`ENOEXEC`), or it may not run it (`EACCES`). Every launch of the same command fails the
+    same way, so its result is not retryable; another route, with its own command, still is
+    worth a launch. A missing file (`ENOENT`) is not one of these: an executable that an
+    upgrade replaces is missing only for a moment."""
+
+
+#: The `errno` values of `SpawnRefused`.
+REFUSED_ERRNOS = frozenset({errno.E2BIG, errno.ENOEXEC, errno.EACCES})
+
+#: The Windows error of a command line past its 32767 characters (`ERROR_FILENAME_EXCED_RANGE`).
+_WINDOWS_TOO_LONG = 206
+
+
+def spawn_error(exc: OSError) -> LaunchError:
+    """The `LaunchError` of a process that `exc` kept from starting: `SpawnRefused` for one
+    of `REFUSED_ERRNOS` (on Windows also a command line too long), else a plain one."""
+    if exc.errno in REFUSED_ERRNOS or getattr(exc, "winerror", None) == _WINDOWS_TOO_LONG:
+        return SpawnRefused(f"the operating system refuses to start this command, on every launch: {exc}")
+    return LaunchError(str(exc))
 
 
 #: Why a launch is refused once its task is cancelled (`stopped_by`).
@@ -224,7 +249,7 @@ def run_process(
             **groups.popen_options(),
         )
     except OSError as exc:
-        raise LaunchError(str(exc)) from exc
+        raise spawn_error(exc) from exc
     if not live_processes.register(proc, since=since):  # stopped already; waited for here
         _terminate(proc)
         for pipe in (proc.stdin, proc.stdout, proc.stderr):
