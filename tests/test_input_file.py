@@ -83,10 +83,13 @@ def test_a_text_output_passed_on_by_its_path_is_given_from_its_writer(tmp_path):
 
     report = pipeline(tmp_path, agent).run(flow, run_id="r")
     assert report.ok
-    call = CallFile.read(report.run_dir / "calls" / "review-a.json")
-    assert call.params["note"] == {"path": "runs/r/out/note/a.md", "sha256": sha256("line\n" * 2000)}
+    call = CallFile.read(report.run_dir / "calls" / "review-a.json")  # the agent reads it by its absolute path
+    out = (report.run_dir / "out").resolve()
+    assert call.params["note"] == {"path": (out / "note/a.md").as_posix(), "sha256": sha256("line\n" * 2000)}
     plan = [json.loads(line) for line in (report.run_dir / "plan.jsonl").read_text().splitlines()]
-    assert next(row for row in plan if row["key"] == "review-a")["given_from"] == ["note-a"]
+    row = next(row for row in plan if row["key"] == "review-a")
+    assert row["given_from"] == ["note-a"]  # a file of the input root out, wherever the run directory is
+    assert row["input_files"] == [{"param": "note", "root": "out", "path": "note/a.md", "sha256": sha256("line\n" * 2000)}]
 
 
 def test_an_output_file_whose_task_never_reached_the_flow_call_gives_no_edge(tmp_path):
@@ -220,7 +223,8 @@ def test_a_path_outside_the_working_directory_is_refused_at_the_call(tmp_path):
     work.mkdir()
     message = refused_at_the_call(work, outside)
     assert message == (
-        f"review(): input file {outside.as_posix()} is outside the working directory {work.as_posix()}; give a file inside it"
+        f"review(): input file {outside.as_posix()} is outside the working directory {work.as_posix()}; give a file inside it, "
+        "or one of an input root as InputFile(path, root=)"
     )
 
 
@@ -265,7 +269,7 @@ def test_the_example_gives_the_reviewer_the_draft_s_file_and_resumes_with_nothin
     assert first.ok and first.value == [[flow.Verdict(approved=True, note=""), 5000]]  # gather gives a list
     call = CallFile.read(first.run_dir / "calls" / "review-caching.json")
     assert call.params == {
-        "report": {"path": "runs/reports/out/draft/caching.md", "sha256": sha256(text)},
+        "report": {"path": (first.run_dir / "out/draft/caching.md").resolve().as_posix(), "sha256": sha256(text)},
         "audience": "new team members",
     }
     agent.launches.clear()

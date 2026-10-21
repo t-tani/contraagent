@@ -3,7 +3,7 @@
   "info": {
     "title": "contraagent monitor",
     "description": "Read-only views over a contraagent runs directory. Models: contraagent.monitor.api.",
-    "version": "3.8.0"
+    "version": "3.9.0"
   },
   "paths": {
     "/api/info": {
@@ -4353,7 +4353,7 @@
             },
             "type": "array",
             "title": "Input Files",
-            "description": "the input files among its params, as its task call hashed them: `param` (its place in the params, `notes/0`), `path` and `sha256`; absent when it has none"
+            "description": "the input files among its params, as its task call hashed them: `param` (its place in the params, `notes/0`), `root` (its input root, `out` for an output file of the run; absent for a file of the working directory), `path` (relative to its root, else to the working directory) and `sha256`; absent when it has none"
           },
           "base_kind": {
             "type": "string",
@@ -6197,10 +6197,22 @@
             "title": "Param",
             "description": "its place in the params: the param's name, then a list's index or a field's name (`notes/0`)"
           },
+          "root": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root",
+            "description": "its input root (`InputFile.root`): a name of the run's `input_roots`, or `out` for an output file of the run; null for a file of the task's working directory"
+          },
           "path": {
             "type": "string",
             "title": "Path",
-            "description": "as the params hold it: relative to the run's working directory, or absolute for an output file outside it"
+            "description": "as the params hold it: relative to its input root, else to the task's working directory"
           },
           "sha256": {
             "type": "string",
@@ -6243,7 +6255,7 @@
           "check"
         ],
         "title": "TaskInputFile",
-        "description": "An input file among the task's params (`plan.jsonl` `input_files`): its place in the\nparams, its path and the SHA-256 of its content taken at the task call, the task whose\noutput file it is, and its check as the task was about to start."
+        "description": "An input file among the task's params (`plan.jsonl` `input_files`): its place in the\nparams, its input root, its path and the SHA-256 of its content taken at the task call,\nthe task whose output file it is, and its check as the task was about to start."
       },
       "TaskLaunch": {
         "properties": {

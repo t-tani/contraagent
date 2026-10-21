@@ -2157,7 +2157,7 @@ export type components = {
             given_from?: string[];
             /**
              * Input Files
-             * @description the input files among its params, as its task call hashed them: `param` (its place in the params, `notes/0`), `path` and `sha256`; absent when it has none
+             * @description the input files among its params, as its task call hashed them: `param` (its place in the params, `notes/0`), `root` (its input root, `out` for an output file of the run; absent for a file of the working directory), `path` (relative to its root, else to the working directory) and `sha256`; absent when it has none
              */
             input_files?: {
                 [key: string]: string;
@@ -3081,8 +3081,8 @@ export type components = {
         /**
          * TaskInputFile
          * @description An input file among the task's params (`plan.jsonl` `input_files`): its place in the
-         *     params, its path and the SHA-256 of its content taken at the task call, the task whose
-         *     output file it is, and its check as the task was about to start.
+         *     params, its input root, its path and the SHA-256 of its content taken at the task call,
+         *     the task whose output file it is, and its check as the task was about to start.
          */
         TaskInputFile: {
             /**
@@ -3091,8 +3091,13 @@ export type components = {
              */
             param: string;
             /**
+             * Root
+             * @description its input root (`InputFile.root`): a name of the run's `input_roots`, or `out` for an output file of the run; null for a file of the task's working directory
+             */
+            root?: string | null;
+            /**
              * Path
-             * @description as the params hold it: relative to the run's working directory, or absolute for an output file outside it
+             * @description as the params hold it: relative to its input root, else to the task's working directory
              */
             path: string;
             /** Sha256 */

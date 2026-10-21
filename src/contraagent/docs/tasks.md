@@ -669,32 +669,66 @@ call, and reads the file itself.
 
 - The params hold `{"path": ..., "sha256": ...}`, the path relative to the task's
   working directory: the `cwd` of its call options, else the run's (`Pipeline(cwd=)`).
-  A relative path given to `InputFile` is relative to it too. The JSON Schema of the params model in the call file
-  (`params_json_schema`) tells the agent to read the file with its tools. A light
-  launch (`tools=()`) has no tool to read a file, so give it the text as a `str` field.
+  A relative path given to `InputFile` is relative to it too. A file of an
+  [input root](#files-outside-the-working-directory-input-roots) is held as
+  `{"root": ..., "path": ..., "sha256": ...}`, the path relative to the root. The JSON
+  Schema of the params model in the call file (`params_json_schema`) tells the agent to
+  read the file with its tools. A light launch (`tools=()`) has no tool to read a file,
+  so give it the text as a `str` field.
 - A task's output goes by its output file: `pending.input_file()`, once the flow has
-  awaited the task. It raises `ValueError` for a task that has no output, has not
-  finished or did not succeed. A file that is there before the run goes by its path,
+  awaited the task. It is a file of the input root `out`, the run's `out/` directory,
+  and raises `ValueError` for a task that has no output, has not finished or did not
+  succeed. A file that is there before the run goes by its path,
   `InputFile("in/spec.md")`.
-- The file is in the task's working directory, or it is an output file of the run. A
-  relative path that climbs out with `..` raises `ValueError` where the `InputFile` is
-  made. An absolute path outside both directories, a symbolic link to a file outside
-  them, and a path that names no file raise `ValueError` at the task call.
-- The fingerprint holds the path and the hash. A resume runs the task again when the
-  file has other content, and also when the same content is at another path; while
-  both are the same, it skips the task. The journal keeps the digest of the input
+- The file is in the task's working directory, or in an input root. A relative path
+  that climbs out with `..` raises `ValueError` where the `InputFile` is made. An
+  absolute path outside them, a symbolic link to a file outside them, and a path that
+  names no file raise `ValueError` at the task call.
+- The fingerprint holds the root, the path and the hash. A resume runs the task again
+  when the file has other content, and also when the same content is at another path;
+  while all three are the same, it skips the task, wherever the root's directory is. The journal keeps the digest of the input
   files as a part of their own (`input_files` of `fingerprint_parts`), so a file with
   other content is not a [divergence](#the-flow).
 - When the task is about to start, the file must still have the content it had at the
   call. A file that changed or is gone refuses the task (`invalid_input`), and the
   reason names the file. So a task that writes the file finishes before the task call
   that gives it: the flow awaits it first.
-- A Python task is given an `InputFile` whose `path` is absolute and whose `sha256` is
-  the hash taken at the call. `read_text()` and `read_bytes()` check the content
-  against it: a file that changed while the task ran refuses the task (`invalid_input`).
+- A Python task is given an `InputFile` whose `path` is absolute, whose `root` is the
+  one it was given with, and whose `sha256` is the hash taken at the call.
+  `read_text()` and `read_bytes()` check the content against it: a file that changed
+  while the task ran refuses the task (`invalid_input`). It can give the same
+  `InputFile` to another task call.
 - When the path is the output file of a task whose result had reached the flow call
   that gives the file, that task is in the given from of the task the file is given
   to, by the same rule as an output given as a value.
+
+### Files outside the working directory: input roots
+
+A file outside the task's working directory, such as a data set in `/srv/corpus`, goes
+to a task as a file of an input root. The run names each root and its directory:
+`Pipeline(input_roots={"data": "/srv/corpus"})`, or `contraagent run --input-root
+data=/srv/corpus`, one option for each root. The flow gives a file of it as
+`InputFile("2026/x.csv", root="data")`.
+
+- A root's name is lowercase letters, digits, `_` and `-`, and starts with a letter.
+  `out` is the run's own: the root of its `out/` directory, where the output files are.
+  A relative directory is relative to the run's working directory, and each one must
+  be a directory when the run starts (`ValueError`, before anything is written).
+  `run.json` records the roots (`input_roots`).
+- The params, `plan.jsonl` and the fingerprint hold the root's name and the path under
+  it, never the directory. A run resumed with the root at another directory skips the
+  tasks whose files have the same content, and a replay can point a root at another
+  directory with `--input-root` ([testing](testing.md)).
+- The call file holds the file by its absolute path, `{"path": "/srv/corpus/2026/x.csv",
+  "sha256": ...}`, so the agent, its validators and the stop hook read it as any other
+  file. Every coding agent may read the roots ([security](security.md)).
+- An absolute path under a root the run names raises `ValueError` at the task call,
+  and the error names the `InputFile(..., root=...)` to write instead. An output file of
+  the run given by its path is a file of `out` all the same. A root the run does not
+  have raises `ValueError` at the task call, and `contraagent check` reports it.
+- A task with its own working directory (`.options(cwd=)`) takes files of that
+  directory and of the input roots. To give a task in a git worktree a file of the main
+  tree, name the main tree as a root: `input_roots={"repo": "."}`.
 
 The declaration decides whether a param is a value or a file, never the size of a
 value or where it came from: a field typed `str` always holds the text, and a field
@@ -1100,7 +1134,8 @@ options name another: `implement.options(cwd=tree)(unit, change)`. Its coding ag
 runs in that directory. The call file's `cwd`, the `cwd` a validator takes, the
 directory a `CommandValidator` runs in, its `changes` patterns and the relative paths
 of its input files are of it too. An input file is then a file of that directory or
-an output file of the run. A relative `cwd` is relative to the run's working
+of an [input root](#files-outside-the-working-directory-input-roots), an output file of
+the run among them. A relative `cwd` is relative to the run's working
 directory, and the plan records the absolute path (`cwd` of `plan.jsonl`). The
 directory need not be there at the task call: a task that makes it may run first.
 When the task starts, a path that is not a directory refuses it (`invalid_input`).

@@ -169,7 +169,7 @@
       "type": "array"
     },
     "input_files": {
-      "description": "the input files among its params, as its task call hashed them: `param` (its place in the params, `notes/0`), `path` and `sha256`; absent when it has none",
+      "description": "the input files among its params, as its task call hashed them: `param` (its place in the params, `notes/0`), `root` (its input root, `out` for an output file of the run; absent for a file of the working directory), `path` (relative to its root, else to the working directory) and `sha256`; absent when it has none",
       "items": {
         "additionalProperties": {
           "type": "string"

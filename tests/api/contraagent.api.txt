@@ -177,10 +177,11 @@ class Implementations[ParamsT: BaseModel | None, Out](Mapping[str, AgentTask[Par
     @property kinds: list[str]
 
 class InputFile
-    def __init__(self, path: str | os.PathLike[str]) -> None
+    def __init__(self, path: str | os.PathLike[str], root: str | None = None) -> None
     @property path: Path
     def read_bytes(self) -> bytes
     def read_text(self, encoding: str = 'utf-8') -> str
+    @property root: str | None
     @property sha256: str | None
 
 class LaunchError(ContraagentError)
@@ -268,6 +269,7 @@ class Pipeline
         backends: Mapping[str, Backend] | None = None,
         overrides: Overrides = Overrides(),
         cwd: str | Path | None = None,
+        input_roots: Mapping[str, str | os.PathLike[str]] | None = None,
         max_concurrent: int = 4,
         preflight: PreflightPolicy | None = None,
         keep_transcripts: bool = True,
@@ -303,6 +305,7 @@ class Pipeline
     cwd: Path
     enrichers: tuple[ResultEnricher, ...]
     env: dict[str, str]
+    input_roots: dict[str, Path]
     keep_transcripts
     log
     max_concurrent
@@ -379,13 +382,27 @@ class PythonTask[**P, Out]
         outside_state: OutsideState | None = None,
     ) -> None
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Pending[Out]
-    def arguments(self, unit: str, kwargs: dict[str, Any], *, cwd: Path | None = None) -> dict[str, Any]
+    def arguments(
+        self,
+        unit: str,
+        kwargs: dict[str, Any],
+        *,
+        cwd: Path | None = None,
+        roots: Mapping[str, Path] | None = None,
+    ) -> dict[str, Any]
     claims: tuple[str, ...] = ()
     def definition(self, cwd: Path | None = None) -> dict[str, Any]
     def digest(self) -> str
     executor = 'python'
     fn: Callable[P, Any]
-    def invoke(self, unit: str, kwargs: dict[str, Any], *, cwd: Path | None = None) -> Any
+    def invoke(
+        self,
+        unit: str,
+        kwargs: dict[str, Any],
+        *,
+        cwd: Path | None = None,
+        roots: Mapping[str, Path] | None = None,
+    ) -> Any
     kind: str
     def options(
         self,
@@ -1425,6 +1442,7 @@ class Launch
         resume: str | None = None,
         session_dir: Path | None = None,
         out_dir: Path | None = None,
+        input_roots: tuple[Path, ...] = (),
     ) -> None
     allowed_tools: tuple[str, ...] = ()
     append_system_prompt: str | None = None
@@ -1435,6 +1453,7 @@ class Launch
     env: dict[str, str] = field(default_factory=dict)
     exclude_dynamic_sections: bool = False
     fallback_model: str | None = None
+    input_roots: tuple[Path, ...] = ()
     json_schema: dict[str, Any] | None = None
     label: str = ''
     limits: Limits = field(default_factory=Limits)
@@ -1798,6 +1817,7 @@ class AgentRunner
         env: Mapping[str, str] | None = None,
         keep_transcripts: bool = False,
         cwd: Path | str | None = None,
+        input_roots: Mapping[str, Path] | None = None,
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
         rests: CredentialRests | None = None,
@@ -1815,6 +1835,7 @@ class AgentRunner
     def deferral(self, task: Task) -> Deferral | None
     enrichers: Sequence[ResultEnricher] = tuple(enrichers)
     env: dict[str, str]
+    input_roots: dict[str, Path]
     keep_transcripts
     def launch(
         self,
@@ -2279,6 +2300,7 @@ class Run
         env: Mapping[str, str] | None = None,
         keep_transcripts: bool = False,
         cwd: Path | str | None = None,
+        input_roots: Mapping[str, Path] | None = None,
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
         rests: CredentialRests | None = None,
@@ -2956,7 +2978,7 @@ def serve(
 
 ## contraagent.monitor.api
 
-API_VERSION = '3.8.0'
+API_VERSION = '3.9.0'
 
 class AccountQuota(Closed)
     account: str = Field('', description='the account the readings are of (`QuotaReading.account`); empty when not known')
@@ -3332,7 +3354,7 @@ class PlanNode(PlanRow)
     flow_call: str | None = Field(None, description='the id of the flow call that created it; null for a task with no origin')
     given_from: list[str] = Field(default_factory=list, description='keys of the tasks whose outputs it was given in its params: an output, or one item of an output that is a list, whose JSON is a value of its params; shown only, never part of its fingerprint')
     group: str
-    input_files: list[dict[str, str]] = Field(default_factory=list, description='the input files among its params, as its task call hashed them: `param` (its place in the params, `notes/0`), `path` and `sha256`; absent when it has none')
+    input_files: list[dict[str, str]] = Field(default_factory=list, description='the input files among its params, as its task call hashed them: `param` (its place in the params, `notes/0`), `root` (its input root, `out` for an output file of the run; absent for a file of the working directory), `path` (relative to its root, else to the working directory) and `sha256`; absent when it has none')
     key: str
     kind: str
     level: int = Field(description='depth in the dependency graph, 0 for a task that waits for nothing')
@@ -3531,8 +3553,9 @@ class TaskInputFile(Closed)
     check: InputFileCheck
     model_config: ConfigDict = ConfigDict(extra='forbid')
     param: str = Field(description="its place in the params: the param's name, then a list's index or a field's name (`notes/0`)")
-    path: str = Field(description="as the params hold it: relative to the run's working directory, or absolute for an output file outside it")
+    path: str = Field(description="as the params hold it: relative to its input root, else to the task's working directory")
     reason: str = Field('', description='for one `refused`: why, as the refusal names it; else empty')
+    root: str | None = Field(None, description="its input root (`InputFile.root`): a name of the run's `input_roots`, or `out` for an output file of the run; null for a file of the task's working directory")
     sha256: str
     writer: str | None = Field(None, description='the key of the task it was given from whose output file it is; null for another file')
 

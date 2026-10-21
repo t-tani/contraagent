@@ -35,7 +35,7 @@ from typing import Any, Literal, ParamSpec, Protocol, Self, overload
 from pydantic import BaseModel, RootModel, TypeAdapter, ValidationError
 from typing_extensions import TypeVar  # a default (PEP 696) before Python 3.13
 
-from contraagent._internal.contracts.input_file import ROOT
+from contraagent._internal.contracts.input_file import ROOTS
 from contraagent._internal.contracts.pointers import schema_error, syntax_error
 from contraagent._internal.contracts.rows import is_rows, rows_file, rows_model
 from contraagent._internal.contracts.validators import Validator, validator_name
@@ -1206,20 +1206,23 @@ class PythonTask[**P, Out]:
             pass  # a function without source (built-in, REPL): the facts above still say what it is
         return body
 
-    def arguments(self, unit: str, kwargs: dict[str, Any], *, cwd: Path | None = None) -> dict[str, Any]:
+    def arguments(
+        self, unit: str, kwargs: dict[str, Any], *, cwd: Path | None = None, roots: Mapping[str, Path] | None = None
+    ) -> dict[str, Any]:
         """The function's arguments: `kwargs` and the unit for a `unit` parameter, each
         checked and converted against its parameter's annotation (`_ParamTypes`); an input
-        file's relative path is made absolute under `cwd`, the working directory. `InvalidInput`
-        when one does not match."""
+        file's relative path is made absolute under `cwd`, the working directory, or, for a
+        file of an input root, under the root's directory in `roots` (by name, `out` among
+        them). `InvalidInput` when one does not match, or names a root not in `roots`."""
         if "unit" in inspect.signature(self.fn).parameters:
             kwargs = {**kwargs, "unit": unit}
-        return self._param_types.convert(kwargs, cwd)
+        return self._param_types.convert(kwargs, cwd, roots)
 
-    def invoke(self, unit: str, kwargs: dict[str, Any], *, cwd: Path | None = None) -> Any:
+    def invoke(self, unit: str, kwargs: dict[str, Any], *, cwd: Path | None = None, roots: Mapping[str, Path] | None = None) -> Any:
         """Call the function with its `arguments`; `InvalidInput` before the call when one
         does not match its annotation."""
         fn: Callable[..., Any] = self.fn  # its arguments are bound by name (`arguments`)
-        return fn(**self.arguments(unit, kwargs, cwd=cwd))
+        return fn(**self.arguments(unit, kwargs, cwd=cwd, roots=roots))
 
 
 class _ParamTypes:
@@ -1254,12 +1257,12 @@ class _ParamTypes:
                 ) from None
         return self._adapters
 
-    def convert(self, kwargs: dict[str, Any], cwd: Path | None = None) -> dict[str, Any]:
+    def convert(self, kwargs: dict[str, Any], cwd: Path | None = None, roots: Mapping[str, Path] | None = None) -> dict[str, Any]:
         """`kwargs` with each annotated argument validated and converted, an input file's
-        relative path made absolute under `cwd`; `InvalidInput` naming each parameter whose
-        argument does not match."""
+        relative path made absolute under `cwd`, or under its root's directory in `roots`;
+        `InvalidInput` naming each parameter whose argument does not match."""
         adapters = self.adapters()
-        context = {ROOT: cwd} if cwd is not None else None
+        context = {ROOTS: {**(roots or {}), "": cwd}} if cwd is not None else None
         out: dict[str, Any] = {}
         errors: list[str] = []
         for name, value in kwargs.items():

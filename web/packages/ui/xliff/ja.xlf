@@ -3418,6 +3418,10 @@
   <source>Directory the task worked in, named by its task call in place of the run's (cwd)</source>
   <target>タスク呼び出しが実行全体の代わりに指定した、このタスクの作業ディレクトリ（cwd）</target>
 </trans-unit>
+<trans-unit id="seed22b61a74bd723">
+  <source><x id="0" equiv-text="${path}"/> in the input root <x id="1" equiv-text="${root}"/></source>
+  <target>入力ルート <x id="1" equiv-text="${root}"/> の <x id="0" equiv-text="${path}"/></target>
+</trans-unit>
 </body>
 </file>
 </xliff>

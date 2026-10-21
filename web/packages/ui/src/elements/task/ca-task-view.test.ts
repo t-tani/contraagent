@@ -102,8 +102,9 @@ describe('ca-task-view', () => {
       io: {
         ...emptyDetail('count-a').io,
         input_files: [
-          { param: 'note', path: 'out/write/a.md', sha256: sha, writer: 'write-a', check: 'passed', reason: '' },
+          { param: 'note', root: 'out', path: 'write/a.md', sha256: sha, writer: 'write-a', check: 'passed', reason: '' },
           { param: 'spec', path: 'in/spec.md', sha256: sha, writer: null, check: 'refused', reason: 'input file in/spec.md changed after the task call' },
+          { param: 'data', root: 'data', path: '2026/x.csv', sha256: sha, writer: null, check: 'passed', reason: '' },
         ],
         upstream: [
           { key: 'write-a', kind: 'write', unit: 'a', executor: 'agent', outputs: [], lineage: ['given_from'] },
@@ -139,7 +140,10 @@ describe('ca-task-view', () => {
     expect(files).toEqual([
       'same content at the startout/write/a.md Param note | sha256 abababababab | Output of write · a',
       'changed before the startin/spec.md Param spec | sha256 abababababab input file in/spec.md changed after the task call',
+      'same content at the startdata: 2026/x.csv Param data | sha256 abababababab',
     ]);
+    const tips = [...root(el).querySelectorAll('.pane .infile .ct-path')].map((t) => t.getAttribute('title'));
+    expect(tips[2]).toBe('2026/x.csv in the input root data');
     const tags = [...root(el).querySelectorAll('.pane .upstream .lineage')].map((t) => [text(t), t.getAttribute('data-lineage')]);
     expect(tags).toEqual([['given output', 'given_from'], ['runs after', 'after'], ['created after result', 'created_from']]);
 

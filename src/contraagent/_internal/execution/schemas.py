@@ -274,7 +274,8 @@ class PlanRow(RecordModel):
     input_files: list[dict[str, str]] = Field(
         default_factory=list,
         description="the input files among its params, as its task call hashed them: `param` (its place in the params, "
-        "`notes/0`), `path` and `sha256`; absent when it has none",
+        "`notes/0`), `root` (its input root, `out` for an output file of the run; absent for a file of the working "
+        "directory), `path` (relative to its root, else to the working directory) and `sha256`; absent when it has none",
     )
     base_kind: str = Field(
         "",
@@ -372,6 +373,11 @@ class RunInfo(RecordModel):
     )
     argv: list[str]
     cwd: str = Field(description="the run's working directory, absolute")
+    input_roots: dict[str, str] | None = Field(
+        None,
+        description="the run's input roots (`Pipeline(input_roots=)`, `--input-root`): each name and its directory, "
+        "absolute; absent when it names none",
+    )
     started_at: str = Field(description="when the latest run start began")
     finished_at: str | None = Field(None, description="when the run finished; absent while it runs or after it was killed")
     stub: bool | None = Field(None, description="true for a stub run")

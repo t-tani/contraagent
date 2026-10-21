@@ -30,7 +30,7 @@ import { ioFileCard } from '../../shared/file-card.js';
 import { taskChip } from '../../shared/task-chip.js';
 import { inputView, notPassed, type EarlierTask, type InputFile } from '../inputs.js';
 import { roundLabel, roundWhy } from '../../../words/rounds.js';
-import { inputFileCheckWord, lineageTip, lineageWord } from '../../../words/lineage.js';
+import { inputFileCheckWord, inputRootPath, inputRootTip, lineageTip, lineageWord } from '../../../words/lineage.js';
 import { correctionsOf, hadSession, isPy, producerOf, stateOf, taskLink, type TaskContext } from '../context.js';
 
 const valueText = (v: unknown): string => (typeof v === 'string' ? v : JSON.stringify(v) ?? String(v));
@@ -81,8 +81,9 @@ export function inputPane(c: TaskContext): TemplateResult {
 }
 
 /**
- * One input file of the task (an `InputFile` param): its check at the start, its path,
- * the param that holds it, its hash, and the earlier task whose output file it is.
+ * One input file of the task (an `InputFile` param): its check at the start, its path
+ * (with its input root), the param that holds it, its hash, and the earlier task whose
+ * output file it is.
  */
 function inputFileCard(c: TaskContext, f: TaskInputFile) {
   const tone = f.check === 'passed' ? 'done' : f.check === 'refused' ? 'failed' : 'neutral';
@@ -91,8 +92,10 @@ function inputFileCard(c: TaskContext, f: TaskInputFile) {
   const origin = f.writer
     ? html`<span>${msg(html`Output of ${taskLink(c, writer ?? { key: f.writer, kind: f.writer, unit: '' })}`)}</span>`
     : nothing;
+  const rooted = inputRootPath(f);
+  const tip = f.root && f.root !== 'out' ? inputRootTip(f.root, f.path) : f.path;
   return html`<div class="io-card one infile">
-    <div class="io-hd">${pill({ text: inputFileCheckWord(f.check), tone, mark })}<span class="jmono ct-path" title=${f.path}>${runRelative(f.path, c.run)}</span></div>
+    <div class="io-hd">${pill({ text: inputFileCheckWord(f.check), tone, mark })}<span class="jmono ct-path" title=${tip}>${rooted ?? runRelative(f.path, c.run)}</span></div>
     <div class="meta io-from"><span title=${f.sha256}>${facts(msg(str`Param ${f.param}`), `sha256 ${f.sha256.slice(0, 12)}`)}</span>${f.writer
       ? html` | ${origin}`
       : nothing}</div>

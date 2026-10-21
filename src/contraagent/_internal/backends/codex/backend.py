@@ -32,7 +32,8 @@ launch gets a temporary directory of its own instead (`launch_tmp`), a writable 
 besides the cwd (`sandbox_workspace_write.writable_roots`) and the `TMPDIR`, `TMP` and `TEMP`
 of codex and of the commands it runs; it is removed when the launch ends. The run's `out/`
 is the other writable root when it is outside the cwd (`Launch.out_dir`, `writable_out`), so
-the agent can write its output files there.
+the agent can write its output files there. The sandbox reads every directory, so the
+input roots (`Launch.input_roots`) need no flag.
 
 `max_budget_usd` and `context_budget` are not enforced: codex reports no
 cost, and per-call tokens only in the rollout file, after the launch.
