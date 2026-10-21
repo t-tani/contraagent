@@ -12,7 +12,7 @@ import pytest
 
 from contraagent._internal.backends import live_processes, watchdog
 from contraagent._internal.platform import processes
-from contraagent._internal.platform.groups import groups
+from contraagent._internal.platform.groups import KILL_AFTER_S, groups
 
 posix = pytest.mark.skipif(sys.platform == "win32", reason="the watchdog runs on POSIX only")
 
@@ -49,6 +49,7 @@ def _stop(groups: dict[int, int], starts: dict[int, int | None], *, live=(), pid
         send,
         TERM,
         KILL,
+        kill_after_s=KILL_AFTER_S,
         exists=lambda pid: pid in pids or starts.get(pid) is not None,
         clock=clock,
         pause=clock.pause,
@@ -84,7 +85,9 @@ def test_a_group_left_after_the_grace_is_killed_only_while_it_is_still_the_agent
 
     sent: list[tuple[int, int]] = []
     clock = Clock()
-    watchdog.stop({100: 5}, starts.get, send, TERM, KILL, exists=lambda pid: True, clock=clock, pause=clock.pause)
+    watchdog.stop(
+        {100: 5}, starts.get, send, TERM, KILL, kill_after_s=KILL_AFTER_S, exists=lambda pid: True, clock=clock, pause=clock.pause
+    )
     assert sent == [(100, TERM)]
 
 
@@ -116,7 +119,9 @@ def _run_watchdog(line: str) -> None:
     """Start the watchdog, tell it `line`, and end this side of its socket, as an
     interpreter killed outright does; return once the watchdog has exited."""
     ours, theirs = socket.socketpair()
-    proc = subprocess.Popen([sys.executable, "-I", watchdog.__file__, processes.__file__], stdin=theirs.fileno(), start_new_session=True)
+    proc = subprocess.Popen(
+        [sys.executable, "-I", watchdog.__file__, processes.__file__, str(KILL_AFTER_S)], stdin=theirs.fileno(), start_new_session=True
+    )
     theirs.close()
     ours.sendall(f"{line}\n".encode())
     ours.close()
