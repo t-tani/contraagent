@@ -203,6 +203,14 @@ class Kernel32:
         self.calls.append(("terminate", job))
         return 1
 
+    def QueryInformationJobObject(self, job, cls, info, size, returned):
+        self.calls.append(("query", job, cls))
+        listed = info._obj  # info: byref(the structure)
+        for i, pid in enumerate((7, 8)):
+            listed.ProcessIdList[i] = pid
+        listed.NumberOfAssignedProcesses = listed.NumberOfProcessIdsInList = 2
+        return 1
+
     def CloseHandle(self, handle):
         self.calls.append(("close", handle))
         return 1
@@ -256,6 +264,17 @@ def test_a_windows_group_is_asked_with_ctrl_break_then_its_job_is_ended():
     g.adopt(proc)  # type: ignore[arg-type]
     assert g.terminate(proc)  # type: ignore[arg-type]
     assert ("terminate", 100) in k.calls  # it cannot be asked: it is ended
+
+
+def test_a_windows_job_lists_the_processes_of_its_group():
+    k = Kernel32()
+    g = WindowsGroups(kernel32=k, send_break=lambda pid: None)
+    proc = Proc()
+    assert g.members(proc) is None  # type: ignore[arg-type]  # no job yet
+    g.adopt(proc)  # type: ignore[arg-type]
+    assert g.members(proc) == [7, 8]  # type: ignore[arg-type]
+    assert ("query", 100, 3) in k.calls
+    assert PosixGroups().members(proc) is None  # type: ignore[arg-type]  # a POSIX group keeps no list
 
 
 def test_a_windows_child_outside_a_job_is_killed_alone():

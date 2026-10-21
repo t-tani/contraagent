@@ -130,7 +130,7 @@ def snapshot(ref: RunRef, started: datetime) -> dict:
 
 def beat(hub: Hub, host: str, refs: list[RunRef], at: datetime) -> None:
     runs = [RunLiveness(run=r, alive=True, snapshot=snapshot(r, at - timedelta(minutes=20))) for r in refs if r.run_id == LIVE]
-    hub.store.put_heartbeat(Heartbeat(host_id=host, sent_at=iso(at), interval_s=3, runs=runs), iso(at))
+    hub.store.put_heartbeat(Heartbeat(host_id=host, sent_at=iso(at), interval_s=3, ttl_s=12, runs=runs), iso(at))
 
 
 def main() -> None:

@@ -91,7 +91,7 @@
     "/ingest/heartbeat": {
       "post": {
         "summary": "Heartbeat",
-        "description": "Keep a host's latest heartbeat; how long the hub counts the host as up without another.",
+        "description": "Keep a host's latest heartbeat; its TTL, how long the hub counts the host as up without another.",
         "operationId": "heartbeat_ingest_heartbeat_post",
         "requestBody": {
           "content": {
@@ -389,6 +389,12 @@
             "title": "Interval S",
             "description": "seconds until the next heartbeat"
           },
+          "ttl_s": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Ttl S",
+            "description": "seconds the hub counts the host as up after it receives this heartbeat, more than interval_s; a heartbeat without it is read as 4 × interval_s"
+          },
           "runs": {
             "items": {
               "$ref": "#/components/schemas/RunLiveness"
@@ -402,10 +408,11 @@
         "required": [
           "host_id",
           "sent_at",
-          "interval_s"
+          "interval_s",
+          "ttl_s"
         ],
         "title": "Heartbeat",
-        "description": "A host says it is up, and what its runs are doing."
+        "description": "A host says it is up, and what its runs are doing. The hub counts the host as up\nfor `ttl_s` seconds after it receives the heartbeat, by the hub's clock; the relay\nsets both `interval_s` and `ttl_s`."
       },
       "HeartbeatAck": {
         "properties": {
@@ -419,7 +426,7 @@
           "ttl_s"
         ],
         "title": "HeartbeatAck",
-        "description": "How long the hub counts the host as up without another heartbeat."
+        "description": "The TTL the hub keeps for the heartbeat: how long it counts the host as up\nwithout another."
       },
       "LogChunk": {
         "properties": {

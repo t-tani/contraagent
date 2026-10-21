@@ -284,6 +284,7 @@ class Pipeline
         execute: Sequence[str] = (),
         record_missing: bool = False,
         record_max_file_mb: float | None = None,
+        record_exclude: Sequence[str] = (),
         deadline_s: float | None = None,
         grace_s: float = GRACE_S,
         slack_s: float | None = None,
@@ -311,6 +312,7 @@ class Pipeline
     queue_options: dict[str, Any]
     quota_rule
     record: Path | None
+    record_exclude: tuple[str, ...]
     record_max_file_mb: float
     replay: Replay | None
     row_extras
@@ -1867,7 +1869,9 @@ class Check
 
 class ClaimCapacity(Protocol)
     def allowed(self, held: int) -> int
-    def started(self) -> None
+    def ended(self, key: str) -> None
+    def refresh(self) -> None
+    def started(self, key: str) -> None
 
 class CredentialRests
     def __init__(

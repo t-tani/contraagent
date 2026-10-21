@@ -58,7 +58,7 @@ def test_each_batch_and_heartbeat_is_notified(dsn):
     with psycopg.connect(dsn, autocommit=True) as listener:
         listener.execute(f"LISTEN {NOTIFY_CHANNEL}")
         store.put_batch(RecordBatch(run=RUN, logs=[LogChunk(log=layout.JOURNAL, offset=0, lines=["a"])]), "t")
-        store.put_heartbeat(Heartbeat(host_id="h1", sent_at="s", interval_s=3), "t")
+        store.put_heartbeat(Heartbeat(host_id="h1", sent_at="s", interval_s=3, ttl_s=12), "t")
         got = [(n.channel, n.payload) for n in listener.notifies(timeout=5, stop_after=2)]
     assert got == [(NOTIFY_CHANNEL, "r1@h1"), (NOTIFY_CHANNEL, "host:h1")]
     store.close()
