@@ -12,9 +12,7 @@
     "implement/alpha.md": "725c546b990dd1b41f3d5791b37c3c0edcb1f08cf150bdae32a73dfd166e02d7",
     "implement/beta.md": "725c546b990dd1b41f3d5791b37c3c0edcb1f08cf150bdae32a73dfd166e02d7",
     "land/alpha.json": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
-    "land/beta.json": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
-    "worktree/alpha.json": "86c039e7b851c4d8e609e65483e6ab96ee80e941bd812cc7705c4330dedd8ae4",
-    "worktree/beta.json": "eb724a960d26544077f042b4d7dc7e62207b02d2d80d74309bbc8121a00524be"
+    "land/beta.json": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
   },
   "report": {
     "deferred": 0,

@@ -31,14 +31,13 @@ def tree_of(unit: str) -> Path:
 
 
 @python_task(claims=("git",), rerun_on_resume=True)
-def worktree(unit: str) -> str:
-    """The unit's worktree, on branch work/<unit>; made only when it is not there."""
+def worktree(unit: str) -> None:
+    """Make the unit's worktree (`tree_of`), on branch work/<unit>, when it is not there."""
     tree, repo = tree_of(unit), Path.cwd()
     if not tree.is_dir():
         known = git("rev-parse", "--verify", "--quiet", f"work/{unit}", cwd=repo).returncode == 0
         args = [str(tree), f"work/{unit}"] if known else ["-b", f"work/{unit}", str(tree)]
         git("worktree", "add", *args, cwd=repo).check_returncode()
-    return str(tree)
 
 
 @python_task(claims=("git",), rerun_on_resume=True)
@@ -101,7 +100,8 @@ resolve = agent_task(
 
 
 async def one(unit: str, change: Change) -> None:
-    tree = await worktree(unit)
+    await worktree(unit)
+    tree = tree_of(unit)
     await implement.options(cwd=tree)(unit, change)
     while not await land(unit):
         await resolve.options(cwd=tree)(unit)
