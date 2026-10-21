@@ -1,1 +1,0 @@
-The monitor names a resumed round a "correction round" ("Correction round 1" in a transcript, "after 1 correction round" on a checked file). "Correction" now always counts each time the failed checks went back to the session, the stop hook's objections included: in the history's outcome column, the attempts-with-corrections filter, the Corrections tile and the task's header.

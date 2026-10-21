@@ -1,1 +1,0 @@
-`Limits(timeout_s=)`, a `timeout_s` in `[tasks.<kind>]` and `agent_task(timeout_s=)` take a number of seconds above 0 only; 0, a negative number, infinity and NaN are an error. `timeout_s = 0` meant an immediate timeout on most agents, 600 seconds on `omp-rpc`, and no time limit on the omp command line.

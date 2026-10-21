@@ -10,6 +10,43 @@ The changes not released yet are the fragments in [`changelog.d/`](changelog.d/)
 
 <!-- towncrier release notes start -->
 
+## [0.8.0] - 2026-10-22
+
+### Added
+
+- A task can be given a file outside its working directory as a file of an input root: the run names each root and its directory, `Pipeline(input_roots={"data": "/srv/corpus"})` or `contraagent run --input-root data=/srv/corpus` (repeatable, `contraagent check` too), and the flow gives `InputFile("2026/x.csv", root="data")`. The params, `plan.jsonl` and the fingerprint hold `{"root": "data", "path": "2026/x.csv", "sha256": ...}`, never the directory, so a resume with the root at another directory skips the task, and a replay can point a root at another directory. The call file holds the absolute path, and a Python task gets an `InputFile` with an absolute `path` and its `root`. A root's name is lowercase letters, digits, `_` and `-`, starting with a letter, and not `out`; its directory must be one when the run starts. An absolute path under a root given without it raises `ValueError` at the task call, as does a root the run does not have. Every coding agent may read the roots: Claude Code gets each one outside the working directory with `--add-dir`, and opencode allows it as an `external_directory`. New: `InputFile(path, root=)`, `InputFile.root`, `Pipeline(input_roots=)`, `run.json` `input_roots`, `Launch.input_roots`, `AgentRunner(input_roots=)`, `PythonTask.arguments(roots=)` and `invoke(roots=)`, and the monitor's `TaskInputFile.root` (API 3.9.0), shown as `data: 2026/x.csv`.
+- A recording run leaves out of its comparison of the working directory what
+  `Pipeline(record_exclude=[...])` or `contraagent run --record-exclude PATTERN` matches:
+  `Path.glob` patterns relative to the working directory, as in `changes=`, with no `!`.
+  The comparison does not enter a directory a pattern matches, and
+  `recordings/undeclared.json` names the patterns (`excluded`).
+- An agent task's call options take `cwd`, its working directory in place of the run's: `implement.options(cwd=tree)(unit, change)`. Its coding agent runs there, and its call file's `cwd`, its validators' `cwd`, its `changes` patterns (and the journal's `changes` paths) and the relative paths of its input files are of it. A directory that is not there when the task starts refuses the task (`invalid_input`). It is not part of the fingerprint. New: `Task.cwd`, `plan.jsonl` `cwd` and the monitor's `PlanNode.cwd` (API 3.8.0), shown in the task detail. A Python task takes no `cwd`. `contraagent docs tasks` has a recipe that makes each unit's change in a git worktree of its own and merges it.
+
+### Changed
+
+- `max_corrections` counts every correction: each time the output's errors go back to the agent session, whether the plugin's stop hook objects within a round or the runner resumes the session. Before, it counted only the resumes, and the stop hook could also object once in each round, so the default of 3 allowed up to 3 resumes and 4 objections. Now 3 is the total. Each round's environment holds the corrections it has left (`CONTRAAGENT_CORRECTIONS_LEFT`), and `contraagent call validate` lets the agent stop when that value is 0. A stop script of a plugin's own should also exit 0 in that case. The stub agent applies the same limit to its stop hooks.
+- The monitor names a resumed round a "correction round" ("Correction round 1" in a transcript, "after 1 correction round" on a checked file). "Correction" now always counts each time the failed checks went back to the session, the stop hook's objections included: in the history's outcome column, the attempts-with-corrections filter, the Corrections tile and the task's header.
+- An output file of the run given as an input file is a file of the input root `out`, the run's `out/` directory: its params, `plan.jsonl` `input_files` and fingerprint hold `{"root": "out", "path": "<path under out/>", "sha256": ...}` in place of its path from the working directory, so they no longer depend on where the run directory is. `pending.input_file()` returns `InputFile("<path under out/>", root="out")`, and the call file holds the absolute path. After the upgrade, the first resume of a run runs again, once, each task given an output file as an input file, since its fingerprint changed.
+- A `PerTask(memory_mb=...)` claim capacity holds a running task's `memory_mb` until the task ends, or what its processes take when that is more, instead of subtracting `memory_mb` from the free memory for the task's first 30 seconds. A task starts when two conditions hold. First, the running tasks' holds, its own `memory_mb` and the memory other programs took fit in the free memory read while no `PerTask` task runs. Second, the free memory now holds its `memory_mb` and what the running tasks hold but have not taken yet. A task that takes its memory late no longer lets the host start too many, one that takes it early is counted once, and a burst of starts counts each new task's `memory_mb`. What a task's processes take is the memory that the processes of its coding agents' process groups do not share; a Python task's memory counts as other programs'. `ClaimCapacity` changes: `started(key)` and `ended(key)` name the task, and `refresh()` tells it that the queue begins to start tasks.
+- The relay sets how long the hub counts its host as up: `contraagent relay --ttl`,
+  four times `--interval` unless given, and more than `--interval`. Each heartbeat
+  carries it as `ttl_s`, and the hub counts the host as up for `ttl_s` seconds after it
+  receives the heartbeat, so a relay with a long `--interval` no longer shows its host as
+  down between heartbeats. `contraagent hub --ttl` and `contraagent hub prune --ttl` are
+  removed. `HeartbeatAck.ttl_s` is the TTL of the heartbeat it answers, and the hub reads
+  a heartbeat without `ttl_s` as four times its `interval_s`. Upgrade the hub first,
+  then the relays.
+- `Limits(timeout_s=)`, a `timeout_s` in `[tasks.<kind>]` and `agent_task(timeout_s=)` take a number of seconds above 0 only; 0, a negative number, infinity and NaN are an error. `timeout_s = 0` meant an immediate timeout on most agents, 600 seconds on `omp-rpc`, and no time limit on the omp command line.
+- A directory of the working directory's top level with more than 20 undeclared changes
+  gets one warning line, `[record] undeclared changes: <dir>/ (<n> paths), see
+  <recordings>/undeclared.json`, in place of a line per path; `undeclared.json` still lists
+  every path.
+- The documentation topic `upgrading` (`contraagent docs upgrading`) lists what a pipeline written for 0.7 changes or must know to run on 0.8: `timeout_s` above 0, `max_corrections` as one budget for the stop hook's objections and the correction rounds, the new methods of `ClaimCapacity`, the relay's `--ttl`, and output files given as input files of the root `out`, with the steps for a pipeline in production and how to check the upgrade.
+
+### Fixed
+
+- On macOS, a process that ends while contraagent reads the host's processes no longer stops the read with a `SystemError` from psutil 7.2.2; that process is left out.
+- A coding agent can write its output files in the run's `out/` when that is outside its working directory: `Launch.out_dir` names it, Codex's sandbox takes it as a writable root, Claude Code gets it with `--add-dir`, and opencode allows it as an `external_directory`. Before, a Codex task of a run whose runs directory was outside `Pipeline(cwd=)` could not write its output.
 ## [0.7.2] - 2026-10-21
 
 ### Changed
