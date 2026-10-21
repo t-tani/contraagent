@@ -40,7 +40,7 @@ describe('transcriptSections', () => {
   it('names each round as the reader counts them, with how it ended', () => {
     expect(sections.map((s) => [s.title, s.facts, s.verdict, s.active])).toEqual([
       ['Attempt 1', ['sonnet-x'], { tone: 'failed', text: 'failed checks', tip: 'Output failed checks' }, false],
-      ['Correction 1', ['sonnet-x'], { tone: 'failed', text: 'failed', tip: 'tool crashed' }, true],
+      ['Correction round 1', ['sonnet-x'], { tone: 'failed', text: 'failed', tip: 'tool crashed' }, true],
     ]);
     expect(sections[0]?.footer).toEqual({
       tone: 'attention',

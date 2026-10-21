@@ -29,14 +29,18 @@ export function contractStatusWhy(s: ContractStatus): string {
 }
 
 /** What a correction is, for tooltips. */
-export const correctionTip = (): string => msg('Another round in the same agent session after failed checks (rounds)');
+export const correctionTip = (): string =>
+  msg('Failed checks sent back to the same agent session, within its round or in a correction round (hook_errors, rounds)');
 
-/** How many corrections a file took (`rounds` counts the first round too), in words; '' for none. */
-export function correctionsLabel(rounds: number | null | undefined, passed: boolean): string {
+/** What a correction round is, for tooltips. */
+export const correctionRoundTip = (): string => msg('Another round in the same agent session after failed checks (rounds)');
+
+/** How many correction rounds a file took (`rounds` counts the first round too), in words; '' for none. */
+export function correctionRoundsLabel(rounds: number | null | undefined, passed: boolean): string {
   const n = (rounds ?? 1) - 1;
   if (n < 1) return '';
-  if (passed) return n === 1 ? msg('after 1 correction') : msg(str`after ${n} corrections`);
-  return n === 1 ? msg('1 correction') : msg(str`${n} corrections`);
+  if (passed) return n === 1 ? msg('after 1 correction round') : msg(str`after ${n} correction rounds`);
+  return n === 1 ? msg('1 correction round') : msg(str`${n} correction rounds`);
 }
 
 /** Who writes a file, for naming the task an input should have come from. */

@@ -29,7 +29,7 @@ It reads `runs/<id>/` and shows, live, one tab each:
 - **Definitions**: each kind's interface and its plugin's files;
 - **Processes**: the agent sessions and Python tasks running, and the process tree;
 - **Task detail**: one task's transcript, one button per agent session
-  (attempt, correction, model switch), tailed live, next to its input, output
+  (attempt, correction round, model switch), tailed live, next to its input, output
   and definition. Its header gives its status, with the reason of a partial task
   (`Partly done: timed out` for an agent task whose launch was stopped, see
   [Contracts](contracts.md#a-launch-stopped-for-its-time)), and the files each
@@ -157,8 +157,7 @@ have opens the graph's first layer and says so, and a function named by its
 qualified name alone opens its layer when the run reaches it one way only.
 
 The words on screen are the reader's, not the code's: a task's `Outcome` is its
-status, an attempt's `stop` its outcome, a round after failed checks a
-correction, a failover a model switch, the `ambient` credential
+status, an attempt's `stop` its outcome, a failover a model switch, the `ambient` credential
 "default" (its tooltip: local credentials), a route the preflight dropped an unavailable model and a kind it
 substituted a model replaced, an attempt's `peak_context` its peak context. A colour means a status, and only where it applies: red
 failed, amber not started (or a limit near), green done (in marks and small
