@@ -394,7 +394,7 @@ To cite contraagent in a paper, use this BibTeX entry. GitHub shows the same
 information under "Cite this repository", from [CITATION.cff](CITATION.cff).
 
 ```bibtex
-@software{tani_contraagent,
+@software{contraagent,
   author  = {Tani, Tomoaki},
   title   = {contraagent: coding agents as typed, checked and supervised tasks},
   year    = {2026},
