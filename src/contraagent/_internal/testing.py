@@ -5,6 +5,7 @@ the reference (the replies, the script keys, a stub run).
 from __future__ import annotations
 
 import copy
+import dataclasses
 import json
 import os
 import subprocess
@@ -29,6 +30,7 @@ from contraagent._internal.dispatch.records import QuotaReading, SafetyStop
 from contraagent._internal.dispatch.task import kind_matches
 from contraagent._internal.dispatch.templates import fill_example
 from contraagent._internal.platform.commands import commands
+from contraagent._internal.platform.groups import groups
 from contraagent._internal.routing.preflight import PROBE_PROMPT
 from contraagent._internal.runs.times import now_iso
 
@@ -275,7 +277,12 @@ class StubAgent(Backend):
         objections: list[list[str]] = []
         # A stop hook's objection to the example would get the same value back.
         while reply.stop is Stop.COMPLETED and not fixed and self._continues_on_stop_hook():
-            said = self._stop_hooks(launch, active=bool(objections))
+            try:
+                said = self._stop_hooks(launch, active=bool(objections), deadline=started + launch.limits.timeout_s)
+            except _PastTimeout:
+                reason = f"stub: past timeout_s ({launch.limits.timeout_s:g}s) while a Stop hook ran"
+                reply = dataclasses.replace(reply, stop=Stop.TIMEOUT, reason=reason)
+                break
             if said is None or len(objections) >= _MAX_HOOK_OBJECTIONS:
                 break
             objections.append(feedback_errors(said))
@@ -358,9 +365,11 @@ class StubAgent(Backend):
         """Whether the coding agent this stub plays continues its turn when a stop hook objects."""
         return self._stop_hooks_file() is not None
 
-    def _stop_hooks(self, launch: Launch, *, active: bool) -> str | None:
+    def _stop_hooks(self, launch: Launch, *, active: bool, deadline: float) -> str | None:
         """Run the launch's plugins' Stop hooks as the coding agent does; what the first one
-        that objects (exit 2) says, or None when they all let the agent stop."""
+        that objects (exit 2) says, or None when they all let the agent stop. A hook still
+        running at `deadline` (`time.monotonic()`, the end of the launch's `timeout_s`) is
+        stopped with its process group, and `_PastTimeout` is raised."""
         payload = json.dumps({"hook_event_name": "Stop", "stop_hook_active": active, "session_id": launch.label})
         for plugin_dir in launch.plugin_dirs:
             rendered = Path(plugin_dir) / (self._stop_hooks_file() or "")
@@ -370,19 +379,9 @@ class StubAgent(Backend):
                 continue
             env = {**os.environ, **launch.env, "CLAUDE_PLUGIN_ROOT": str(plugin_dir)}
             for command in (h.get("command", "") for group in declared for h in group.get("hooks", [])):
-                proc = subprocess.run(
-                    [commands.bash(env) or "bash", "-c", command],
-                    input=payload,
-                    capture_output=True,
-                    text=True,
-                    cwd=launch.cwd,
-                    env=env,
-                    timeout=120,
-                    encoding="utf-8",
-                    errors="replace",
-                )
-                if proc.returncode == 2:
-                    return proc.stderr.strip() or "the stop hook objected"
+                returncode, stderr = _run_hook([commands.bash(env) or "bash", "-c", command], payload, launch.cwd, env, deadline)
+                if returncode == 2:
+                    return stderr.strip() or "the stop hook objected"
         return None
 
     # --- a stub run's Python tasks --------------------------------------------
@@ -501,6 +500,39 @@ class StubAgent(Backend):
             context_window=reply.context_window,
             safety_stops=list(reply.safety_stops),
         )
+
+
+class _PastTimeout(Exception):
+    """A Stop hook was still running at the end of the launch's `timeout_s`."""
+
+
+def _run_hook(argv: list[str], payload: str, cwd: Path, env: dict[str, str], deadline: float) -> tuple[int, str]:
+    """Run one hook command in a process group of its own, `payload` on its stdin: its exit
+    code and stderr. At `deadline` the whole group is ended and `_PastTimeout` is raised."""
+    proc = subprocess.Popen(
+        argv,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=cwd,
+        env=env,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        **groups.popen_options(),
+    )
+    groups.adopt(proc)
+    try:
+        try:
+            _, stderr = proc.communicate(payload, timeout=max(0.0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            groups.kill(proc)
+            proc.kill()
+            proc.communicate()
+            raise _PastTimeout from None
+        return proc.returncode, stderr
+    finally:
+        groups.release(proc)
 
 
 def _observed(reading: QuotaReading) -> QuotaReading:
