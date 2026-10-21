@@ -11,8 +11,8 @@ ready when:
   A name's own entry outranks a pattern, and the longest matching pattern
   outranks the others. A capacity is a number, or a `ClaimCapacity` worked out
   each time the queue tries to start a task that claims the name, given how
-  many running tasks hold it (a `PerTask` entry, sized by the host's free memory
-  and cores). It may grow while tasks still run: the queue looks again each
+  many running tasks hold it (a `PerTask` entry, sized by the host's memory and
+  cores; told when each task that claims the name starts and ends). It may grow while tasks still run: the queue looks again each
   second while any task runs (`POLL_S`, the wait in `run_async`), not only when one
   finishes. A task's kind
   or unit locks nothing: tasks that claim nothing run together whatever they are;
@@ -239,6 +239,10 @@ class ClaimCapacity(Protocol):
 
     def started(self) -> None:
         """A task that claims the name has started."""
+        ...
+
+    def ended(self) -> None:
+        """A task that claims the name has ended: one `started` call each."""
         ...
 
 
@@ -795,6 +799,9 @@ class WorkQueue:
             self._held[name] -= 1
             if self._held[name] <= 0:
                 del self._held[name]
+            entry = self._entry(name)
+            if not isinstance(entry, int):
+                entry.ended()
 
     def _deferral(self, task: Task) -> Deferral | None:
         """The runner's `Deferral` of `task` now (`deferral`), if it gives one."""

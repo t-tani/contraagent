@@ -116,14 +116,17 @@ class PerTask:
     name needs. `memory_mb`: memory in MB; `cores`: CPU cores. Give one or both, each a
     positive integer; a mistake raises `ConfigError`.
 
-    Each time the queue tries to start a task that claims the name, the capacity is the
-    tasks that hold it now plus as many more as the free memory holds, and at most the
-    usable cores divided by `cores`; at least 1 while no task holds the name, so a run
-    always goes on. Free memory is `MemAvailable` of `/proc/meminfo`, less `memory_mb` for
-    each task with a `PerTask` claim started in the last 30 seconds (one just started has
-    not grown yet); where there is no `/proc/meminfo` (not Linux), memory does not limit
-    it. A pattern with a `PerTask` sizes each name it matches on its own: one name,
-    claimed by every such task, shares one limit.
+    Each time the queue tries to start a task that claims the name, the task may start
+    when both memory conditions hold and fewer tasks hold the name than the usable cores
+    divided by `cores`; while no task holds the name one may start anyway, so a run
+    always goes on. The first memory condition: `memory_mb` of every running task with a
+    `PerTask` claim, plus the new one's, is at most the baseline, the free memory read
+    while no such task runs; each `memory_mb` stays reserved until its task ends. The
+    second: the free memory now is at least the new one's `memory_mb`. Free memory is
+    what the OS reports as available (on Linux `MemAvailable` of `/proc/meminfo`); where
+    it reports none, memory does not limit the name. A `memory_mb` larger than a task
+    takes holds back other tasks. A pattern with a `PerTask` sizes each name it matches
+    on its own: one name, claimed by every such task, shares one limit.
     """
 
     memory_mb: int | None = None

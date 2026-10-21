@@ -1867,6 +1867,7 @@ class Check
 
 class ClaimCapacity(Protocol)
     def allowed(self, held: int) -> int
+    def ended(self) -> None
     def started(self) -> None
 
 class CredentialRests

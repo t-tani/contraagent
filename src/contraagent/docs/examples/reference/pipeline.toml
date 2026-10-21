@@ -24,7 +24,8 @@ credential = "personal"             # without it: "ambient", the host's own setu
 # name or an fnmatch pattern that gives each name it matches a capacity of its own (a limit
 # shared by many tasks needs one name they all claim). A number, or what one running task
 # needs of the host (PerTask): memory_mb and/or cores, as many at once as the free memory
-# (MemAvailable) and the usable cores hold, one while none runs.
+# read while none runs (MemAvailable), the free memory now and the usable cores hold, one
+# while none runs.
 # Pipeline(claim_capacity=) outranks it key by key; a name that no entry gives: one at a time.
 [defaults.claim_capacity]
 "heavy:*" = 2                       # claims=["heavy:{kind}"]: two at a time of each kind

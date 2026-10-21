@@ -842,14 +842,19 @@ run at once:
 
 `Pipeline(claim_capacity=CLAIM_CAPACITY)` gives it, or
 `index = { memory_mb = 1500, cores = 1 }` in `[defaults.claim_capacity]`. Each
-time the queue tries to start such a task, the capacity is the tasks that hold the
-name plus as many more as the free memory holds, and at most the usable cores
-divided by `cores`. While no task holds the name it is at least 1, so a run always
-goes on even on a host short of memory. The free memory is what the OS reports as
-available (on Linux `MemAvailable` of `/proc/meminfo`), less `memory_mb` for each
-such task started in the last 30 seconds, since a server just started has not taken
-its memory yet; where the OS reports none, memory does not limit the name. The capacity grows
-as memory frees, and a waiting task starts then, while the others still run.
+time the queue tries to start such a task, it checks two memory conditions. The
+`memory_mb` of the running tasks with a `PerTask` claim, with the new one's added,
+must be at most the baseline: the free memory read while no such task runs. A
+task's `memory_mb` stays reserved from its start until it ends, so a server that
+takes its memory late is counted, and one that takes it early is not counted
+twice. The free memory now must also be at least the new task's `memory_mb`, so
+memory that other programs took counts too. The free memory is what the OS
+reports as available (on Linux `MemAvailable` of `/proc/meminfo`); where the OS
+reports none, memory does not limit the name. The cores allow at most the usable
+cores divided by `cores`. While no task holds the name, one starts anyway, so a
+run always goes on even on a host short of memory. Declare what a task takes at
+most: a larger `memory_mb` holds back other tasks. A waiting task starts as soon
+as a task ends or the free memory grows, while the others still run.
 
 A claim that names `{params.<name>}`, where `<name>` is no field of the task's params
 model (for a Python task, no parameter of its function), raises where the task is
