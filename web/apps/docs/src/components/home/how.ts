@@ -61,7 +61,8 @@ export function how(): How {
     marks: [...last.values()].map((r) => ({ agent: r.executor === 'agent', corrected: (r.rounds ?? 1) > 1, switched: (r.hops ?? []).length > 1 })),
     done: fixture.plan.nodes.filter((n) => n.state === 'done').length,
     total: fixture.plan.nodes.length,
-    corrections: journal.filter((r) => (r.rounds ?? 1) > 1).length,
+    // Each time an output's failed checks went back to the session: the stop hook's, and the correction rounds.
+    corrections: journal.reduce((a, r) => a + Math.max((r.rounds ?? 1) - 1, 0) + (r.hook_errors ?? []).length, 0),
     switches: journal.filter((r) => (r.hops ?? []).length > 1).length,
   };
 }

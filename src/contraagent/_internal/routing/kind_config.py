@@ -66,8 +66,9 @@ class KindConfig:
     #: Leave the files a failed attempt created under its task's `changes` patterns in place
     #: (`Changes.kept`) instead of removing them (`Changes.removed`).
     keep_failed_changes: bool = False
-    #: The correction rounds after the first launch: how many times an output that fails its
-    #: checks goes back to the same session with the errors (`run_until_valid(max_corrections=)`).
+    #: The corrections: how many times in all an output that fails its checks goes back to
+    #: the same session with the errors, by the stop hook within a round or by a resume
+    #: (`run_until_valid(max_corrections=)`).
     max_corrections: int = DEFAULT_MAX_CORRECTIONS
 
     @property
@@ -128,8 +129,8 @@ TASK_TABLE_KEYS: dict[str, type | tuple[type, ...]] = {
     "max_corrections": int,
 }
 
-#: The most correction rounds a kind may allow (`max_corrections`): each is a full turn
-#: of the same session, its context growing, and an output still wrong after this many is
+#: The most corrections a kind may allow (`max_corrections`): each is more work in the
+#: same session, its context growing, and an output still wrong after this many is
 #: not converging.
 MAX_CORRECTIONS_LIMIT = 20
 

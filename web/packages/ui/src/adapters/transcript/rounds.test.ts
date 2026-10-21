@@ -8,7 +8,7 @@ const FIXUP = 'The output file(s) you wrote do not pass their checks.\nErrors:\n
 describe('rounds', () => {
   it('names each agent session: attempt, correction, model switch', () => {
     const fix = classifyRounds([launch(), launch(FIXUP)], [{ attempt: 0, ok: true, stop: 'completed' }]);
-    expect(fix.map((r) => roundLabel(r, 1))).toEqual(['Attempt 1', 'Correction 1']);
+    expect(fix.map((r) => roundLabel(r, 1))).toEqual(['Attempt 1', 'Correction round 1']);
     const retried = classifyRounds(
       [launch(), launch(), launch(FIXUP)],
       [
@@ -16,7 +16,7 @@ describe('rounds', () => {
         { attempt: 1, ok: true, stop: 'completed' },
       ],
     );
-    expect(retried.map((r) => roundLabel(r, 2))).toEqual(['Attempt 1', 'Attempt 2', 'Attempt 2 | correction 1']);
+    expect(retried.map((r) => roundLabel(r, 2))).toEqual(['Attempt 1', 'Attempt 2', 'Attempt 2 | correction round 1']);
   });
 
   it('says which model stopped, why, and which model came next', () => {

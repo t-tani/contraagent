@@ -14,7 +14,7 @@ import { getLocale } from '../../core/i18n.js';
 import { RememberedSet, SessionSet, memoryOf, pageMemory } from '../../core/memory.js';
 import { promptText } from '../shared/prompt-text.js';
 import { retryTip } from '../../words/attempts.js';
-import { correctionTip } from '../../words/contract.js';
+import { correctionRoundTip } from '../../words/contract.js';
 import { modelSwitchTip } from '../../words/hops.js';
 
 /** The transcript's words, in the reader's language (call at render time). */
@@ -22,7 +22,7 @@ const strings = (): TranscriptStrings => ({
   sections: msg('Agent sessions'),
   sectionsTip: [
     `${msg('Retry')}: ${retryTip()}`,
-    `${msg('Correction')}: ${correctionTip()}`,
+    `${msg('Correction round')}: ${correctionRoundTip()}`,
     `${msg('Model switch')}: ${modelSwitchTip()}`,
   ].join('\n'),
   loadEarlier: (n) => (n === 1 ? msg('Show 1 earlier line') : msg(str`Show ${n} earlier lines`)),

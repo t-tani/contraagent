@@ -45,7 +45,10 @@ fails goes back to the same session as a correction round
 ([contracts](contracts.md)). On omp, the plugin's extension (`omp/index.ts`) runs
 the stop hooks of `omp/hooks.json` when the agent is about to stop, and one that
 exits 2 keeps the agent working in the same session, as on Claude Code; the journal
-records what it sent back (`hook_errors`). A budget that is not enforced is still
+records what it sent back (`hook_errors`). Claude Code, Codex and omp tell a stop hook
+that runs after an objection in the same round (`stop_hook_active` true in its JSON),
+so the plugin's stop hook objects at most once per round. Each objection is a
+correction, and `max_corrections` counts them with the correction rounds. A budget that is not enforced is still
 recorded: the journal holds each launch's turns, cost and peak context as the agent
 reports them. On omp, the budgets contraagent enforces are read from its event stream,
 which `OmpBackend(trace=False)` turns off.

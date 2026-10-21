@@ -17,6 +17,7 @@ import { isStop, type Tone } from '../../lib/tone.js';
 import { executorIcon } from '../../words/executor.js';
 import '@contraagent/elements/json-tree/define';
 import { tagChips, type TranscriptTag } from '@contraagent/elements/transcript';
+import { correctionCount } from '../../adapters/filters.js';
 import { checkMessage } from '../../adapters/transcript/rounds.js';
 import { agentLabel, launchWho, whoTags, type Who } from '../../adapters/transcript/who.js';
 import { correctionsOf, hadSession, isPy, notStartedWhy, stateOf, type TaskContext } from './context.js';
@@ -73,7 +74,7 @@ function verdict(c: TaskContext): [text: string, tone: Tone] {
       'neutral',
     ];
   }
-  const corrections = (last.rounds || 1) - 1 + (last.hook_errors ?? []).length;
+  const corrections = correctionCount(last);
   if (corrections > 0) {
     const errors = [...(last.hook_errors ?? []).flat(), ...(last.round_errors ?? []).flat(), ...c.rounds.flatMap((r) => r.rejectedWith)];
     const first = errors[0] ? checkMessage(runRelative(errors[0], c.run)) : '';
