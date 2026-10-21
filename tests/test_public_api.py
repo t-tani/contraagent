@@ -515,19 +515,41 @@ print("ok")
 """
 
 
+def _dependencies() -> list[importlib.metadata.Distribution]:
+    """The distributions contraagent depends on without its extras, directly or through
+    another one, as this environment holds them."""
+    from packaging.requirements import Requirement
+    from packaging.utils import canonicalize_name
+
+    found: dict[str, importlib.metadata.Distribution] = {}
+    todo = [importlib.metadata.distribution("contraagent")]
+    while todo:
+        for line in todo.pop().requires or []:
+            requirement = Requirement(line)
+            name = canonicalize_name(requirement.name)
+            if name not in found and (requirement.marker is None or requirement.marker.evaluate({"extra": ""})):
+                found[name] = importlib.metadata.distribution(name)
+                todo.append(found[name])
+    return list(found.values())
+
+
 def test_the_public_modules_import_in_an_environment_without_the_extras(tmp_path):
-    """A fresh virtual environment holding only the dependencies (pydantic, psutil) and the source:
-    the extras' packages are absent there, not only left unimported."""
-    uv = shutil.which("uv")
-    assert uv is not None, "uv makes the environment"
+    """A fresh virtual environment holding only the dependencies (pydantic, psutil and theirs)
+    and the source: the extras' packages are absent there, not only left unimported. The
+    dependencies are copied from this environment, so nothing is downloaded."""
     venv = tmp_path / "venv"
-    subprocess.run([uv, "venv", "--quiet", "--python", sys.executable, str(venv)], check=True, capture_output=True)
+    subprocess.run([sys.executable, "-m", "venv", "--without-pip", str(venv)], check=True, capture_output=True)
     python = venv / "Scripts" / "python.exe" if sys.platform == "win32" else venv / "bin" / "python"
-    pins = [f"{name}=={importlib.metadata.version(name)}" for name in ("pydantic", "psutil")]
-    install = [uv, "pip", "install", "--quiet", "--python", str(python), *pins]
-    if subprocess.run([*install, "--offline"], capture_output=True).returncode != 0:
-        done = subprocess.run(install, capture_output=True, text=True, encoding="utf-8")
-        assert done.returncode == 0, done.stderr
+    where = subprocess.run(
+        [str(python), "-I", "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"], check=True, capture_output=True, text=True
+    )
+    site = Path(where.stdout.strip())
+    for dist in _dependencies():
+        for file in dist.files or []:
+            source = Path(str(dist.locate_file(file)))
+            if ".." not in file.parts and source.is_file():  # not a script installed outside site-packages
+                (site / file).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, site / file)
     src = Path(__file__).parents[1] / "src"
     done = subprocess.run([str(python), "-I", "-c", IMPORT_WITHOUT_EXTRAS, str(src)], capture_output=True, text=True, encoding="utf-8")
     assert (done.returncode, done.stdout.strip()) == (0, "ok"), done.stderr

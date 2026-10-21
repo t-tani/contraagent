@@ -3,6 +3,7 @@
 import os
 import shutil
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -46,12 +47,86 @@ def pytest_collection_modifyitems(config, items) -> None:
 
 
 def pytest_sessionfinish(session) -> None:
-    """Under pytest-xdist the controller removes the Postgres and RustFS containers its workers
-    shared (`hub_services`); a worker leaves them to it."""
-    if not hasattr(session.config, "workerinput"):
-        from hub_services import stop_shared
+    """Each process removes the Postgres and RustFS containers it started (`hub_services`);
+    under pytest-xdist the workers share theirs, and the controller removes those."""
+    from hub_services import stop_all, stop_shared
 
+    stop_all()
+    if not hasattr(session.config, "workerinput"):
         stop_shared(os.getpid())
+
+
+#: The home directory of the user running the tests, before any test is given its own.
+_HOST_HOME = Path.home()
+
+#: Where a coding agent, a tool or contraagent itself keeps a user's config, cache, data and state.
+USER_DIRS = ("XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME")
+
+
+def _become_new_user(monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
+    """Make this process's environment that of a user of its own: an empty home and empty
+    config, cache, data and state directories under `root`, and none of the host's
+    credentials.
+
+    Removed are the variables a coding agent reads a credential from (`scrubbed`), those that
+    tie a process to a Claude Code session (`PARENT_SESSION_ENV`), every `AWS_*` one (boto3
+    reads its credentials, profile, config files, endpoint and region from them) and every
+    `CONTRAAGENT_*` one. boto3 does not ask the instance metadata service for a role either,
+    which is a network call. A test that needs a credential sets it itself.
+
+    Docker keeps the host's config (`DOCKER_CONFIG`): the hub's tests run their containers
+    on the host's docker (`hub_services`), and that config names the daemon to use."""
+    from contraagent._internal.backends.base import PARENT_SESSION_ENV
+    from contraagent._internal.backends.credentials import scrubbed
+
+    docker_config = os.environ.get("DOCKER_CONFIG") or str(_HOST_HOME / ".docker")
+    kept = scrubbed(dict(os.environ), PARENT_SESSION_ENV)
+    for name in list(os.environ):
+        if name not in kept or name.startswith(("AWS_", "CONTRAAGENT_")):
+            monkeypatch.delenv(name)
+    dirs = {"HOME": root / "home", **{name: root / name.lower() for name in USER_DIRS}}
+    for name, path in dirs.items():
+        path.mkdir(parents=True)
+        monkeypatch.setenv(name, str(path))
+    monkeypatch.setenv("USERPROFILE", str(dirs["HOME"]))  # Path.home() on Windows
+    monkeypatch.setenv("AWS_EC2_METADATA_DISABLED", "true")
+    monkeypatch.setenv("DOCKER_CONFIG", docker_config)
+
+
+def _live(item: pytest.Item) -> bool:
+    """A live test runs the real coding agents with the host's own logins and credentials."""
+    return item.get_closest_marker("live") is not None
+
+
+@pytest.fixture(scope="session", autouse=True)
+def isolated_session(request, tmp_path_factory) -> Iterator[None]:
+    """The session's and the modules' fixtures run as a user of their own (`_become_new_user`),
+    unless the session has selected a live test: the live modules' fixtures launch the coding
+    agents, which need the host's logins. The selected items are what this process runs (a
+    pytest-xdist worker collects and deselects them as its controller does), so a default run,
+    which deselects the live tests, is isolated."""
+    if any(_live(item) for item in request.session.items):
+        yield
+        return
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        _become_new_user(monkeypatch, tmp_path_factory.mktemp("session-user"))
+        yield
+
+
+@pytest.fixture(autouse=True)
+def isolated_test(request, tmp_path_factory, monkeypatch) -> None:
+    """Each test runs as a user of its own (`_become_new_user`): what it sees is the same on
+    every machine, and it reads and writes none of the developer's files. A live test runs in
+    the host's environment, with the host's logins."""
+    if not _live(request.node):
+        _become_new_user(monkeypatch, tmp_path_factory.mktemp("user"))
+
+
+@pytest.fixture(scope="session")
+def host_home() -> Path:
+    """The home directory of the user running the tests, for a test about this machine; each
+    test's own home is another one (`isolated_test`)."""
+    return _HOST_HOME
 
 
 @pytest.fixture(scope="session")

@@ -2,8 +2,11 @@
 
 `postgres_dsn()` and `s3_url()` start their container on first use (once per session) and
 give each caller a fresh database or a fresh prefix; they skip the test when docker cannot
-run Linux containers (`linux_containers` says why). `hub_services` is the session fixture that stops the containers at the end; a
-module that uses them imports it and marks its tests `usefixtures("hub_services")`.
+run Linux containers (`linux_containers` says why). `hub_services` is the fixture that gives a
+test the RustFS server's credentials (`S3_ENV`), in the environment where the hub's S3 clients
+read them; a module that uses the services imports it and marks its tests
+`usefixtures("hub_services")`. A process the test starts is given `S3_ENV` too. The
+containers are removed when the session ends (`stop_all`, from `conftest.py`).
 
 Under pytest-xdist the workers share one container of each: the first to need it starts it
 and records it in a file the others read (`_shared_state`, under a lock), and the controller
@@ -40,11 +43,12 @@ OWNER = "contraagent-test-owner"
 _UNOWNED_GRACE_S = 3600
 
 RUSTFS_USER, RUSTFS_PASSWORD, RUSTFS_BUCKET = "contraagent", "contraagent-secret", "hub"
+#: The RustFS server's credentials, as an S3 client reads them from its environment.
+S3_ENV = {"AWS_ACCESS_KEY_ID": RUSTFS_USER, "AWS_SECRET_ACCESS_KEY": RUSTFS_PASSWORD}
 
 _lock = threading.Lock()
 _containers: list[str] = []
 _started: dict[str, str] = {}
-_env_before: dict[str, str | None] = {}
 _unavailable: list[str] = []
 
 
@@ -225,17 +229,11 @@ def _wait(ready, what: str, timeout: float = 60) -> None:
 
 
 def stop_all() -> None:
-    """Remove every container this session started, and restore the AWS environment."""
+    """Remove every container this process started."""
     with _lock:
         while _containers:
             subprocess.run(["docker", "rm", "-f", _containers.pop()], capture_output=True, timeout=60)
         _started.clear()
-        for k, v in _env_before.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
-        _env_before.clear()
 
 
 atexit.register(stop_all)
@@ -289,13 +287,6 @@ def _rustfs_server() -> str:
     with _lock:
         if "rustfs" not in _started:
             _require_docker()
-            # This process's own S3 clients read their credentials from the environment.
-            for k, v in {"AWS_ACCESS_KEY_ID": RUSTFS_USER, "AWS_SECRET_ACCESS_KEY": RUSTFS_PASSWORD}.items():
-                _env_before.setdefault(k, os.environ.get(k))
-                os.environ[k] = v
-            for k in ("AWS_SESSION_TOKEN", "AWS_PROFILE"):
-                _env_before.setdefault(k, os.environ.get(k))
-                os.environ.pop(k, None)
             with _shared_state() as shared:
                 if (recorded := _recorded(shared, "rustfs")) is not None:
                     _started["rustfs"] = recorded
@@ -312,7 +303,13 @@ def _rustfs_server() -> str:
                 import boto3
                 from botocore.exceptions import ClientError
 
-                s3 = boto3.client("s3", endpoint_url=endpoint, region_name="us-east-1")
+                s3 = boto3.client(
+                    "s3",
+                    endpoint_url=endpoint,
+                    region_name="us-east-1",
+                    aws_access_key_id=RUSTFS_USER,
+                    aws_secret_access_key=RUSTFS_PASSWORD,
+                )
 
                 def bucket() -> bool:
                     try:
@@ -337,8 +334,9 @@ def s3_url() -> str:
     return f"s3://{RUSTFS_BUCKET}/t-{uuid.uuid4().hex[:16]}?endpoint={endpoint}&region=us-east-1"
 
 
-@pytest.fixture(scope="session")
-def hub_services():
-    """Stops the session's containers at its end."""
-    yield
-    stop_all()
+@pytest.fixture
+def hub_services(monkeypatch):
+    """The RustFS server's credentials (`S3_ENV`) in the test's environment, where the S3
+    clients of the hub's code read them; the test's environment holds no other ones."""
+    for name, value in S3_ENV.items():
+        monkeypatch.setenv(name, value)

@@ -36,7 +36,8 @@ from contraagent._internal.monitor import server  # noqa: E402
 from contraagent._internal.platform import processes  # noqa: E402
 from contraagent.monitor import Monitor  # noqa: E402
 from hub_services import (  # noqa: E402
-    hub_services,  # noqa: F401  # the fixture that stops the containers
+    S3_ENV,
+    hub_services,  # noqa: F401  # the fixture that gives a test the services' credentials
     postgres_dsn,
     s3_url,
 )
@@ -142,7 +143,7 @@ class Env:
             *("--ingest-token-file", str(self.tmp / "ingest"), "--read-token-file", str(self.tmp / "read")),
             *("--ttl", str(TTL_S), "--seal-bytes", "65536", "--seal-idle", "1", "--seal-tick", "0.5"),
         ]
-        self.hub = hub = Proc(argv, self.tmp / "hub.log")
+        self.hub = hub = Proc(argv, self.tmp / "hub.log", env=S3_ENV)  # started before `hub_services` runs
 
         def up() -> bool:
             assert hub.alive(), f"the hub exited:\n{hub.tail()}"
