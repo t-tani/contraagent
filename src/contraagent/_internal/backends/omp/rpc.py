@@ -42,7 +42,7 @@ from contraagent._internal.backends.process import STOPPED, LaunchError, spawn_e
 from contraagent._internal.backends.refusal import FAILED_STOPS, Signals
 from contraagent._internal.backends.wire import EventFold, LimitsWatch, positive_int
 from contraagent._internal.platform.commands import commands
-from contraagent._internal.platform.groups import KILL_AFTER_S, groups
+from contraagent._internal.platform.groups import KILL_AFTER_S, REAP_S, groups
 
 #: The id of the post-turn `get_state` request (`OmpRpcBackend._harvest_state`).
 STATE_REQUEST = "harvest-state"
@@ -189,6 +189,7 @@ class OmpRpcBackend(OmpBackend):
         assert isinstance(fold, RpcReader)
         if stop_requested():
             raise LaunchError(STOPPED)
+        deadline = time.monotonic() + launch.limits.timeout_s
         since = live_processes.epoch()
         try:
             proc = subprocess.Popen(
@@ -209,25 +210,36 @@ class OmpRpcBackend(OmpBackend):
         live_processes.register(proc, since=since)
         stderr: list[str] = []
         drain: threading.Thread | None = None
+        in_time = False
         try:
             frames, drain = self._start_readers(proc, launch, stderr)
-            killed, why = self._converse(proc, frames, launch, fold, watch)
+            killed, why = self._converse(proc, frames, launch, fold, watch, deadline)
+            in_time = killed is None and not stop_requested()
         finally:
             try:
                 if proc.stdin:
                     proc.stdin.close()
             except (OSError, BrokenPipeError):
                 pass
+            # At stdin's EOF omp finishes the commands it took and exits (its RPC docs). A
+            # launch that ended in time waits for that until its deadline, as `run_process`
+            # waits for an exit; a stopped or aborted one waits `KILL_AFTER_S`, as any group
+            # asked to stop does, and a killed one `REAP_S`.
+            until = deadline if in_time and deadline > time.monotonic() else time.monotonic() + KILL_AFTER_S
             try:
-                proc.wait(timeout=KILL_AFTER_S)
+                proc.wait(timeout=until - time.monotonic())
             except subprocess.TimeoutExpired:
                 groups.kill(proc)
-                proc.wait()
+                until = time.monotonic() + REAP_S
+                try:
+                    proc.wait(timeout=REAP_S)
+                except subprocess.TimeoutExpired:
+                    pass  # stuck in the kernel; the launch still gets its result
             live_processes.unregister(proc)
-            # The process is gone: its stderr is read to the end before the tail is taken,
-            # unless a process it left behind holds the pipe open.
+            # The process is gone: its stderr is read to its end before the tail is taken. A
+            # process it left behind may hold the pipe open: the drain has the exit's bound.
             if drain is not None:
-                drain.join(timeout=5)
+                drain.join(timeout=max(0.0, until - time.monotonic()))
             # Its readers are at EOF or take a closed pipe as one.
             for pipe in (proc.stdout, proc.stderr):
                 try:
@@ -281,14 +293,16 @@ class OmpRpcBackend(OmpBackend):
         return frames, drainer
 
     def _converse(
-        self, proc: subprocess.Popen, frames: queue.Queue, launch: Launch, fold: RpcReader, watch: LimitsWatch
+        self, proc: subprocess.Popen, frames: queue.Queue, launch: Launch, fold: RpcReader, watch: LimitsWatch, deadline: float
     ) -> tuple[Stop | None, str]:
-        """The handshake, the prompt and its frames. The kill reason and why, if one."""
-        deadline = time.monotonic() + launch.limits.timeout_s
+        """The handshake, the prompt and its frames, until `deadline`. The kill reason and
+        why, if one; None when the turn ended or its task was cancelled (`stopped_by`)."""
         try:
             ready = self._next(frames, deadline, ("ready",))
         except TimeoutError:
             return Stop.TIMEOUT, "no ready frame"
+        if ready is None:  # its task was cancelled before the handshake: no prompt to abort
+            return None, ""
         if ready.get("type") != "ready":
             raise LaunchError(f"expected ready, got {str(ready)[:120]}")
         if 2 in (ready.get("supportedProtocolVersions") or [1]):
@@ -325,20 +339,25 @@ class OmpRpcBackend(OmpBackend):
                 return stop
 
     def _harvest_state(self, proc: subprocess.Popen, frames: queue.Queue, fold: RpcReader, deadline: float) -> None:
-        """get_state after the turn: the session id and the model's context window. Best-effort:
-        frames that arrive before its response (late events, a chunked response) go to the
-        reader; waits at most 10 s, never past the launch's deadline, and not at all once
-        stdout is closed."""
+        """get_state after the turn: the session id and the model's context window. stdin
+        closes right after the request: omp answers every command it took, then exits at
+        that EOF (its RPC docs), so its response or the end of stdout comes. Frames before
+        the response (late events, a chunked response) go to the reader. The launch's
+        deadline and a stop request (`stopped_by`) end the wait too."""
         self._send(proc, {"id": STATE_REQUEST, "type": "get_state"})
-        until = min(deadline, time.monotonic() + 10.0)
-        while not fold.state_seen:
-            remaining = until - time.monotonic()
+        try:
+            if proc.stdin:
+                proc.stdin.close()
+        except (OSError, BrokenPipeError):
+            pass
+        while not fold.state_seen and not stop_requested():
+            remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return
             try:
-                kind, payload = frames.get(timeout=remaining)
+                kind, payload = frames.get(timeout=min(remaining, 1.0))
             except queue.Empty:
-                return
+                continue
             if kind == "eof":
                 return
             fold.feed_line(payload.encode("utf-8"))
@@ -366,13 +385,17 @@ class OmpRpcBackend(OmpBackend):
             pass  # the process is gone; its frames say how it ended
 
     @staticmethod
-    def _next(frames: queue.Queue, deadline: float, want: tuple[str, ...]) -> dict:
+    def _next(frames: queue.Queue, deadline: float, want: tuple[str, ...]) -> dict | None:
+        """The next frame of a type in `want` (any frame when it is empty); None once its
+        task is cancelled (`stopped_by`). TimeoutError past `deadline` or at stdout's end."""
         while True:
+            if stop_requested():
+                return None
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError("rpc wait expired")
             try:
-                kind, payload = frames.get(timeout=min(remaining, 5.0))
+                kind, payload = frames.get(timeout=min(remaining, 1.0))
             except queue.Empty:
                 continue
             if kind == "eof":

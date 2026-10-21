@@ -1,11 +1,13 @@
 """`contraagent._internal.testing.StubAgent`: scripted replies, played through the real runner."""
 
 import json
+import os
+import sys
 
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Pipeline, PipelineConfig, agent_task
+from contraagent import CommandValidator, Pipeline, PipelineConfig, agent_task
 from contraagent.backends import Stop
 from contraagent.plugins import new_plugin
 from contraagent.testing import StubAgent, fails, writes, writes_nothing
@@ -100,3 +102,21 @@ def test_each_coding_agent_name_answers_as_itself(tmp_path, plugin_dir):
     report = run(tmp_path, agent, lambda: review("a"), config={"defaults": {"agent": "omp"}})
     row = json.loads((report.run_dir / "journal.jsonl").read_text().splitlines()[0])
     assert row["agent"] == "omp" and len(agent.launches) == 1  # one record, shared by every name
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="a named pipe (os.mkfifo) is POSIX")
+def test_a_stop_hook_past_the_launchs_timeout_ends_it_as_a_timeout(tmp_path, plugin_dir, monkeypatch):
+    """The stub's Stop hooks run within the launch's `timeout_s`, as the agent it plays: a hook
+    still running at the end of it ends the launch with `Stop.TIMEOUT`, its processes stopped."""
+    monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    fifo = tmp_path / "never-written"
+    os.mkfifo(fifo)  # opening it to read waits for a writer, and the test opens none
+    # In the Stop hook (CLAUDE_PLUGIN_ROOT set) the check waits on the pipe; the runner's own check after the launch does not.
+    waits = "import os, sys; os.environ.get('CLAUDE_PLUGIN_ROOT') and open(sys.argv[1])"
+    blocks = CommandValidator([sys.executable, "-c", waits, str(fifo)], name="blocks")
+    review = agent_task("review", plugin=plugin_dir, output=str, validators=[blocks], max_turns=5, timeout_s=1, retries=0)
+    agent = StubAgent({"review": "text"})
+    report = run(tmp_path, agent, lambda: review("a"))
+    assert report.results["review-a"].stop == "timeout"
+    assert report.results["review-a"].reason == "stub: past timeout_s (1s) while a Stop hook ran"
+    assert len(agent.launches) == 1

@@ -6,7 +6,6 @@ from __future__ import annotations
 import ast
 import json
 import threading
-import time
 from pathlib import Path
 
 import pytest
@@ -31,7 +30,7 @@ def test_write_document_replaces_whole_and_leaves_no_temporary(tmp_path: Path):
     path = tmp_path / "run.json"
     path.write_text('{"old": true, "padding": "' + "x" * 1000 + '"}')
     assert write_document(path, '{"new": 1}') == path
-    assert json.loads(path.read_text()) == {"new": 1}
+    assert json.loads(read_document(path)) == {"new": 1}
     assert [p.name for p in tmp_path.iterdir()] == ["run.json"]
 
 
@@ -42,11 +41,7 @@ def test_write_document_keeps_no_temporary_when_the_replace_fails(tmp_path: Path
     assert [p.name for p in tmp_path.iterdir()] == ["x.json"]
 
 
-def test_concurrent_writers_end_with_one_valid_document(tmp_path: Path, monkeypatch):
-    from contraagent._internal.runs import files
-
-    # Windows: a replace waits while a writer holds the file; a busy runner can hold it past 2 s.
-    monkeypatch.setattr(files, "REPLACE_WAIT_S", 30.0)
+def test_concurrent_writers_end_with_one_valid_document(tmp_path: Path):
     path = tmp_path / "doc.json"
     barrier = threading.Barrier(8)
 
@@ -60,16 +55,12 @@ def test_concurrent_writers_end_with_one_valid_document(tmp_path: Path, monkeypa
         t.start()
     for t in threads:
         t.join()
-    doc = json.loads(path.read_text())
+    doc = json.loads(read_document(path))
     assert doc["i"] == 49 and len(doc["body"]) == 4000
     assert [p.name for p in tmp_path.iterdir()] == ["doc.json"]
 
 
-def test_a_reader_listing_json_never_sees_a_temporary_or_a_part(tmp_path: Path, monkeypatch):
-    from contraagent._internal.runs import files
-
-    # Windows: a replace and a read wait for each other; a busy runner can make that past 2 s.
-    monkeypatch.setattr(files, "REPLACE_WAIT_S", 30.0)
+def test_a_reader_listing_json_never_sees_a_temporary_or_a_part(tmp_path: Path):
     folder = tmp_path / layout.CONTRACTS
     folder.mkdir()
     stop = threading.Event()
@@ -267,20 +258,52 @@ def test_every_writer_of_a_task_file_names_it_by_file_name(tmp_path):
     assert layout.task_entry(layout.CALLS, task.key) == "calls/review-a_2.json"
 
 
-def test_on_windows_a_document_being_replaced_is_waited_for_and_an_absent_one_is_not(tmp_path, monkeypatch):
-    from contraagent._internal.runs import files
+def test_a_reader_holding_a_document_open_does_not_stop_its_replace(tmp_path):
+    # Windows refuses to replace a file that Python's `open` holds: `platform.sharing` opens
+    # it with delete sharing and replaces it with POSIX semantics.
+    from contraagent._internal.platform import sharing
 
-    monkeypatch.setattr(files, "WINDOWS", True)
-    monkeypatch.setattr(files, "REPLACE_WAIT_S", 30.0)
     doc = tmp_path / "d.json"
-    began = time.monotonic()
+    write_document(doc, '{"n": 0}')
+    with sharing.open_shared(doc) as held:
+        write_document(doc, '{"n": 1}')
+        assert json.loads(read_document(doc)) == {"n": 1}
+        assert json.loads(held.read()) == {"n": 0}
+    write_document(doc, '{"n": 2}')
+    assert json.loads(read_document(doc)) == {"n": 2}
+    assert [p.name for p in tmp_path.iterdir()] == ["d.json"]
+
+
+def test_a_replace_refused_while_the_target_is_held_waits_for_its_close(tmp_path, monkeypatch, caplog):
+    # What Windows does where a holder does not share deleting, or where the file system has
+    # no POSIX rename; played here by refusing the first two replaces.
+    from contraagent._internal.platform import sharing
+
+    refusals = [PermissionError("held"), PermissionError("held")]
+
+    def replace_once(src: str, dst: str) -> None:
+        if refusals:
+            raise refusals.pop()
+
+    monkeypatch.setattr(sharing, "_replace_once", replace_once)
+    monkeypatch.setattr(sharing, "_refusal_stays", lambda dst: False)
+    monkeypatch.setattr(sharing, "POLL_S", 0)
+    with caplog.at_level("WARNING", logger=sharing.__name__):
+        sharing.replace(tmp_path / "a", tmp_path / "b")
+    assert refusals == []
+    held = f"{tmp_path / 'b'} is held open by another process; its replace waits until it is closed"
+    assert [r.getMessage() for r in caplog.records] == [held]
+
+    def denied(src: str, dst: str) -> None:
+        raise PermissionError("denied")
+
+    # A refusal that no close ends (a folder, a read-only file, denied access) is raised at once.
+    monkeypatch.setattr(sharing, "_replace_once", denied)
+    monkeypatch.setattr(sharing, "_refusal_stays", lambda dst: True)
+    with pytest.raises(PermissionError):
+        sharing.replace(tmp_path / "a", tmp_path / "b")
+
+
+def test_an_absent_document_is_reported_at_once(tmp_path):
     with pytest.raises(FileNotFoundError):
-        files.read_document(doc)  # nothing replaces it: absent at once, not after the wait
-    assert time.monotonic() - began < 15.0
-    # A replace in progress: Windows may show the document as absent until it ends.
-    tmp = tmp_path / ".d.json.1.abc.tmp"
-    tmp.write_text("{}")
-    replace = threading.Timer(0.1, lambda: (files.write_document(doc, '{"n": 1}'), tmp.unlink()))
-    replace.start()
-    assert json.loads(files.read_document(doc)) == {"n": 1}
-    replace.join(10)
+        read_document(tmp_path / "d.json")

@@ -85,10 +85,14 @@ def entry_parts(name: str) -> tuple[str, ...]:
 
 def under(root: Path, *names: str, what: str = "name") -> Path:
     """`root/names...`, each checked by `check_name`, and refused when the resolved
-    result is not inside `root`."""
+    result is not inside `root`. The last name is resolved only when it is a link: on
+    Windows, resolving a file opens it, which can fail while `write_document` replaces it,
+    and `resolve` then returns a path in another form."""
     path = root.joinpath(*(check_name(n, what) for n in names))
     base = root.resolve()
-    resolved = path.resolve()
+    resolved = path.parent.resolve() / path.name
+    if resolved.is_symlink() or resolved.is_junction():
+        resolved = resolved.resolve()
     if resolved != base and base not in resolved.parents:
         raise BadName(f"{what} {names[-1]!r} leaves {root}")
     return path

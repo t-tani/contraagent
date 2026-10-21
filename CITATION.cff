@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "To cite contraagent, use this entry."
+title: "contraagent: coding agents as typed, checked and supervised tasks"
+type: software
+authors:
+  - family-names: Tani
+    given-names: Tomoaki
+repository-code: "https://github.com/t-tani/contraagent"
+url: "https://t-tani.github.io/contraagent/"
+license: MIT
+keywords:
+  - coding-agent
+  - llm
+  - agents
+  - pipeline
+  - orchestration

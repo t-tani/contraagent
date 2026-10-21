@@ -10,6 +10,22 @@ The changes not released yet are the fragments in [`changelog.d/`](changelog.d/)
 
 <!-- towncrier release notes start -->
 
+## [0.7.2] - 2026-10-21
+
+### Changed
+
+- After Ctrl-C, `Pipeline.run` and `WorkQueue.run` wait until the cancelled tasks on their event loop end, however long their teardown takes, instead of leaving them after 30 seconds. The wait is logged once with the names of the tasks. A second Ctrl-C leaves the tasks that have not ended and logs their names. Where no second Ctrl-C can come, as in a CI job, the supervisor that stops the process bounds the wait.
+- An agent's process group that is asked to stop now has 5 seconds to end before it is killed, at the end of a launch, in a run's teardown and in the watchdog alike. A launch's end gave it 10 seconds, and 10 more after the kill, longer than `docker stop` waits on Linux before it kills contraagent itself.
+- The preflight gives each probe the longest `timeout_s` of the kinds whose chain holds its route, and runs the probes at the same time. A probe had 90 seconds, a number with no source, and the probes ran one after another, so eight slow routes could take twelve minutes. A route that cannot answer one word within its kinds' own time limit cannot finish their tasks either, so it is dropped with the reason `timeout: ...`.
+
+### Fixed
+
+- `contraagent check` waits for its import of the output models however long it takes, as the in-session hook does. It gave up after 60 seconds and reported `output import not checked` for every agent kind, so a slow import on a loaded machine was a check error. A module that blocks at import blocks the hook too, and the terminal or CI job that runs `contraagent check` stops it as it stops any other command. When the import probe fails, the error now names the last line of its error output instead of its exit status.
+- The preflight's line about omp's own model chain is what omp reports: `omp config get retry.modelFallback --json` and `omp config get retry.fallbackChains --json`, run in the launch's working directory with the omp binary the backend was given, so omp decides between the project's `.omp/config.yml`, the global config, `PI_CODING_AGENT_DIR`, `PI_CONFIG_DIR` and a profile. The preflight read the files itself, with PyYAML, which contraagent does not install: any omp `config.yml` made it fail with `ModuleNotFoundError`. When `omp config path` failed or took more than 30 seconds, it read `~/.omp/agent/config.yml` instead and then said that no `retry.fallbackChains` was configured. omp's answer is now awaited however long it takes; when omp gives none, the line says `not known: omp config get <key> failed: <the first line of its error output>`, and `retry.modelFallback: false` reads as `off`.
+- The `omp-rpc` agent waits for the answer to its `get_state` request however long omp takes, within the launch's `timeout_s`. It closes stdin right after the request, and omp answers every command it took before it exits at that end. Before, it gave up after 10 seconds, and a launch on a loaded machine lost its session id and context window. A task cancelled while omp starts now stops its launch at once instead of at the launch's deadline.
+- `contraagent relay` waits, as it stops, for a heartbeat in flight to end before it closes its connection to the hub; the relay's `--timeout` bounds that request. It waited 1 second, and not at all on Ctrl-C.
+- `contraagent.testing.StubAgent` runs a plugin's Stop hooks within the launch's `timeout_s`, as the coding agent it plays does. It gave each hook 120 seconds and let `subprocess.TimeoutExpired` out of the launch when a hook took longer. A hook still running at the end of `timeout_s` is now stopped with the processes it started, and the launch ends with `Stop.TIMEOUT`.
+- On Windows, a run's documents are replaced while other processes read them, as on Linux and macOS. A reader opens a document so that it may be replaced, and the writer replaces it with POSIX semantics, so neither waits for the other. A write gave up after 2 seconds while a reader held the document, and the write was lost; a read gave up after 2 seconds while a write replaced the document. Where the file system has no POSIX rename (FAT, exFAT, some network shares, Windows before 10 version 1607), and while a program outside contraagent holds a document without letting it be replaced, the write now waits until that program closes it and logs once which file it waits for.
 ## [0.7.1] - 2026-10-21
 
 ### Fixed

@@ -10,7 +10,7 @@
      (`data-label`), and a cell without a name is the card's text. A table of two columns stays a table,
      and scrolls inside itself, with the same shadows, when it is wider than the page.
    - Whatever is tapped is at least 44px tall and wide, and no text is smaller than 14px.
-   e2e/mobile.spec.ts checks each of these on every page. */
+   e2e/site/mobile.spec.ts checks each of these on every page. */
 
 /* The frame of a live element (Demo.astro): its height and the most a long list grows to, as it says. */
 .ca-demo-frame { --ca-demo-fit: var(--ca-demo-height); }
