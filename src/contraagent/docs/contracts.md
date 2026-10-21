@@ -192,10 +192,14 @@ shows it on the tokens of each attempt. Each coding agent does it with its own f
 
 | | system prompt | tools | settings, skills, MCP servers |
 |---|---|---|---|
-| Claude Code | `--system-prompt` | `--tools ""` | `--setting-sources ""` and `--strict-mcp-config`, as on every launch; no `--plugin-dir`, no `--agent` |
-| omp | `--system-prompt`; omp still appends its environment footer (the working directory, the system) | `--no-tools --no-lsp` | the isolation overlay every launch has (no context files, skills, rules or MCP servers); no `--plugin-dir` |
-| pi | `--system-prompt` | `--no-tools` | the flags every launch has (`--no-extensions`, `--no-skills`, `--no-context-files`, ...); no `--skill`, no `-e` |
-| opencode | an agent of its own (`--agent`) whose `prompt` it is; opencode's free models refuse such a session | that agent's `permission` denies every tool | the user's opencode config is not read either (an empty `XDG_CONFIG_HOME`: with no tool, nothing else reads it); no plugin |
+| Claude Code | `--system-prompt-file` | `--tools ""` | `--setting-sources ""` and `--strict-mcp-config`, as on every launch; no `--plugin-dir`, no `--agent` |
+| omp | `--system-prompt=<file>`; omp still appends its environment footer (the working directory, the system) | `--no-tools --no-lsp` | the isolation overlay every launch has (no context files, skills, rules or MCP servers); no `--plugin-dir` |
+| pi | `--system-prompt <file>` | `--no-tools` | the flags every launch has (`--no-extensions`, `--no-skills`, `--no-context-files`, ...); no `--skill`, no `-e` |
+| opencode | an agent of its own (`--agent`) whose `prompt` is `{file:<file>}`; opencode's free models refuse such a session | that agent's `permission` denies every tool | the user's opencode config is not read either (an empty `XDG_CONFIG_HOME`: with no tool, nothing else reads it); no plugin |
+
+Each `<file>` is a file in the launch's scratch directory that holds the system prompt.
+The params can make the instructions long, and a command line does not take a long
+text ([Coding agents](agents.md)).
 
 Codex runs no light launch: a coding agent that cannot launch so is refused for a
 kind with `tools=()`, on every route of the kind, failover hops included

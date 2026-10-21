@@ -16,7 +16,7 @@ from pathlib import Path
 from types import ModuleType
 
 from contraagent._internal.backends import opencode_key, plugin_files
-from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend, ModelChains
+from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend, ModelChains, preamble_in_prompt
 from contraagent._internal.backends.credentials import (
     SECRET_NAME_RE,
     SENSITIVE,
@@ -221,17 +221,22 @@ def session_args(launch: Launch) -> list[str]:
     return a
 
 
-def prompt_args(launch: Launch) -> list[str]:
+def prompt_args(backend: Backend, launch: Launch) -> list[str]:
     """The system prompt and the tools: `Launch.system_prompt` replaces omp's own
     (`--system-prompt`), `Launch.tools == ()` turns every tool off (`--no-tools`, and
     `--no-lsp` for the language-server tools, which `--no-tools` leaves), a tuple of
-    names keeps only those (`--tools`). Values ride in one element: a role's text may
-    start with `-`."""
+    names keeps only those (`--tools`).
+
+    The system prompt and `append_system_prompt` are written to files of the launch's
+    scratch directory (`Backend._text_file`), and the flags name those files: omp reads a
+    value with no line break as the path of a file and takes the file's text, and keeps
+    the value as the text itself only when no such file can be read (omp 18.9.1,
+    `--system-prompt` and `--append-system-prompt` in its `main.ts`)."""
     a: list[str] = []
     if launch.system_prompt is not None:
-        a.append(f"--system-prompt={launch.system_prompt}")
+        a.append(f"--system-prompt={backend._text_file(launch, 'system-prompt.md', launch.system_prompt)}")
     if launch.append_system_prompt is not None:
-        a.append(f"--append-system-prompt={launch.append_system_prompt}")
+        a.append(f"--append-system-prompt={backend._text_file(launch, 'append-system-prompt.md', launch.append_system_prompt)}")
     if launch.tools == ():
         a += ["--no-tools", "--no-lsp"]
     elif launch.tools is not None:
@@ -250,6 +255,13 @@ class OmpBackend(Backend):
     plugins are not loaded either. omp takes MCP servers from the plugin's `.mcp.json`
     only: a launch with servers of its own (`Launch.mcp_config`, another file) loads a
     copy of the plugin whose `.mcp.json` holds them.
+
+    No text of the task is on the command line: `Launch.system_prompt` and
+    `append_system_prompt` are files of the launch's scratch directory (`prompt_args`),
+    the attached files are named by path (`@<file>`), and `Launch.preamble` is the head of
+    the prompt, which goes over stdin past `STDIN_THRESHOLD` characters. omp sends the
+    attached files and the prompt as one first message. `OmpRpcBackend` sends the
+    preamble, the attached files and the prompt as one message over stdin.
 
     A plugin's extension (`omp/index.ts`, `-e` from its `package.json`) runs its tool
     hooks and, at omp's `session_stop`, the stop hooks of `omp/hooks.json`: one that exits
@@ -514,7 +526,13 @@ class OmpBackend(Backend):
         shutil.copyfile(given, mirror / ".mcp.json")
         return (str(mirror), *dirs[1:])
 
+    def _as_launched(self, launch: Launch) -> Launch:
+        """The preamble at the head of the prompt (`preamble_in_prompt`): on omp's command
+        line it would be a message of its own, which omp sends as a turn before the prompt's."""
+        return preamble_in_prompt(super()._as_launched(launch))
+
     def argv(self, launch: Launch) -> list[str]:
+        launch = self._as_launched(launch)
         a = [self.binary]
         for plug in self._loaded_plugin_dirs(launch):
             a += ["--plugin-dir", plug]
@@ -527,15 +545,13 @@ class OmpBackend(Backend):
         # --omp-only run silently ignored it. `self.thinking` stays as the
         # constructor default for a launch that sets no effort.
         a += ["-p", "--thinking", launch.effort or self.thinking, "--approval-mode", "yolo", *isolation_args()]
-        a += prompt_args(launch)
+        a += prompt_args(self, launch)
         if self.trace:
             a += ["--mode", "json"]
         if launch.model:
             a += ["--model", launch.model]
         a += self.bind_credential(launch.credential, launch.model, label=launch.label).args
         a += session_args(launch)
-        if launch.preamble:
-            a.append(launch.preamble)
         a += [f"@{f}" for f in launch.context_files]
         # A prompt over the per-argument limit cannot go on argv at all:
         # execve fails with E2BIG before omp ever starts, which the caller

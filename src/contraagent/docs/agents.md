@@ -26,6 +26,8 @@ budget and ends the launch itself.
 | A plugin reaches it | `--plugin-dir` | `--plugin-dir` | as config: its role as `instructions`, its skills as `skills.paths`, its `.mcp.json` as `mcp`, its rendered hooks as a `plugin` | its skills by `--skill`, its hooks by `-e pi/index.ts`, its `.mcp.json` through an extension of contraagent's own | as config: its role's file in the prompt, its skills linked in a `HOME` of its own, its `.mcp.json` as `mcp_servers`, its rendered hooks as `hooks` |
 | A launch's MCP servers (`Launch.mcp_config`: the plugin's `.mcp.json`, or what `Pipeline(mcp_servers=)` returns) | `--mcp-config`, with `--strict-mcp-config` | the plugin's `.mcp.json`; for servers of the task's own, a copy of the plugin in a scratch directory whose `.mcp.json` holds them | as config: `mcp` | through an extension of contraagent's own | as config: `mcp_servers` |
 | Role file attached to the prompt (`needs_inline_role_file`) | no: `--agent <role>` | yes | no: added to its system prompt (`instructions`) | yes | yes |
+| How the system prompt reaches it | a file: `--system-prompt-file` | a file: `--system-prompt=<file>` | a file its config names: `{file:<file>}` for a light launch, `instructions` for another | a file: `--system-prompt <file>` | a file: `model_instructions_file` |
+| How a `preamble` param reaches it | it does not | at the head of the prompt | at the head of the prompt | at the head of the prompt | at the head of the prompt |
 | Permissions | the plugin's `settings.json` | none: `--approval-mode yolo` | the role's `tools:` | none | its `workspace-write` sandbox |
 | Stop hook continues the session (`stop_hooks_file`) | yes: `hooks/hooks.json` | yes: `omp/hooks.json`, run by `omp/index.ts` at omp's `session_stop` | no | no | yes: `codex/hooks.json` |
 | Hooks rendered from `hooks.toml` | `hooks/hooks.json` | `omp/index.ts` and `omp/hooks.json` | `opencode/index.js` | `pi/index.ts` | `codex/hooks.json`, with no `read`, `grep` or `glob` hook |
@@ -57,6 +59,15 @@ the printed totals as one call, has no quota reading, and its journal row says s
 `usage_unknown` is `calls`, or `tokens` when the launch printed no totals either. The
 monitor marks such an attempt. After a newer Codex, a run whose rows show
 `usage_unknown` needs a newer contraagent for its per-call tokens and its peak context.
+
+No text of a task is on an agent's command line or in its environment: Linux does not
+start a process with one argument or variable longer than 131,072 bytes, and the
+instructions of a light launch hold its params. A system prompt is a file in the
+launch's scratch directory, which only the user can read, and the command line holds
+its path. A prompt longer than 60,000 characters (16,000 on Windows) goes over stdin,
+and a `preamble` param goes at the head of the prompt, in its one first message. Codex
+takes `Launch.append_system_prompt` at the head of the prompt too: it has no file for
+developer instructions.
 
 omp has no flag that denies a tool. A launch whose task sets `disallowed_tools` loads
 an extension of contraagent's own (`-e`), which sees each tool call before it runs. A

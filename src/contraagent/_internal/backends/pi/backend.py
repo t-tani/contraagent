@@ -21,7 +21,7 @@ from pathlib import Path
 from types import ModuleType
 
 from contraagent._internal.backends import opencode_key, plugin_files
-from contraagent._internal.backends.base import DENY_POINTER, PARENT_SESSION_ENV, Backend
+from contraagent._internal.backends.base import DENY_POINTER, PARENT_SESSION_ENV, Backend, preamble_in_prompt
 from contraagent._internal.backends.credentials import (
     Ambient,
     ApiKey,
@@ -109,16 +109,21 @@ def session_args(launch: Launch) -> list[str]:
     return a
 
 
-def prompt_args(launch: Launch) -> list[str]:
+def prompt_args(backend: Backend, launch: Launch) -> list[str]:
     """The system prompt and the tools: `Launch.system_prompt` replaces pi's own,
     `Launch.tools == ()` turns every tool off (`--no-tools`), a tuple of names keeps only
     those (`--tools`). pi has no `--flag=value` form; it reads the argument after a
-    value flag as its value, even one starting with `-` (checked against pi 1.2.0)."""
+    value flag as its value (checked against pi 1.2.0).
+
+    The system prompt and `append_system_prompt` are written to files of the launch's
+    scratch directory (`Backend._text_file`), and the flags name those files: pi reads a
+    value that names a file as that file's text, in UTF-8 (`resolvePromptInput` of its
+    `core/resource-loader.js`, pi 1.2.0)."""
     a: list[str] = []
     if launch.system_prompt is not None:
-        a += ["--system-prompt", launch.system_prompt]
+        a += ["--system-prompt", str(backend._text_file(launch, "system-prompt.md", launch.system_prompt))]
     if launch.append_system_prompt is not None:
-        a += ["--append-system-prompt", launch.append_system_prompt]
+        a += ["--append-system-prompt", str(backend._text_file(launch, "append-system-prompt.md", launch.append_system_prompt))]
     if launch.tools == ():
         a.append("--no-tools")
     elif launch.tools is not None:
@@ -152,6 +157,12 @@ class PiBackend(OpencodeKeyAccount, Backend):
     user's logins (`auth.json`), custom providers (`models.json`), model catalogue and
     `fd` and `rg`, and nothing else of theirs. Launches made alike share one directory,
     so they refresh one OAuth login once.
+
+    No text of the task is on the command line: `Launch.system_prompt` and
+    `append_system_prompt` are files of the launch's scratch directory (`prompt_args`),
+    the attached files are named by path (`@<file>`), and `Launch.preamble` is the head of
+    the prompt, which goes over stdin past `STDIN_THRESHOLD` characters. pi sends the
+    attached files and the prompt as one first message.
     """
 
     name = "pi"
@@ -322,24 +333,28 @@ class PiBackend(OpencodeKeyAccount, Backend):
         known = agent_dir.windows(agent_dir.default_source(self._base_env))
         return {model: known.get(model) for model in sorted(listed)}
 
+    def _as_launched(self, launch: Launch) -> Launch:
+        """The preamble at the head of the prompt (`preamble_in_prompt`): on pi's command line
+        it would be a message of its own, which pi sends as a turn before the prompt's."""
+        return preamble_in_prompt(super()._as_launched(launch))
+
     def argv(self, launch: Launch) -> list[str]:
+        launch = self._as_launched(launch)
         # `effort` is the neutral name for reasoning depth; pi spells it `--thinking`.
         a = [self.binary, "--mode", "json", "-p", "--thinking", launch.effort or self.thinking, *ISOLATION_ARGS]
         a += plugin_args(launch.plugin_dirs)
         if launch.mcp_config and launch.tools != ():
             a += ["-e", "builtin:mcp", "-e", str(MCP_EXTENSION)]
-        a += prompt_args(launch)
+        a += prompt_args(self, launch)
         if launch.model:
             a += ["--model", launch.model]
         a += session_args(launch)
-        # Everything after `--` is the prompt, so a prompt or a preamble starting with `-`
-        # is not read as an option.
+        # Everything after `--` is the prompt, so a prompt starting with `-` is not read as
+        # an option.
         a.append("--")
         a += [f"@{f}" for f in launch.context_files]
-        if launch.preamble:
-            a.append(launch.preamble)
-        # Past the per-argument limit the prompt goes on stdin, which pi puts before the
-        # first message (`via_stdin`).
+        # Past `STDIN_THRESHOLD` the prompt goes on stdin, which pi puts before the attached
+        # files in the first message (`via_stdin`).
         if not via_stdin(launch):
             a.append(launch.prompt)
         return a

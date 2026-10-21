@@ -28,7 +28,7 @@ from types import MappingProxyType, ModuleType
 from typing import Any, ClassVar
 
 from contraagent._internal.backends import opencode_key, plugin_files
-from contraagent._internal.backends.base import DENY_POINTER, PARENT_SESSION_ENV, Backend
+from contraagent._internal.backends.base import DENY_POINTER, PARENT_SESSION_ENV, Backend, preamble_in_prompt
 from contraagent._internal.backends.credentials import (
     Ambient,
     ApiKey,
@@ -170,6 +170,12 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
     (`~/.claude/CLAUDE.md`, its skills), no skills under `~/.agents/`, no self-update. The
     task's role, skills, MCP servers and hooks are given as config
     (`OPENCODE_CONFIG_CONTENT`), and a session stays out of the user's database.
+
+    No text of the task is in the command line or the environment: the config names the
+    files of the system prompt (`config`), the attached files are named by path
+    (`--file`), and `Launch.preamble` is the head of the prompt, which goes over stdin past
+    `STDIN_THRESHOLD` characters. opencode puts stdin after a message of its command line,
+    and a message there that holds a space reaches the model in double quotes.
     """
 
     name = "opencode"
@@ -234,6 +240,7 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
     # --- argv and config ------------------------------------------------------
 
     def argv(self, launch: Launch) -> list[str]:
+        launch = self._as_launched(launch)
         a = [self.binary, "run", "--format", "json", "--print-logs", "--log-level", "ERROR", "--auto"]
         # A session is otherwise titled by a model call, on the run's own quota.
         a.append(f"--title={launch.label or 'contraagent'}")
@@ -246,16 +253,24 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
         if launch.resume:
             a.append(f"--session={launch.resume}")
         a += [f"--file={f}" for f in launch.context_files]
-        message = "\n\n".join(x for x in (launch.preamble, None if via_stdin(launch) else launch.prompt) if x)
-        if message:
+        if not via_stdin(launch) and launch.prompt:
             # One element after `--`: a prompt may start with `-`.
-            a += ["--", message]
+            a += ["--", launch.prompt]
         return a
 
+    def _as_launched(self, launch: Launch) -> Launch:
+        """The preamble at the head of the prompt (`preamble_in_prompt`), so that it goes over
+        stdin with the prompt past `STDIN_THRESHOLD` characters."""
+        return preamble_in_prompt(super()._as_launched(launch))
+
     def config(self, launch: Launch) -> dict[str, Any]:
-        """The opencode config of one launch (`OPENCODE_CONFIG_CONTENT`)."""
+        """The opencode config of one launch (`OPENCODE_CONFIG_CONTENT`). It names the files
+        of its texts, never holds them: a light launch's agent prompt is `{file:<path>}`, which
+        opencode replaces with that file's text, its ends trimmed, as it reads the config
+        (opencode 1.19.0); the system prompt of any other launch is a file of `instructions`."""
+        system = "\n\n".join(x for x in (launch.system_prompt, launch.append_system_prompt) if x)
         if launch.tools == ():
-            prompt = "\n\n".join(x for x in (launch.system_prompt, launch.append_system_prompt) if x)
+            prompt = f"{{file:{self._text_file(launch, 'system-prompt.md', system).as_posix()}}}" if system else ""
             return {"agent": {LIGHT_AGENT: {"mode": "primary", "prompt": prompt, "permission": {"*": "deny"}}}}
         cfg: dict[str, Any] = {}
         instructions = []
@@ -263,10 +278,8 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
         role_file = own / "agents" / f"{launch.role}.md" if own is not None and launch.role else None
         if role_file is not None and role_file.is_file():
             instructions.append(str(role_file))
-        if launch.system_prompt or launch.append_system_prompt:
-            instructions.append(
-                self._text_file(launch.label, "system.md", "\n\n".join(x for x in (launch.system_prompt, launch.append_system_prompt) if x))
-            )
+        if system:
+            instructions.append(str(self._text_file(launch, "system-prompt.md", system)))
         if instructions:
             cfg["instructions"] = instructions
         skills = [str(Path(p) / "skills") for p in launch.plugin_dirs if (Path(p) / "skills").is_dir()]
@@ -313,11 +326,6 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
         if launch.tools == ():
             env["XDG_CONFIG_HOME"] = str(self.scratch(launch.label, "config"))
         return env
-
-    def _text_file(self, label: str, name: str, text: str) -> str:
-        f = self.scratch(label, "instructions") / name
-        f.write_text(text, encoding="utf-8", newline="\n")
-        return str(f)
 
     # --- credentials ----------------------------------------------------------
     #

@@ -17,9 +17,11 @@ places (`$HOME/.agents/skills`, a project's `.agents/skills` and `.codex/skills`
 turned off by its path (`skills.config`, `project_skills`); the commands it runs get
 the real `HOME` back (`shell_environment_policy.set.HOME`). Codex has no named-agent flag, so the
 role's file is inlined into the prompt, as for omp. `Launch.system_prompt`
-replaces codex's own instructions (`model_instructions_file`),
-`append_system_prompt` is added as developer instructions, `json_schema`
-becomes `--output-schema`, and a plugin's `.mcp.json` becomes `mcp_servers`.
+replaces codex's own instructions (`model_instructions_file`, a file of the launch's
+scratch directory), `json_schema` becomes `--output-schema` (a file too), and a plugin's
+`.mcp.json` becomes `mcp_servers`. `append_system_prompt` and the preamble go at the head
+of the prompt (`prepare`), which goes over stdin past `STDIN_THRESHOLD` characters, so no
+text of the task makes the command line longer than the operating system takes.
 
 `Limits.max_turns` counts tool calls and ends the launch past it.
 Codex's `workspace-write` sandbox makes the launch's cwd writable and, by default, `/tmp`
@@ -297,14 +299,19 @@ class CodexBackend(ResumeById, Backend):
     # --- argv --------------------------------------------------------------
 
     def prepare(self, launch: Launch) -> Launch:
-        """`launch` with its preamble and attached files written into the prompt: codex attaches no files."""
-        if not launch.preamble and not launch.context_files:
+        """`launch` with its preamble and attached files written into the prompt: codex attaches
+        no files. `append_system_prompt` goes at the head of the prompt too, on the first launch
+        of a session: codex takes developer instructions only as a config value of its command
+        line (`developer_instructions`), with no file form, and a text there past 131072
+        bytes keeps it from starting; a resumed session holds them already."""
+        append = launch.append_system_prompt if not launch.resume else None
+        if not launch.preamble and not launch.context_files and append is None:
             return launch
-        parts = [launch.preamble] if launch.preamble else []
+        parts = [x for x in (append, launch.preamble) if x]
         for f in launch.context_files:
             parts.append(f'<file path="{f}">\n{Path(f).read_text(encoding="utf-8")}\n</file>')
         parts.append(launch.prompt)
-        return dataclasses.replace(launch, prompt="\n\n".join(parts), preamble=None, context_files=())
+        return dataclasses.replace(launch, prompt="\n\n".join(parts), preamble=None, context_files=(), append_system_prompt=None)
 
     def argv(self, launch: Launch) -> list[str]:
         """Assemble argv. `codex exec resume` takes neither `-s` nor `-C`, so the sandbox is
@@ -328,14 +335,10 @@ class CodexBackend(ResumeById, Backend):
         if launch.effort:
             a += ["-c", f"model_reasoning_effort={toml(launch.effort)}"]
         if launch.system_prompt is not None:
-            f = self.scratch(launch.label, "instructions") / "system.md"
-            f.write_text(launch.system_prompt, encoding="utf-8", newline="\n")
+            f = self._text_file(launch, "system-prompt.md", launch.system_prompt)
             a += ["-c", f"model_instructions_file={toml(str(f))}"]
-        if launch.append_system_prompt is not None:
-            a += ["-c", f"developer_instructions={toml(launch.append_system_prompt)}"]
         if launch.json_schema is not None:
-            f = self.scratch(launch.label, "schema") / "schema.json"
-            f.write_text(json.dumps(launch.json_schema, ensure_ascii=False), encoding="utf-8", newline="\n")
+            f = self._text_file(launch, "schema.json", json.dumps(launch.json_schema, ensure_ascii=False))
             a += ["--output-schema", str(f)]
         if launch.mcp_config is not None:
             for name, table in mcp_servers(launch.mcp_config).items():

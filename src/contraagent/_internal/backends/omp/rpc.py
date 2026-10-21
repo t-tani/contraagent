@@ -162,7 +162,7 @@ class OmpRpcBackend(OmpBackend):
         # Same neutral effort as the omp backend: the launch value wins
         # over the constructor default so a per-task effort reaches the CLI.
         a += ["--thinking", launch.effort or self.thinking, "--approval-mode", "yolo", *isolation_args()]
-        a += prompt_args(launch)
+        a += prompt_args(self, launch)
         if launch.limits.timeout_s:
             # CLI-side backstop behind the loop's own abort: the process
             # dies even if our abort frame is lost.
@@ -171,6 +171,11 @@ class OmpRpcBackend(OmpBackend):
             a += ["--model", launch.model]
         a += self.bind_credential(launch.credential, launch.model, label=launch.label).args
         return a
+
+    def _as_launched(self, launch: Launch) -> Launch:
+        """`prepare`'s, the preamble kept apart: it goes over stdin, at the head of the
+        prompt's one message (`_message`)."""
+        return self.prepare(launch)
 
     def fold(self, launch: Launch) -> EventFold:
         return RpcReader(launch.label or "p1")

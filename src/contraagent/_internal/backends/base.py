@@ -294,11 +294,13 @@ class Backend(abc.ABC):
         argv: list[str] = []
         try:
             try:
-                launch = self.prepare(launch)
+                launch = self._as_launched(launch)
             except OSError as exc:
                 return self.launch_failed(launch, f"attached file: {exc}", started_at=started_at, t0=t0)
             argv = self.argv(launch)
             env = self.env(launch)
+        except OSError as exc:  # a text file of the launch (`_text_file`) that cannot be written
+            return self.launch_failed(launch, f"launch file: {exc}", argv=argv, started_at=started_at, t0=t0)
         except CredentialError as exc:
             return self.launch_failed(launch, f"credential: {exc}", argv=argv, started_at=started_at, t0=t0)
         if not shutil.which(self.binary, path=self.base_path()):
@@ -388,6 +390,25 @@ class Backend(abc.ABC):
         if create:
             d.mkdir(parents=True, exist_ok=True)
         return d
+
+    def _text_file(self, launch: Launch, name: str, text: str) -> Path:
+        """`text` in the file `name` of the launch's scratch directory (`scratch`), readable and
+        writable by this user alone (0600), written again for each launch of the label. For a
+        text the coding agent reads from a file: its command line and its environment hold
+        the path alone, whatever the size of the text (Linux takes at most 131072 bytes for
+        one argument or variable, `MAX_ARG_STRLEN`)."""
+        f = self.scratch(launch.label, "texts") / name
+        fd = os.open(f, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        if sys.platform != "win32":
+            os.fchmod(fd, 0o600)  # a file a launch before it made keeps its own mode otherwise
+        with open(fd, "w", encoding="utf-8", newline="\n") as out:
+            out.write(text)
+        return f
+
+    def _as_launched(self, launch: Launch) -> Launch:
+        """`launch` as `run` builds the command from it and runs it: `prepare`'s. A backend whose
+        agent takes `Launch.preamble` in its prompt overrides it with `preamble_in_prompt`."""
+        return self.prepare(launch)
 
     def _make_scratch_root(self) -> Path:
         parent = self.scratch_parent()
@@ -531,6 +552,15 @@ class Backend(abc.ABC):
         launch_result.ok = False
         if launch_result.quota_refusal is None:
             launch_result.quota_refusal = quota_refusal(stderr)
+
+
+def preamble_in_prompt(launch: Launch) -> Launch:
+    """`launch` with its preamble at the head of its prompt, a blank line between them, for an
+    agent whose command line would otherwise hold it: the preamble then goes with the prompt,
+    over stdin past `STDIN_THRESHOLD` (`via_stdin`), in the launch's one first message."""
+    if not launch.preamble:
+        return launch
+    return dataclasses.replace(launch, prompt=f"{launch.preamble}\n\n{launch.prompt}", preamble=None)
 
 
 class ResumeById:

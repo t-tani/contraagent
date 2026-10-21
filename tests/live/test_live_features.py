@@ -656,7 +656,8 @@ def test_a_light_launch_is_one_call_with_no_tools(ws, agent):
     # Less input on its one call than the same role with tools. On Claude Code the role already
     # replaces the default system prompt (`--agent`, `tools: Read`), so the gap is narrower there.
     assert lit["usage"]["resident"] < heavy["usage"]["resident"]
-    assert any(a.startswith("--system-prompt=You classify one news item") for a in argv)
+    # The role's text is a file the flag names (`--system-prompt-file`, omp's `--system-prompt=<file>`).
+    assert any(a.startswith("--system-prompt") for a in argv) and not any("You classify one news item" in a for a in argv)
     assert "--plugin-dir" not in argv and "--agent" not in argv
     if agent == "claude":
         assert "--tools" in argv and "--strict-mcp-config" in argv and "--setting-sources" in argv

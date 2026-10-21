@@ -64,7 +64,12 @@ _SESSION_ID_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z-]{0,63}$")
 
 
 class ClaudeBackend(ResumeById, Backend):
-    """Headless Claude Code: `claude -p` with stream-json output."""
+    """Headless Claude Code: `claude -p` with stream-json output.
+
+    `Launch.system_prompt` and `Launch.append_system_prompt` reach it as files of the
+    launch's scratch directory (`--system-prompt-file`, `--append-system-prompt-file`), and
+    a prompt past `STDIN_THRESHOLD` characters over stdin, so no text of the task makes its
+    command line longer than the operating system takes."""
 
     name = "claude"
     stop_hooks_file: str | None = "hooks/hooks.json"
@@ -271,11 +276,12 @@ class ClaudeBackend(ResumeById, Backend):
             a += ["--agent", launch.role]
         if launch.effort:
             a += ["--effort", launch.effort]
+        # Each text in a file of the launch's own (`_text_file`): one past 131072 bytes would
+        # keep the process from starting. Claude Code reads it as UTF-8.
         if launch.system_prompt is not None:
-            # One element: a role's text may start with `-` (a list), which would read as a flag.
-            a.append(f"--system-prompt={launch.system_prompt}")
+            a += ["--system-prompt-file", str(self._text_file(launch, "system-prompt.md", launch.system_prompt))]
         if launch.append_system_prompt is not None:
-            a += ["--append-system-prompt", launch.append_system_prompt]
+            a += ["--append-system-prompt-file", str(self._text_file(launch, "append-system-prompt.md", launch.append_system_prompt))]
         if launch.json_schema is not None:
             a += ["--json-schema", json.dumps(launch.json_schema, ensure_ascii=False)]
         if launch.settings is not None:
