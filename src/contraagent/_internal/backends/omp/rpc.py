@@ -41,7 +41,7 @@ from contraagent._internal.backends.process import STOPPED, LaunchError, spawn_e
 from contraagent._internal.backends.refusal import FAILED_STOPS, Signals
 from contraagent._internal.backends.wire import EventFold, LimitsWatch, positive_int
 from contraagent._internal.platform.commands import commands
-from contraagent._internal.platform.groups import groups
+from contraagent._internal.platform.groups import KILL_AFTER_S, groups
 
 #: The id of the post-turn `get_state` request (`OmpRpcBackend._harvest_state`).
 STATE_REQUEST = "harvest-state"
@@ -219,7 +219,7 @@ class OmpRpcBackend(OmpBackend):
             except (OSError, BrokenPipeError):
                 pass
             try:
-                proc.wait(timeout=10)
+                proc.wait(timeout=KILL_AFTER_S)
             except subprocess.TimeoutExpired:
                 groups.kill(proc)
                 proc.wait()

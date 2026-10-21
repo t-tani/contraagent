@@ -1,9 +1,10 @@
 """The watchdog of `live_processes`: a script run in a process of its own, on POSIX only,
-as `python -I watchdog.py <path of platform/processes.py>`.
+as `python -I watchdog.py <path of platform/processes.py> <seconds>`.
 
 It reads lines on its stdin, a socket: `+<pgid> <start>` when an agent group starts,
 `-<pgid>` when it ends. At the end of file (the interpreter that started it is gone) it
-stops the groups still listed: SIGTERM, a grace period, then SIGKILL.
+stops the groups still listed: SIGTERM, then SIGKILL to what is left after `<seconds>`
+(`groups.KILL_AFTER_S`, which the script cannot import).
 
 A group is known by its number, and a number is reused once its process is gone. So each
 group is listed with the start of its leader, the agent process whose pid is the pgid,
@@ -29,9 +30,6 @@ import signal
 import sys
 import time
 from collections.abc import Callable
-
-#: How long the groups get to exit after SIGTERM before SIGKILL (`live_processes._TERM_GRACE_S`).
-GRACE_S = 5.0
 
 #: Reads a process's start, as `processes.start_ticks` does: None when it cannot be read.
 Starts = Callable[[int], "int | None"]
@@ -96,13 +94,13 @@ def stop(
     term: int,
     kill: int,
     *,
+    kill_after_s: float,
     exists: Callable[[int], bool] = exists,
-    grace_s: float = GRACE_S,
     clock: Callable[[], float] = time.monotonic,
     pause: Callable[[float], None] = time.sleep,
 ) -> list[int]:
     """Stop the groups that are still the agents' (`ours`): `term`, then `kill` to what is
-    left after `grace_s`. Returns the groups sent `term`."""
+    left after `kill_after_s`. Returns the groups sent `term`."""
 
     def signal_ours(pgid: int, signum: int) -> bool:
         if not ours(pgid, groups[pgid], starts, exists):
@@ -115,7 +113,7 @@ def stop(
 
     termed = [g for g in list(groups) if signal_ours(g, term)]
     left = set(termed)
-    end = clock() + grace_s
+    end = clock() + kill_after_s
     while left and clock() < end:
         pause(0.1)
         left = {g for g in left if signal_ours(g, 0)}
@@ -139,7 +137,7 @@ def main(argv: list[str]) -> None:
     if sys.platform == "win32":
         raise SystemExit("the watchdog runs on POSIX only")
     starts: Starts = _load_processes(argv[1]).start_ticks
-    stop(read_groups(0), starts, os.killpg, signal.SIGTERM, signal.SIGKILL)
+    stop(read_groups(0), starts, os.killpg, signal.SIGTERM, signal.SIGKILL, kill_after_s=float(argv[2]))
 
 
 if __name__ == "__main__":
