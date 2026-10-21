@@ -62,14 +62,15 @@ if (how && list && nav) {
     fit();
   };
 
-  /** The card a button scrolls to, until the scroll ends: the cards it passes on the way are not the step. */
+  /**
+   * The card a button scrolls to, until the list reaches it or the reader moves the list:
+   * the cards it passes on the way are not the step.
+   */
   let aim = -1;
-  let aimTimer = 0;
   /** The swipe the list follows (see below), while a finger is on it. */
   let swipe: Swipe | undefined;
   const landed = (): void => {
     aim = -1;
-    clearTimeout(aimTimer);
     if (!swipe?.own) list.classList.remove('is-swiped');
     if (narrow.matches) mark(nearest());
   };
@@ -82,10 +83,12 @@ if (how && list && nav) {
     const to = Math.max(0, Math.min(steps.length - 1, k));
     aim = to;
     mark(to);
+    // Already there: no scroll, so no scroll event at its place. The instant scroll ends one still under way.
+    if (Math.abs(list.scrollLeft - place(to)) < 1) {
+      list.scrollTo({ left: place(to) });
+      return landed();
+    }
     list.scrollTo({ left: place(to), behavior: reduced.matches ? 'auto' : 'smooth' });
-    // The scroll's end says where it landed (scrollend); only a browser without the event guesses it is over by then.
-    clearTimeout(aimTimer);
-    if (!('onscrollend' in list)) aimTimer = window.setTimeout(landed, 900);
   };
   for (const b of [prev, next])
     b.addEventListener('click', () => {
@@ -96,6 +99,9 @@ if (how && list && nav) {
   list.addEventListener(
     'scroll',
     () => {
+      // The list at the aimed card's place: the button's scroll has reached it. A scroll that
+      // another press cut short never gets there; the newer scroll goes on from where it is.
+      if (aim >= 0 && Math.abs(list.scrollLeft - place(aim)) < 1) landed();
       if (queued || aim >= 0) return;
       queued = true;
       requestAnimationFrame(() => {
@@ -105,17 +111,15 @@ if (how && list && nav) {
     },
     { passive: true },
   );
-  list.addEventListener('scrollend', () => {
-    if (aim < 0) return;
-    if (nearest() === aim) return landed();
-    // Elsewhere: the end of a scroll another press cut short, which the next scroll goes on
-    // from, or a swipe that took the list somewhere else, which leaves it still. A list
-    // still a frame later has landed where it is.
-    const x = list.scrollLeft;
-    requestAnimationFrame(() => {
-      if (aim >= 0 && list.scrollLeft === x) landed();
-    });
-  });
+  // The reader's own input takes the list from a button's scroll: from then on, the card on screen is the step.
+  for (const type of ['pointerdown', 'wheel', 'keydown', 'focusin'])
+    list.addEventListener(
+      type,
+      () => {
+        if (aim >= 0) landed();
+      },
+      { passive: true },
+    );
 
   /*
    * A swipe: once a finger moves more sideways than up or down, the list follows it,
@@ -158,9 +162,7 @@ if (how && list && nav) {
     const way = Math.sign(moved);
     const to = Math.max(0, Math.min(steps.length - 1, s.from + way));
     const on = to !== s.from && (Math.abs(moved) > Math.abs(place(to) - place(s.from)) / 2 || speed(s.trail) * way > FLICK);
-    const k = on ? to : s.from;
-    if (Math.abs(list.scrollLeft - place(k)) < 1) landed();
-    else go(k);
+    go(on ? to : s.from);
   };
   list.addEventListener(
     'touchstart',
@@ -185,9 +187,7 @@ if (how && list && nav) {
         if (Math.hypot(dx, dy) < SLOP) return;
         swipe.own = Math.abs(dx) > Math.abs(dy);
         if (!swipe.own) return;
-        // The swipe takes over from a button's scroll still under way: the card it aims at is the one the swipe starts on.
-        clearTimeout(aimTimer);
-        aim = -1;
+        // The swipe starts on the step, the card on screen: the finger down ended any button's scroll (pointerdown).
         Object.assign(swipe, { x: t.clientX, left: list.scrollLeft, from: current });
         list.classList.add('is-swiped');
       }
