@@ -1,1 +1,0 @@
-The warning for a slow step of flow code ("heavy work belongs in a Python task") now counts only the time of flow code itself. The work contraagent does for a task call, for the creation of a flow call and for the analysis of a loop is left out, so a cold `contraagent check` or `run` on a busy machine no longer warns about a flow that does no heavy work.

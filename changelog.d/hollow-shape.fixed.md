@@ -1,1 +1,0 @@
-A Claude Code launch that answers in one turn without a tool is hollow only when its answer is tool calls written out as text: the first line is one (`Bash(...)`, `Read(...)`), or most lines are. An answer that quotes a call inside a sentence or a code example, such as `Read(path)`, is no longer hollow, so the task is not attempted again for it.

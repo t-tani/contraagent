@@ -1,1 +1,0 @@
-A run on a file system without file locks (`ENOLCK`, as on some NFS mounts) no longer fails with `RunLocked`, which said that another process held the run. It now raises `OSError` that names the lock file and says that the runs directory needs a file system with file locks. Only a lock that another open file holds reads as held.

@@ -1,1 +1,0 @@
-The OpenCode Go usage reading (for opencode and pi on an `opencode-go/` model) now closes the response when the usage endpoint refuses the request, for example with 401 for a key that is no longer valid. Before, the open response stayed until garbage collection, and Python 3.14 warned about it with a `ResourceWarning`.
