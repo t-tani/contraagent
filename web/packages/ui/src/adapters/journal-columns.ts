@@ -14,7 +14,7 @@ import { accountReading, readingShort } from '../words/quota.js';
 import { customColumnTip, customValue } from '../words/row-extras.js';
 import { contextWarnedText, contextWarnedTip, peakContextLine } from '../words/context.js';
 import { safetyStopCount, safetyStopLine, safetyStopTip } from '../words/safety.js';
-import { attemptFacts } from './filters.js';
+import { attemptFacts, correctionCount } from './filters.js';
 
 export interface JournalColumnsContext {
   /** The run id: paths inside the run directory are shown relative to it. */
@@ -119,7 +119,7 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
       cell: (e) => {
         const ran = isLaunched(e);
         const numbered = ran && (tries.get(e.key)?.count ?? 1) > 1;
-        const corrections = ran ? correctionsText((e.rounds ?? 1) - 1) : '';
+        const corrections = ran ? correctionsText(correctionCount(e)) : '';
         const played = ctx.replayMarks && e.replayed ? replayedLabel() : '';
         return statusWord({
           text: html`<span class="nw">${shortStop(e.stop)}</span>${numbered || corrections || played

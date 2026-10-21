@@ -7,17 +7,17 @@ import { stopLabel } from './stop.js';
 import type { RoundInfo } from '../core/events.js';
 
 /**
- * "Attempt 1", "Correction 1", "Model switch"; with more than one attempt,
- * "Attempt 2 | correction 1" and "Attempt 2 | model switch". `name` is the name of
+ * "Attempt 1", "Correction round 1", "Model switch"; with more than one attempt,
+ * "Attempt 2 | correction round 1" and "Attempt 2 | model switch". `name` is the name of
  * the round's attempt (`attemptNames`: "Attempt 1 | resumed run" in a resumed run).
  */
 export function roundLabel(r: RoundInfo, tries: number, name = attemptLabel(r.tryNo - 1)): string {
   if (tries > 1) {
-    if (r.fixupNo) return facts(name, msg(str`correction ${r.fixupNo}`));
+    if (r.fixupNo) return facts(name, msg(str`correction round ${r.fixupNo}`));
     if (r.hopNo) return facts(name, msg('model switch'));
     return name;
   }
-  if (r.fixupNo) return msg(str`Correction ${r.fixupNo}`);
+  if (r.fixupNo) return msg(str`Correction round ${r.fixupNo}`);
   if (r.hopNo) return msg('Model switch');
   return attemptLabel(0);
 }

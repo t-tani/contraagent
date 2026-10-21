@@ -30,6 +30,7 @@ A rows output (`rows.RowsFile`) is a JSON Lines file checked line by line
 from __future__ import annotations
 
 import copy
+import dataclasses
 import hashlib
 import json
 import logging
@@ -52,6 +53,7 @@ from contraagent._internal.contracts.rows import Rows, drop_unfinished, is_rows,
 from contraagent._internal.contracts.validators import CommandValidator, Validator, run_validators, validator_name, wanted_context
 from contraagent._internal.dispatch.records import OtherModel
 from contraagent._internal.dispatch.task import kind_name
+from contraagent._internal.platform import envvars
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import write_document
 
@@ -622,10 +624,13 @@ def run_until_valid(
     tool use, turns) over all rounds (`fold_spend`: a coding agent that reports a
     resumed session's cost so far is not counted twice), `round_costs` each
     round's own cost, `rounds` set to the number of launches and
-    `round_errors` holding each failed round's errors. `max_corrections`: the correction
-    rounds after the first launch (`KindConfig.max_corrections`; 0, none). A run that
-    exhausts them, or whose session cannot be resumed,
-    ends `INVALID_OUTPUT` and not ok. A round that did not complete keeps
+    `round_errors` holding each failed round's errors. `max_corrections`: how many times
+    the checks' errors may go back to the session, in all (`KindConfig.max_corrections`;
+    0, never): each objection of a stop hook within a round (`hook_errors`) and each
+    resume is one. Each round's `Launch.env` holds the corrections left to it
+    (`CONTRAAGENT_CORRECTIONS_LEFT`), so the stop hook lets the agent stop at 0. A run
+    that spends them, or whose session cannot be resumed,
+    ends `INVALID_OUTPUT` and not ok, with the last round's errors. A round that did not complete keeps
     its own stop. Each check compares a file with the file as it was before the
     first round (`OutputContract.before`); a result that is not ok puts back a file
     that held parts to keep (`preserve`), so the next attempt starts from them.
@@ -697,6 +702,9 @@ def _loop(
     session_total = bool(getattr(backend, "cost_is_session_total", False))
     while True:
         rounds += 1
+        used = rounds - 1 + (len(total.hook_errors) if total is not None else 0)
+        left = str(max(max_corrections - used, 0))
+        launch = dataclasses.replace(launch, env={**launch.env, envvars.CORRECTIONS_LEFT: left})
         ran = backend.run(launch)
         so_far = total.cost_usd if total is not None else None
         own = ran.cost_usd
@@ -730,7 +738,8 @@ def _loop(
             return CheckedLaunch(total, partial=stopped)
         if total.stop is not Stop.COMPLETED:
             return CheckedLaunch(total)
-        nxt = backend.resumed(launch, total, correction_prompt(contracts, checks)) if rounds <= max_corrections else None
+        used = rounds - 1 + len(total.hook_errors)  # the corrections made: the resumes and the stop hook's objections
+        nxt = backend.resumed(launch, total, correction_prompt(contracts, checks)) if used < max_corrections else None
         if nxt is not None:
             more = f" (+{len(errors) - 1} more)" if len(errors) > 1 else ""
             _logger.info(f"[correction] {launch.label}: round {rounds} failed its checks, sent back: {errors[0]}{more}")

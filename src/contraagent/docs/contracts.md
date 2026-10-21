@@ -81,26 +81,33 @@ that does not.
 - **Inside the session**, on Claude Code, Codex and omp. The plugin's stop hook
   runs `contraagent call validate`, which reads the call file (`$CONTRAAGENT_CALL`),
   imports the output model and runs the command validators. A failure keeps the
-  agent working in the same turn. opencode and pi have no stop hook that
+  agent working in the same turn. The agent tells the hook when it already
+  objected once in this round (`stop_hook_active`), and the hook then lets it stop:
+  at most one objection per round. opencode and pi have no stop hook that
   continues a session ([Coding agents](agents.md)): for them the runner's check
   below is the first one, and its errors come back in a correction round.
 - **By the runner, after the turn.** The schema, freshness (a file left by an
   earlier run does not pass), the parts to keep (`preserve`, below) and every validator. A failure resumes the same
   session with the errors as the next turn, until the file passes or the
-  correction rounds are spent (`invalid_output`).
+  corrections are spent (`invalid_output`).
 
 Each launch of the session is a **round**, and each resume a **correction
-round**. A kind has 3 correction rounds after its first round by default.
-`max_corrections` sets another number, from 0 to 20: `agent_task(max_corrections=1)`,
-or `max_corrections` in `[tasks.<kind>]`, which outranks the declaration
-([routing](routing.md#precedence)). With 0
-the first failed check ends the task `invalid_output`. A short output, such as a
-verdict, rarely needs more than one round to correct its form; an output that is
-still wrong after many rounds is not getting closer, and each round is a full turn
-of a session whose context grows. `contraagent check` reports a value out of range.
+round**. Each time the errors go back to the session is a **correction**: an
+objection of the stop hook within a round, or a correction round. A kind allows 3
+corrections in all by default. `max_corrections` sets another number, from 0 to 20:
+`agent_task(max_corrections=1)`, or `max_corrections` in `[tasks.<kind>]`, which
+outranks the declaration ([routing](routing.md#precedence)). Each round's
+environment holds the corrections left to it (`CONTRAAGENT_CORRECTIONS_LEFT`); at 0
+the stop hook lets the agent stop, the runner does not resume the session, and the
+task ends `invalid_output` with the last errors. With 0 the first failed check ends
+the task. A short output, such as a verdict, rarely needs more than one correction
+to correct its form; an output that is still wrong after many is not getting
+closer, and each one is more work in a session whose context grows. `contraagent
+check` reports a value out of range.
 
 The journal records how many rounds a task took
-(`rounds`), how many correction rounds its kind allowed (`max_corrections`) and the
+(`rounds`), how many corrections its kind allowed (`max_corrections`), what the
+stop hook sent back (`hook_errors`) and the
 errors each resume was sent (`round_errors`), and the monitor
 shows each round of its transcript. The run's progress line for the attempt
 names the first round's first error. The attempt's cost is its rounds' cost,

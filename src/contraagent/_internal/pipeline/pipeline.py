@@ -169,7 +169,8 @@ class _AsStarting:
 
 def attempt_totals(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Over journal rows: `attempts`, `cost_usd` (None when no row reports a cost) and
-    `corrections` (correction rounds: rounds after the first, plus each objection of a stop hook)."""
+    `corrections` (the resumes, rounds after the first, plus each objection of a stop hook:
+    what `max_corrections` bounds)."""
     costs = [r["cost_usd"] for r in rows if r.get("cost_usd") is not None]
     return {
         "attempts": len(rows),

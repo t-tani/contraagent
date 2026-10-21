@@ -228,10 +228,11 @@ def validate_call(call_path: str | Path | None = None, stdin_text: str = "", env
     """What a plugin's Stop hook runs. Returns (exit_code, message).
 
     Exit 2 with the errors tells the coding agent to keep going and fix the
-    file in the same turn. `stop_hook_active` (this hook already blocked once)
+    file in the same turn: a correction. `stop_hook_active` (this hook already blocked once)
     ends the loop: the runner checks again after the turn and resumes the
-    session if it must. Freshness and the parts to keep (`output.preserve`) are
-    the runner's to judge; the hook sees no "before".
+    session if it must. So does `CONTRAAGENT_CORRECTIONS_LEFT` at 0 (the task's
+    `max_corrections` are spent): the runner's check then ends the task. Freshness and
+    the parts to keep (`output.preserve`) are the runner's to judge; the hook sees no "before".
     """
     env = dict(os.environ if env is None else env)
     try:
@@ -239,6 +240,8 @@ def validate_call(call_path: str | Path | None = None, stdin_text: str = "", env
             return 0, ""
     except ValueError:
         pass
+    if env.get(envvars.CORRECTIONS_LEFT, "").strip() == "0":
+        return 0, ""
     path = call_path or env.get(envvars.CALL)
     if not path:
         return 0, f"no call file ({envvars.CALL} is unset): nothing to check"
