@@ -59,12 +59,14 @@ def test_a_command_s_module_is_imported_only_when_it_is_named():
     assert subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip() == "[]"
 
 
-def test_a_usage_error_exits_2_with_the_command_s_usage(capsys, monkeypatch):
+@pytest.mark.parametrize(("args", "says"), [(["--interval", "0"], "--interval"), (["--interval", "5", "--ttl", "5"], "--ttl")])
+def test_a_usage_error_exits_2_with_the_command_s_usage(capsys, monkeypatch, args, says):
     monkeypatch.delenv("CONTRAAGENT_HUB_TOKEN", raising=False)
     with pytest.raises(SystemExit) as exc:
-        main(["relay", "--hub", "http://hub:8790", "--interval", "0"])
+        main(["relay", "--hub", "http://hub:8790", *args])
     assert exc.value.code == 2
-    assert "usage: contraagent relay" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "usage: contraagent relay" in err and f"{says} must be more than" in err
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Windows has no SIGPIPE")

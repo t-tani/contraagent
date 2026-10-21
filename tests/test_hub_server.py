@@ -122,11 +122,24 @@ def test_a_gzip_body_is_taken():
 
 
 def test_a_heartbeat_posts_and_returns_its_ttl():
-    hub = Hub(MemoryHubStore(), MemoryBlobs(), ttl_s=21)
-    c = TestClient(server.create_hub_app(hub, ingest_tokens=[INGEST], read_token=None), base_url="http://127.0.0.1")
-    beat = Heartbeat(host_id="h1", sent_at="s", interval_s=3)
+    hub, c = make()
+    beat = Heartbeat(host_id="h1", sent_at="s", interval_s=3, ttl_s=21)
     assert c.post(INGEST_HEARTBEAT, content=beat.model_dump_json(), headers=AUTH).json() == {"ttl_s": 21}
     assert hub.store.heartbeats()["h1"][0] == beat
+
+
+def test_a_heartbeat_without_a_ttl_has_four_of_its_intervals():
+    hub, c = make()
+    assert c.post(INGEST_HEARTBEAT, json={"host_id": "h1", "sent_at": "s", "interval_s": 20}, headers=AUTH).json() == {"ttl_s": 80}
+    assert hub.store.heartbeats()["h1"][0].ttl_s == 80
+
+
+@pytest.mark.parametrize("ttl_s", [3, 2, 0])
+def test_a_heartbeat_whose_ttl_is_not_more_than_its_interval_is_422(ttl_s):
+    hub, c = make()
+    body = {"host_id": "h1", "sent_at": "s", "interval_s": 3, "ttl_s": ttl_s}
+    assert c.post(INGEST_HEARTBEAT, json=body, headers=AUTH).status_code == 422
+    assert hub.store.heartbeats() == {}
 
 
 def test_blobs_are_checked_by_head_and_stored_by_put():
@@ -149,7 +162,9 @@ def test_ingest_without_an_ingest_token_is_401(headers):
     sha = hashlib.sha256(data).hexdigest()
     assert c.post(INGEST_RECORDS, content=records(["a"]), headers=headers).status_code == 401
     assert (
-        c.post(INGEST_HEARTBEAT, content=Heartbeat(host_id="h1", sent_at="s", interval_s=3).model_dump_json(), headers=headers).status_code
+        c.post(
+            INGEST_HEARTBEAT, content=Heartbeat(host_id="h1", sent_at="s", interval_s=3, ttl_s=12).model_dump_json(), headers=headers
+        ).status_code
         == 401
     )
     assert c.head(f"/ingest/blobs/{sha}", headers=headers).status_code == 401
@@ -163,7 +178,7 @@ def test_a_token_given_for_one_host_sends_only_that_hosts_runs():
     assert c.post(INGEST_RECORDS, content=records(["a"]), headers=bound).status_code == 403
     other = RecordBatch(run=RunRef(host_id="h2", run_id="r1", run_uid="u1")).model_dump_json()
     assert c.post(INGEST_RECORDS, content=other, headers=bound).status_code == 200
-    beat = Heartbeat(host_id="h1", sent_at="s", interval_s=3).model_dump_json()
+    beat = Heartbeat(host_id="h1", sent_at="s", interval_s=3, ttl_s=12).model_dump_json()
     assert c.post(INGEST_HEARTBEAT, content=beat, headers=bound).status_code == 403
 
 
@@ -233,7 +248,7 @@ def test_a_heartbeat_reporting_a_run_alive_shows_it_running():
     launch |= {"key": "review-a", "kind": "review", "unit": "a", "role": "", "model": "sonnet", "plugin": "p"}
     snap = empty_snapshot("r1", json.loads(info), True) | {"pid": 7, "launches": [launch]}
     report = RunLiveness(run=RUN, alive=True, snapshot=snap)
-    assert client.send_heartbeat(Heartbeat(host_id="h1", sent_at="s", interval_s=3, runs=[report])).ttl_s == hub.ttl_s
+    assert client.send_heartbeat(Heartbeat(host_id="h1", sent_at="s", interval_s=3, ttl_s=12, runs=[report])).ttl_s == 12
     assert [(r["run"], r["running"]) for r in c.get("/api/runs").json()] == [("r1@h1", True)]
     got = c.get("/api/runs/r1@h1/procs").json()
     assert got == {**snap, "run": "r1@h1"}

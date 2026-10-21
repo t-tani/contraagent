@@ -23,7 +23,9 @@ what it does not hold yet:
   in `run.json` (`layout.file_path`).
 
 Every `interval_s` seconds a heartbeat (`Relay.heartbeat_once`) reports the runs this
-host's liveness (`ProcLiveness`) counts live, with their process snapshots.
+host's liveness (`ProcLiveness`) counts live, with their process snapshots, and its TTL
+`ttl_s`: the hub counts the host as up for `ttl_s` seconds after it receives the
+heartbeat, so a heartbeat or two can be late or lost before the host shows as down.
 
 Between passes, every `FAST_S` seconds, the relay ships the new lines of the active
 transcripts only (`Relay.fast_once`), so a transcript being written reaches the hub well
@@ -68,7 +70,17 @@ from typing import Any
 
 from contraagent._internal.commandline import UsageError, add_runs_dir, setup_logging
 from contraagent._internal.hub.client import HttpClient, HubClient, HubRefused, HubUnavailable
-from contraagent._internal.hub.protocol import Accepted, DocumentPut, FileRef, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
+from contraagent._internal.hub.protocol import (
+    TTL_INTERVALS,
+    Accepted,
+    DocumentPut,
+    FileRef,
+    Heartbeat,
+    LogChunk,
+    RecordBatch,
+    RunLiveness,
+    RunRef,
+)
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import parse_rows, write_document
 from contraagent._internal.runs.liveness import Liveness
@@ -155,7 +167,8 @@ class Relay:
     `progress_path` is the relay's progress file (`default_progress_path`); `host_id`
     names this host on the hub (default `layout.host_id()`); `hub` is written into the
     progress file, and progress kept for another hub or host is not used. `interval_s` is
-    the heartbeat's interval and the wait between passes; `since_days`, when set, leaves
+    the heartbeat's interval and the wait between passes; `ttl_s`, the heartbeat's TTL,
+    is more than `interval_s` (default `TTL_INTERVALS` × `interval_s`); `since_days`, when set, leaves
     out the runs the relay has not shipped yet whose records last changed longer ago than
     that. `liveness` says which runs are live (default `ProcLiveness(runs_dir)`), `clock`
     is the time in seconds since the epoch.
@@ -170,6 +183,7 @@ class Relay:
         host_id: str | None = None,
         hub: str = "",
         interval_s: float = 3.0,
+        ttl_s: float | None = None,
         since_days: float | None = None,
         liveness: Liveness | None = None,
         clock: Callable[[], float] = time.time,
@@ -184,6 +198,9 @@ class Relay:
         self.host_id = host_id or layout.host_id()
         self.hub = hub
         self.interval_s = interval_s
+        self.ttl_s = ttl_s if ttl_s is not None else TTL_INTERVALS * interval_s
+        if self.ttl_s <= interval_s:
+            raise ValueError(f"ttl_s ({self.ttl_s:g}) must be more than interval_s ({interval_s:g})")
         self.since_days = since_days
         self.liveness: Liveness = liveness if liveness is not None else ProcLiveness(self.runs_dir)
         self.clock = clock
@@ -552,7 +569,13 @@ class Relay:
                 reports.append(RunLiveness(run=ref, alive=True, snapshot=snapshot))
             with self._lock:
                 self._running = running
-            beat = Heartbeat(host_id=self.host_id, sent_at=iso_of(self.clock(), "milliseconds"), interval_s=self.interval_s, runs=reports)
+            beat = Heartbeat(
+                host_id=self.host_id,
+                sent_at=iso_of(self.clock(), "milliseconds"),
+                interval_s=self.interval_s,
+                ttl_s=self.ttl_s,
+                runs=reports,
+            )
         except Exception:
             _logger.exception("heartbeat not built")
             return False
@@ -580,6 +603,12 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--token-file", help=f"a file holding the hub's ingest token (default: the environment variable {TOKEN_ENV})")
     ap.add_argument("--host-id", help=f"this host's name on the hub (default: {layout.HOST_ID_ENV}, else the host name)")
     ap.add_argument("--interval", type=float, default=3.0, help="seconds between heartbeats and between passes (default: 3)")
+    ap.add_argument(
+        "--ttl",
+        type=float,
+        help="seconds the hub counts this host as up after it receives a heartbeat; more than --interval "
+        f"(default: {TTL_INTERVALS} × --interval)",
+    )
     ap.add_argument(
         "--since",
         type=float,
@@ -610,6 +639,8 @@ def run(args: argparse.Namespace) -> int:
     """`contraagent relay`: ship until stopped, or make one pass (`--once`)."""
     if args.interval <= 0:
         raise UsageError("--interval must be more than 0")
+    if args.ttl is not None and args.ttl <= args.interval:
+        raise UsageError("--ttl must be more than --interval")
     token = _token(args)
     setup_logging("%(asctime)s %(name)s %(levelname)s %(message)s")
     client = HttpClient(args.hub, token, args.timeout)
@@ -620,6 +651,7 @@ def run(args: argparse.Namespace) -> int:
         host_id=args.host_id,
         hub=client.base_url,
         interval_s=args.interval,
+        ttl_s=args.ttl,
         since_days=args.since,
     )
     try:
