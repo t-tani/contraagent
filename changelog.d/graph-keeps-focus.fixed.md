@@ -1,1 +1,0 @@
-The monitor's pipeline graph keeps its focus, zoom and pan when the outline of the flow moves beside it or above it, or first appears. Before, the graph was drawn again from the start: a reader who had just focused an item, often right after the page loaded, lost the focus, and Enter did nothing.

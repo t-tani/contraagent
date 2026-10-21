@@ -1,1 +1,0 @@
-The estimates of a run and the quota readings it starts from take the most recent runs by the time of the last row of each journal, so a copy of the runs directory that did not keep the files' times reads the same runs. A journal whose last row has no time still goes by its modification time.

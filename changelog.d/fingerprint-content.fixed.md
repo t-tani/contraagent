@@ -1,1 +1,0 @@
-A resume runs again a task whose output file no longer reads under its output schema, its journal row's `rerun` saying so. Before, the resume skipped it and the flow received `TaskFailed` (`invalid_output`) at the `await`.

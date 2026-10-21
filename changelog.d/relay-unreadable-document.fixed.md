@@ -1,1 +1,0 @@
-`contraagent relay` logs a warning, once for each content, when a run document does not parse as JSON, and does not send it until it parses. Before, it waited for such a document without a word, as if it were half written, though documents are always replaced whole.
