@@ -379,10 +379,22 @@ async function stepsAt(page: Page, resting: boolean): Promise<Steps> {
   }, resting);
 }
 
-/** The card at its snap position, whether or not the list is still moving: `{ step }` to compare. */
+/** The card at its snap position, whether or not the list is still moving. */
 const centredStep = (page: Page): Promise<Steps> => stepsAt(page, false);
 /** The card the steps' list rests on: at that card's snap position, where a scroll of it last ended. */
 const restingStep = (page: Page): Promise<Steps> => stepsAt(page, true);
+
+/**
+ * Waits until `read` finds card `step`; a failure carries the facts read after it, since a
+ * comparison of the step alone prints only the step.
+ */
+async function expectStep(page: Page, read: (page: Page) => Promise<Steps>, step: number): Promise<void> {
+  try {
+    await expect.poll(async () => (await read(page)).step).toBe(step);
+  } catch (error) {
+    throw new Error(`${(error as Error).message}\nfacts: ${JSON.stringify((await read(page)).facts, null, 2)}`);
+  }
+}
 
 for (const size of PHONES)
   for (const reducedMotion of ['no-preference', 'reduce'] as const)
@@ -401,7 +413,7 @@ for (const size of PHONES)
       // The buttons: a card at a time, the loop lighting up to the card's step.
       await next.click();
       await expect(count).toContainText('Step 2 of 7');
-      await expect.poll(() => centredStep(page)).toMatchObject({ step: 1 });
+      await expectStep(page, centredStep, 1);
       for (let k = 2; k < 7; k++) await next.click();
       await expect(count).toContainText('Step 7 of 7');
       await expect(next).toHaveAttribute('aria-disabled', 'true');
@@ -411,12 +423,12 @@ for (const size of PHONES)
       await page.keyboard.press('Enter');
       await expect(count).toContainText('Step 6 of 7');
       await expect(page.locator('.how-loop-step.is-on')).toHaveCount(4);
-      await expect.poll(() => restingStep(page)).toMatchObject({ step: 5 });
+      await expectStep(page, restingStep, 5);
       // A scroll the steps did not start, part of a card back (a trackpad's, or a script's): the
       // list snaps to the card before, not between two, and that card is the step.
       const width = await page.locator('.how-step').first().evaluate((e) => (e as HTMLElement).offsetWidth);
       await list.evaluate((e, dx) => e.scrollBy({ left: dx, behavior: 'instant' }), Math.round(-width * 0.6));
-      await expect.poll(() => restingStep(page)).toMatchObject({ step: 4 });
+      await expectStep(page, restingStep, 4);
       await expect(count).toContainText('Step 5 of 7');
       // A long output: cut, and open in full from its button.
       const card = page.locator('.how-step').nth(4);
@@ -476,7 +488,7 @@ for (const size of PHONES)
       // A flick of 300 px in 40 ms, which the browser's own momentum carries two cards on: one card, either way.
       for (const [dx, step] of [[-300, 2], [-300, 3], [-300, 4], [300, 3], [300, 2], [300, 1]] as const) {
         await drag(page, dx, 0, 8);
-        await expect.poll(() => restingStep(page)).toMatchObject({ step: step - 1 });
+        await expectStep(page, restingStep, step - 1);
         await expect(count).toContainText(`Step ${step} of 7`);
         await expect(list).not.toHaveClass(/is-swiped/);
       }
@@ -484,15 +496,16 @@ for (const size of PHONES)
       expect(await list.evaluate((e) => e.scrollLeft)).toBe(0);
       // A short flick, fast: on to the next card; as short, slow: back to the card it began on.
       await drag(page, -60, 0, 8);
-      await expect.poll(() => restingStep(page)).toMatchObject({ step: 1 });
+      await expectStep(page, restingStep, 1);
       await drag(page, -60, 0, 80);
-      await expect.poll(() => restingStep(page)).toMatchObject({ step: 1 });
+      await expectStep(page, restingStep, 1);
       await expect(count).toContainText('Step 2 of 7');
       await expect(list).not.toHaveClass(/is-swiped/);
       // A finger up the steps scrolls the page, not the steps.
       const top = await page.evaluate(() => window.scrollY);
       await drag(page, 0, -200, 16);
       await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(top + 100);
-      expect(await restingStep(page)).toMatchObject({ step: 1 });
+      const after = await restingStep(page);
+      expect(after.step, `facts: ${JSON.stringify(after.facts, null, 2)}`).toBe(1);
       await context.close();
     });
