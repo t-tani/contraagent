@@ -35,6 +35,12 @@ from contraagent._internal.platform.locks import locks
 
 POSTGRES_IMAGE = "postgres:16.4"
 RUSTFS_IMAGE = "rustfs/rustfs:1.0.0"
+#: The paths each image declares as a VOLUME, with the tmpfs options mounted there. A container
+#: gets an anonymous volume for each such path, which `docker rm -f` without `-v` leaves
+#: behind, so the tests mount a tmpfs there instead: no volume is made, and the data is gone
+#: with the container. RustFS runs as its own user (uid 10001), who must own its tmpfs;
+#: Postgres's entrypoint gives the data directory to its user itself.
+DATA = {POSTGRES_IMAGE: {"/var/lib/postgresql/data": ""}, RUSTFS_IMAGE: {"/data": "uid=10001,gid=10001"}}
 LABEL = "contraagent-test=hub"
 #: The pytest process a container belongs to (the xdist controller, or the process itself):
 #: a container whose owner is gone was left by a run that was killed before `atexit` ran.
@@ -115,7 +121,7 @@ def _reap_orphans() -> None:
                 continue
             if (datetime.now(UTC) - started).total_seconds() < _UNOWNED_GRACE_S:
                 continue
-        subprocess.run(["docker", "rm", "-f", cid], capture_output=True, timeout=60)
+        subprocess.run(["docker", "rm", "--force", "--volumes", cid], capture_output=True, timeout=60)
 
 
 def _pid_alive(pid: int) -> bool:
@@ -183,7 +189,7 @@ def stop_shared(controller: int) -> None:
     except (OSError, ValueError):
         containers = []
     for cid in containers:
-        subprocess.run(["docker", "rm", "-f", cid], capture_output=True, timeout=60)
+        subprocess.run(["docker", "rm", "--force", "--volumes", cid], capture_output=True, timeout=60)
     path.unlink(missing_ok=True)
     path.with_suffix(".lock").unlink(missing_ok=True)
 
@@ -192,6 +198,7 @@ def _run(image: str, port: int, *args: str, env: dict[str, str], shared: dict | 
     """Start `image` with `port` published on a random local port; its id and that port. A
     container started for xdist's workers is the controller's to remove, not this process's."""
     flags = [f"-e{k}={v}" for k, v in env.items()]
+    flags += [f"--tmpfs={path}:{opts}" if opts else f"--tmpfs={path}" for path, opts in DATA[image].items()]
     cid = _docker(
         "run",
         "-d",
@@ -232,7 +239,7 @@ def stop_all() -> None:
     """Remove every container this process started."""
     with _lock:
         while _containers:
-            subprocess.run(["docker", "rm", "-f", _containers.pop()], capture_output=True, timeout=60)
+            subprocess.run(["docker", "rm", "--force", "--volumes", _containers.pop()], capture_output=True, timeout=60)
         _started.clear()
 
 
