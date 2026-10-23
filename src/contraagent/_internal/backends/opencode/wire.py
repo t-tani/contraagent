@@ -4,7 +4,8 @@ opencode's own log on stderr (`refusal_in_log`).
 
 `opencode run --format json` prints one event per line, each with the session id
 (`sessionID`) and one part of the session (`part`): `step_start` and `step_finish`
-around each API call (the call's tokens and cost on `step_finish`), `text` once a
+around each API call (the call's tokens and cost on `step_finish`, and why the call
+ended: `reason`, `stop` when it ended the turn), `text` once a
 piece of the answer is complete, `reasoning` (with `--thinking`), `tool_use` once a
 tool call has ended (its input and output together), and `error` when the session
 ends on an error. A provider refusal that opencode retries (a 429) prints nothing
@@ -88,6 +89,9 @@ class EventReader(EventFold):
 
     The answer is the text of the last assistant message: opencode prints the
     text of every step, and a step before a tool call says what it is about to do.
+    A last step that ends the turn (`step_finish` with reason `stop`) completes the
+    launch, with or without text: a model that has written its output file may end on
+    an empty message.
     """
 
     agent = "opencode"
@@ -99,6 +103,8 @@ class EventReader(EventFold):
         self.model = model
         self._texts: dict[str, list[str]] = {}  # message id -> its text parts, in order
         self._last_message = ""
+        #: Why the last step ended (its `step_finish` `reason`); '' while a step runs.
+        self._finish_reason = ""
         self.errors: list[dict] = []
 
     def feed(self, ev: dict) -> Stop | None:
@@ -108,7 +114,9 @@ class EventReader(EventFold):
         self.saw_any = True
         self.session_id = self.session_id or str(ev.get("sessionID") or "")
         part = _part(ev)
-        if typ == "text":
+        if typ == "step_start":
+            self._finish_reason = ""
+        elif typ == "text":
             message = str(part.get("messageID") or "")
             self._texts.setdefault(message, []).append(str(part.get("text") or ""))
             self._last_message = message
@@ -119,6 +127,7 @@ class EventReader(EventFold):
             if name == WEB_SEARCH_TOOL:
                 self.note_web_query((args if isinstance(args, dict) else {}).get("query"))
         elif typ == "step_finish":
+            self._finish_reason = str(part.get("reason") or "")
             found = call_usage(ev, self.model)
             if found is not None:
                 self.add_call(*found)
@@ -148,7 +157,7 @@ class EventReader(EventFold):
 
     def ending(self, *, exit_code: int | None, killed: Stop | None) -> Ending:
         """An error event decides (its status, its words, its name: a refused credential, an
-        abort); without one, the exit and the answer."""
+        abort); without one, a last step that ended the turn, then the exit and the answer."""
         names = {str(e.get("name") or "") for e in self.errors}
         return Ending(
             killed=killed,
@@ -160,6 +169,7 @@ class EventReader(EventFold):
             failed=bool(self.errors),
             auth="ProviderAuthError" in names,
             aborted="MessageAbortedError" in names,
+            completed=self._finish_reason == "stop" and exit_code in (0, None),
         )
 
     def result(self, launch: Launch, agent: str, *, exit_code: int | None, killed: Stop | None) -> LaunchResult:
