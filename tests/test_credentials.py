@@ -178,7 +178,7 @@ class Recorder(Backend):
     def env(self, launch):
         return {}
 
-    def bind_credential(self, credential, model="", *, env=None, label=""):
+    def bind_credential(self, credential, model="", *, env=None, label="", cwd=None):
         return ClaudeBackend(base_env=self._base_env).bind_credential(credential, model, env=env, label=label)
 
     def run(self, launch):

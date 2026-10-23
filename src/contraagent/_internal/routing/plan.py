@@ -20,6 +20,7 @@ import dataclasses
 import logging
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from contraagent._internal.backends import Backend, backend_class, known_agents
@@ -285,10 +286,13 @@ def check_credentials(
     credentials: Mapping[str, Any],
     backends: Mapping[str, Backend],
     errors: list[str] | None = None,
+    cwd: Path | None = None,
 ) -> None:
     """Every route of every kind must be able to launch on its credential, and that
     credential must be one the kind may use. With `errors`, every refusal is
-    appended there (one per route) instead of the first raised.
+    appended there (one per route) instead of the first raised. `cwd` is the directory
+    the launches run in (the run's working directory), whose files an agent may read
+    a credential from (omp's `.env`).
 
     Checked for the primary and for every failover hop: a 429 must never move a
     task onto an identity it is not allowed to run under. For a kind that
@@ -300,7 +304,7 @@ def check_credentials(
         router = routers.get(kind)
         routes = router.routes if router is not None else (Route(rc.agent, rc.model, rc.credential),)
         for i, route in enumerate(routes):
-            problem = _route_problem(rc, route, credentials, backends)
+            problem = _route_problem(rc, route, credentials, backends, cwd)
             if problem:
                 _report(errors, f"{name} hop {i + 1}/{len(routes)} {route}: {problem}")
 
@@ -312,29 +316,37 @@ def call_credential_problems(
     credentials: Mapping[str, Any],
     backends: Mapping[str, Backend],
     overrides: Overrides = Overrides(),
+    cwd: Path | None = None,
 ) -> list[str]:
     """Why a task of config `rc` cannot run as `credential`, the credential its task call
-    names (`AgentTask.__call__`), one message per refused route; empty when it can.
+    names (`AgentTask.__call__`), in `cwd`, the working directory of its call options
+    (`.options(cwd=)`), one message per refused route; empty when it can.
 
     The call's credential is every route's of the kind (`on_credential`), so each route is
     checked as `check_credentials` checks a kind's: the credential exists, carries the
-    traits the task requires, and the route's coding agent can use it with its model. An
-    `overrides` credential outranks the call's: then only the name is checked."""
-    if credential not in credentials:
-        return [f"no [credentials.{credential}]{did_you_mean(credential, credentials)}; defined: {', '.join(sorted(credentials))}"]
-    if overrides.credential:
-        return []
-    routes = on_credential(router.routes if router is not None else (Route(rc.agent, rc.model, rc.credential),), credential)
+    traits the task requires, and the route's coding agent can use it with its model in
+    `cwd`. An `overrides` credential outranks the call's: then only the name is checked.
+    With `credential` empty, the kind's own routes are checked in `cwd`: an agent reads
+    files of its working directory (omp's `.env`) that can undo a credential's isolation."""
+    routes = router.routes if router is not None else (Route(rc.agent, rc.model, rc.credential),)
+    if credential:
+        if credential not in credentials:
+            return [f"no [credentials.{credential}]{did_you_mean(credential, credentials)}; defined: {', '.join(sorted(credentials))}"]
+        if overrides.credential:
+            return []
+        routes = on_credential(routes, credential)
     out: list[str] = []
     for i, route in enumerate(routes):
-        problem = _route_problem(rc, route, credentials, backends)
+        problem = _route_problem(rc, route, credentials, backends, cwd)
         if problem:
             out.append(f"hop {i + 1}/{len(routes)} {route}: {problem}")
     return out
 
 
-def _route_problem(rc, route: Route, credentials: Mapping[str, Any], backends: Mapping[str, Backend]) -> str | None:
-    """Why `route` cannot carry a task of config `rc`, or None."""
+def _route_problem(
+    rc, route: Route, credentials: Mapping[str, Any], backends: Mapping[str, Backend], cwd: Path | None = None
+) -> str | None:
+    """Why `route` cannot carry a task of config `rc` launched in `cwd`, or None."""
     cred = credentials.get(route.credential or rc.credential)
     if cred is None:
         return f"no [credentials.{route.credential or rc.credential}]; defined: {', '.join(sorted(credentials))}"
@@ -350,7 +362,7 @@ def _route_problem(rc, route: Route, credentials: Mapping[str, Any], backends: M
         return f"the task denies {', '.join(rc.disallowed_tools)}, and {why}"
     for member in [credentials[m] for m in cred.members] if isinstance(cred, Pool) else [cred]:
         try:
-            binding = backend.bind_credential(member, route.model, label="check")
+            binding = backend.bind_credential(member, route.model, label="check", cwd=cwd)
         except CredentialError as exc:
             return str(exc)
         if rc.requires and not binding.isolated:
@@ -376,6 +388,10 @@ class RoutingPlan:
     overrides: Overrides = Overrides()
     #: `[credentials.<name>]` by name, `ambient` included: what an `AgentRunner` takes as `credentials`.
     credentials: dict[str, Credential] = field(default_factory=dict)
+    #: The run's working directory (`Pipeline(cwd=)`), where its launches run unless a task
+    #: call names its own; None: this process's current directory. The credential checks
+    #: and the preflight's probes run there.
+    cwd: Path | None = None
 
     @classmethod
     def build(
@@ -391,6 +407,7 @@ class RoutingPlan:
         light: Iterable[str] = (),
         budgets_required: bool = True,
         all_kinds: bool = True,
+        cwd: Path | None = None,
     ) -> RoutingPlan:
         """Resolve every kind in `kinds` against `config` and `overrides`.
 
@@ -408,6 +425,7 @@ class RoutingPlan:
         With `all_kinds` (the default) `kinds` are every kind of the run, and a task
         table naming none of them is logged (`check_task_tables`); False for a plan of
         some kinds only (an async flow creates kinds as it runs).
+        `cwd` is the run's working directory (`RoutingPlan.cwd`).
         """
         kinds = list(kinds)
         errors: list[str] = []  # every problem, reported together
@@ -425,16 +443,19 @@ class RoutingPlan:
         configs = resolve_routing(configs, tables, defaults, backends, overrides, requirements, errors, light=light)
         routers = build_routers(configs, tables, config, backends, overrides, errors)
         credentials = config.credentials()
-        check_credentials(configs, routers, credentials, backends, errors)
+        check_credentials(configs, routers, credentials, backends, errors, cwd)
         if errors:
             raise RoutingError(*errors)
-        return cls(config=config, backends=backends, configs=configs, routers=routers, overrides=overrides, credentials=credentials)
+        return cls(
+            config=config, backends=backends, configs=configs, routers=routers, overrides=overrides, credentials=credentials, cwd=cwd
+        )
 
-    def call_problems(self, kind: str, credential: str) -> list[str]:
+    def call_problems(self, kind: str, credential: str, cwd: Path | None = None) -> list[str]:
         """Why a task of `kind` cannot run as `credential`, the credential its task call
-        names; empty when it can (`call_credential_problems`)."""
+        names, in `cwd`, the working directory its call names (None: the run's); empty
+        when it can (`call_credential_problems`)."""
         return call_credential_problems(
-            self.configs[kind], self.routers.get(kind), credential, self.credentials, self.backends, self.overrides
+            self.configs[kind], self.routers.get(kind), credential, self.credentials, self.backends, self.overrides, cwd or self.cwd
         )
 
     def preflight(self, policy: PreflightPolicy) -> PreflightRecord:
@@ -455,6 +476,7 @@ class RoutingPlan:
             self.credentials,
             policy=policy,
             model_failover=bool(self.config.defaults().get("model_failover")),
+            cwd=self.cwd,
         )
         return record
 

@@ -429,26 +429,31 @@ class Backend(abc.ABC):
             return own[name]
 
     def bind_credential(
-        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = "", cwd: Path | None = None
     ) -> CredentialBinding:
         """How this agent authenticates as `credential` for a launch of `model`.
 
         Raises `CredentialError` when it cannot (an unsupported type, a provider
         the model does not use). With `env` None this is a check only and no
         secret is read; with the parent environment the secrets are resolved.
-        `label` keys any per-launch state (an isolated config directory). The
-        default supports only `ambient`: whatever the agent loads by itself.
+        `label` keys any per-launch state (an isolated config directory). `cwd` is
+        the directory the launch runs in (`Launch.cwd`), for an agent that reads
+        files of its working directory at start (omp's `.env`); None: this
+        process's current directory. The default supports only `ambient`:
+        whatever the agent loads by itself.
         """
         if isinstance(credential, Ambient):
             return CredentialBinding(isolation="ambient: whatever the agent loads by default")
         raise CredentialError(f"{self.name} cannot use {credential.type} credentials")
 
-    def account(self, credential: Credential, model: str = "") -> str:
+    def account(self, credential: Credential, model: str = "", *, cwd: Path | None = None) -> str:
         """The account a launch of `model` as `credential` bills, as a 12-hex-digit digest: the
         same value for the same account, never the secret or anything it can be turned
         back into. '' when this agent cannot tell (the default). Read from local state only
         (a login file, the credential's own secret), except where the agent offers no other
-        way; cheap enough to ask once per credential per run."""
+        way; cheap enough to ask once per credential per run. `cwd` is the directory the
+        launch runs in, for an agent whose key can come from a file there (omp's `.env`);
+        None: this process's current directory."""
         return ""
 
     def attest(self, launch_result: LaunchResult, credential: Credential) -> str | None:
@@ -531,7 +536,9 @@ class Backend(abc.ABC):
         model failover through `native_model_chain`/`drivable_model_chain`
         instead, with no separate config to read. omp is the one
         exception: its `retry.fallbackChains` lives in its own config
-        file, so it overrides this to read and describe it.
+        file, so it overrides this to read and describe it. `cwd` is the
+        directory the agent is launched in, whose project config it reads;
+        None: this process's current directory.
         """
         return None
 

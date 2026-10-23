@@ -84,6 +84,20 @@ an `http(s)://` or `skill://` URL. The docstring of `OmpBackend` (`contraagent.b
 gives each name's omp tools. As on Claude Code, a pattern does not hold a command that
 another tool runs: a `Read` pattern does not stop `bash` from printing the file.
 
+omp reads two files of the directory it runs in when it starts. `.omp/config.yml` holds
+the project's settings, its model chains (`retry.fallbackChains`) among them, and
+`.env` fills each variable that the launch's environment leaves unset, a provider's
+key among them. A launch runs in its task's working directory: the one its task call
+names (`.options(cwd=)`), else the run's (`Pipeline(cwd=)`). contraagent reads these
+files in the same directory, never in the directory the pipeline process was started
+in. The checks before the first launch look in the run's working directory, and in the
+directory of each task call that names one, for a key in `.env` that would undo a
+credential's isolation ([routing](routing.md)). The preflight probes each route in the
+run's working directory, and its line on omp's own model chain is that directory's; a
+task in another directory runs with the settings of that directory. A git worktree
+holds `.env` and `.omp/` only when git tracks them, so a flow that gives a task a
+worktree of its own copies them there when omp needs them ([tasks](tasks.md)).
+
 The details are in the other topics: how each agent loads a plugin, what each one
 keeps out of a launch, and how each one gets a tool, in [plugins](plugins.md); the
 flags of a light launch in [contracts](contracts.md); the credential types each one

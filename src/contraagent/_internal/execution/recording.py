@@ -878,15 +878,15 @@ class ReplayAgent(Backend):
         return real.env(launch) if real is not None else {}
 
     def bind_credential(
-        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = "", cwd: Path | None = None
     ) -> CredentialBinding:
         """Any credential: a replay makes no API call. With `real`, that agent's binding."""
         if self.real is not None:
-            return self.real.bind_credential(credential, model, env=env, label=label)
+            return self.real.bind_credential(credential, model, env=env, label=label, cwd=cwd)
         return CredentialBinding(isolated=True, isolation="replay: no API calls")
 
-    def account(self, credential: Credential, model: str = "") -> str:
-        return self.real.account(credential, model) if self.real is not None else ""
+    def account(self, credential: Credential, model: str = "", *, cwd: Path | None = None) -> str:
+        return self.real.account(credential, model, cwd=cwd) if self.real is not None else ""
 
     def catalogue(self) -> set[str] | None:
         return self.real.catalogue() if self.real is not None else None

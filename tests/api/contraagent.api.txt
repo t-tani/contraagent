@@ -1141,7 +1141,7 @@ class WorkloadIdentity(Credential)
 
 class Backend(abc.ABC)
     def __init__(self, binary: str = '', base_env: dict[str, str] | None = None)
-    def account(self, credential: Credential, model: str = '') -> str
+    def account(self, credential: Credential, model: str = '', *, cwd: Path | None = None) -> str
     @abstractmethod
     def argv(self, launch: Launch) -> list[str]
     def attest(self, launch_result: LaunchResult, credential: Credential) -> str | None
@@ -1154,6 +1154,7 @@ class Backend(abc.ABC)
         *,
         env: dict[str, str] | None = None,
         label: str = '',
+        cwd: Path | None = None,
     ) -> CredentialBinding
     def catalogue(self) -> set[str] | None
     catalogue_timeout_s: float = 30.0
@@ -1248,7 +1249,7 @@ class CallUsage
 
 class ClaudeBackend(ResumeById, Backend)
     def __init__(self, binary: str = 'claude', base_env: dict[str, str] | None = None)
-    def account(self, credential: Credential, model: str = '') -> str
+    def account(self, credential: Credential, model: str = '', *, cwd: Path | None = None) -> str
     def argv(self, launch: Launch) -> list[str]
     def attest(self, launch_result: LaunchResult, credential: Credential) -> str | None
     binary = 'claude'
@@ -1259,6 +1260,7 @@ class ClaudeBackend(ResumeById, Backend)
         *,
         env: dict[str, str] | None = None,
         label: str = '',
+        cwd: Path | None = None,
     ) -> CredentialBinding
     cost_is_session_total = True
     def discard_session(self, launch: Launch, session_id: str) -> None
@@ -1289,6 +1291,7 @@ class CodexBackend(ResumeById, Backend)
         *,
         env: dict[str, str] | None = None,
         label: str = '',
+        cwd: Path | None = None,
     ) -> CredentialBinding
     def codex_home(self, launch: Launch) -> Path
     def discard_session(self, launch: Launch, session_id: str) -> None
@@ -1597,7 +1600,7 @@ class OmpBackend(Backend)
         thinking: str = 'medium',
         trace: bool = True,
     )
-    def account(self, credential: Credential, model: str = '') -> str
+    def account(self, credential: Credential, model: str = '', *, cwd: Path | None = None) -> str
     def argv(self, launch: Launch) -> list[str]
     binary = 'omp'
     def bind_credential(
@@ -1607,6 +1610,7 @@ class OmpBackend(Backend)
         *,
         env: dict[str, str] | None = None,
         label: str = '',
+        cwd: Path | None = None,
     ) -> CredentialBinding
     drivable_model_chain = False
     effort_levels: tuple[str, ...] | None = ('off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'auto')
@@ -1646,7 +1650,7 @@ class OmpRpcBackend(OmpBackend)
 
 class OpencodeBackend(OpencodeKeyAccount, Backend)
     PERMISSION_OF: Mapping[str, str] = MappingProxyType({'Bash': 'bash', 'Read': 'read', 'Write': 'edit', 'Edit': 'edit', 'MultiEdit': 'edit', 'NotebookEdit': 'edit', 'Glob': 'glob', 'Grep': 'grep', 'LS': 'list', 'WebFetch': 'webfetch', 'WebSearch': 'websearch', 'Skill': 'skill', 'Agent': 'task', 'Task': 'task', 'TodoWrite': 'todowrite'})
-    def account(self, credential: Credential, model: str = '') -> str
+    def account(self, credential: Credential, model: str = '', *, cwd: Path | None = None) -> str
     def argv(self, launch: Launch) -> list[str]
     def billed_key(self, credential: Credential, model: str) -> tuple[str, str]
     binary = 'opencode'
@@ -1657,6 +1661,7 @@ class OpencodeBackend(OpencodeKeyAccount, Backend)
         *,
         env: dict[str, str] | None = None,
         label: str = '',
+        cwd: Path | None = None,
     ) -> CredentialBinding
     catalogue_timeout_s: float = 60.0
     def config(self, launch: Launch) -> dict[str, Any]
@@ -1683,7 +1688,7 @@ class PiBackend(OpencodeKeyAccount, Backend)
         thinking: str = 'medium',
         agent_dirs: Path | None = None,
     )
-    def account(self, credential: Credential, model: str = '') -> str
+    def account(self, credential: Credential, model: str = '', *, cwd: Path | None = None) -> str
     agent_dirs: Path
     def argv(self, launch: Launch) -> list[str]
     def billed_key(self, credential: Credential, model: str) -> tuple[str, str]
@@ -1695,6 +1700,7 @@ class PiBackend(OpencodeKeyAccount, Backend)
         *,
         env: dict[str, str] | None = None,
         label: str = '',
+        cwd: Path | None = None,
     ) -> CredentialBinding
     effort_levels: tuple[str, ...] | None = ('off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max')
     def env(self, launch: Launch) -> dict[str, str]
@@ -1822,7 +1828,7 @@ class AgentRunner
         enrichers: Sequence[ResultEnricher] = (),
         rests: CredentialRests | None = None,
     )
-    def account_of(self, backend: Backend, credential: Credential, model: str) -> str
+    def account_of(self, backend: Backend, credential: Credential, model: str, cwd: Path | None = None) -> str
     adapter: TaskAdapter
     def backend_for_route(self, task: Task, route: Route | None) -> Backend
     backends: dict[str, Backend]
@@ -2245,6 +2251,7 @@ class RoutingPlan
         routers: dict[str, Router] = dict(),
         overrides: Overrides = Overrides(),
         credentials: dict[str, Credential] = dict(),
+        cwd: Path | None = None,
     ) -> None
     backends: Mapping[str, Backend]
     @classmethod
@@ -2261,11 +2268,13 @@ class RoutingPlan
         light: Iterable[str] = (),
         budgets_required: bool = True,
         all_kinds: bool = True,
+        cwd: Path | None = None,
     ) -> RoutingPlan
-    def call_problems(self, kind: str, credential: str) -> list[str]
+    def call_problems(self, kind: str, credential: str, cwd: Path | None = None) -> list[str]
     config: PipelineConfig
     configs: dict[str, KindConfig] = field(default_factory=dict)
     credentials: dict[str, Credential] = field(default_factory=dict)
+    cwd: Path | None = None
     def log(self) -> None
     overrides: Overrides = Overrides()
     def preflight(self, policy: PreflightPolicy) -> PreflightRecord
@@ -3799,6 +3808,7 @@ class StubAgent(Backend)
         *,
         env: dict[str, str] | None = None,
         label: str = '',
+        cwd: Path | None = None,
     ) -> CredentialBinding
     default
     delay_s

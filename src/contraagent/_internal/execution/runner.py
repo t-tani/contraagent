@@ -218,8 +218,8 @@ class AgentRunner:
         self.rests = rests
         self._changes = ChangesEnricher(self.adapter.changes, self.cwd, keep=self._keeps_failed_changes)
         self._defined: set[str] = set()
-        # The account each coding agent bills as each credential for a model, asked once a run.
-        self._accounts: dict[tuple[str, str, str], str] = {}
+        # The account each coding agent bills as each credential for a model in a directory, asked once a run.
+        self._accounts: dict[tuple[str, str, str, Path], str] = {}
         self._accounts_lock = threading.Lock()
         # (kind, a task call's credential) -> (the kind's router it was made from, its own router).
         self._call_routers: dict[tuple[str, str], tuple[Router | None, Router | None]] = {}
@@ -338,15 +338,16 @@ class AgentRunner:
     def _credential_name(self, task: Task, route: Route | None) -> str:
         return (route.credential if route is not None and route.credential else "") or self.config(task).credential or "ambient"
 
-    def account_of(self, backend: Backend, credential: Credential, model: str) -> str:
-        """The account `backend` bills as `credential` for `model` (`Backend.account`), asked
-        once a run; '' when it cannot tell."""
-        key = (backend.name, credential.label, model)
+    def account_of(self, backend: Backend, credential: Credential, model: str, cwd: Path | None = None) -> str:
+        """The account `backend` bills as `credential` for `model`, launched in `cwd`
+        (`Backend.account`; None: the runner's `cwd`), asked once a run; '' when it cannot tell."""
+        where = Path(cwd) if cwd is not None else self.cwd
+        key = (backend.name, credential.label, model, where)
         with self._accounts_lock:
             if key in self._accounts:
                 return self._accounts[key]
         try:
-            found = backend.account(credential, model)
+            found = backend.account(credential, model, cwd=where)
         except Exception:  # an account that cannot be told only loses the distinction
             found = ""
         with self._accounts_lock:
@@ -360,10 +361,11 @@ class AgentRunner:
         """`account(credential)` for a launch of this task on `route` (`CredentialRests.rests`)."""
         backend = self.backend_for_route(task, route)
         model = self._model_on(task, route)
+        cwd = self._cwd_of(task)
 
         def account(name: str) -> str:
             cred = self.credentials.get(name)
-            return self.account_of(backend, cred, model) if cred is not None else ""
+            return self.account_of(backend, cred, model, cwd) if cred is not None else ""
 
         return account
 
@@ -756,7 +758,7 @@ class AgentRunner:
             reading = launch_result.quota[i] = reading.model_copy(
                 update={
                     "credential": reading.credential or launch_result.credential or credential.label,
-                    "account": reading.account or self.account_of(backend, credential, launch.model),
+                    "account": reading.account or self.account_of(backend, credential, launch.model, launch.cwd),
                 }
             )
             if self.rests is not None:
