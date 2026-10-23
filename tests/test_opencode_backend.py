@@ -24,6 +24,15 @@ if os.environ.get("FAKE_QUOTA"):
     time.sleep(60)  # opencode waits as long as the provider asks
 def send(typ, **part):
     print(json.dumps({"type": typ, "sessionID": "ses_1", "part": {"messageID": part.pop("message", "m1"), **part}}), flush=True)
+if os.environ.get("FAKE_OUT"):  # writes its output file, then ends the turn on an empty message
+    send("step_start", type="step-start")
+    open(os.environ["FAKE_OUT"], "w").write('{"word": "pelican"}')
+    send("tool_use", type="tool", tool="apply_patch", callID="c1", state={"status": "completed", "input": {}, "output": "Success."})
+    send("step_finish", type="step-finish", reason="tool-calls", tokens={"input": 10, "output": 5})
+    send("step_start", type="step-start", message="m2")
+    send("text", type="text", text="", message="m2")
+    send("step_finish", type="step-finish", reason=os.environ.get("FAKE_REASON", "stop"), message="m2", tokens={"input": 20, "output": 1})
+    sys.exit(0)
 for n in (1, 2):
     send("step_start", type="step-start")
     if n == 1:
@@ -71,6 +80,19 @@ def test_a_launch_runs_with_its_key_alone(opencode, tmp_path):
     assert env["OPENCODE_DB"] == ":memory:"  # the session stays out of the user's database
     assert env["PWD"] == str(tmp_path.resolve())  # opencode's directory is PWD, not the process's
     assert seen["argv"][-2:] == ["--", "-hello"] and "--title=t" in seen["argv"]
+
+
+def test_a_turn_that_ends_on_an_empty_message_after_writing_its_output_completes(opencode, tmp_path):
+    """A model may end its turn with no text once its output file is written: the turn's end
+    (`step_finish` with reason `stop`) completes the launch, and the contract check reads the
+    file. A turn cut short (`length`) with no text has no result."""
+    out = tmp_path / "a.json"
+    result, _ = opencode(Launch(prompt="x", label="t", model="openai/m", cwd=tmp_path, env={"FAKE_OUT": str(out)}))
+    assert result.stop == Stop.COMPLETED and result.ok, result.stderr_tail
+    assert result.result_text == "" and json.loads(out.read_text()) == {"word": "pelican"}
+    env = {"FAKE_OUT": str(out), "FAKE_REASON": "length"}
+    cut, _ = opencode(Launch(prompt="x", label="t", model="openai/m", cwd=tmp_path, env=env))
+    assert cut.stop == Stop.NO_OUTPUT and not cut.ok
 
 
 def test_a_quota_refusal_in_the_log_ends_the_launch(opencode, tmp_path):
