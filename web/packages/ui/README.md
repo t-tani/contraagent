@@ -98,7 +98,7 @@ its screenshot, fed with the same run.
 
 ![The task definitions of a run: each kind with its role or Python, its tasks and attempts; for review, its plugin directory, output and role file](docs/images/definitions.webp)
 
-`<ca-kpis>` (`kpis`): the run's totals.
+`<ca-kpis>` (`kpis`): the run's totals. A tile that counts tasks or attempts is a link to them, and `no-highest-cost` leaves the kind with the highest cost out of the cost tile, for a page that shows the cost by kind beside it.
 
 ![The totals of a run: tasks, attempts, cost, tokens, failed attempts, not started, agent session time, retries, corrections and model switches](docs/images/kpis.webp)
 

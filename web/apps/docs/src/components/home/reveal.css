@@ -57,8 +57,6 @@
 .ca-runner .card:nth-child(2) { --sx: 4rem; --sy: 6rem; --sr: 5deg; }
 .ca-runner .card:nth-child(3) { --sx: -5rem; --sy: 3rem; --sr: 4deg; }
 .ca-runner .card:nth-child(4) { --sx: 3rem; --sy: 5rem; --sr: -5deg; }
-.ca-runner .card:nth-child(5) { --sx: -2rem; --sy: 7rem; --sr: -3deg; }
-.ca-runner .card:nth-child(6) { --sx: 5rem; --sy: 4rem; --sr: 6deg; }
 
 @media (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: view()) {

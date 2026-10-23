@@ -49,7 +49,7 @@ from contraagent._internal.execution.runner import AgentRunner, RetryingRunner
 from contraagent._internal.execution.services import Service, Services
 from contraagent._internal.pipeline.adapter import SpecAdapter
 from contraagent._internal.pipeline.check import CheckReport, check_flow
-from contraagent._internal.pipeline.graph import MAX_PASSES, Graph
+from contraagent._internal.pipeline.graph import MAX_PASSES, Graph, called_as
 from contraagent._internal.pipeline.reach import reachable
 from contraagent._internal.routing.config import ConfigError, PerTask, PipelineConfig
 from contraagent._internal.routing.plan import Overrides, RoutingError, RoutingPlan, call_credential_problems, check_task_tables
@@ -632,7 +632,7 @@ class Pipeline:
                     specs = graph.agent_specs()
                     if not driven:  # an async flow's kinds are known at its end (below)
                         _check_tables(self.config, specs, graph)
-                    plan = RoutingPlan.build(
+                    plan = RoutingPlan._build(
                         self.config,
                         list(specs),
                         self.backends,
@@ -642,13 +642,15 @@ class Pipeline:
                         requirements={kind: spec.requires for kind, spec in specs.items()},
                         light=[kind for kind, spec in specs.items() if spec.light],
                         all_kinds=False,
+                        cwd=self.cwd,
                     )
-                    # The task calls so far that name a credential, refused before anything launches.
+                    # The task calls so far that name a credential or a working directory, refused
+                    # before anything launches.
                     refused = [
-                        f"{node.key}: credential={node.credential!r}: {problem}"
+                        f"{node.key}: {called_as(node.credential, node.cwd)}: {problem}"
                         for node in graph.nodes
-                        if node.credential
-                        for problem in plan.call_problems(node.spec.kind, node.credential)
+                        if node.credential or node.cwd is not None
+                        for problem in plan._call_problems(node.spec.kind, node.credential, node.cwd)
                     ]
                     if refused:
                         raise RoutingError(*refused)
@@ -688,8 +690,14 @@ class Pipeline:
                         enrichers=enrichers,
                     )
                     graph.new_kind = lambda spec: self._route(spec, runner)
-                    graph.check_credential = lambda kind, credential: call_credential_problems(
-                        runner.configs[kind], runner.routers.get(kind), credential, plan.credentials, self.backends, self.overrides
+                    graph.check_credential = lambda kind, credential, cwd: call_credential_problems(
+                        runner.configs[kind],
+                        runner.routers.get(kind),
+                        credential,
+                        plan.credentials,
+                        self.backends,
+                        self.overrides,
+                        cwd or self.cwd,
                     )
                     queue = run.queue(
                         _AsStarting(
@@ -770,7 +778,7 @@ class Pipeline:
         """Route a kind while the run runs: one first created then, or one created by another
         declaration than the reachable one routed before the first launch. A config problem
         raises at its task call."""
-        plan = RoutingPlan.build(
+        plan = RoutingPlan._build(
             self.config,
             [spec.kind],
             self.backends,
@@ -780,6 +788,7 @@ class Pipeline:
             requirements={spec.kind: spec.requires},
             light=[spec.kind] if spec.light else [],
             all_kinds=False,
+            cwd=self.cwd,
         )
         plan.log()
         runner.configs = {**runner.configs, **plan.configs}

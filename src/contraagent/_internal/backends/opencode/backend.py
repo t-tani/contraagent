@@ -446,8 +446,10 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
     def read_models(self) -> dict[str, int | None] | None:
         """Model ids and their context windows from `opencode models --verbose`
         (`catalogue`), or None when it cannot be read. opencode lists a window for each
-        model (`limit.context`): exact."""
-        out = self.run_catalogue(*catalogue.ARGS)
+        model (`limit.context`): exact. Read with `DEFAULT_ENV`, as a launch runs: no project
+        config, so a provider that the `opencode.json` of this process's directory adds is not
+        listed."""
+        out = self.run_catalogue(*catalogue.ARGS, env=DEFAULT_ENV)
         return (catalogue.parse_models(out) or None) if out is not None else None
 
 

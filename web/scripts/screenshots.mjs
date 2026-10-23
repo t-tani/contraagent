@@ -123,7 +123,7 @@ const SHOTS = [
     ready: 'ca-task-view',
     clip: async (page) => [
       await card(page, 'ca-task-view .taskmeta'),
-      await between(page, 'ca-task-view', /^Agent sessions$/, /^Output failed checks$/, 1),
+      await between(page, 'ca-task-view', '[part="picker"]', /^Output failed checks$/, 1),
     ],
   },
   {
@@ -158,7 +158,7 @@ const SHOTS = [
     ready: 'ca-task-view',
     clip: async (page) => [
       await card(page, 'ca-task-view .taskmeta'),
-      await between(page, 'ca-task-view', /^Agent sessions$/, /^Agent sessions$/),
+      await between(page, 'ca-task-view', '[part="picker"]', '[part="picker"]'),
     ],
   },
   {
@@ -203,13 +203,16 @@ const pad = (b, m) => box(b.x - m, b.y - m, b.width + 2 * m, b.height + 2 * m);
 /** A card (a `section`) with a margin, so that its border and its shadow show. */
 const card = async (page, selector) => pad(await boxOf(page, selector), 10);
 /**
- * The width of `selector`, from the element inside it whose text matches `from` down to the
- * one that matches `to` (with `block`, the block that holds it), with a margin.
+ * The width of `selector`, from the element inside it that `from` names (its text, or a CSS
+ * selector) down to the one that `to` names
+ * (with `block`, the block that holds it), with a margin.
  */
 async function between(page, selector, from, to, block = 0) {
   const outer = await boxOf(page, selector);
-  const start = await page.locator(selector).getByText(from).first().boundingBox();
-  const found = page.locator(selector).getByText(to).first();
+  // A text, or (a string) a CSS selector inside `selector`.
+  const within = (x) => (typeof x === 'string' ? page.locator(selector).locator(x) : page.locator(selector).getByText(x)).first();
+  const start = await within(from).boundingBox();
+  const found = within(to);
   const end = await (block ? found.locator('xpath=..') : found).boundingBox();
   if (!start || !end) throw new Error(`${selector}: ${from} or ${to} is not on the page`);
   return box(outer.x, start.y - 12, outer.width, bottom(end) - start.y + 24);

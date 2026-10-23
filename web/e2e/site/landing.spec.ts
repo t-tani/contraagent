@@ -16,7 +16,7 @@
 // On a phone (390×844 and 360×740, light and dark, with motion and with reduced
 // motion): the page stays within a height budget and nothing in it is wider than the
 // screen; the replay is one stage within the screen under the header, its tabs follow
-// the run until the reader picks one, and its moments open from their disclosure; the
+// the run until the reader picks one, and its moments are listed under it; the
 // steps are a carousel that scrolls a card at a time, by a swipe and by its buttons,
 // whose long outputs open in full; a fast flick of a finger moves it one card, long
 // or short, and a finger up or down scrolls the page; and its controls are at least
@@ -238,7 +238,7 @@ async function phone(browser: Browser, [width, height]: readonly [number, number
 async function smallTargets(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const small: string[] = [];
-    for (const sel of ['.rr-tabs [role="tab"]', '.rr-toggle', '.rr-more > summary', '.how-go', '.how-more', '.ca-primary', '.ca-secondary'])
+    for (const sel of ['.rr-tabs [role="tab"]', '.rr-toggle', '.how-go', '.how-more', '.ca-primary', '.ca-secondary', '.ca-down'])
       for (const e of document.querySelectorAll<HTMLElement>(sel)) {
         const r = e.getBoundingClientRect();
         if (r.width > 0 && r.height < 44) small.push(`${sel} ${Math.round(r.height)}`);
@@ -256,8 +256,8 @@ for (const size of PHONES)
         await settleOnClock(page);
         expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(PHONE_BUDGET);
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(size[0]);
-        // The page's parts (not their lights and veils, which reach past them on purpose, nor the arrows between the loop's words).
-        expect(await overflows(page, '.ca-hero-inner, .rr-window, .rr-more, .rr-lede, .how-lede, .how-steps, .how-nav, .ca-runner, .ca-start .sl-link-card')).toEqual([]);
+        // The page's parts (not their lights and veils, which reach past them on purpose).
+        expect(await overflows(page, '.ca-hero-inner, .rr-window, .rr-moments, .how-steps, .how-nav, .ca-runner, .ca-start .sl-link-card')).toEqual([]);
         // The replay: one stage within the screen under the header, nothing in it cut off or too wide.
         await page.locator('.rr-window').evaluate((e) => e.scrollIntoView({ block: 'center' }));
         await settleOnClock(page);
@@ -280,6 +280,12 @@ for (const size of PHONES)
     await expect(tab('Graph')).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
     await expect(page.getByRole('tabpanel')).toHaveAttribute('id', 'rr-panel-graph');
     await expect(page.locator('.rr-graph ca-pipeline-graph')).toBeVisible();
+    // The graph is only shown: no outline, no open controls, no zoom buttons and no view switch.
+    const graph = page.locator('.rr-graph');
+    for (const name of ['Show all inside', 'Hide all inside', 'Zoom in', 'Zoom out'])
+      await expect(graph.getByRole('button', { name, exact: true })).toHaveCount(0);
+    await expect(graph.getByRole('radiogroup')).toHaveCount(0);
+    await expect(graph.getByText('Outline of the flow')).toHaveCount(0);
     await expect(tab('Transcript')).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
     // The reader picks the code, by the keyboard: it stays while the run plays on.
     await tab('Transcript').focus();
@@ -307,12 +313,10 @@ for (const size of PHONES)
     });
     expect(tops.length).toBeGreaterThan(3);
     expect(new Set(tops).size).toBe(1);
-    // The moments: folded, and opened from their summary.
-    const more = page.locator('.rr-more');
-    await expect(more).not.toHaveAttribute('open');
-    await expect(page.getByRole('list', { name: 'What happened in the run' })).toBeHidden();
-    await more.locator('summary').click();
-    await expect(page.getByRole('list', { name: 'What happened in the run' })).toBeVisible();
+    // The moments: listed under the window, the latest one the replay reached lit.
+    const moments = page.getByRole('list', { name: 'What happened in the run' });
+    await expect(moments).toBeVisible();
+    await expect(moments.locator('.rr-now')).toHaveCount(1);
     await context.close();
   });
 
@@ -419,20 +423,18 @@ for (const size of PHONES)
       await expect(page.getByRole('group', { name: 'Steps' })).toBeVisible();
       await expect(count).toHaveText(/^Step 1 of 7: Install contraagent$/);
       await expect(prev).toHaveAttribute('aria-disabled', 'true');
-      // The buttons: a card at a time, the loop lighting up to the card's step.
+      // The buttons: a card at a time.
       await next.click();
       await expect(count).toContainText('Step 2 of 7');
       await expectStep(page, centredStep, 1);
       for (let k = 2; k < 7; k++) await next.click();
       await expect(count).toContainText('Step 7 of 7');
       await expect(next).toHaveAttribute('aria-disabled', 'true');
-      await expect(page.locator('.how-loop-step.is-on')).toHaveCount(5);
       // The keyboard: the button before, by Enter, while the list may still be on its way to
       // the last card; the scroll below comes once the list is at the card before it.
       await prev.focus();
       await page.keyboard.press('Enter');
       await expect(count).toContainText('Step 6 of 7');
-      await expect(page.locator('.how-loop-step.is-on')).toHaveCount(4);
       await expectStep(page, arrivedStep, 5);
       // A scroll the steps did not start, part of a card back (a trackpad's, or a script's): the
       // list snaps to the card before, not between two, and that card is the step.

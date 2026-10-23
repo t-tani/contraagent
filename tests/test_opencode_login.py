@@ -193,7 +193,7 @@ def test_omp_bills_the_key_of_its_env_files_and_says_they_break_isolation(tmp_pa
     assert be.account(Subscription(name="oc", provider="opencode-go"), GO_MODEL) == login.account_of_key(KEY)
     mine = OmpBackend(base_env={**env, "MINE": OTHER})
     assert mine.account(ApiKey(name="k", provider="opencode-go", key="env:MINE"), GO_MODEL) == login.account_of_key(OTHER)
-    assert set(dotenv_credentials(env)) == {"OPENCODE_API_KEY", "LITELLM_BASE_URL"}  # a gateway's endpoint picks the bill too
+    assert set(dotenv_credentials(env, (), tmp_path)) == {"OPENCODE_API_KEY", "LITELLM_BASE_URL"}  # a gateway's endpoint picks the bill too
     # An isolated launch whose provider's variable comes back from a .env file is not isolated.
     gw = be.bind_credential(Gateway(name="g", provider="litellm", base_url="https://other"), "litellm/m", env=env)
     assert gw.isolated is True  # the binding sets LITELLM_BASE_URL itself

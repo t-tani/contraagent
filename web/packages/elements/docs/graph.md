@@ -37,7 +37,8 @@ solid is drawn, and the node table gives a column each. A node's `expected` is a
 count of items not in it yet, drawn after its marks in a dotted outline.
 
 A cluster is a box of nodes (and of other clusters). A cluster that `cycle`s draws
-a return from its last layer to its first; an edge with `ranks: false` closes that
+a return from its last layer to its first, and an icon before its name whose
+tooltip is `strings.cycle`; an edge with `ranks: false` closes that
 cycle: it never sets the layers and is not drawn. An edge may join items in
 different clusters, at any depth: it leaves and enters each box on its way.
 
@@ -82,6 +83,9 @@ does not select by itself: the host sets `selected`. Enter or a double click sen
 `cae-activate`, or `cae-drill` for an item with `drill` (an inner view). "Graph |
 Table" sends `cae-view-change`: the table is a row per node with the nodes it is
 joined to. With `matrix`, the frame shows a [mark matrix](matrix.md) as the table.
+With `controls` set to false, the row under the frame has no zoom buttons and no
+"Graph | Table", for a graph that is only shown; the wheel with Ctrl or ⌘ and
+dragging still zoom and pan.
 
 The card of the selected item is the host's content in the `inspector` slot,
 beside the item in the frame; its first heading and its `[data-status]` element

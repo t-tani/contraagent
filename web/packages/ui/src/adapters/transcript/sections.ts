@@ -9,7 +9,7 @@ import { attemptNames } from '../../words/attempts.js';
 import { roundLabel, roundMark, switchText } from '../../words/rounds.js';
 import { stopLabel } from '../../words/stop.js';
 import type { Transcript } from './model.js';
-import { whoTags } from './who.js';
+import { whoTags, type Who } from './who.js';
 
 export interface SectionsContext {
   /** The run id: paths in a reason are shown relative to it. */
@@ -18,6 +18,14 @@ export interface SectionsContext {
   rows: readonly JournalRow[];
   /** The latest round is still being written (the task runs and its transcript is tailed). */
   active: boolean;
+  /** Who the page names already (the task's header): a section's head shows only what differs from it. */
+  shownWho?: Who | null;
+}
+
+/** What of `who` differs from `shown`: the agent, model and role the reader has not seen yet. */
+export function whoBeyond(who: Who | null | undefined, shown: Who | null | undefined): Who | null {
+  if (!who || !shown) return who ?? null;
+  return { agent: who.agent === shown.agent ? '' : who.agent, model: who.model === shown.model ? '' : who.model, role: who.role === shown.role ? '' : who.role };
 }
 
 /** The command line, and the prompt with what was not saved of it. */
@@ -72,7 +80,7 @@ export function transcriptSections(t: Transcript, rounds: readonly RoundInfo[], 
       facts: model ? [model.replace(/^claude-/, '')] : [],
       verdict: mark ? { tone: mark === '✓' ? 'done' : 'failed', text: word, tip } : undefined,
       active: i === last && ctx.active,
-      tags: r.launch ? whoTags(r.who) : [],
+      tags: r.launch ? whoTags(whoBeyond(r.who, ctx.shownWho)) : [],
       details: r.launch ? launchDetails(r.launch) : [],
       // the model leaves an event's title to the reader's words: the only event is an API request sent again
       items: r.items.map((it): TranscriptItem => (it.type === 'event' ? { ...it, title: msg('API request sent again') } : it)),

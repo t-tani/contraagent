@@ -37,6 +37,22 @@ describe('journalColumns', () => {
     );
     expect(cell(rows[1]!).textContent).not.toContain('safety');
   });
+
+  it('names an identity every attempt shares once, in the header; the rows name it only when they differ', () => {
+    const draw = (rows: JournalRow[]) => {
+      const agent = journalColumns({ run: 'r', outcomes: new Map(), journal: rows, rows }).find((c) => c.id === 'agent')!;
+      const box = document.createElement('div');
+      render(agent.cell(rows[0]!, 0), box);
+      return { agent, text: [...box.querySelectorAll('.two > span')].map((s) => s.textContent.trim()).join(' | ') };
+    };
+    const same = draw([row('write-a', { agent: 'claude', credential: 'ambient' }), row('write-b', { agent: 'claude', credential: 'ambient' })]);
+    expect(same.agent.header).toBe('Agent, model');
+    expect(same.agent.tip).toBe('Identity: default\nlocal credentials (ambient)');
+    expect(same.text).toBe('claude');
+    const two = draw([row('write-a', { agent: 'claude', credential: 'ambient' }), row('write-b', { agent: 'claude', credential: 'work' })]);
+    expect(two.agent.header).toBe('Agent, model, identity');
+    expect(two.text).toBe('claude | default');
+  });
 });
 
 describe('customValue', () => {

@@ -3,8 +3,8 @@
     python3 web/apps/docs/scripts/how_css.py
 
 Each of the scene's stages owns its share (WEIGHTS) of the scroll through the
-scene's track; the rules here depend on those shares: which panel, step and words
-of the loop show at each point of the scroll, as scroll-driven animations, and as
+scene's track; the rules here depend on those shares: which panel and step show at
+each point of the scroll, as scroll-driven animations, and as
 the states the fallback reaches by transitions (how-scene.ts sets data-stage and
 data-sub), while the scene is pinned (not .how-flat: how-scene.ts sets it when the
 steps do not fit the screen). The rest of the scene's style is how.css. WEIGHTS is HowItWorks.astro's
@@ -17,8 +17,6 @@ from pathlib import Path
 #: Each stage's share of the scroll: the check stage, which goes through three states, has two.
 WEIGHTS = [1, 1, 1, 1, 2, 1, 1]
 N = len(WEIGHTS)
-#: The stage from which each word of the agent's loop is lit: write, check, fix, stub run, done.
-LOOP = [3, 4, 4, 5, 6]
 #: The check stage, and how far its terminal scrolls in its second and third states.
 CHECK = 4
 SCROLL = ("-22%", "-47%")
@@ -41,7 +39,7 @@ def css() -> str:
     # The rules of the pinned scene: on a wide screen with motion, unless the steps do not fit the screen (how-flat).
     out: list[str] = [
         "  @supports (animation-timeline: view()) {",
-        "    .how-stage, .how-text, .how-glow, .how-n::after, .how-words, .how-loop-step::before,",
+        "    .how-stage, .how-text, .how-glow, .how-n::after, .how-words,",
         "    .how-rail-fill, .how-depth, .slip, .term-loop, .run-mark {",
         "      animation-timing-function: linear;",
         "      animation-fill-mode: both;",
@@ -57,9 +55,6 @@ def css() -> str:
             f"    .how-step[data-k='{k}'] .how-glow, .how-step[data-k='{k}'] .how-n::after {{ animation-name: how-on-{k}; }}",
             f"    .how-step[data-k='{k}'] .how-words {{ animation-name: how-words-{k}; }}",
         ]
-    for j, frm in enumerate(LOOP):
-        name = f"how-loop-{frm}{'b' if j and LOOP[j - 1] == frm else ''}"
-        out.append(f"    .how-loop-step:nth-child({j + 1})::before {{ animation-name: {name}; }}")
     out += [
         "    .slip-1 { animation-name: how-slip-1; }",
         "    .slip-2 { animation-name: how-slip-2; }",
@@ -80,7 +75,6 @@ def css() -> str:
         "    }",
         "    .how-glow, .how-n::after { transition: opacity 0.4s ease; }",
         "    .how-words { opacity: 0.55; transition: opacity 0.4s ease; }",
-        "    .how-loop-step::before { opacity: 0; transition: opacity 0.4s ease; }",
         "    .how-rail-fill { transform: scaleY(var(--how-p)); }",
         "    .how-track:not([data-stage]) .how-stage[data-k='0'],",
         "    .how-track:not([data-stage]) .how-step[data-k='0'] .how-text { opacity: 1; transform: none; }",
@@ -94,9 +88,6 @@ def css() -> str:
             f"    {on} .how-step[data-k='{k}'] .how-glow,",
             f"    {on} .how-step[data-k='{k}'] .how-n::after {{ opacity: 1; }}",
         ]
-    for j, frm in enumerate(LOOP):
-        sel = ",\n    ".join(f".how-track[data-stage='{s}'] .how-loop-step:nth-child({j + 1})::before" for s in range(frm, N))
-        out.append(f"    {sel} {{ opacity: 1; }}")
     out += [
         "    /* The check stage's three states (0: the problems, 1: the fix, 2: the check passes). */",
         "    .slip, .term-loop { transition: opacity 0.4s ease, transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }",
@@ -135,12 +126,8 @@ def css() -> str:
             on.append(f"{pct(b + 1)}, 100% {{ opacity: 0; }}")
         out.append(f"@keyframes how-on-{k} {{ " + " ".join(on) + " }")
         out.append(f"@keyframes how-words-{k} {{ " + " ".join(s.replace("opacity: 0;", "opacity: 0.55;") for s in on) + " }")
-    for frm in sorted(set(LOOP)):
-        a, _ = window(frm)
-        out.append(f"@keyframes how-loop-{frm} {{ 0%, {pct(a - 1)} {{ opacity: 0; }} {pct(a + 1)}, 100% {{ opacity: 1; }} }}")
     t1, t2 = a4 + third, a4 + 2 * third
     out += [
-        f"@keyframes how-loop-{CHECK}b {{ 0%, {pct(t1 - 1)} {{ opacity: 0; }} {pct(t1 + 1)}, 100% {{ opacity: 1; }} }}",
         "@keyframes how-scroll {",
         f"  0%, {pct(t1 - 1)} {{ transform: none; }}",
         f"  {pct(t1 + 1)}, {pct(t2 - 1)} {{ transform: translate3d(0, {SCROLL[0]}, 0); }}",

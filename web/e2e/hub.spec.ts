@@ -82,7 +82,7 @@ test.describe('a hub', () => {
     await expect(button).toHaveAccessibleName(/Host h2/);
     const driver = page.locator('ca-run-driver');
     await expect(driver.locator('.drv-t')).toHaveText('No report from host');
-    await expect(driver.locator('.meta')).toContainText(/Last report .+ \| Last activity .+ \| Run group docs \| Host h2/);
+    await expect(driver.locator('.meta')).toHaveText(/^Last report .+ \| Last activity .+ \| Host h2$/);
     await page.goto(`${HUB}/?run=docs@h2&tab=procs`);
     await expect(page.locator('ca-procs-view .blank b')).toHaveText('No processes | no report from host');
   });

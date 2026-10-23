@@ -358,6 +358,10 @@ class Backend(abc.ABC):
         Its output goes to a file, not a pipe: a CLI that exits before a pipe drains (opencode,
         whose list is longer than a pipe holds, under load) would leave a list cut short,
         read as models that are not there."""
+        return self._run_catalogue_in(None, *args, env=env)
+
+    def _run_catalogue_in(self, cwd: Path | None, *args: str, env: dict[str, str] | None = None) -> str | None:
+        """`run_catalogue` with the agent run in `cwd` (None: this process's directory)."""
         if not shutil.which(self.binary, path=self.base_path()):
             return None
         with tempfile.TemporaryFile() as out:
@@ -369,6 +373,7 @@ class Backend(abc.ABC):
                     timeout=self.catalogue_timeout_s,
                     env={**self._base_env, **(env or {}), "NO_COLOR": "1"},
                     stdin=subprocess.DEVNULL,
+                    cwd=cwd,
                 )
             except (OSError, subprocess.SubprocessError):
                 return None
@@ -451,6 +456,21 @@ class Backend(abc.ABC):
         way; cheap enough to ask once per credential per run."""
         return ""
 
+    # contraagent asks these two for a launch in a known directory (`Launch.cwd`, the run's
+    # or a task call's working directory). An agent that reads files of its working
+    # directory at start (omp's `.env`) overrides them; every other agent answers as its
+    # `bind_credential` and `account` do, which a custom backend overrides.
+
+    def _bind_credential_in(
+        self, cwd: Path, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
+    ) -> CredentialBinding:
+        """`bind_credential` for a launch that runs in `cwd`."""
+        return self.bind_credential(credential, model, env=env, label=label)
+
+    def _account_in(self, cwd: Path, credential: Credential, model: str = "") -> str:
+        """`account` for a launch that runs in `cwd`."""
+        return self.account(credential, model)
+
     def attest(self, launch_result: LaunchResult, credential: Credential) -> str | None:
         """After a launch: a reason when the agent reports using a different credential than
         `credential`, else None. Default: the agent reports nothing to check against."""
@@ -483,6 +503,12 @@ class Backend(abc.ABC):
         """
         listed = self.models()
         return set(listed) if listed is not None else None
+
+    def _catalogue_in(self, cwd: Path) -> set[str] | None:
+        """`catalogue` as the agent lists it when it runs in `cwd`, the directory its
+        launches run in. An agent whose list depends on files of its working directory
+        (omp's `.env`) overrides it; every other agent answers as its `catalogue` does."""
+        return self.catalogue()
 
     def context_window(self, model: str) -> int | None:
         """The context window the agent's catalogue (`models`) lists for `model`, the

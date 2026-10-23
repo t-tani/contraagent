@@ -68,7 +68,6 @@
 }
 .ca-start section { display: flex; flex-direction: column; gap: 0.75rem; }
 .ca-start h3 { margin: 0; font-size: var(--sl-text-xl); color: var(--sl-color-white); }
-.ca-start p { margin: 0; color: var(--sl-color-gray-3); font-size: var(--sl-text-sm); }
 .ca-start .sl-link-card { margin: 0; }
 
 /* A narrow screen: the landing page's sections closer together, their cards compact. */

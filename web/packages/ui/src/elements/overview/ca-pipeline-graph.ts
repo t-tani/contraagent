@@ -102,7 +102,9 @@ const EMPTY_LAYER: LayerGraph = {
  * of passes or by status (`<cae-mark-matrix>`). The breadcrumb, shown on every layer
  * below the top (a loop named by its file and line), and Escape go back up. On a
  * narrow screen the graph runs top to bottom. "Graph | Table" changes the view; in a
- * loop's passes, "Graph" opens the layer the loop is in, with its box selected.
+ * loop's passes, "Graph" opens the layer the loop is in, with its box selected. With
+ * `controls` false, the graph is only shown: no outline, no "Show all inside" and
+ * "Hide all inside", no zoom buttons and no "Graph | Table".
  * A height set on the element (or given it by a flex or grid container) is the
  * graph's, less the outline's line above it: the drawing fits in it.
  *
@@ -119,6 +121,7 @@ export class CaPipelineGraph extends LitElement {
     journal: { attribute: false },
     run: {},
     live: { type: Boolean },
+    controls: { type: Boolean },
     layer: {},
     unit: {},
     sel: {},
@@ -139,6 +142,8 @@ export class CaPipelineGraph extends LitElement {
   run = '';
   /** The run is running: tasks still pending are waiting; once it is over, they did not run. */
   live = false;
+  /** The outline, "Show all inside" and "Hide all inside", the zoom buttons and "Graph | Table"; false for a graph that is only shown. */
+  controls = true;
   /** The layer shown: its segments (function names, then `loop:<line>` for a loop's passes) joined by `/`; '' for the layer the graph opens on. */
   layer = '';
   /** The unit highlighted while nothing is hovered or focused. */
@@ -436,8 +441,8 @@ export class CaPipelineGraph extends LitElement {
     // The graph keeps its place in one template whichever it is, and whether there is an
     // outline: a change between them (the first size report, a resize, a plan that gains a
     // function) keeps the graph's element, and with it the focus, the zoom and the pan.
-    const side = this.wide && this.tree.length > 0;
-    const part = !this.tree.length
+    const side = this.controls && this.wide && this.tree.length > 0;
+    const part = !this.controls || !this.tree.length
       ? nothing
       : side
         ? outline(this.oh, this.tree)
@@ -451,10 +456,10 @@ export class CaPipelineGraph extends LitElement {
     return html`<cae-layered-graph .graph=${this.input} .states=${this.states} .selected=${this.sel || null} .highlight=${this.unit || null}
         .order=${this.prevOrder} key=${this.segments.join('/')} direction=${this.down || this.tall ? 'down' : 'across'} .matrix=${this.matrixIn}
         .related=${this.lights} .strings=${graphStrings(!!parentLayer(this.segments, this.auto), functions)} .matrixStrings=${matrixStrings()}
-        .renderIcon=${renderIcon} .iconStyles=${iconStyles}
+        .renderIcon=${renderIcon} .iconStyles=${iconStyles} .controls=${this.controls}
         @cae-select=${this.onSelect} @cae-activate=${this.onActivate} @cae-drill=${this.onDrill} @cae-view-change=${this.onView} @cae-toggle=${this.onToggle}
         @cae-sort=${(e: CustomEvent<{ id: string }>) => (this.sort = e.detail.id as MatrixSort)}>
-      <div slot="crumbs">${crumbs(this.h, splitLayer(this.segments).loop ? null : openControls(this.openMode(), (m) => this.setMode(m)))}${missingLine(this.missing)}${this.segments.join('/') === this.auto.join('/') ? html`${forecastNote(this.plan, this.forecast)}${unawaitedLine(this.h)}` : nothing}</div>
+      <div slot="crumbs">${crumbs(this.h, splitLayer(this.segments).loop || !this.controls ? null : openControls(this.openMode(), (m) => this.setMode(m)))}${missingLine(this.missing)}${this.segments.join('/') === this.auto.join('/') ? html`${forecastNote(this.plan, this.forecast)}${unawaitedLine(this.h)}` : nothing}</div>
       ${s ? inspector(this.h, s) : nothing}
     </cae-layered-graph>`;
   }
@@ -462,7 +467,7 @@ export class CaPipelineGraph extends LitElement {
   /** The graph's own width: the element's, less the outline's column beside it. */
   private graphWidth(): number {
     const w = this.clientWidth || 1200;
-    return this.tree.length && w >= OUTLINE_WIDE ? w - OUTLINE_COLUMN : w;
+    return this.controls && this.tree.length && w >= OUTLINE_WIDE ? w - OUTLINE_COLUMN : w;
   }
 
   /** The place keys on the way to the layer shown (the functions of its path). */

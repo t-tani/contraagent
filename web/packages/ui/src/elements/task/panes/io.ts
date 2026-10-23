@@ -1,6 +1,6 @@
 // The input and output panes of `ca-task-view`: what the task read (parameters,
 // files, earlier tasks, the prompt) and what it wrote (files against their
-// contracts, the outcome, tokens and cost, later tasks).
+// contracts, tokens and cost, later tasks).
 import {
   isLaunched,
   isPython,
@@ -19,10 +19,10 @@ import { msg, str } from '@lit/localize';
 import { html, nothing, type TemplateResult } from 'lit';
 import { pill } from '@contraagent/elements/primitives';
 import '@contraagent/elements/json-tree/define';
-import { facts, fmtDur, kindUnit, tokenCount, usd } from '../../../words/format.js';
+import { facts, kindUnit, tokenCount, usd } from '../../../words/format.js';
 import { attemptLabel, attemptNames, credentialLabel, credentialTip, outcomeLabel, stopLabel } from '../../../words/index.js';
 import { accountReading, readingShort, readingTip } from '../../../words/quota.js';
-import { outcomeMark, outcomeTone, stopTone } from '../../../lib/tone.js';
+import { outcomeMark, outcomeTone } from '../../../lib/tone.js';
 import { executorIcon } from '../../../words/executor.js';
 import { promptText } from '../../shared/prompt-text.js';
 import { contractChip } from '../../shared/contract-parts.js';
@@ -31,7 +31,7 @@ import { taskChip } from '../../shared/task-chip.js';
 import { inputView, notPassed, type EarlierTask, type InputFile } from '../inputs.js';
 import { roundLabel, roundWhy } from '../../../words/rounds.js';
 import { inputFileCheckWord, inputRootPath, inputRootTip, lineageTip, lineageWord } from '../../../words/lineage.js';
-import { correctionsOf, hadSession, isPy, producerOf, stateOf, taskLink, type TaskContext } from '../context.js';
+import { hadSession, isPy, producerOf, stateOf, taskLink, type TaskContext } from '../context.js';
 
 const valueText = (v: unknown): string => (typeof v === 'string' ? v : JSON.stringify(v) ?? String(v));
 const sameJson = (a: unknown, b: unknown): boolean => {
@@ -56,6 +56,8 @@ export function inputPane(c: TaskContext): TemplateResult {
   const params = Object.entries(io.params);
   const { files, earlier } = inputView(io);
   const source = (v: unknown) => io.upstream.find((u) => u.outputs.some((o) => o.file.exists && sameJson(o.file.content, v)));
+  // An earlier task a parameter names ("From prepare · a") is given its output there: its row below does not say it again.
+  const givenAbove = new Set(params.map(([, v]) => source(v)?.key).filter((k): k is string => !!k));
   return html`<h4 class="sect-h">${msg('Parameters')}</h4>
     ${params.length
       ? html`<table class="ct-fields params">
@@ -76,7 +78,7 @@ export function inputPane(c: TaskContext): TemplateResult {
           ${files.map((f) => inputCard(c, f))}`
       : nothing}
     <h4 class="sect-h">${msg('Earlier tasks')}</h4>
-    ${earlier.length ? earlier.map((e) => earlierTask(c, e)) : html`<div class="meta">${msg('No earlier tasks')}</div>`}
+    ${earlier.length ? earlier.map((e) => earlierTask(c, e, givenAbove.has(e.task.key))) : html`<div class="meta">${msg('No earlier tasks')}</div>`}
     ${isPy(d) ? nothing : promptSection(c)}`;
 }
 
@@ -120,9 +122,10 @@ function inputCard(c: TaskContext, f: InputFile) {
 /**
  * One earlier task: its status, how this task is joined to it (its lineage, in the words of
  * the graph's edges), how many of its output files this task reads, and the others folded
- * under it (open when one did not pass).
+ * under it (open when one did not pass). `givenAbove`: a parameter's "From" names it,
+ * so its lineage leaves out "given output" and keeps the rest.
  */
-function earlierTask(c: TaskContext, e: EarlierTask) {
+function earlierTask(c: TaskContext, e: EarlierTask, givenAbove: boolean) {
   const u = e.task;
   const kindName = isPython(u) ? msg('Python task') : msg('Agent task');
   const state = c.outcomes.get(u.key)?.outcome;
@@ -134,7 +137,7 @@ function earlierTask(c: TaskContext, e: EarlierTask) {
     ${executorIcon(isPython(u), kindName)}
     ${taskLink(c, u)}
     ${state ? outcomeChip(state) : nothing}
-    ${lineageTags(u.lineage ?? [])}
+    ${lineageTags((u.lineage ?? []).filter((l) => !(givenAbove && l === 'given_from')))}
     <span class="meta">${summary}</span>
   </div>`;
   if (!e.rest.length) return html`<div class="upstream">${head}</div>`;
@@ -214,24 +217,14 @@ function usageTable(c: TaskContext, rows: JournalRow[]) {
     </table></div>`;
 }
 
-/** What the task wrote: its output files, its outcome, tokens and cost, and the later tasks. */
+/** What the task wrote: its output files, tokens and cost, and the later tasks. */
 export function outputPane(c: TaskContext): TemplateResult {
   const d = c.detail;
   const io = d.io;
-  const last = d.rows[d.rows.length - 1];
-  // The reason, a refusal's cause and a model switch are in the verdict above, so they are not repeated here.
-  return html`<h4 class="sect-h">${msg('Output files')}</h4>
-    ${io.outputs.length
+  // The header above names the attempts and how each ended, and the tab names the files: the pane starts with them.
+  return html`${io.outputs.length
       ? io.outputs.map((o) => ioFileCard(o, 'output', c.run, { producerOf: producerOf(c) }))
       : html`<div class="meta">${msg('No output files')}</div>`}
-    ${last
-      ? html`<h4 class="sect-h">${msg('Outcome')}</h4>
-          <div class="ct-in">
-            ${pill({ text: stopLabel(last.stop, last.reason), tone: stopTone(last.stop) })}
-            ${isLaunched(last) ? html`<span class="meta">${facts(attemptLabel(last.attempt), fmtDur(last.wall_s), correctionsOf(last))}</span>` : nothing}
-
-          </div>`
-      : nothing}
     ${usageTable(c, d.rows)}
     <h4 class="sect-h">${msg('Later tasks')}</h4>
     ${io.downstream.length ? laterTasks(c, io.downstream) : html`<div class="meta">${msg('No later tasks')}</div>`}`;

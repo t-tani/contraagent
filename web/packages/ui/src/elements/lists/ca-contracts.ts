@@ -8,19 +8,16 @@ import { RememberedSet } from '../../core/memory.js';
 import type { TaskView } from '../../core/view-route.js';
 import { base } from '@contraagent/elements/styles';
 import { executorIcon, executorIconStyles } from '../../words/executor.js';
-import { kindUnit } from '../../words/format.js';
-import { correctionRoundTip, correctionRoundsLabel, notRunText, type Producer } from '../../words/contract.js';
+import { facts, kindUnit } from '../../words/format.js';
+import { contractStatusLabel, correctionRoundTip, correctionRoundsLabel, notRunText, type Producer } from '../../words/contract.js';
 import { contractChip, contractStyles, fieldCheckTable, fileConditions, inputChip } from '../shared/contract-parts.js';
 
 const CT_ORDER: readonly ContractStatus[] = ['invalid', 'refused', 'failed', 'running', 'pending', 'valid'];
 
-/** Output contracts per status, worst first; a line of text when none is declared. */
-export function ctChips(outputs: Outputs | null) {
+/** Output contracts per status that is not passed, worst first: the passed ones head their own group. */
+function ctChips(outputs: Outputs | null) {
   const t = outputs?.tally;
-  const chips = t ? CT_ORDER.filter((k) => t[k]) : [];
-  return chips.length
-    ? chips.map((k) => contractChip(k, t?.[k]))
-    : html`<span class="meta">${msg('No checked files')}</span>`;
+  return (t ? CT_ORDER.filter((k) => k !== 'valid' && t[k]) : []).map((k) => contractChip(k, t?.[k]));
 }
 
 const shortPath = (p: string) => p.split('/').slice(-2).join('/');
@@ -34,8 +31,9 @@ const rank = (s: ContractStatus | null | undefined) => (s ? CT_ORDER.indexOf(s) 
 
 /**
  * The files each task must write (`OutputContract`) and read (`InputContract`),
- * problems first, each checked field by field against its schema. Links open
- * the task (`ca-open-task`).
+ * problems first, each with the chip of its status, then the passed ones under
+ * one chip; each checked field by field against its schema. Links open the
+ * task (`ca-open-task`).
  *
  * @fires ca-open-task - `{key, view}`: a link to the task's input, output or transcript
  */
@@ -49,6 +47,8 @@ export class CaContracts extends LitElement {
     css`
       :host { display: block; container-type: inline-size; }
       .ct-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+      /* the passed outputs: one chip heads them, their rows carry none */
+      .passed { margin: 6px 0 0; padding: 10px 0 8px; font: inherit; border-top: 1px solid var(--line); }
       details.ct { border-top: 1px solid var(--line); }
       details.ct > summary { list-style: none; cursor: pointer; padding: 7px 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
       details.ct > summary > * { min-width: 0; overflow-wrap: anywhere; }
@@ -85,24 +85,30 @@ export class CaContracts extends LitElement {
     const cs = this.outputs?.contracts ?? [];
     this.outcomes = this.plan ? deriveRun(this.journal, this.plan).outcomes : new Map<string, TaskOutcome>();
     if (!cs.length) {
-      return html`<div class="blank"><span class="ic" aria-hidden="true">▣</span><b>${msg('No checked files')}</b>
-        <span>${msg('No task declares an OutputContract or an InputContract')}</span></div>`;
+      return html`<div class="blank"><span class="ic" aria-hidden="true">▣</span><b>${facts(msg('No checked files'), msg('no task declares an OutputContract or an InputContract'))}</b></div>`;
     }
     const outs = cs
       .flatMap((c) => (c.outputs ?? []).map((o) => [c, o] as const))
       .sort(([a, x], [b, y]) => rank(x.status) - rank(y.status) || a.key.localeCompare(b.key));
     const ins = cs.flatMap((c) => (c.inputs ?? []).map((i) => [c, i] as const));
+    const others = outs.filter(([, o]) => o.status !== 'valid');
+    const passed = outs.filter(([, o]) => o.status === 'valid');
+    const chips = ctChips(this.outputs);
     return html`<div class="g12">
       <section class="panel c12">
-        <h3 title=${msg('OutputContract')}>${msg('Outputs')}
-          <span class="r">${msg('Files each task must write')}</span></h3>
-        <div class="ct-row">${ctChips(this.outputs)}</div>
-        ${repeat(outs, ([c, o]) => `out|${c.key}|${o.path}`, ([c, o]) => this.outRow(c, o))}
+        <h3 title=${msg('Files each task must write (OutputContract)')}>${msg('Outputs')}</h3>
+        ${chips.length ? html`<div class="ct-row">${chips}</div>` : nothing}
+        ${repeat(others, ([c, o]) => `out|${c.key}|${o.path}`, ([c, o]) => this.outRow(c, o))}
+        ${passed.length
+          ? html`<h4 class="passed">${contractChip('valid', passed.length)}</h4>
+              <div role="group" aria-label=${contractStatusLabel('valid')}>
+                ${repeat(passed, ([c, o]) => `out|${c.key}|${o.path}`, ([c, o]) => this.outRow(c, o))}
+              </div>`
+          : nothing}
       </section>
       ${ins.length
         ? html`<section class="panel c12">
-            <h3 title=${msg('InputContract')}>${msg('Inputs')}
-              <span class="r">${msg('Files each task reads')}</span></h3>
+            <h3 title=${msg('Files each task reads (InputContract)')}>${msg('Inputs')}</h3>
             ${repeat(ins, ([c, i]) => `in|${c.key}|${i.path}`, ([c, i]) => this.inRow(c, i))}
           </section>`
         : nothing}
@@ -165,7 +171,7 @@ export class CaContracts extends LitElement {
     // The chip says why there is no file; the size column shows a size only when there is one.
     return this.details(
       `out|${c.key}|${o.path}`,
-      html`${contractChip(status)}
+      html`${status === 'valid' ? nothing : contractChip(status)}
         ${rounds > 1 ? html`<span class="meta" title=${correctionRoundTip()}>${correctionRoundsLabel(rounds, status === 'valid')}</span>` : nothing}
         ${this.who(c)}
         <span class="jmono jdim ct-path" title=${o.path}>${shortPath(o.path)}</span>

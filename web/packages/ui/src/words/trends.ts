@@ -16,10 +16,12 @@ export function dayLabel(day: string, locale: string = getLocale()): string {
   return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(d);
 }
 
-/** The period in words: `Oct 1 to Oct 14, 2026 | Asia/Tokyo`. */
-export function periodLabel(from: string, to: string, tz: string, locale: string = getLocale()): string {
+/** The period in words: `Oct 1 to Oct 14, 2026`, and its time zone after it when given (`| Asia/Tokyo`: where no time zone control names it). */
+export function periodLabel(from: string, to: string, tz = '', locale: string = getLocale()): string {
   const year = to.slice(0, 4);
-  return msg(str`${dayLabel(from, locale)} to ${dayLabel(to, locale)}, ${year} | ${tz}`, { desc: 'The days the trends cover, and the time zone they are counted in' });
+  return tz
+    ? msg(str`${dayLabel(from, locale)} to ${dayLabel(to, locale)}, ${year} | ${tz}`, { desc: 'The days the trends cover, and the time zone they are counted in' })
+    : msg(str`${dayLabel(from, locale)} to ${dayLabel(to, locale)}, ${year}`, { desc: 'The days the trends cover' });
 }
 
 /** A length of period ending today: `7 days`. */

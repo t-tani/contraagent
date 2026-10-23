@@ -885,11 +885,24 @@ class ReplayAgent(Backend):
             return self.real.bind_credential(credential, model, env=env, label=label)
         return CredentialBinding(isolated=True, isolation="replay: no API calls")
 
+    def _bind_credential_in(
+        self, cwd: Path, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
+    ) -> CredentialBinding:
+        if self.real is not None:
+            return self.real._bind_credential_in(cwd, credential, model, env=env, label=label)
+        return self.bind_credential(credential, model, env=env, label=label)
+
     def account(self, credential: Credential, model: str = "") -> str:
         return self.real.account(credential, model) if self.real is not None else ""
 
+    def _account_in(self, cwd: Path, credential: Credential, model: str = "") -> str:
+        return self.real._account_in(cwd, credential, model) if self.real is not None else ""
+
     def catalogue(self) -> set[str] | None:
         return self.real.catalogue() if self.real is not None else None
+
+    def _catalogue_in(self, cwd: Path) -> set[str] | None:
+        return self.real._catalogue_in(cwd) if self.real is not None else None
 
     def model_chains(self, cwd: Path | None = None) -> ModelChains | None:
         return self.real.model_chains(cwd) if self.real is not None else None
