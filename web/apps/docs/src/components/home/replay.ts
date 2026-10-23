@@ -7,10 +7,13 @@
 // the replay's time alone. Where the window is decides when it starts, not how the
 // scroll came there: on a wide screen once all of the window is on screen (where it
 // stands flat, ./scene.css), on a narrow one when it reaches the upper half of the
-// screen; it stops while it is off screen, and rests on the last frame. On a narrow screen the window shows one panel at a time, chosen by
-// its tabs: the code while it appears, then the panel of each moment of the run as it
-// comes (the graph, or the transcript of a correction), each for a while at least;
-// once the reader picks a tab, that panel stays.
+// screen; it stops while it is off screen, and rests on the last frame. The list of
+// the run's moments under the window lights each as it happens. The graph is only
+// shown: no outline, open controls, zoom buttons or view switch. On a narrow screen
+// the window shows one panel at a time, chosen by its tabs: the code while it
+// appears, then the panel of each moment of the run as it comes (the graph, or the
+// transcript of a correction), each for a while at least; once the reader picks a
+// tab, that panel stays.
 import type { FlowCallNode, JournalRow, Plan, PlanNode, TaskState } from '@contraagent/api';
 import { adoptThemes } from '@contraagent/elements/themes';
 import '@contraagent/ui/kpis';
@@ -40,7 +43,7 @@ const NO_ROWS: JournalRow[] = [];
 const epoch = (ts = ''): number => Date.parse(ts) / 1000;
 const clock = (s: number): string => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
-type Graph = HTMLElement & { plan: Plan; journal: JournalRow[]; run: string; live: boolean };
+type Graph = HTMLElement & { plan: Plan; journal: JournalRow[]; run: string; live: boolean; controls: boolean };
 type Kpis = HTMLElement & { plan: Plan; journal: JournalRow[] };
 type Transcript = HTMLElement & { events: unknown[] | null; rows: JournalRow[]; live: boolean; run: string; updateComplete: Promise<boolean> };
 
@@ -61,21 +64,17 @@ class Replay {
   private readonly progress: HTMLElement;
   private readonly button: HTMLButtonElement;
   private readonly moments: HTMLElement[];
-  private readonly said: HTMLElement;
   private readonly spans = new Map<string, Span[]>();
   private readonly codeMs: number;
   private readonly runMs: number;
   private readonly tabs: HTMLButtonElement[];
   private readonly panes: HTMLElement[];
-  private readonly ticker: HTMLElement;
-  private readonly tickerAt: HTMLElement;
   /**
-   * The panel and the caption of each part of the replay: when it comes (`at`, replay
-   * time in ms), and when the tabs show it while they follow the run (`shown`: a panel
-   * stays a while before the next).
+   * The panel of each part of the replay: when it comes (`at`, replay time in ms), and
+   * when the tabs show it while they follow the run (`shown`: a panel stays a while
+   * before the next), with the task whose transcript it shows (`spot`).
    */
-  private readonly cues: { at: number; shown: number; panel: Panel; clock: string; text: string; spot?: string }[];
-  private caption = '';
+  private readonly cues: { at: number; shown: number; panel: Panel; spot?: string }[];
 
   /** The replay's own time (ms), and the frame it was last advanced on. */
   private t = 0;
@@ -119,7 +118,6 @@ class Replay {
     this.progress = q('.rr-progress-bar');
     this.button = q('.rr-toggle');
     this.moments = [...root.querySelectorAll<HTMLElement>('.rr-moment')];
-    this.said = q('.rr-said');
     const created = new Map(data.plan.nodes.map((n) => [n.key, epoch(n.ts)]));
     for (const r of data.journal) {
       const end = epoch(r.ts);
@@ -131,22 +129,21 @@ class Replay {
     this.codeMs = this.lines.length * LINE_MS + 500;
     this.runMs = ((data.t1 - data.t0) * 1000) / SPEED;
     this.graph.run = data.run;
+    this.graph.controls = false;
     this.transcript.run = data.run;
     this.button.addEventListener('click', () => this.toggle());
 
     this.tabs = [...root.querySelectorAll<HTMLButtonElement>('.rr-tabs [role="tab"]')];
     this.panes = [...root.querySelectorAll<HTMLElement>('.rr-pane[data-panel]')];
-    this.ticker = q('.rr-ticker');
-    this.tickerAt = q('.rr-ticker-at');
     const runAt = (at: number): number => this.codeMs + GRAPH_MS + (at * 1000) / SPEED;
     this.cues = [
-      { at: 0, shown: 0, panel: 'code', clock: '', text: 'The run has not started.' },
-      { at: this.codeMs, shown: this.codeMs, panel: 'graph', clock: clock(0), text: `Run ${data.run} started.` },
+      { at: 0, shown: 0, panel: 'code' },
+      { at: this.codeMs, shown: this.codeMs, panel: 'graph' },
     ];
     for (const m of data.moments) {
       const at = runAt(m.at);
       const shown = Math.min(this.total, Math.max(at, this.cues.at(-1)!.shown + DWELL_MS));
-      this.cues.push({ at, shown, panel: m.shows, clock: clock(m.at), text: m.text, spot: m.spot });
+      this.cues.push({ at, shown, panel: m.shows, spot: m.spot });
     }
     for (const tab of this.tabs) {
       tab.addEventListener('click', () => this.choose(tab.dataset['panel'] as Panel));
@@ -161,12 +158,8 @@ class Replay {
       });
     }
     const narrow = matchMedia('(max-width: 49.99rem)');
-    const more = root.querySelector<HTMLDetailsElement>('.rr-more');
     this.setTabbed(narrow.matches);
-    narrow.addEventListener('change', () => {
-      this.setTabbed(narrow.matches);
-      if (more) more.open = !narrow.matches;
-    });
+    narrow.addEventListener('change', () => this.setTabbed(narrow.matches));
   }
 
   /**
@@ -366,30 +359,16 @@ class Replay {
     }
     const past = this.moments.filter((m) => m.classList.contains('rr-past'));
     for (const m of this.moments) m.classList.toggle('rr-now', m === past.at(-1));
-    const latest = past.at(-1)?.querySelector('.rr-text')?.textContent ?? '';
-    if (this.said.textContent !== latest) this.said.textContent = latest;
 
-    // A narrow screen: the panel of the part of the run the tabs follow, and its caption
-    // under the panel; once the reader picks a tab, the latest part's caption.
+    // A narrow screen: the panel of the part of the run the tabs follow, until the reader picks a tab.
     const following = this.tabbed && !this.chosen;
-    const cue = (following ? this.cues.findLast((c) => c.shown <= t) : this.cues.findLast((c) => c.at <= t)) ?? this.cues[0];
+    const cue = this.cues.findLast((c) => c.shown <= t) ?? this.cues[0];
     if (following && cue.panel !== this.panel) this.show(cue.panel);
-    const caption = `${cue.clock}|${cue.text}`;
-    if (caption !== this.caption) {
-      this.caption = caption;
-      this.tickerAt.textContent = cue.clock;
-      this.ticker.lastElementChild!.textContent = cue.text;
-      this.ticker.classList.remove('rr-tick');
-      if (!force) {
-        void this.ticker.offsetWidth;
-        this.ticker.classList.add('rr-tick');
-      }
-    }
 
-    // Once a task's correction round has started, its transcript, until the next one's: the moment the caption names.
+    // Once a task's correction round has started, its transcript, until the next one's.
     const newest = (at: (x: Timeline['spots'][number]) => number) =>
       this.data.spots.filter((x) => at(x) <= s).reduce<Timeline['spots'][number] | undefined>((a, b) => (a && at(a) >= at(b) ? a : b), undefined);
-    // While the tabs follow the run, the transcript of the correction its caption names (the caption may come later than the run).
+    // While the tabs follow the run, the transcript of the correction its panel is for (the panel may come later than the run).
     const named = following ? this.data.spots.find((x) => x.key === cue.spot) : undefined;
     const spot = named ?? newest((x) => x.corrected) ?? newest((x) => x.from) ?? this.data.spots[0];
     const started = s >= this.data.t0;

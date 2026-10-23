@@ -5,8 +5,7 @@
  *
  * Wide screens with motion: the scene stays in place (sticky) while its track
  * scrolls by; each stage owns its share of that scroll. Its panel comes in, its
- * step lights, the loop's words light from the stage that does them, and the rail
- * behind the numbers fills. Scroll-driven animations on the track's view timeline
+ * step lights, and the rail behind the numbers fills. Scroll-driven animations on the track's view timeline
  * (longhand properties: the minifier folds a shorthand, which resets the timeline);
  * where they are missing, ./how-scene.ts sets data-stage on the track and the same
  * states are reached by transitions. Transforms and opacity only; nothing leaves
@@ -20,32 +19,6 @@
 
 .how { margin: 4rem 0 2rem; }
 .how-title { margin: 0; font-size: clamp(1.7rem, 1.1rem + 1.6vw, 2.5rem); line-height: 1.1; letter-spacing: -0.025em; color: var(--sl-color-white); text-wrap: balance; }
-.how-lede { margin: 0.9rem 0 0; max-width: 34rem; color: var(--sl-color-gray-2); font-size: var(--sl-text-base); line-height: 1.55; }
-
-/* The loop the agent goes through: its words light as the scene reaches them. */
-.how-loop { list-style: none; display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 1.1rem 0 0; padding: 0; }
-.how-loop-step {
-  position: relative;
-  margin: 0;
-  padding: 0.25rem 0.7rem;
-  border-radius: 999px;
-  border: 1px solid var(--sl-color-gray-5);
-  font: 600 var(--sl-text-xs) / 1.4 var(--sl-font-mono, var(--sl-font-system-mono));
-  color: var(--sl-color-gray-2);
-  isolation: isolate;
-}
-.how-loop-step::before {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  z-index: -1;
-  border-radius: inherit;
-  background: color-mix(in srgb, var(--sl-color-accent) 22%, var(--sl-color-bg));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--sl-color-accent) 60%, transparent), 0 0 14px color-mix(in srgb, var(--sl-color-accent) 40%, transparent);
-  opacity: 1;
-}
-.how-loop-step:not(:last-child)::after { content: '→'; position: absolute; right: -0.33rem; top: 50%; translate: 50% -50%; color: var(--sl-color-gray-3); font-size: 0.7rem; }
-.how-loop-step + .how-loop-step { margin-left: 0.55rem; }
 
 /* The steps, and a rail behind their numbers: grid items of the list, the rail under the steps
    (each number is opaque). Nothing here is positioned: in the wide scene, a step's words and
@@ -103,8 +76,22 @@
   opacity: 0;
   pointer-events: none;
 }
-.how-who { margin: 0; font: 600 var(--sl-text-xs) / 1.3 var(--sl-font-mono, var(--sl-font-system-mono)); letter-spacing: 0.02em; color: var(--sl-color-text-accent); text-transform: uppercase; }
-.how-step-title { margin: 0.1rem 0 0; font-size: var(--sl-text-base); line-height: 1.3; color: var(--sl-color-white); }
+/* Who does the step, an icon before its title: you in the text's grey, the agent in the accent.
+   Positioned: its name for a screen reader stays inside it, and so inside the carousel's list. */
+.how-who {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  margin-right: 0.45rem;
+  vertical-align: -0.3rem;
+  border-radius: 50%;
+  color: var(--sl-color-gray-2);
+  background: var(--sl-color-gray-6, var(--sl-color-gray-5));
+}
+.how-who[data-who='agent'] { color: var(--sl-color-text-accent); background: color-mix(in srgb, var(--sl-color-accent) 18%, transparent); }
+.how-step-title { display: inline; margin: 0; font-size: var(--sl-text-base); line-height: 1.3; color: var(--sl-color-white); }
 .how-text { margin: 0.2rem 0 0; font-size: var(--sl-text-sm); line-height: 1.5; color: var(--sl-color-gray-2); }
 .how-link { display: inline-block; margin-top: 0.2rem; font-size: var(--sl-text-sm); color: var(--sl-color-text-accent); }
 
@@ -214,9 +201,8 @@
     /* The steps: who and what, and a link; a step's words go to the window, over its panel. */
     .how-step { padding-block: 0.3rem; }
     .how-steps { row-gap: 0.15rem; margin-top: 1.25rem; }
-    .how-step-title { display: inline; font-size: 0.95rem; }
+    .how-step-title { font-size: 0.95rem; }
     .how-link { display: inline; margin: 0 0 0 0.6rem; font-size: 0.8rem; }
-    .how-who { font-size: 10.5px; }
     /* The window, the words of the step on screen, and its panel: one box on the right. */
     .how-pin { --wh: min(38rem, calc(100% - 3rem)); --ww: calc(54% - 1.5rem); }
     .how-window, .how-stage, .how-text {
@@ -276,8 +262,6 @@
     .how-pin { isolation: isolate; }
     /* A short screen: the words and steps closer together, so that they fit it in more fonts. */
     @media (max-height: 52rem) {
-      .how-lede { margin-top: 0.7rem; }
-      .how-loop { margin-top: 0.9rem; }
       .how-steps { row-gap: 0.05rem; margin-top: 1rem; }
       .how-step { padding-block: 0.2rem; }
     }
@@ -292,21 +276,14 @@
  * A narrow screen, once ./how-carousel.ts has made the carousel (.how-carousel): the
  * steps are cards side by side, from edge to edge of the screen, one in the middle
  * and the next one showing at the side; they scroll one at a time (scroll snap).
- * The agent's loop above them lights up to the card on screen; under them, a button
- * to the step before and after, a dot for each step and the step's number. A long
+ * Under them, a button to the step before and after, and a dot for each step (the
+ * step's number is for a screen reader). A long
  * output is cut to its first lines and fades out, with a button that shows it whole.
  */
 @media (max-width: 49.99rem) {
   /* A cut output's height: about ten lines of it. */
   .how { --how-cut: 13.5rem; margin: 2.5rem 0 1.5rem; }
   .how-title { font-size: 1.55rem; }
-  .how-lede { margin-top: 0.7rem; font-size: var(--sl-text-sm); }
-
-  .how-carousel .how-loop { margin-top: 0.9rem; gap: 0.3rem; }
-  .how-carousel .how-loop-step { padding: 0.25rem 0.55rem; }
-  .how-carousel .how-loop-step + .how-loop-step { margin-left: 0.45rem; }
-  .how-carousel .how-loop-step::before { transition: opacity 0.3s ease; }
-  .how-carousel .how-loop-step:not(.is-on)::before { opacity: 0; }
 
   /* Each card as tall as it needs; the list as tall as the card on screen (./how-carousel.ts), the others cut at its foot. */
   .how-carousel .how-steps {
@@ -373,7 +350,7 @@
   .how-nav {
     display: grid;
     grid-template-columns: 44px minmax(0, 1fr) 44px;
-    grid-template-areas: 'prev dots next' 'prev at next';
+    grid-template-areas: 'prev dots next';
     align-items: center;
     column-gap: 0.75rem;
     margin-top: 0.75rem;
@@ -397,19 +374,8 @@
   .how-dots { grid-area: dots; display: flex; justify-content: center; gap: 6px; }
   .how-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--sl-color-gray-5); transition: width 0.3s ease, background-color 0.3s ease; }
   .how-dot.is-on { width: 20px; background: var(--sl-color-accent); }
-  .how-at {
-    grid-area: at;
-    margin: 0.35rem 0 0;
-    text-align: center;
-    font-size: var(--sl-text-xs);
-    line-height: 1.35;
-    color: var(--sl-color-gray-3);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
 }
 .how-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 49.99rem) and (prefers-reduced-motion: reduce) {
-  .how-carousel .how-steps, .how-carousel .how-step, .how-carousel .how-loop-step::before, .how-dot, .how-go { transition: none; }
+  .how-carousel .how-steps, .how-carousel .how-step, .how-dot, .how-go { transition: none; }
 }

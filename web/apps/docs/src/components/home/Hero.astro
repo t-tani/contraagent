@@ -12,7 +12,10 @@ import { REPOSITORY } from '../../../site';
 const { data } = Astro.locals.starlightRoute.entry;
 const { tagline = '' } = data.hero ?? {};
 
-/** The coding agents: the name `--agent` takes, the CLI, and what a launch runs (src/contraagent/docs/agents.md). */
+/**
+ * The coding agents: the name `--agent` takes, the CLI, and what a launch runs
+ * (src/contraagent/docs/agents.md). The CLI's cell is empty where its name is the key.
+ */
 const AGENTS = [
   { name: 'claude', cli: 'Claude Code', run: 'claude -p' },
   { name: 'codex', cli: 'Codex CLI', run: 'codex exec' },
@@ -65,7 +68,7 @@ const RUN = ['contraagent run tasks.py:docs', `--kwargs '{"units": ["alpha"]}'`]
               <li class:list={['ca-agent', { 'is-on': i === 0 }]} data-agent={a.name}>
                 <span class="ca-agent-dot" aria-hidden="true" />
                 <code class="ca-agent-key">{a.name}</code>
-                <span class="ca-agent-cli">{a.cli}</span>
+                <span class="ca-agent-cli">{a.cli === a.name ? '' : a.cli}</span>
                 <code class="ca-agent-run">{a.run}</code>
               </li>
             ))
@@ -74,9 +77,8 @@ const RUN = ['contraagent run tasks.py:docs', `--kwargs '{"units": ["alpha"]}'`]
       </figure>
     </div>
 
-    <a class="ca-down" href="#rr-title">
-      <span>The demo run, replayed</span>
-      <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    <a class="ca-down" href="#rr-title" aria-label="A run of the demo pipeline, replayed">
+      <svg aria-hidden="true" viewBox="0 0 16 16" width="20" height="20"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
     </a>
   </header>
 </div>

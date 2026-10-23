@@ -51,7 +51,8 @@ const EMPTY: GraphInput = { series: [], nodes: [], clusters: [], edges: [], stub
  * graph; Ctrl (or ⌘) and the wheel, or the buttons, zoom; dragging pans; "Show all"
  * goes back. "Graph | Table" changes the view (`cae-view-change`): the table is a row
  * per node, with its status and the nodes it is joined to. With `matrix`, the frame
- * shows that `<cae-mark-matrix>` as the table instead.
+ * shows that `<cae-mark-matrix>` as the table instead. With `controls` false, the
+ * buttons and "Graph | Table" are not drawn.
  *
  * Size: the element is as wide as its container. Without a height set on it, the
  * frame is as tall as the whole drawing at that width (never scaled up), up to 70% of
@@ -103,6 +104,7 @@ export class CaeLayeredGraph extends LitElement {
     view: {},
     matrix: { attribute: false },
     barAt: { type: Number },
+    controls: { type: Boolean },
     related: { attribute: false },
     strings: { attribute: false },
     matrixStrings: { attribute: false },
@@ -128,6 +130,8 @@ export class CaeLayeredGraph extends LitElement {
   direction: 'auto' | 'across' | 'down' = 'auto';
   /** The node table instead of the drawing. */
   view: 'graph' | 'table' = 'graph';
+  /** The zoom buttons and "Graph | Table" under the frame; false for a graph that is only shown (the wheel with Ctrl or ⌘, and dragging, still zoom and pan). */
+  controls = true;
   /** A mark matrix shown in the frame as the table, or null. */
   matrix: MarkMatrixInput | null = null;
   /** Above this many marks, a node shows a bar of its counts. */
@@ -370,7 +374,7 @@ export class CaeLayeredGraph extends LitElement {
     return html`<div class="col">
       <slot name="crumbs"></slot>
       <div class="main">${body}${card}<div class="sr" role="status">${this.announced}</div></div>
-      ${foot(h, mx)}
+      ${foot(h, mx, this.controls)}
     </div>`;
   }
 

@@ -137,6 +137,13 @@ describe('cae-layered-graph', () => {
     expect(root.querySelector('.tframe')?.getAttribute('data-scroll')).toBe('x');
   });
 
+  it('draws no zoom buttons and no view switch without controls', async () => {
+    expect((await drawn()).root.querySelector('.foot .tools cae-segmented')).not.toBeNull();
+    const { root } = await drawn({ controls: false });
+    expect(root.querySelector('.foot .tools')).toBeNull();
+    expect(root.querySelector('.foot .legend')).not.toBeNull();
+  });
+
   it("draws an item's open and close control, which sends cae-toggle, and a cluster named by a path whose later parts drill", async () => {
     const open: GraphInput = {
       ...graph,

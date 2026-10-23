@@ -3,7 +3,7 @@
 @media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
   .how:not(.how-flat) {
     @supports (animation-timeline: view()) {
-      .how-stage, .how-text, .how-glow, .how-n::after, .how-words, .how-loop-step::before,
+      .how-stage, .how-text, .how-glow, .how-n::after, .how-words,
       .how-rail-fill, .how-depth, .slip, .term-loop, .run-mark {
         animation-timing-function: linear;
         animation-fill-mode: both;
@@ -33,11 +33,6 @@
       .how-stage[data-k='6'], .how-step[data-k='6'] .how-text { animation-name: how-stage-6; }
       .how-step[data-k='6'] .how-glow, .how-step[data-k='6'] .how-n::after { animation-name: how-on-6; }
       .how-step[data-k='6'] .how-words { animation-name: how-words-6; }
-      .how-loop-step:nth-child(1)::before { animation-name: how-loop-3; }
-      .how-loop-step:nth-child(2)::before { animation-name: how-loop-4; }
-      .how-loop-step:nth-child(3)::before { animation-name: how-loop-4b; }
-      .how-loop-step:nth-child(4)::before { animation-name: how-loop-5; }
-      .how-loop-step:nth-child(5)::before { animation-name: how-loop-6; }
       .slip-1 { animation-name: how-slip-1; }
       .slip-2 { animation-name: how-slip-2; }
       .slip-3 { animation-name: how-slip-3; }
@@ -57,7 +52,6 @@
       }
       .how-glow, .how-n::after { transition: opacity 0.4s ease; }
       .how-words { opacity: 0.55; transition: opacity 0.4s ease; }
-      .how-loop-step::before { opacity: 0; transition: opacity 0.4s ease; }
       .how-rail-fill { transform: scaleY(var(--how-p)); }
       .how-track:not([data-stage]) .how-stage[data-k='0'],
       .how-track:not([data-stage]) .how-step[data-k='0'] .how-text { opacity: 1; transform: none; }
@@ -96,19 +90,6 @@
       .how-track[data-stage='6'] .how-step[data-k='6'] .how-words { opacity: 1; transform: none; }
       .how-track[data-stage='6'] .how-step[data-k='6'] .how-glow,
       .how-track[data-stage='6'] .how-step[data-k='6'] .how-n::after { opacity: 1; }
-      .how-track[data-stage='3'] .how-loop-step:nth-child(1)::before,
-      .how-track[data-stage='4'] .how-loop-step:nth-child(1)::before,
-      .how-track[data-stage='5'] .how-loop-step:nth-child(1)::before,
-      .how-track[data-stage='6'] .how-loop-step:nth-child(1)::before { opacity: 1; }
-      .how-track[data-stage='4'] .how-loop-step:nth-child(2)::before,
-      .how-track[data-stage='5'] .how-loop-step:nth-child(2)::before,
-      .how-track[data-stage='6'] .how-loop-step:nth-child(2)::before { opacity: 1; }
-      .how-track[data-stage='4'] .how-loop-step:nth-child(3)::before,
-      .how-track[data-stage='5'] .how-loop-step:nth-child(3)::before,
-      .how-track[data-stage='6'] .how-loop-step:nth-child(3)::before { opacity: 1; }
-      .how-track[data-stage='5'] .how-loop-step:nth-child(4)::before,
-      .how-track[data-stage='6'] .how-loop-step:nth-child(4)::before { opacity: 1; }
-      .how-track[data-stage='6'] .how-loop-step:nth-child(5)::before { opacity: 1; }
       /* The check stage's three states (0: the problems, 1: the fix, 2: the check passes). */
       .slip, .term-loop { transition: opacity 0.4s ease, transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
       .how-track[data-sub='0'] .slip-2, .how-track[data-sub='0'] .slip-3, .how-track[data-sub='1'] .slip-3 { opacity: 0; }
@@ -166,11 +147,6 @@
 }
 @keyframes how-on-6 { 0%, 86.50% { opacity: 0; } 88.50%, 100% { opacity: 1; } }
 @keyframes how-words-6 { 0%, 86.50% { opacity: 0.55; } 88.50%, 100% { opacity: 1; } }
-@keyframes how-loop-3 { 0%, 36.50% { opacity: 0; } 38.50%, 100% { opacity: 1; } }
-@keyframes how-loop-4 { 0%, 49.00% { opacity: 0; } 51.00%, 100% { opacity: 1; } }
-@keyframes how-loop-5 { 0%, 74.00% { opacity: 0; } 76.00%, 100% { opacity: 1; } }
-@keyframes how-loop-6 { 0%, 86.50% { opacity: 0; } 88.50%, 100% { opacity: 1; } }
-@keyframes how-loop-4b { 0%, 57.33% { opacity: 0; } 59.33%, 100% { opacity: 1; } }
 @keyframes how-scroll {
   0%, 57.33% { transform: none; }
   59.33%, 65.67% { transform: translate3d(0, -22%, 0); }
