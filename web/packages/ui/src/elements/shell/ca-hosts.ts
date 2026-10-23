@@ -77,8 +77,7 @@ export class CaHosts extends LitElement {
       </section>
       ${quota.length
         ? html`<section class="panel c12 enter">
-            <h3 title=${msg('Account-wide | read at each agent session start')}>
-              ${msg('Subscription usage')}<span class="r">${msg('Per account, first → last reading')}</span></h3>
+            <h3 title=${msg('Account-wide | first and last reading per account | read at each agent session start')}>${msg('Subscription usage')}</h3>
             <ca-quota .accounts=${quota} .rests=${quota.flatMap((a) => a.rests ?? [])} live></ca-quota>
           </section>`
         : nothing}

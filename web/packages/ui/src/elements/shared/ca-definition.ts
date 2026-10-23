@@ -182,9 +182,8 @@ export class CaDefinition extends LitElement {
     };
     return html`<div class="df">
       <div class="df-hd">
-        <button type="button" class="df-sum" aria-expanded=${isOpen ? 'true' : 'false'} @click=${toggle}>
+        <button type="button" class="df-sum" aria-expanded=${isOpen ? 'true' : 'false'} title=${isRole ? msg('Role of this kind') : nothing} @click=${toggle}>
           <span class="tag">${f.part}</span><span class="jmono">${f.path}</span>
-          ${isRole ? html`<span class="ct-chip">${msg('Role of this kind')}</span>` : nothing}
         </button>
         ${isMd
           ? html`<button type="button" class="df-tog" @click=${flip}>${showSource ? msg('Show rendered') : msg('Show source')}</button>`

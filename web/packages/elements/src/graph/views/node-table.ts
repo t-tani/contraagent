@@ -57,7 +57,7 @@ export function nodeTable(h: GraphHost) {
           const nb = neighbours(n, g, h.nodes, w.inCluster);
           const box = n.cluster ? h.clusters.get(n.cluster) : undefined;
           const on = h.selected === n.id;
-          const icons = html`${(n.icons ?? []).map((x) => h.renderIcon(x))}${n.drill ? innerIcon() : nothing}`;
+          const icons = html`${(n.icons ?? []).map((x) => h.renderIcon(x))}${n.drill ? html`<span class="tip-ic" title=${w.drill}>${innerIcon()}</span>` : nothing}`;
           return html`<tr class=${on ? 'sel' : ''} part="row" data-id=${n.id}
               @click=${(e: MouseEvent) => !(e.target as Element).closest('.loopchip') && e.detail < 2 && h.select(n.id)}
               @dblclick=${(e: MouseEvent) => !(e.target as Element).closest('.loopchip') && h.act(n.id)}>
@@ -69,7 +69,7 @@ export function nodeTable(h: GraphHost) {
                   h.act(n.id);
                 }}>${n.label}</button>${box?.drill
                 ? html`<button type="button" class="taskchip loopchip" title=${box.chipTip ?? nothing} aria-label=${box.chipLabel ?? nothing}
-                    @click=${() => h.drill(box.id)}>${box.cycle ? cycleIcon(12) : nothing}${box.note ?? box.label}</button>`
+                    @click=${() => h.drill(box.id)}>${box.cycle ? html`<span class="tip-ic" title=${w.cycle}>${cycleIcon(12)}</span>` : nothing}${box.note ?? box.label}</button>`
                 : nothing}</span>
             </th>
             <td class="fit st">${statusLine(n)}</td>

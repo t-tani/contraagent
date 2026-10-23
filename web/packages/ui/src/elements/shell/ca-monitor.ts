@@ -9,6 +9,7 @@ import {
   runActivity,
   runIdOf,
   runRow,
+  tryCounts,
   type MonitorSnapshot,
   type RunDerived,
 } from '@contraagent/api';
@@ -24,7 +25,8 @@ import { ViewRouter, type ViewRouteCause, type ViewRouterMode } from '../../core
 import { LocaleController } from '../../controllers/locale.js';
 import { ShortcutsController, isShortcutScope, type ShortcutScope } from '../../controllers/shortcuts.js';
 import { ThemeController } from '../../controllers/theme.js';
-import { runLine, runLineAccounts, triesLine } from '../../words/index.js';
+import { runLine, runLineAccounts, shownTasksLine, shownTriesLine } from '../../words/index.js';
+import { filterJournal, filterTasks } from '../../adapters/filters.js';
 import { runMark } from '../../words/run-line.js';
 import { exportTip, exportedLabel } from '../../words/export.js';
 import { apiErrorLine } from '../../words/api-error.js';
@@ -477,9 +479,9 @@ export class CaMonitor extends LitElement {
       <span class="rs" title=${summary ? accountsTip(runLineAccounts(snap.state, summary)) : ''}>${summary ? runLine(snap.state, summary, derived) : ''}</span>`;
   }
 
-  /** The run button's label on the trends page: its name, and what it shows. */
+  /** The run button's label on the trends page: its name, what it shows in its tooltip. */
   private trendsLabel() {
-    return html`<span class="dot" data-tone="neutral" aria-hidden="true"></span><span class="rn">${trendsTitle()}</span><span class="rs">${trendsTip()}</span>`;
+    return html`<span class="dot" data-tone="neutral" aria-hidden="true"></span><span class="rn" title=${trendsTip()}>${trendsTitle()}</span>`;
   }
 
   /** The run button's label on the hosts page: the hosts in one line, attention while a host has no report. */
@@ -514,8 +516,7 @@ export class CaMonitor extends LitElement {
   private renderBar(d: RunDerived) {
     const { viewRoute } = this;
     if (viewRoute.tab !== 'tasks' && viewRoute.tab !== 'journal') return nothing;
-    const { counts, kinds } = d;
-    const total = counts.total;
+    const { kinds } = d;
     return html`<div class="bar">
       <select title=${msg('Kind')} aria-label=${msg('Kind')} @change=${(e: Event) => this.navigate({ kind: (e.target as HTMLSelectElement).value })}>
         <option value="" ?selected=${!viewRoute.kind}>${msg('All kinds')}</option>
@@ -523,10 +524,20 @@ export class CaMonitor extends LitElement {
       </select>
       <input placeholder=${msg('Filter')} aria-label=${msg('Text filter')} size="22" title=${this.shortcutScope !== 'off' ? msg('Text filter (/)') : msg('Text filter')} .value=${this.qDraft ?? viewRoute.q}
         @input=${(e: Event) => this.setQ((e.target as HTMLInputElement).value)} />
-      <span class="meta">${viewRoute.tab === 'journal'
-        ? triesLine(d.tries)
-        : total === 1 ? msg('1 task') : msg(str`${total} tasks`)}</span>
+      <span class="meta" aria-live="polite">${this.shownLine(d)}</span>
     </div>`;
+  }
+
+  /** While a filter is on, how many of the tab's rows it shows; the tab's badge counts them all. */
+  private shownLine(d: RunDerived): string {
+    const { viewRoute } = this;
+    const q = this.qDraft ?? viewRoute.q;
+    if (viewRoute.tab === 'journal') {
+      if (!viewRoute.kind && !q && !viewRoute.stop) return '';
+      return shownTriesLine(tryCounts(filterJournal(this.snap.state.journal, viewRoute.kind, viewRoute.stop, q)), d.tries.tries);
+    }
+    if (!viewRoute.kind && !q) return '';
+    return shownTasksLine(filterTasks(d.rows, viewRoute.kind, q).length, d.counts.total);
   }
 }
 

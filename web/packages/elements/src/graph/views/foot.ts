@@ -5,7 +5,6 @@ import { legend as legendRow, type LegendItem } from '../../primitives/legend.js
 import type { MarkMatrixInput } from '../../matrix/types.js';
 import { asBar } from '../marks.js';
 import { slotsOf, type GraphHost } from '../host.js';
-import { innerIcon } from '../icons.js';
 
 /**
  * The legend on the left, the tools at the right end of the first line, and the keys
@@ -58,9 +57,9 @@ const legendMark = (h: GraphHost, state: string, badge?: string) => {
 };
 
 /**
- * What the view shows that needs a word: the states of the marks shown, a badge when a
- * mark shows one, the icons the host names, the edge styles when another than solid is drawn, a
- * cluster's return, and the mark of an item with an inner view.
+ * What the view shows that needs a word: the states of the marks shown, the icons the
+ * host names, and the edge styles when another than solid is drawn. A badge, a cluster's
+ * return and the mark of an item with an inner view name themselves in their tooltips.
  */
 function legend(h: GraphHost, mx: MarkMatrixInput | null) {
   const g = h.drawn;
@@ -73,13 +72,9 @@ function legend(h: GraphHost, mx: MarkMatrixInput | null) {
       : g.nodes.flatMap((n) => slotsOf(n, g.series).map((s) => s && { state: s.m.state, badge: asBar(n, h.barAt) ? undefined : s.m.badge }));
   const shown = marks.filter((m): m is { state: string; badge: string | undefined } => m !== null);
   const present = new Set(shown.map((m) => m.state));
-  const badge = shown.some((m) => m.badge);
   const styles = new Set(!mx && !flat ? [...g.edges, ...g.stubs].map((e) => e.style) : []);
   const edgeStyles = styles.size > 1 || (styles.size === 1 && !styles.has('solid')) ? (['solid', 'dotted', 'dashed'] as const).filter((s) => styles.has(s)) : [];
   const icons = new Set(mx ? mx.head.flat().flatMap((c) => c.icons ?? []) : g.nodes.flatMap((n) => n.icons ?? []));
-  const cycles = !mx && !flat && g.clusters.some((c) => c.cycle);
-  const inner = !mx && ((!flat && g.clusters.some((c) => c.drill)) || g.nodes.some((n) => n.drill));
-  const first = Object.keys(h.states)[0] ?? '';
   const line = (style: 'solid' | 'dotted' | 'dashed') =>
     svg`<svg width="22" height="8" aria-hidden="true"><path class=${style} d="M1,4 H21" stroke-dasharray=${style === 'dashed' ? '5 4' : style === 'dotted' ? '0.1 4' : 'none'}></path></svg>`;
   const edgeWord = { solid: h.words.solidEdge, dotted: h.words.dottedEdge, dashed: h.words.dashedEdge };
@@ -87,21 +82,10 @@ function legend(h: GraphHost, mx: MarkMatrixInput | null) {
     ...Object.entries(h.states)
       .filter(([s]) => present.has(s))
       .map(([s, look]) => ({ label: look.label, icon: legendMark(h, s), decorative: true })),
-    ...(badge ? [{ label: h.words.badge, icon: legendMark(h, first, '2'), decorative: true }] : []),
     ...Object.entries(h.words.iconNames)
       .filter(([name]) => icons.has(name))
       .map(([name, label]) => ({ label, icon: h.renderIcon(name) })),
     ...edgeStyles.map((s) => ({ label: edgeWord[s], icon: line(s) })),
-    ...(cycles
-      ? [
-          {
-            label: h.words.cycle,
-            icon: html`<svg width="24" height="12" aria-hidden="true"><path class="ret" d="M20,1.5 V5.5 Q20,9.5 16,9.5 H8 Q4,9.5 4,5.5 V5"></path>
-            <path class="ret-head" d="M4,0.8 L1.4,5 L6.6,5 z"></path></svg>`,
-          },
-        ]
-      : []),
-    ...(inner ? [{ label: h.words.drill, icon: innerIcon() }] : []),
   ];
   return legendRow(items, { cls: 'big' });
 }

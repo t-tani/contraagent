@@ -40,7 +40,9 @@ It reads `runs/<id>/` and shows, live, one tab each:
   of an input root other than `out` shows the root's name before its path,
   `data: 2026/x.csv`), then
   its earlier tasks, each tagged with its lineage: given output, runs after (order
-  only), created after result. Its later tasks are tagged the same way. A task whose
+  only), created after result. A param whose value is an earlier task's output
+  names that task ("From summarize · gamma"), and that task's tag leaves out
+  given output. Its later tasks are tagged the same way. A task whose
   failure stopped a flow call names where: "This failure stopped review_loop at
   flow.py:42". A task a resume ran again says why, with the parts of its fingerprint
   that changed ("Changed: params") and a divergence. A resumed run numbers a task's

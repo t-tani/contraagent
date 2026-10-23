@@ -8,7 +8,7 @@ import { pill } from '@contraagent/elements/primitives';
 import { facts, fmtDur, kindUnit, listText, localTime, tokenCount, unreadEvents, usageUnknown, usageUnknownWords, usd } from '../../words/format.js';
 import { attemptNames, deferredText, changedFiles, changedFilesTip, changeLabel, credentialLabel, credentialTip, locksLabel, locksTip, modelSwitch, outcomeLabel, priorityText, priorityTip, replayedLabel, replayedTip, stopLabel, workingDirectoryText, workingDirectoryTip, type ChangeKind } from '../../words/index.js';
 import { contextWarnedText, contextWarnedTip, peakContextLine, peakContextTip, peakTry } from '../../words/context.js';
-import { readingShort, readingTip } from '../../words/quota.js';
+import { readingChange, readingShort, readingTip } from '../../words/quota.js';
 import { safetyStopCount, safetyStopLine, safetyStopTip } from '../../words/safety.js';
 import { customColumnTip, customValues } from '../../words/row-extras.js';
 import { divergenceTip, divergenceWord, rerunLine, rerunOf } from '../../words/rerun.js';
@@ -92,7 +92,7 @@ function verdict(c: TaskContext): [text: string, tone: Tone] {
 }
 
 /** The model of the latest round, as its launch named it (`--model`). */
-function streamModel(c: TaskContext): string {
+function streamModel(c: Pick<TaskContext, 'launches'>): string {
   for (let i = c.launches.length - 1; i >= 0; i--) {
     const l = c.launches[i];
     const m = l ? launchWho(l).model : '';
@@ -105,6 +105,19 @@ function streamModel(c: TaskContext): string {
  * The header of task `key`. `onSearch(query, nth)` is called when the reader
  * picks one of its web searches (the nth with that query).
  */
+/** Who ran the task, as its header names it: the running session's agent, model and role, else the latest attempt's. */
+export function taskWho(c: Pick<TaskContext, 'detail' | 'launches'>): Who {
+  const { rows, launches } = c.detail;
+  const lastRow = rows.slice().sort((a, b) => String(a.ts).localeCompare(String(b.ts)))[rows.length - 1];
+  const lc0 = launches[0];
+  return {
+    agent: agentLabel(lc0?.cmd ? lc0.cmd.split(' ')[0] : lastRow?.agent),
+    // The journal may not name the model (an agent that does not report it): fall back to the one the transcript shows.
+    model: lc0?.model || lastRow?.model || streamModel(c),
+    role: lc0?.role || '',
+  };
+}
+
 export function taskHeader(c: TaskContext, key: string, onSearch: (query: string, nth: number) => void): TemplateResult {
   const d = c.detail;
   const live = c.live;
@@ -112,14 +125,7 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
   const py = isPy(d);
   const session = hadSession(d);
   const byTs = rows.slice().sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
-  const lastRow = byTs[byTs.length - 1];
-  const lc0 = launches[0];
-  const who: Who = {
-    agent: agentLabel(lc0?.cmd ? lc0.cmd.split(' ')[0] : lastRow?.agent),
-    // The journal may not name the model (an agent that does not report it): fall back to the one the transcript shows.
-    model: lc0?.model || lastRow?.model || streamModel(c),
-    role: lc0?.role || '',
-  };
+  const who = taskWho(c);
   const otherModels = session ? [...new Set(byTs.map((r) => r.model).filter((x): x is string => !!x && x !== who.model))] : [];
   const first = rows[0];
   const tries = rows.filter(isLaunched);
@@ -285,10 +291,14 @@ function quotaLine(c: TaskContext, tries: JournalRow[]) {
   const start = first ? tryQuota(first, readings).start : null;
   if (!start || !last) return nothing;
   const next = tryQuota(last, readings).next;
-  // The identity chip names the account; both readings are that account's.
+  // The identity chip names the account; both readings are that account's. One line: each window from the first reading to the next.
+  const tip = [
+    msg(str`Usage at session start: ${readingShort(start)}`),
+    readingTip(start),
+    ...(next ? ['', msg(str`Usage after this task: ${readingShort(next)}`), readingTip(next)] : []),
+  ].join('\n');
   return html`<div class="spend quota">
-    <span title=${readingTip(start)}>${msg(str`Usage at session start: ${readingShort(start)}`)}</span>
-    ${next ? html`<span title=${readingTip(next)}>${msg(str`Usage after this task: ${readingShort(next)}`)}</span>` : nothing}
+    <span title=${tip}>${msg(str`Usage: ${readingChange(start, next)}`)}</span>
   </div>`;
 }
 

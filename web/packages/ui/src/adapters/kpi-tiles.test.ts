@@ -19,7 +19,7 @@ describe('kpis', () => {
     expect(k).toEqual({
       attempts: 4, python: 1, launches: 3, bad: 1, launchWall: 3, pythonWall: 1,
       retries: 1, retriedTasks: 1, fixups: 2, fixupTasks: 1, switches: 1, switchTasks: 1,
-      retriedKeys: ['c'], fixupKeys: ['c'],
+      retriedKeys: ['c'], fixupKeys: ['c'], switchKeys: ['c'],
     });
   });
 
@@ -53,12 +53,33 @@ describe('kpiTiles', () => {
     for (const id of ['attempts', 'cost', 'tokens', 'wall', 'retry', 'ct', 'fo']) expect(t.get(id)?.tone ?? 'neutral', id).toBe('neutral');
   });
 
-  it('shows a 0 of a problem neutral, with its words', () => {
+  it('shows a 0 neutral, with no line under it and no link', () => {
     const t = tiles([r('prepare-a', 'completed')]);
     expect(t.get('bad')?.tone).toBe('neutral');
-    expect(line(t.get('bad'))).toContain('All attempts done');
     expect(t.get('notstarted')?.tone).toBe('neutral');
-    expect(t.get('bad')?.action).toBeUndefined();
+    for (const id of ['bad', 'notstarted', 'retry', 'ct', 'fo']) {
+      expect(line(t.get(id)), id).toBe('');
+      expect(t.get(id)?.action, id).toBeUndefined();
+    }
+  });
+
+  it('names the one task a count belongs to; counts the tasks only when they differ from the value', () => {
+    const switched = { hops: [{ model: 'a', stop: 'rate_limited' }, { model: 'b', stop: 'completed' }] as JournalRow['hops'] };
+    const one = tiles([r('prepare-a', 'error'), r('prepare-a', 'error', { attempt: 1 }), r('prepare-a', 'completed', { attempt: 2 })]);
+    expect(one.get('retry')?.value).toBe(2);
+    expect(line(one.get('retry'))).toBe('prepare · a');
+    const two = tiles([r('prepare-a', 'completed', switched), r('prepare-b', 'completed', switched)]);
+    expect(two.get('fo')?.value).toBe(2);
+    expect(line(two.get('fo'))).toBe('');
+    const twice = tiles([r('prepare-a', 'completed', { hops: [...switched.hops!, { model: 'c', stop: 'completed' }] }), r('prepare-b', 'completed', switched)]);
+    expect(twice.get('fo')?.value).toBe(3);
+    expect(line(twice.get('fo'))).toBe('2 tasks with model switches');
+  });
+
+  it('names the kind with the highest cost, unless asked not to', () => {
+    const journal = [r('prepare-a', 'completed'), r('review-a', 'completed', { cost_usd: 0.05 })];
+    expect(line(kpiTiles(journal, deriveRun(journal)).find((t) => t.id === 'cost'))).toContain('Highest cost: review');
+    expect(line(kpiTiles(journal, deriveRun(journal), { highestCost: false }).find((t) => t.id === 'cost'))).toBe('');
   });
 
   it('counts done and done after retrying as done; skipped apart; a refusal then done is done', () => {
