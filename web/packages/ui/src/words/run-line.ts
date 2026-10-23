@@ -1,6 +1,6 @@
 // The monitor's one-line summaries of a run: the header's run line and the
-// history bar's count.
-import { deriveRun, elapsedS, runAccounts, spendOf, type RunDerived, type RunState, type RunSummary } from '@contraagent/api';
+// list bar's count while a filter is on.
+import { deriveRun, elapsedS, runAccounts, spendOf, type RunDerived, type RunState, type RunSummary, type TryCounts } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
 import { facts, fmtDur, usd } from './format.js';
 import { stateCount } from './outcome.js';
@@ -29,10 +29,13 @@ export function runLine(state: RunState, summary: RunSummary, derived: RunDerive
   return facts(msg(str`${c.doneTotal} of ${c.total} tasks done`), notRun, tail);
 }
 
-/** The history bar's count, as the overview counts: "23 attempts | 4 not started". */
-export function triesLine({ tries, notStarted }: RunDerived['tries']): string {
-  return facts(tries === 1 ? msg('1 attempt') : msg(str`${tries} attempts`), notStarted ? stateCount('not_started', notStarted) : '');
+/** The history bar's count while a filter is on: the attempts shown of all, and the tasks shown that did not start ("12 of 23 attempts | 1 not started"). */
+export function shownTriesLine(shown: TryCounts, all: number): string {
+  return facts(msg(str`${shown.tries} of ${all} attempts`), shown.notStarted ? stateCount('not_started', shown.notStarted) : '');
 }
+
+/** The tasks bar's count while a filter is on ("12 of 30 tasks"). */
+export const shownTasksLine = (shown: number, all: number): string => msg(str`${shown} of ${all} tasks`);
 
 /** A stub run's mark (`RunSummary.stub`): its tasks were played by the stub agent. */
 export const stubLabel = (): string => msg('stub agent', { desc: 'A run whose tasks a coding agent with scripted replies played' });

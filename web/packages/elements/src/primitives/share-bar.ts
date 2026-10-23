@@ -20,6 +20,8 @@ export interface ShareBarOptions {
   label?: string;
   /** The smallest share (0..1) whose part is named under the bar; default 0.15. */
   labelAt?: number;
+  /** Names the parts under the bar; default true. False when a table beside the bar names each part with its share. */
+  names?: boolean;
 }
 
 /**
@@ -42,7 +44,8 @@ export const sharePercent = (pct: number, value: number): string => (pct === 0 &
 /**
  * The parts of a whole as one bar (`.share`, part `share`): each part a segment as
  * wide as its share, 2px apart, in the order given (so a part keeps its place when
- * the amounts change), with its name and share under it when it is wide enough.
+ * the amounts change), with its name and share under it when it is wide enough
+ * (unless `names` is false).
  * Hovering or focusing a segment shows its name, share and amount; each segment is
  * a tab stop with the same words. Name every part beside the bar too (a legend or a
  * table): a colour alone never says which part is which.
@@ -62,12 +65,14 @@ export function shareBar(parts: readonly SharePart[], o: ShareBarOptions = {}): 
           ><span class="share-tip" aria-hidden="true">${words(p, i)}</span></span>`,
       )}
     </div>
-    <div class="share-names" aria-hidden="true">
-      ${shown.map(
-        (p, i) => html`<span style=${styleMap({ flexGrow: String(p.value / total) })}
-          >${p.value / total >= labelAt ? html`<b>${p.label}</b> ${sharePercent(pcts[i]!, p.value)}` : nothing}</span>`,
-      )}
-    </div>
+    ${o.names === false
+      ? nothing
+      : html`<div class="share-names" aria-hidden="true">
+          ${shown.map(
+            (p, i) => html`<span style=${styleMap({ flexGrow: String(p.value / total) })}
+              >${p.value / total >= labelAt ? html`<b>${p.label}</b> ${sharePercent(pcts[i]!, p.value)}` : nothing}</span>`,
+          )}
+        </div>`}
   </div>`;
 }
 

@@ -49,6 +49,12 @@ export function resetsIn(iso: string | null | undefined, now = Date.now()): stri
 export const readingShort = (r: QuotaReading): string =>
   facts(msg(str`weekly ${pct(r.seven_day_pct)}`), msg(str`5-hour ${pct(r.five_hour_pct)}`));
 
+/** A reading and the next one, window by window ("weekly 41% → 43% | 5-hour 14% → 28%"); the first alone when there is no next. */
+export const readingChange = (a: QuotaReading, b: QuotaReading | null | undefined): string =>
+  b
+    ? facts(msg(str`weekly ${pct(a.seven_day_pct)} → ${pct(b.seven_day_pct)}`), msg(str`5-hour ${pct(a.five_hour_pct)} → ${pct(b.five_hour_pct)}`))
+    : readingShort(a);
+
 /** A reading in full, for a tooltip: both windows, their resets, when it arrived. */
 export function readingTip(r: QuotaReading): string {
   const parts = [

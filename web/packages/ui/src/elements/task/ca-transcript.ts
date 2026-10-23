@@ -8,6 +8,7 @@ import { customElement, property, query, state } from 'lit/decorators.js';
 import { keyed } from 'lit/directives/keyed.js';
 import { classifyRounds } from '../../adapters/transcript/rounds.js';
 import { transcriptSections } from '../../adapters/transcript/sections.js';
+import type { Who } from '../../adapters/transcript/who.js';
 import { StreamController } from '../../controllers/stream.js';
 import { emit, type RoundInfo, type RoundsChangedDetail } from '../../core/events.js';
 import { getLocale } from '../../core/i18n.js';
@@ -19,6 +20,7 @@ import { modelSwitchTip } from '../../words/hops.js';
 
 /** The transcript's words, in the reader's language (call at render time). */
 const strings = (): TranscriptStrings => ({
+  // the picker's accessible name: its buttons name each session
   sections: msg('Agent sessions'),
   sectionsTip: [
     `${msg('Retry')}: ${retryTip()}`,
@@ -90,6 +92,8 @@ export class CaTranscript extends LitElement {
   @property({ attribute: false }) round: number | null = null;
   /** The task's journal rows (finished tries): each round then says how it ended. */
   @property({ attribute: false }) rows: JournalRow[] = [];
+  /** Who the page names already (a task's header): each round's head shows only the coding agent, model and role that differ. */
+  @property({ attribute: false }) shownWho: Who | null = null;
   /** `full`; `tabs`: only the round picker (another view of the task is shown); `none`: hidden. */
   @property({ reflect: true }) mode: 'full' | 'tabs' | 'none' = 'full';
 
@@ -144,14 +148,15 @@ export class CaTranscript extends LitElement {
   /** The rounds and their sections, drawn again only when the transcript, the rows or the language changed. */
   private sections(): { rounds: RoundInfo[]; sections: TranscriptSection[] } {
     const active = this.live && this.feed.tailing;
-    const key = [this.feed.version, this.rows, this.run, active, getLocale()];
+    const w = this.shownWho;
+    const key = [this.feed.version, this.rows, this.run, active, getLocale(), w?.agent, w?.model, w?.role];
     if (this.drawn?.key.every((k, i) => k === key[i])) return this.drawn;
     const t = this.feed.model;
     const rounds = classifyRounds(
       t.rounds.map((r) => r.launch),
       this.rows,
     );
-    this.drawn = { key, rounds, sections: transcriptSections(t, rounds, { run: this.run, rows: this.rows, active }) };
+    this.drawn = { key, rounds, sections: transcriptSections(t, rounds, { run: this.run, rows: this.rows, active, shownWho: w }) };
     return this.drawn;
   }
 

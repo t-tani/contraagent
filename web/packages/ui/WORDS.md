@@ -73,7 +73,7 @@ written are in `web/AGENTS.md`.
 | an export (`Info.export`), the header's mark in place of the connection; a view it does not hold | Exported `time`; tooltip: Not in this export: transcripts and processes; not in this export | `time` 時点の書き出し; この書き出しに含まれないもの; 書き出しに含まれない |
 | `unread_events` | unrecognized events | 未対応のイベント |
 | `usage_unknown` (`calls`, `tokens`), a mark on an attempt | Tokens per API call unknown; Tokens unknown | API 呼び出しごとのトークンは不明; トークンは不明 |
-| `quota` (a subscription's utilization, account-wide) | 5-hour / weekly usage at the start of a session | 5 時間枠 / 週の利用率（セッション開始時点） |
+| `quota` (a subscription's utilization, account-wide) | 5-hour / weekly usage at the start of a session; a task's header: Usage: weekly 41% → 43% \| 5-hour 14% → 28% (its first session's start → the next reading after it) | 5 時間枠 / 週の利用率（セッション開始時点）; 利用率: 週 41% → 43% \| 5 時間枠 14% → 28% |
 | a reading's windows (`status_window`, `windows`: `five_hour`, `seven_day`, `seven_day_<model>`) | 5-hour, weekly, weekly (`model`); a status with its window: near the limit \| weekly | 5 時間枠, 週, 週（`model`） |
 | `threshold_pct`, `overage_status` of a reading | Warning threshold; Extra usage: allowed / not allowed | 警告のしきい値; 上限を超えた利用: 可 / 不可 |
 | account (`QuotaReading.account`, a digest), shown when one identity has two | account `3f9c2a`; Account: `digest` (tooltip) | アカウント |

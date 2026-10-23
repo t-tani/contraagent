@@ -10,6 +10,7 @@ const T = Date.parse('2026-10-11T10:00:00Z');
 const STYLES: Record<string, LaneStyle> = {
   ok: { label: 'passed', color: 'green' },
   bad: { label: 'failed', color: 'red', pattern: 'hatched', group: 1 },
+  run: { label: 'running', color: 'blue', pattern: 'striped', group: 1 },
 };
 const LANES: Lane[] = [
   { id: 'build', label: 'Build', bars: [{ id: 'b1', start: T, end: T + 60e3, style: 'ok', label: 'Build 1' }, { id: 'b2', start: T + 30e3, end: T + 90e3, style: 'bad', label: 'Build 2' }] },
@@ -44,7 +45,7 @@ describe('cae-lanes', () => {
     expect(ticks[0]).toMatch(/^\d\d:\d\d:\d\d$/);
   });
 
-  it('draws a legend row per group, the note of omitted bars last; no line at now when nothing runs', async () => {
+  it('draws a legend row per group of the styles the bars use, the note of omitted bars last; no line at now when nothing runs', async () => {
     const el = await mount({ omitted: 2, strings: { omitted: (n) => `${n} hidden` } });
     const legends = [...el.shadowRoot!.querySelectorAll('[part="legend"]')].map((l) => [...l.querySelectorAll('[role="listitem"]')].map((i) => i.textContent?.trim()));
     expect(legends).toEqual([['passed'], ['failed', '2 hidden']]);

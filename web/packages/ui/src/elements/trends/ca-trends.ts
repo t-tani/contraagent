@@ -150,7 +150,8 @@ export class CaTrends extends LitElement {
   /** The period, its time zone and the run group: links of the page's address. */
   private controls() {
     const data = this.view?.data;
-    const period = data ? html`<span class="period">${periodLabel(data.period.from, data.period.to, data.period.tz)}</span>` : nothing;
+    // The time zone control names the zone; an export has none, so its period names it.
+    const period = data ? html`<span class="period">${periodLabel(data.period.from, data.period.to, this.exported ? data.period.tz : '')}</span>` : nothing;
     if (this.exported) return html`<div class="controls"><span class="meta">${exportedPeriod()}</span>${period}</div>`;
     const choice = this.days ? String(this.days) : 'dates';
     const today = data?.period.to || new Date().toISOString().slice(0, 10);

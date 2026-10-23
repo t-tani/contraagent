@@ -27,7 +27,9 @@ a list (errors) or a note.
 ::code{file="../src/transcript/types.ts" from="export interface TranscriptSection {" to="/** Where the reader was in a transcript. */"}
 
 An item is a prompt, a message or reasoning (markdown), an event (a glyph, a
-title and a detail), a notice, or a tool card:
+title and a detail), a notice, or a tool card. A prompt and reasoning show a
+head over their bubble; the agent's messages show none, and their avatar
+carries the name (`strings.assistant`) as its accessible name and tooltip:
 
 ::code{file="../src/transcript/types.ts" from="/** One tool call:" to="/** A labelled value in a section's head (who ran it). */"}
 
@@ -69,5 +71,5 @@ Markdown is turned into HTML by `markdown` (`md` of
 reasoning show as plain text. `renderDetail` draws an open prose detail. The
 parts are `picker`, `section`, `tag`, `bubble`, `notice`, `tool`, `tool-body`
 and `verdict`; `tagChips` and `tagStyles` draw tags elsewhere in the same
-look. The words are `strings` ([Strings](strings.md)): the picker's name and
-tooltip, the bubbles' heads, the tool cards' statuses, the counts.
+look. The words are `strings` ([Strings](strings.md)): the picker's accessible
+name (not shown) and tooltip, the bubbles' heads and the messages' name, the tool cards' statuses, the counts.

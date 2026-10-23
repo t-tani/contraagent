@@ -15,6 +15,6 @@ export interface StatTile {
   tip?: string;
   /** The lines under the value, each a row of facts (`factLine`); an empty line keeps its place. */
   sub?: readonly (readonly (string | Fact)[])[];
-  /** A link under the lines: a click sends `cae-action` with the tile's id and this id. */
+  /** Makes the whole tile a link named `label`: a click sends `cae-action` with the tile's id and this id. */
   action?: { id: string; label: string };
 }

@@ -32,10 +32,10 @@ async function overview(state: Partial<RunState>, info: Info = INFO): Promise<Sh
   return el.shadowRoot!;
 }
 
-/** A card's name: its heading's own text, without the facts on its right. */
+/** A card's name: its heading's own text (or the link it is), without the facts on its right. */
 const name = (h: Element): string =>
   [...h.childNodes]
-    .filter((n) => n.nodeType === Node.TEXT_NODE)
+    .filter((n) => n.nodeType === Node.TEXT_NODE || (n instanceof Element && n.matches('a.hl')))
     .map((n) => n.textContent)
     .join('')
     .trim();
@@ -83,11 +83,24 @@ describe('ca-overview', () => {
     expect(getComputedStyle(line).whiteSpace).toBe('nowrap');
   });
 
-  it('lists a task done after retrying apart from the problems: no problem, then the task under its own heading', async () => {
+  it('lists a task done after retrying apart from the problems: no problem, then the task in a group of its own', async () => {
     const root = await overview({ journal: [row('a', false), { ...row('a', true), attempt: 1 }] });
     expect(root.querySelector('.problems .ok')?.textContent?.trim()).toBe('✓No problems');
-    expect(root.querySelector('.problems h4.sub')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Done after retrying 1');
-    expect(root.querySelector('.problems .fl-name')?.textContent).toContain('k · a');
+    // No heading repeats the rows' status: the group is named for screen readers, set apart by a rule.
+    expect(root.querySelector('.problems h4')).toBeNull();
+    const group = root.querySelector('.problems .recovered[role="group"]')!;
+    expect(group.getAttribute('aria-label')).toBe('Done after retrying');
+    expect(group.querySelector('.fl-name')?.textContent).toContain('k · a');
+    expect(group.querySelector('.fl')?.textContent).toContain('done after retrying');
+  });
+
+  it('makes the Outputs and Process tree headings the links to their tabs', async () => {
+    const root = await overview({ journal: [row('a', true)] });
+    const went: unknown[] = [];
+    root.host.addEventListener('ca-navigate', (e) => went.push((e as CustomEvent).detail));
+    root.querySelector<HTMLAnchorElement>('.outputs h3 a.hl')!.click();
+    expect(went).toEqual([{ tab: 'outputs' }]);
+    expect(root.querySelector('.outputs h3 .r')).toBeNull();
   });
 
   it('shows no running tasks for a run that is over: its state says so', async () => {

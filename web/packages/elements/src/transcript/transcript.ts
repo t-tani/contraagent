@@ -254,8 +254,8 @@ export class CaeTranscript extends LitElement {
 
   private renderPicker(sections: readonly TranscriptSection[], shown: number, s: TranscriptStrings) {
     if (sections.length < 2) return nothing;
-    return html`<div class="rounds" role="group" aria-label=${s.sections} part="picker">
-      <span class="rounds-lbl" title=${s.sectionsTip || nothing}>${s.sections}</span>
+    // The buttons say what they pick: the picker's name is for screen readers, its tooltip on the group.
+    return html`<div class="rounds" role="group" aria-label=${s.sections} title=${s.sectionsTip || nothing} part="picker">
       ${sections.map((sec, i) => {
         const v = sec.verdict;
         return html`<button type="button" class="stab ${i === shown ? 'sel' : ''}" title=${v?.tip || nothing} aria-pressed=${i === shown}
@@ -320,10 +320,13 @@ export class CaeTranscript extends LitElement {
     return unsafeHTML(out);
   }
 
-  private bubble(av: string, avCls: string, head: string, body: TemplateResult | string, title?: string) {
+  /** A bubble under its head; `named`: no head, the avatar carries the name (the agent's own messages). */
+  private bubble(av: string, avCls: string, head: string, body: TemplateResult | string, title?: string, named = false) {
     return html`<div class="msg" part="bubble" title=${title ?? nothing}>
-      <div class="av ${avCls}">${av}</div>
-      <div class="bd"><div class="hd">${head}</div>${body}</div>
+      ${named
+        ? html`<div class="av ${avCls}" role="img" aria-label=${head} title=${head}>${av}</div>`
+        : html`<div class="av ${avCls}" aria-hidden="true">${av}</div>`}
+      <div class="bd">${named ? nothing : html`<div class="hd">${head}</div>`}${body}</div>
     </div>`;
   }
 
@@ -332,7 +335,7 @@ export class CaeTranscript extends LitElement {
       case 'prompt':
         return this.bubble('▸', 'av-l', s.prompt, html`<div class="tx meta">${s.characters(it.text.length)}</div>`, it.text.slice(0, 600));
       case 'message':
-        return this.bubble('A', 'av-a', s.assistant, html`<div class="tx">${this.md(it.id, it.text)}</div>`);
+        return this.bubble('A', 'av-a', s.assistant, html`<div class="tx">${this.md(it.id, it.text)}</div>`, undefined, true);
       case 'reasoning':
         return this.bubble('✦', 'av-t', s.reasoning, html`<div class="tx">${this.md(it.id, it.text)}</div>`);
       case 'event':
@@ -347,7 +350,7 @@ export class CaeTranscript extends LitElement {
   }
 
   private typing(s: TranscriptStrings) {
-    return html`<div class="typing"><span class="av av-a">A</span><span class="dots"><i></i><i></i><i></i></span><span class="meta">${s.running}</span></div>`;
+    return html`<div class="typing"><span class="av av-a" aria-hidden="true">A</span><span class="dots"><i></i><i></i><i></i></span><span class="meta">${s.running}</span></div>`;
   }
 }
 

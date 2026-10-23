@@ -31,6 +31,13 @@ describe('wholePercents', () => {
 });
 
 describe('shareBar', () => {
+  it('leaves the names under the bar out when asked', () => {
+    const host = document.createElement('div');
+    render(shareBar(parts(3, 1), { names: false }), host);
+    expect(host.querySelectorAll('.share-seg')).toHaveLength(2);
+    expect(host.querySelector('.share-names')).toBeNull();
+  });
+
   it('draws a segment per part above 0, as wide as its share, in the order given', () => {
     const host = draw(parts(3, 0, 1));
     const segs = [...host.querySelectorAll<HTMLElement>('.share-seg')];
