@@ -124,7 +124,7 @@ class ClaudeBackend(ResumeById, Backend):
     # falling back to the subscription.
 
     def bind_credential(
-        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = "", cwd: Path | None = None
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
     ) -> CredentialBinding:
         c = credential
         if isinstance(c, Ambient):
@@ -187,7 +187,7 @@ class ClaudeBackend(ResumeById, Backend):
     #: ambient launch bills the first one set, else the /login of its config directory.
     _AUTH_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
 
-    def account(self, credential: Credential, model: str = "", *, cwd: Path | None = None) -> str:
+    def account(self, credential: Credential, model: str = "") -> str:
         """The account of a /login (its `oauthAccount.accountUuid` in the config directory's
         `.claude.json`), or of the token or key a credential holds; '' for Bedrock, Vertex,
         workload identity, or a secret that cannot be read."""

@@ -878,18 +878,31 @@ class ReplayAgent(Backend):
         return real.env(launch) if real is not None else {}
 
     def bind_credential(
-        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = "", cwd: Path | None = None
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
     ) -> CredentialBinding:
         """Any credential: a replay makes no API call. With `real`, that agent's binding."""
         if self.real is not None:
-            return self.real.bind_credential(credential, model, env=env, label=label, cwd=cwd)
+            return self.real.bind_credential(credential, model, env=env, label=label)
         return CredentialBinding(isolated=True, isolation="replay: no API calls")
 
-    def account(self, credential: Credential, model: str = "", *, cwd: Path | None = None) -> str:
-        return self.real.account(credential, model, cwd=cwd) if self.real is not None else ""
+    def _bind_credential_in(
+        self, cwd: Path, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
+    ) -> CredentialBinding:
+        if self.real is not None:
+            return self.real._bind_credential_in(cwd, credential, model, env=env, label=label)
+        return self.bind_credential(credential, model, env=env, label=label)
+
+    def account(self, credential: Credential, model: str = "") -> str:
+        return self.real.account(credential, model) if self.real is not None else ""
+
+    def _account_in(self, cwd: Path, credential: Credential, model: str = "") -> str:
+        return self.real._account_in(cwd, credential, model) if self.real is not None else ""
 
     def catalogue(self) -> set[str] | None:
         return self.real.catalogue() if self.real is not None else None
+
+    def _catalogue_in(self, cwd: Path) -> set[str] | None:
+        return self.real._catalogue_in(cwd) if self.real is not None else None
 
     def model_chains(self, cwd: Path | None = None) -> ModelChains | None:
         return self.real.model_chains(cwd) if self.real is not None else None

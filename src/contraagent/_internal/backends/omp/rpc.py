@@ -169,7 +169,7 @@ class OmpRpcBackend(OmpBackend):
         a += ["--max-time", str(math.ceil(launch.limits.timeout_s))]
         if launch.model:
             a += ["--model", launch.model]
-        a += self.bind_credential(launch.credential, launch.model, label=launch.label, cwd=Path(launch.cwd)).args
+        a += self._bind_credential_in(Path(launch.cwd), launch.credential, launch.model, label=launch.label).args
         return a
 
     def _as_launched(self, launch: Launch) -> Launch:

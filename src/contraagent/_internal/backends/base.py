@@ -358,6 +358,10 @@ class Backend(abc.ABC):
         Its output goes to a file, not a pipe: a CLI that exits before a pipe drains (opencode,
         whose list is longer than a pipe holds, under load) would leave a list cut short,
         read as models that are not there."""
+        return self._run_catalogue_in(None, *args, env=env)
+
+    def _run_catalogue_in(self, cwd: Path | None, *args: str, env: dict[str, str] | None = None) -> str | None:
+        """`run_catalogue` with the agent run in `cwd` (None: this process's directory)."""
         if not shutil.which(self.binary, path=self.base_path()):
             return None
         with tempfile.TemporaryFile() as out:
@@ -369,6 +373,7 @@ class Backend(abc.ABC):
                     timeout=self.catalogue_timeout_s,
                     env={**self._base_env, **(env or {}), "NO_COLOR": "1"},
                     stdin=subprocess.DEVNULL,
+                    cwd=cwd,
                 )
             except (OSError, subprocess.SubprocessError):
                 return None
@@ -429,32 +434,42 @@ class Backend(abc.ABC):
             return own[name]
 
     def bind_credential(
-        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = "", cwd: Path | None = None
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
     ) -> CredentialBinding:
         """How this agent authenticates as `credential` for a launch of `model`.
 
         Raises `CredentialError` when it cannot (an unsupported type, a provider
         the model does not use). With `env` None this is a check only and no
         secret is read; with the parent environment the secrets are resolved.
-        `label` keys any per-launch state (an isolated config directory). `cwd` is
-        the directory the launch runs in (`Launch.cwd`), for an agent that reads
-        files of its working directory at start (omp's `.env`); None: this
-        process's current directory. The default supports only `ambient`:
-        whatever the agent loads by itself.
+        `label` keys any per-launch state (an isolated config directory). The
+        default supports only `ambient`: whatever the agent loads by itself.
         """
         if isinstance(credential, Ambient):
             return CredentialBinding(isolation="ambient: whatever the agent loads by default")
         raise CredentialError(f"{self.name} cannot use {credential.type} credentials")
 
-    def account(self, credential: Credential, model: str = "", *, cwd: Path | None = None) -> str:
+    def account(self, credential: Credential, model: str = "") -> str:
         """The account a launch of `model` as `credential` bills, as a 12-hex-digit digest: the
         same value for the same account, never the secret or anything it can be turned
         back into. '' when this agent cannot tell (the default). Read from local state only
         (a login file, the credential's own secret), except where the agent offers no other
-        way; cheap enough to ask once per credential per run. `cwd` is the directory the
-        launch runs in, for an agent whose key can come from a file there (omp's `.env`);
-        None: this process's current directory."""
+        way; cheap enough to ask once per credential per run."""
         return ""
+
+    # contraagent asks these two for a launch in a known directory (`Launch.cwd`, the run's
+    # or a task call's working directory). An agent that reads files of its working
+    # directory at start (omp's `.env`) overrides them; every other agent answers as its
+    # `bind_credential` and `account` do, which a custom backend overrides.
+
+    def _bind_credential_in(
+        self, cwd: Path, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
+    ) -> CredentialBinding:
+        """`bind_credential` for a launch that runs in `cwd`."""
+        return self.bind_credential(credential, model, env=env, label=label)
+
+    def _account_in(self, cwd: Path, credential: Credential, model: str = "") -> str:
+        """`account` for a launch that runs in `cwd`."""
+        return self.account(credential, model)
 
     def attest(self, launch_result: LaunchResult, credential: Credential) -> str | None:
         """After a launch: a reason when the agent reports using a different credential than
@@ -488,6 +503,12 @@ class Backend(abc.ABC):
         """
         listed = self.models()
         return set(listed) if listed is not None else None
+
+    def _catalogue_in(self, cwd: Path) -> set[str] | None:
+        """`catalogue` as the agent lists it when it runs in `cwd`, the directory its
+        launches run in. An agent whose list depends on files of its working directory
+        (omp's `.env`) overrides it; every other agent answers as its `catalogue` does."""
+        return self.catalogue()
 
     def context_window(self, model: str) -> int | None:
         """The context window the agent's catalogue (`models`) lists for `model`, the
@@ -536,9 +557,7 @@ class Backend(abc.ABC):
         model failover through `native_model_chain`/`drivable_model_chain`
         instead, with no separate config to read. omp is the one
         exception: its `retry.fallbackChains` lives in its own config
-        file, so it overrides this to read and describe it. `cwd` is the
-        directory the agent is launched in, whose project config it reads;
-        None: this process's current directory.
+        file, so it overrides this to read and describe it.
         """
         return None
 

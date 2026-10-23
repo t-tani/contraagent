@@ -632,7 +632,7 @@ class Pipeline:
                     specs = graph.agent_specs()
                     if not driven:  # an async flow's kinds are known at its end (below)
                         _check_tables(self.config, specs, graph)
-                    plan = RoutingPlan.build(
+                    plan = RoutingPlan._build(
                         self.config,
                         list(specs),
                         self.backends,
@@ -650,7 +650,7 @@ class Pipeline:
                         f"{node.key}: {called_as(node.credential, node.cwd)}: {problem}"
                         for node in graph.nodes
                         if node.credential or node.cwd is not None
-                        for problem in plan.call_problems(node.spec.kind, node.credential, node.cwd)
+                        for problem in plan._call_problems(node.spec.kind, node.credential, node.cwd)
                     ]
                     if refused:
                         raise RoutingError(*refused)
@@ -778,7 +778,7 @@ class Pipeline:
         """Route a kind while the run runs: one first created then, or one created by another
         declaration than the reachable one routed before the first launch. A config problem
         raises at its task call."""
-        plan = RoutingPlan.build(
+        plan = RoutingPlan._build(
             self.config,
             [spec.kind],
             self.backends,

@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 from types import ModuleType
 
@@ -343,6 +344,8 @@ class OmpBackend(Backend):
         self.trace = trace
         self._chains: dict[Path, OmpModelChains] = {}  # by the directory omp runs in
         self._accounts: dict[tuple[str, str, Path], str] = {}  # (credential, provider, directory) -> its account
+        self._catalogues: dict[Path, set[str] | None] = {}  # by the directory omp runs in
+        self._catalogues_lock = threading.Lock()
 
     def fold(self, launch: Launch) -> EventFold:
         """Stdout is the json event stream (trace) or the answer (text)."""
@@ -360,7 +363,7 @@ class OmpBackend(Backend):
             return None
         cwd = Path(launch.cwd)
         try:
-            binding = self.bind_credential(launch.credential, launch.model, env=self._base_env, label=launch.label, cwd=cwd)
+            binding = self._bind_credential_in(cwd, launch.credential, launch.model, env=self._base_env, label=launch.label)
             env = child_env(self._base_env, launch.credential, binding, {})
         except CredentialError:
             return None
@@ -370,19 +373,23 @@ class OmpBackend(Backend):
             reading.account = reading.account or opencode_key.account_of_key(self._opencode_key(binding, env, cwd))
         return reading
 
-    def account(self, credential: Credential, model: str = "", *, cwd: Path | None = None) -> str:
+    def account(self, credential: Credential, model: str = "") -> str:
         """The account omp's usage report names for the model's provider (`metadata.accountId`,
-        from `omp usage --json`, which reads what omp kept of the account's last response),
-        omp run in `cwd`, whose `.env` it reads. Asked once per credential, provider and
-        directory in this process; '' when omp reports none."""
+        from `omp usage --json`, which reads what omp kept of the account's last response).
+        Asked once per credential, provider and directory in this process, here in this
+        process's current directory; for a launch, contraagent asks in the directory it runs
+        in (`Launch.cwd`), whose `.env` omp reads. '' when omp reports none."""
+        return self._account_in(Path.cwd(), credential, model)
+
+    def _account_in(self, cwd: Path, credential: Credential, model: str = "") -> str:
         provider = model_provider(model)
         if not provider:
             return ""
-        where = Path(cwd) if cwd is not None else Path.cwd()
+        where = Path(cwd)
         if opencode_key.is_opencode(provider):
             # Read locally, as opencode and pi read it: the key omp would send (`_opencode_key`).
             try:
-                binding = self.bind_credential(credential, model, env=self._base_env, cwd=where)
+                binding = self._bind_credential_in(where, credential, model, env=self._base_env)
                 env = child_env(self._base_env, credential, binding, {})
             except CredentialError:
                 return ""
@@ -422,7 +429,7 @@ class OmpBackend(Backend):
         """The child environment (`child_env`): the parent's as it is for `ambient`; for any
         other credential, every other one removed and the chosen one applied last.
         Raises `CredentialError` (LAUNCH_FAILED) when it cannot bind."""
-        binding = self.bind_credential(launch.credential, launch.model, env=self._base_env, label=launch.label, cwd=Path(launch.cwd))
+        binding = self._bind_credential_in(Path(launch.cwd), launch.credential, launch.model, env=self._base_env, label=launch.label)
         env = child_env(self._base_env, launch.credential, binding, launch.env, drop=(*PARENT_SESSION_ENV, deny.DENY_ENV))
         rules = deny.env(launch.limits.disallowed_tools, Path(launch.cwd)) if deny_args(launch) else {}
         return {**env, "CLAUDE_CONFIG_DIR": str(ISOLATION), **rules}
@@ -437,15 +444,24 @@ class OmpBackend(Backend):
     # with no stored logins (`ISOLATED_PROFILE`). Checked against the real CLI: an
     # Anthropic login does not reach another profile, but an opencode-go login
     # does (omp keeps it outside its profiles), so isolation is claimed only for
-    # the providers in `PROFILE_ISOLATED_PROVIDERS`.
+    # the providers in `PROFILE_ISOLATED_PROVIDERS`. omp also fills an unset variable from
+    # the `.env` file of the directory it runs in (`omp_dotenv_files`), so a launch is bound
+    # in its own directory (`Launch.cwd`).
 
     def bind_credential(
-        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = "", cwd: Path | None = None
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
+    ) -> CredentialBinding:
+        """As bound for a launch in this process's current directory, whose `.env` omp reads;
+        for a launch, contraagent binds in the directory it runs in (`Launch.cwd`)."""
+        return self._bind_credential_in(Path.cwd(), credential, model, env=env, label=label)
+
+    def _bind_credential_in(
+        self, cwd: Path, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
     ) -> CredentialBinding:
         c = credential
         if isinstance(c, Ambient):
             return CredentialBinding(isolation="ambient: the host's environment and omp's default profile")
-        where = Path(cwd) if cwd is not None else Path.cwd()
+        where = Path(cwd)
         provider = getattr(c, "provider", "")
         if isinstance(c, Subscription):
             provider = LOGIN_PROVIDERS.get(provider, provider)
@@ -510,6 +526,18 @@ class OmpBackend(Backend):
         out = self.run_catalogue(*catalogue.ARGS)
         return (catalogue.parse_models(out) or None) if out is not None else None
 
+    def _catalogue_in(self, cwd: Path) -> set[str] | None:
+        """omp lists the models of each provider it has a key for, and it reads keys from
+        the `.env` file of the directory it runs in (`omp_dotenv_files`): the list is read
+        in `cwd`, once per directory."""
+        where = Path(cwd).resolve()
+        with self._catalogues_lock:
+            if where not in self._catalogues:
+                out = self._run_catalogue_in(where, *catalogue.ARGS)
+                listed = (catalogue.parse_models(out) or None) if out is not None else None
+                self._catalogues[where] = set(listed) if listed is not None else None
+            return self._catalogues[where]
+
     def _loaded_plugin_dirs(self, launch: Launch) -> tuple[str, ...]:
         """The plugin directories omp is given (`--plugin-dir`). omp takes MCP servers from a
         plugin's `.mcp.json` alone, so a launch whose `mcp_config` is another file gets, in
@@ -561,7 +589,7 @@ class OmpBackend(Backend):
             a += ["--mode", "json"]
         if launch.model:
             a += ["--model", launch.model]
-        a += self.bind_credential(launch.credential, launch.model, label=launch.label, cwd=Path(launch.cwd)).args
+        a += self._bind_credential_in(Path(launch.cwd), launch.credential, launch.model, label=launch.label).args
         a += session_args(launch)
         a += [f"@{f}" for f in launch.context_files]
         # A prompt over the per-argument limit cannot go on argv at all:

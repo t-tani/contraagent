@@ -243,7 +243,7 @@ class StubAgent(Backend):
         return {}
 
     def bind_credential(
-        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = "", cwd: Path | None = None
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
     ) -> CredentialBinding:
         """Any credential: the stub makes no API call, so none is used in place of another."""
         return CredentialBinding(isolated=True, isolation="stub: no API calls")

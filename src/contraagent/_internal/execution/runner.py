@@ -338,16 +338,20 @@ class AgentRunner:
     def _credential_name(self, task: Task, route: Route | None) -> str:
         return (route.credential if route is not None and route.credential else "") or self.config(task).credential or "ambient"
 
-    def account_of(self, backend: Backend, credential: Credential, model: str, cwd: Path | None = None) -> str:
-        """The account `backend` bills as `credential` for `model`, launched in `cwd`
-        (`Backend.account`; None: the runner's `cwd`), asked once a run; '' when it cannot tell."""
-        where = Path(cwd) if cwd is not None else self.cwd
-        key = (backend.name, credential.label, model, where)
+    def account_of(self, backend: Backend, credential: Credential, model: str) -> str:
+        """The account `backend` bills as `credential` for `model` (`Backend.account`), for a
+        launch in the runner's `cwd`, asked once a run; '' when it cannot tell."""
+        return self._account_in(self.cwd, backend, credential, model)
+
+    def _account_in(self, cwd: Path, backend: Backend, credential: Credential, model: str) -> str:
+        """`account_of` for a launch in `cwd`: an agent can read the key it bills from a file
+        of its working directory (omp's `.env`)."""
+        key = (backend.name, credential.label, model, Path(cwd))
         with self._accounts_lock:
             if key in self._accounts:
                 return self._accounts[key]
         try:
-            found = backend.account(credential, model, cwd=where)
+            found = backend._account_in(Path(cwd), credential, model)
         except Exception:  # an account that cannot be told only loses the distinction
             found = ""
         with self._accounts_lock:
@@ -365,7 +369,7 @@ class AgentRunner:
 
         def account(name: str) -> str:
             cred = self.credentials.get(name)
-            return self.account_of(backend, cred, model, cwd) if cred is not None else ""
+            return self._account_in(cwd, backend, cred, model) if cred is not None else ""
 
         return account
 
@@ -758,7 +762,7 @@ class AgentRunner:
             reading = launch_result.quota[i] = reading.model_copy(
                 update={
                     "credential": reading.credential or launch_result.credential or credential.label,
-                    "account": reading.account or self.account_of(backend, credential, launch.model, launch.cwd),
+                    "account": reading.account or self._account_in(Path(launch.cwd), backend, credential, launch.model),
                 }
             )
             if self.rests is not None:

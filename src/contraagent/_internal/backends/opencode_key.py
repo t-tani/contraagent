@@ -182,7 +182,7 @@ class OpencodeKeyAccount:
         to ('' for opencode.ai's); ('', '') for another provider."""
         raise NotImplementedError
 
-    def account(self, credential: Credential, model: str = "", *, cwd: Path | None = None) -> str:
+    def account(self, credential: Credential, model: str = "") -> str:
         """For an OpenCode model: the account of the key the launch bills, the same digest
         opencode, omp and pi give for that key. '' for any other provider."""
         try:

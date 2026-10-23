@@ -118,13 +118,14 @@ def _tight(quota: str) -> bool:
     return False
 
 
-def catalogue_check(backend: Backend | None, route: Route) -> tuple[bool, str]:
-    """(ok, reason) for the cheap pass. Unknown catalogue means "probe it"."""
+def catalogue_check(backend: Backend | None, route: Route, cwd: Path | None = None) -> tuple[bool, str]:
+    """(ok, reason) for the cheap pass, with the agent's list as it reads it in `cwd`, the
+    run's working directory (None: this process's). Unknown catalogue means "probe it"."""
     if backend is None:
         return True, f"no {route.agent} backend here; the probe decides"
     if not route.model:
         return True, "agent default model"
-    catalogue = backend.catalogue()
+    catalogue = backend._catalogue_in(cwd if cwd is not None else Path.cwd())
     if catalogue is None:
         return True, f"{route.agent} lists no models; the probe decides"
     if route.model in catalogue:
@@ -331,7 +332,7 @@ def run_preflight(
     _logger.info(f"[preflight] 1/2 model catalogue: {len(probes)} route(s)")
     verdicts: dict[tuple[str, str, str], RouteVerdict] = {}
     for r, _ in probes:
-        ok, why = catalogue_check(backends.get(r.agent), r)
+        ok, why = catalogue_check(backends.get(r.agent), r, cwd)
         if not ok:
             verdicts[r.identity] = RouteVerdict(r, False, why)
             _logger.warning(f"[preflight]   {r}  DROPPED ({why})")

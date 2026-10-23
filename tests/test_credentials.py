@@ -10,8 +10,8 @@ from pydantic import BaseModel
 
 from contraagent import ConfigError, Pipeline, PipelineConfig, RoutingError, agent_task
 from contraagent._internal.platform import envvars
-from contraagent.backends import Backend, CallFile, ClaudeBackend, Launch, LaunchResult, OmpBackend, Stop
-from contraagent.config import AMBIENT, ApiKey, Limits, Subscription
+from contraagent.backends import Backend, CallFile, ClaudeBackend, CredentialBinding, Launch, LaunchResult, OmpBackend, Stop
+from contraagent.config import AMBIENT, ApiKey, Limits, QuotaReading, Subscription
 from contraagent.engine import RoutingPlan
 from contraagent.plugins import new_plugin
 from fake_cli import write_fake_cli
@@ -178,7 +178,7 @@ class Recorder(Backend):
     def env(self, launch):
         return {}
 
-    def bind_credential(self, credential, model="", *, env=None, label="", cwd=None):
+    def bind_credential(self, credential, model="", *, env=None, label=""):
         return ClaudeBackend(base_env=self._base_env).bind_credential(credential, model, env=env, label=label)
 
     def run(self, launch):
@@ -205,6 +205,65 @@ def test_a_pipeline_runs_each_task_under_its_credential_and_records_only_its_nam
     for f in rep.run_dir.rglob("*"):
         if f.is_file():
             assert "sk-very-secret" not in f.read_text(errors="replace"), f  # where it comes from, never the value
+
+
+class Own(Backend):
+    """A custom coding agent whose `bind_credential` and `account` take what they took in
+    0.8.0: no working directory."""
+
+    name = binary = "claude"
+
+    def __init__(self):
+        super().__init__(base_env={})
+        self.bound, self.asked, self.cwds = [], [], []
+        self._lock = threading.Lock()
+
+    def argv(self, launch):
+        return ["x"]
+
+    def env(self, launch):
+        return {}
+
+    def bind_credential(self, credential, model="", *, env=None, label=""):
+        with self._lock:
+            self.bound.append(credential.label)
+        return CredentialBinding(isolated=True, isolation="its own")
+
+    def account(self, credential, model=""):
+        with self._lock:
+            self.asked.append(credential.label)
+        return "0123456789ab"
+
+    def run(self, launch):
+        with self._lock:
+            self.cwds.append(Path(launch.cwd))
+        call = CallFile.read(Path(launch.env[envvars.CALL]))
+        Path(call.output.path).write_text('{"ok": true}')
+        reading = QuotaReading(five_hour_pct=10.0, observed_at="2026-10-14T12:00:00+00:00")
+        label = launch.credential.label
+        return LaunchResult(label=launch.label, agent=self.name, stop=Stop.COMPLETED, ok=True, credential=label, quota=[reading])
+
+
+def test_a_backend_whose_methods_take_no_directory_checks_and_runs_a_call_in_its_own(tmp_path):
+    new_plugin(tmp_path / "plug")
+    (tmp_path / "sub").mkdir()
+    analyze = agent_task("analyze", plugin=tmp_path / "plug", output=Out, requires=["zdr"])
+    agent = Own()
+
+    def pipeline() -> Pipeline:
+        backends = {"claude": agent}
+        return Pipeline(
+            config(tmp_path), runs_dir=tmp_path / "runs", backends=backends, cwd=tmp_path, preflight="off", log=lambda line: None
+        )
+
+    flow = lambda: analyze.options(cwd="sub", credential="zdr")("u")
+    assert pipeline().check(flow).ok
+    assert "zdr" in agent.bound
+    rep = pipeline().run(flow, run_id="own")
+    assert rep.ok and agent.cwds == [tmp_path / "sub"]
+    assert agent.asked == ["zdr"]  # the account of its quota reading
+    rows = [json.loads(line) for line in (rep.run_dir / "journal.jsonl").read_text().splitlines()]
+    assert [r["credential"] for r in rows if r.get("key") == "analyze-u"] == ["zdr"]
 
 
 def test_ambient_is_the_host_default_and_a_chosen_credential_is_the_only_one(tmp_path, fake_claude):

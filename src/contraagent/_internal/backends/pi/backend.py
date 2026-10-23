@@ -233,7 +233,7 @@ class PiBackend(OpencodeKeyAccount, Backend):
     # --- credentials -------------------------------------------------------
 
     def bind_credential(
-        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = "", cwd: Path | None = None
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
     ) -> CredentialBinding:
         """With `env` None a check only: nothing is read and no directory is made."""
         c = credential

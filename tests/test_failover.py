@@ -313,7 +313,7 @@ def test_a_credential_override_is_every_hops_credential(tmp_path):
     )
 
     class AnyCredential(Agent):
-        def bind_credential(self, credential, model="", *, env=None, label="", cwd=None):
+        def bind_credential(self, credential, model="", *, env=None, label=""):
             return CredentialBinding()
 
     backends = {"claude": AnyCredential("claude", lambda m: Stop.COMPLETED)}

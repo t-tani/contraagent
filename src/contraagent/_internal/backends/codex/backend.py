@@ -196,7 +196,7 @@ class CodexBackend(ResumeById, Backend):
     # a credential that does not work fails instead of falling back to the stored login.
 
     def bind_credential(
-        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = "", cwd: Path | None = None
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
     ) -> CredentialBinding:
         c = credential
         if isinstance(c, Ambient):

@@ -193,7 +193,7 @@ class Agent(Backend):
     def env(self, launch):
         return {}
 
-    def account(self, credential, model="", *, cwd=None):
+    def account(self, credential, model=""):
         with self._lock:
             self.asked += 1
         return self.acct

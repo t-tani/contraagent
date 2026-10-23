@@ -362,7 +362,7 @@ def _route_problem(
         return f"the task denies {', '.join(rc.disallowed_tools)}, and {why}"
     for member in [credentials[m] for m in cred.members] if isinstance(cred, Pool) else [cred]:
         try:
-            binding = backend.bind_credential(member, route.model, label="check", cwd=cwd)
+            binding = backend._bind_credential_in(cwd if cwd is not None else Path.cwd(), member, route.model, label="check")
         except CredentialError as exc:
             return str(exc)
         if rc.requires and not binding.isolated:
@@ -391,7 +391,7 @@ class RoutingPlan:
     #: The run's working directory (`Pipeline(cwd=)`), where its launches run unless a task
     #: call names its own; None: this process's current directory. The credential checks
     #: and the preflight's probes run there.
-    cwd: Path | None = None
+    _cwd: Path | None = field(default=None, init=False, repr=False, compare=False)
 
     @classmethod
     def build(
@@ -407,7 +407,6 @@ class RoutingPlan:
         light: Iterable[str] = (),
         budgets_required: bool = True,
         all_kinds: bool = True,
-        cwd: Path | None = None,
     ) -> RoutingPlan:
         """Resolve every kind in `kinds` against `config` and `overrides`.
 
@@ -425,8 +424,40 @@ class RoutingPlan:
         With `all_kinds` (the default) `kinds` are every kind of the run, and a task
         table naming none of them is logged (`check_task_tables`); False for a plan of
         some kinds only (an async flow creates kinds as it runs).
-        `cwd` is the run's working directory (`RoutingPlan.cwd`).
         """
+        return cls._build(
+            config,
+            kinds,
+            backends,
+            overrides,
+            declared=declared,
+            bases=bases,
+            requirements=requirements,
+            light=light,
+            budgets_required=budgets_required,
+            all_kinds=all_kinds,
+            cwd=None,
+        )
+
+    @classmethod
+    def _build(
+        cls,
+        config: PipelineConfig,
+        kinds: Iterable[Any],
+        backends: Mapping[str, Backend],
+        overrides: Overrides = Overrides(),
+        *,
+        declared: Mapping[str, Mapping[str, Any]] | None = None,
+        bases: Mapping[str, str] | None = None,
+        requirements: Mapping[str, Iterable[str]] | None = None,
+        light: Iterable[str] = (),
+        budgets_required: bool = True,
+        all_kinds: bool = True,
+        cwd: Path | None,
+    ) -> RoutingPlan:
+        """`build` for a run whose working directory is `cwd` (`Pipeline(cwd=)`; None: this
+        process's current directory): its credential checks, its `call_problems` and its
+        `preflight` run there, as its launches do."""
         kinds = list(kinds)
         errors: list[str] = []  # every problem, reported together
         config.unknown_tables(errors)
@@ -446,16 +477,20 @@ class RoutingPlan:
         check_credentials(configs, routers, credentials, backends, errors, cwd)
         if errors:
             raise RoutingError(*errors)
-        return cls(
-            config=config, backends=backends, configs=configs, routers=routers, overrides=overrides, credentials=credentials, cwd=cwd
-        )
+        plan = cls(config=config, backends=backends, configs=configs, routers=routers, overrides=overrides, credentials=credentials)
+        plan._cwd = cwd
+        return plan
 
-    def call_problems(self, kind: str, credential: str, cwd: Path | None = None) -> list[str]:
+    def call_problems(self, kind: str, credential: str) -> list[str]:
         """Why a task of `kind` cannot run as `credential`, the credential its task call
-        names, in `cwd`, the working directory its call names (None: the run's); empty
-        when it can (`call_credential_problems`)."""
+        names; empty when it can (`call_credential_problems`)."""
+        return self._call_problems(kind, credential, None)
+
+    def _call_problems(self, kind: str, credential: str, cwd: Path | None) -> list[str]:
+        """`call_problems` for a task call that names `credential` (empty: none) and `cwd`
+        (None: none, so the run's working directory)."""
         return call_credential_problems(
-            self.configs[kind], self.routers.get(kind), credential, self.credentials, self.backends, self.overrides, cwd or self.cwd
+            self.configs[kind], self.routers.get(kind), credential, self.credentials, self.backends, self.overrides, cwd or self._cwd
         )
 
     def preflight(self, policy: PreflightPolicy) -> PreflightRecord:
@@ -476,7 +511,7 @@ class RoutingPlan:
             self.credentials,
             policy=policy,
             model_failover=bool(self.config.defaults().get("model_failover")),
-            cwd=self.cwd,
+            cwd=self._cwd,
         )
         return record
 

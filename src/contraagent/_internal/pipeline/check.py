@@ -473,7 +473,7 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
         return
     with _warnings_of("contraagent") as warnings:
         try:
-            plan = RoutingPlan.build(
+            plan = RoutingPlan._build(
                 pipeline.config,
                 list(specs),
                 pipeline.backends,
@@ -501,7 +501,7 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
     refused = [
         f"routing: {n.key}: {called_as(n.credential, n.cwd)}: {p}"
         for n in calls
-        for p in plan.call_problems(n.spec.kind, n.credential, n.cwd)
+        for p in plan._call_problems(n.spec.kind, n.credential, n.cwd)
     ]
     report.add("routing", refused)
     report.add("contracts", _partial_errors(specs, plan))
@@ -569,7 +569,7 @@ def _check_models(pipeline: Pipeline, plan: RoutingPlan, report: CheckReport) ->
         if backend is None:
             continue
         if agent not in catalogues:
-            catalogues[agent] = backend.catalogue()
+            catalogues[agent] = backend._catalogue_in(pipeline.cwd)  # where the run's launches run
         listed = catalogues[agent]
         if listed is None or _listed(model, listed):
             continue
