@@ -41,7 +41,7 @@ from contraagent._internal.errors import ContraagentError, did_you_mean
 from contraagent._internal.execution.pipeline_files import writing_into
 from contraagent._internal.execution.services import env_clashes
 from contraagent._internal.pipeline.adapter import SpecAdapter
-from contraagent._internal.pipeline.graph import Graph, Node, kind_clash, pending_guidance
+from contraagent._internal.pipeline.graph import Graph, Node, called_as, kind_clash, pending_guidance
 from contraagent._internal.pipeline.reach import reachable
 from contraagent._internal.platform import envvars
 from contraagent._internal.routing.plan import RoutingError, RoutingPlan, check_task_tables
@@ -172,7 +172,7 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     report.add("plugins", _plugin_errors(agent_specs) + _mcp_errors(pipeline, graph, Path(tmp)))
     _check_services(pipeline.services, graph, [*specs.values(), *found], report)
     _check_task_tables(pipeline, specs, report)
-    _check_routing(pipeline, agent_specs, report, [n for n in graph.nodes if n.credential])
+    _check_routing(pipeline, agent_specs, report, [n for n in graph.nodes if n.credential or n.cwd is not None])
     return report
 
 
@@ -466,13 +466,14 @@ def _plugin_errors(specs: dict[str, Any]) -> list[str]:
 
 
 def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckReport, calls: list[Node]) -> None:
-    """The routing plan of `specs`, and the credential each of `calls` names (the `credential`
-    of its call options): one that does not exist, or that a route of its kind cannot carry."""
+    """The routing plan of `specs`, and the credential and the working directory each of
+    `calls` names (the `credential` and `cwd` of its call options): a credential that does
+    not exist, or a route of its kind that cannot carry the call in its directory."""
     if not specs:
         return
     with _warnings_of("contraagent") as warnings:
         try:
-            plan = RoutingPlan.build(
+            plan = RoutingPlan._build(
                 pipeline.config,
                 list(specs),
                 pipeline.backends,
@@ -482,6 +483,7 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
                 requirements={kind: spec.requires for kind, spec in specs.items()},
                 light=[kind for kind, spec in specs.items() if spec.light],
                 all_kinds=False,  # the task tables: `_check_task_tables`
+                cwd=pipeline.cwd,
             )
         except RoutingError as exc:
             report.add("routing", [f"routing: {e}" for e in exc.errors])
@@ -496,7 +498,11 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
     if not pipeline.overrides.credential:  # an override outranks every call's credential
         for kind, keys in _call_credentials(calls).items():
             report.routes[kind] += "".join(f"; credential={c} for {', '.join(ks)}, by their task calls" for c, ks in keys.items())
-    refused = [f"routing: {n.key}: credential={n.credential!r}: {p}" for n in calls for p in plan.call_problems(n.spec.kind, n.credential)]
+    refused = [
+        f"routing: {n.key}: {called_as(n.credential, n.cwd)}: {p}"
+        for n in calls
+        for p in plan._call_problems(n.spec.kind, n.credential, n.cwd)
+    ]
     report.add("routing", refused)
     report.add("contracts", _partial_errors(specs, plan))
     report.add(
@@ -522,9 +528,9 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
 
 
 def _call_credentials(calls: list[Node]) -> dict[str, dict[str, list[str]]]:
-    """The task keys of `calls` by kind name and the credential each call names."""
+    """The task keys of the `calls` that name a credential, by kind name and that credential."""
     out: dict[str, dict[str, list[str]]] = {}
-    for node in calls:
+    for node in (n for n in calls if n.credential):
         out.setdefault(kind_name(node.spec.kind), {}).setdefault(node.credential, []).append(node.key)
     return out
 
@@ -563,7 +569,7 @@ def _check_models(pipeline: Pipeline, plan: RoutingPlan, report: CheckReport) ->
         if backend is None:
             continue
         if agent not in catalogues:
-            catalogues[agent] = backend.catalogue()
+            catalogues[agent] = backend._catalogue_in(pipeline.cwd)  # where the run's launches run
         listed = catalogues[agent]
         if listed is None or _listed(model, listed):
             continue

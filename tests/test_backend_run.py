@@ -371,6 +371,25 @@ def test_opencode_s_catalogue_is_read_whole_when_a_pipe_would_cut_it(tmp_path):
     assert listed is not None and "opencode-go/m29" in listed and len(listed) == 80
 
 
+#: opencode whose list holds the provider of the `opencode.json` of the directory it runs in,
+#: unless project config is off.
+OPENCODE_PROJECT = r"""
+import os, sys
+if sys.argv[1:2] == ["models"]:
+    print("opencode/m")
+    if os.path.exists("opencode.json") and not os.environ.get("OPENCODE_DISABLE_PROJECT_CONFIG"):
+        print("project/m")
+"""
+
+
+def test_opencode_s_catalogue_leaves_out_the_project_config_its_launches_leave_out(tmp_path, monkeypatch):
+    (tmp_path / "here").mkdir()
+    (tmp_path / "here" / "opencode.json").write_text("{}")
+    monkeypatch.chdir(tmp_path / "here")
+    backend = OpencodeBackend(base_env=path_of(fake_cli(tmp_path, "opencode", OPENCODE_PROJECT)))
+    assert backend.catalogue() == {"opencode/m"}
+
+
 def test_opencode_s_quota_refusal_carries_its_cool_off():
     reader = EventReader("opencode-go/m")
     reader.feed({"type": "error", "error": {"name": "APIError", "data": {"message": "Go usage limit exceeded retry-after-ms=313534000"}}})

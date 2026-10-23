@@ -1,0 +1,1 @@
+The opencode model list that `contraagent check` and the preflight read leaves out the providers of an `opencode.json` in the directory the pipeline process was started in, as every opencode launch does: a model that a launch cannot use is no longer listed.

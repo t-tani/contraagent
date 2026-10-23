@@ -36,6 +36,7 @@ import logging
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from pathlib import Path
 from typing import ClassVar, Literal, get_args
 
 from pydantic import ConfigDict, Field
@@ -117,13 +118,14 @@ def _tight(quota: str) -> bool:
     return False
 
 
-def catalogue_check(backend: Backend | None, route: Route) -> tuple[bool, str]:
-    """(ok, reason) for the cheap pass. Unknown catalogue means "probe it"."""
+def catalogue_check(backend: Backend | None, route: Route, cwd: Path | None = None) -> tuple[bool, str]:
+    """(ok, reason) for the cheap pass, with the agent's list as it reads it in `cwd`, the
+    run's working directory (None: this process's). Unknown catalogue means "probe it"."""
     if backend is None:
         return True, f"no {route.agent} backend here; the probe decides"
     if not route.model:
         return True, "agent default model"
-    catalogue = backend.catalogue()
+    catalogue = backend._catalogue_in(cwd if cwd is not None else Path.cwd())
     if catalogue is None:
         return True, f"{route.agent} lists no models; the probe decides"
     if route.model in catalogue:
@@ -131,9 +133,18 @@ def catalogue_check(backend: Backend | None, route: Route) -> tuple[bool, str]:
     return False, f"not in the {route.agent} model list"
 
 
-def probe(route: Route, backend: Backend, timeout_s: float, fallback: str | None = None, credential: Credential = AMBIENT) -> RouteVerdict:
+def probe(
+    route: Route,
+    backend: Backend,
+    timeout_s: float,
+    fallback: str | None = None,
+    credential: Credential = AMBIENT,
+    cwd: Path | None = None,
+) -> RouteVerdict:
     """One minimal launch, shaped like the real one, stopped after `timeout_s`: the
     longest `timeout_s` of the kinds whose chain holds `route` (`_wanted_routes`).
+    It runs in `cwd`, the run's working directory (None: this process's), as the run's
+    tasks do: an agent reads its project's config and `.env` there.
 
     `fallback` is the model-level chain the launch will actually carry
     (Claude Code's --fallback-model). Probing without it would answer a
@@ -149,6 +160,7 @@ def probe(route: Route, backend: Backend, timeout_s: float, fallback: str | None
             fallback_model=fallback,
             credential=credential,
             limits=Limits(timeout_s=timeout_s, max_turns=1),
+            cwd=cwd if cwd is not None else Path.cwd(),
         )
     )
     stop = launch_result.stop
@@ -206,15 +218,17 @@ def _native_chain(route: Route, routers: Mapping, backend: Backend) -> str | Non
     return None
 
 
-def _own_chain(backend: Backend, model: str) -> str:
-    """What the agent's own model-level chain does for `model`.
+def _own_chain(backend: Backend, model: str, cwd: Path | None) -> str:
+    """What the agent's own model-level chain does for `model`, launched in `cwd`.
 
     Only meaningful for an agent whose mechanism lives in its config
     rather than on argv, which today means omp: `retry.fallbackChains`
     is on by default but empty unless the operator filled it in, and an
-    empty chain is a quota refusal walking past unimpeded.
+    empty chain is a quota refusal walking past unimpeded. The preflight
+    probes routes, not tasks, so `cwd` is the run's working directory: a
+    task whose call names another directory gets omp's config of that one.
     """
-    chains = backend.model_chains()
+    chains = backend.model_chains(cwd)
     if chains is None:
         return "not available"
     return chains.describe(model)
@@ -301,8 +315,10 @@ def run_preflight(
     credentials: Mapping[str, Credential] | None = None,
     cap: int = DEFAULT_CAP,
     model_failover: bool = False,
+    cwd: Path | None = None,
 ) -> dict[tuple[str, str, str], RouteVerdict]:
-    """Check every route the run will use, cheapest first.
+    """Check every route the run will use, cheapest first, launched in `cwd`, the run's
+    working directory (None: this process's).
 
     Returns a verdict per route checked, by `Route.identity`: a route not in its
     agent's model list, or whose probe did not complete, is not `ok`. A route past
@@ -316,7 +332,7 @@ def run_preflight(
     _logger.info(f"[preflight] 1/2 model catalogue: {len(probes)} route(s)")
     verdicts: dict[tuple[str, str, str], RouteVerdict] = {}
     for r, _ in probes:
-        ok, why = catalogue_check(backends.get(r.agent), r)
+        ok, why = catalogue_check(backends.get(r.agent), r, cwd)
         if not ok:
             verdicts[r.identity] = RouteVerdict(r, False, why)
             _logger.warning(f"[preflight]   {r}  DROPPED ({why})")
@@ -337,7 +353,7 @@ def run_preflight(
 
     def launch(one: tuple[Route, Backend, str | None, float]) -> RouteVerdict:
         r, be, native, timeout_s = one
-        return probe(r, be, timeout_s, native, first_member(credentials or {}, r.credential) or AMBIENT)
+        return probe(r, be, timeout_s, native, first_member(credentials or {}, r.credential) or AMBIENT, cwd)
 
     # The probes run at once, each in a copy of this context: each waits on its own provider,
     # so the preflight takes as long as its slowest probe.
@@ -354,7 +370,7 @@ def run_preflight(
             # The agent owns its model-level failover, so what matters is
             # whether the operator configured it — and, if they asked
             # contraagent for it, that the request cannot be honoured here.
-            own = _own_chain(be, r.model)
+            own = _own_chain(be, r.model, cwd)
             via = f"  (own model chain: {own})"
             if model_failover and not be.drivable_model_chain:
                 _logger.warning(
@@ -376,9 +392,11 @@ def apply_preflight(
     *,
     policy: PreflightPolicy,
     model_failover: bool = False,
+    cwd: Path | None = None,
 ) -> tuple[dict, PreflightRecord]:
-    """Probe the routes of `configs` and `routers`, drop the ones that cannot answer and
-    rebuild each chain on the rest, then apply `policy` to each kind left with no route.
+    """Probe the routes of `configs` and `routers` in `cwd`, the run's working directory,
+    drop the ones that cannot answer and rebuild each chain on the rest, then apply
+    `policy` to each kind left with no route.
 
     Returns the router map and what was done. `substitute` mutates `configs` for the
     kinds it moves; `stop` raises `PreflightStopped`; `off` probes nothing and returns
@@ -387,7 +405,7 @@ def apply_preflight(
     record = PreflightRecord(policy=policy)
     if policy == "off":
         return dict(routers), record
-    verdicts = run_preflight(routers, configs, backends, credentials or {}, model_failover=model_failover)
+    verdicts = run_preflight(routers, configs, backends, credentials or {}, model_failover=model_failover, cwd=cwd)
 
     def answered(r: Route) -> bool:
         v = verdicts.get(r.identity)
