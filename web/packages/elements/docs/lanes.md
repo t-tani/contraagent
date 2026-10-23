@@ -30,7 +30,8 @@ are first drawn.
 `barStyles` maps each key to a `LaneStyle`: a label, a colour, and a pattern
 (`solid`, `hatched`, `striped`, which moves on a bar, or `outline`). Give a
 status a pattern besides its colour, so it does not depend on colour alone. The
-labels are the legend, a row per `group`, in key order; `omitted` adds a note
+labels of the styles the bars use are the legend, a row per `group`, in key
+order; a style no bar uses stays out of it. `omitted` adds a note
 of the bars the host left out (`strings.omitted`).
 
 ## The axis

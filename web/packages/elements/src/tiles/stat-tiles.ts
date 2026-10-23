@@ -13,7 +13,8 @@ const reducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: re
 
 /**
  * Figures as a grid of tiles: each its label, its value (a number counts up in
- * `<cae-count>`), the lines of facts under it and a link. A tile whose number
+ * `<cae-count>`) and the lines of facts under it. A tile with an action is a
+ * link as a whole, named by the action's label. A tile whose number
  * changes bumps, unless `bump` is off or the reader asks for reduced motion.
  *
  * Its look: `columns` (fewer in a narrow element: 4 below 1100px of its
@@ -26,7 +27,7 @@ const reducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: re
  * @csspart label - a tile's label
  * @csspart value - a tile's value
  * @csspart sub - each line under the value
- * @csspart action - a tile's link
+ * @csspart action - a tile's link, over the whole tile
  */
 export class CaeStatTiles extends LitElement {
   static override styles = [base, statTilesStyles];
@@ -63,10 +64,10 @@ export class CaeStatTiles extends LitElement {
       <div class="value" part="value">${typeof t.value === 'number' ? html`<cae-count .value=${t.value}></cae-count>` : t.value}</div>
       ${(t.sub ?? []).map((line) => html`<div class="sub words" part="sub">${factLine(line)}</div>`)}
       ${t.action
-        ? html`<div class="action words"><a class="lnk" part="action" href="#" @click=${(e: Event) => {
+        ? html`<a class="action" part="action" href="#" @click=${(e: Event) => {
             e.preventDefault();
             if (t.action) emit(this, 'cae-action', { id: t.id, action: t.action.id });
-          }}>${t.action.label}</a></div>`
+          }}><span class="sr">${t.action.label}</span></a>`
         : nothing}
     </div>`;
   }

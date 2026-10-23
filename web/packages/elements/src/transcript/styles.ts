@@ -7,7 +7,6 @@ export const transcriptStyles = css`
   :host([mode='tabs']) .scroller, :host([mode='tabs']) .newpill { display: none; }
 
   .rounds { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 10px; padding-left: 2px; }
-  .rounds-lbl { color: var(--text-muted); font-size: 11.5px; font-weight: 600; margin-right: 4px; cursor: help; }
   .stab { padding: 3px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--text-muted);
     cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; }
   .stab:hover { border-color: var(--accent); }

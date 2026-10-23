@@ -109,7 +109,7 @@ function toggleControl(h: GraphHost, id: string, label: string, open: boolean) {
 function clusterName(h: GraphHost, b: GraphClusterInput, sel: boolean) {
   const first = b.path?.[0];
   const name = html`<button type="button" class="name" title=${(first?.tip ?? b.tip) || nothing} aria-pressed=${sel}
-    @focus=${() => h.focusSelect(b.id)} @keydown=${(e: KeyboardEvent) => onNameKey(h, e, b.id)}>${b.cycle ? cycleIcon() : nothing}${first?.label ?? b.label}</button>`;
+    @focus=${() => h.focusSelect(b.id)} @keydown=${(e: KeyboardEvent) => onNameKey(h, e, b.id)}>${b.cycle ? html`<span class="tip-ic" title=${h.words.cycle}>${cycleIcon()}</span>` : nothing}${first?.label ?? b.label}</button>`;
   if (!b.path || b.path.length < 2) return name;
   return html`${name}${b.path.slice(1).map(
     (p) => html`<span class="psep" aria-hidden="true">›</span><button type="button" class="part" title=${p.tip || nothing}
@@ -139,7 +139,7 @@ function cluster(h: GraphHost, b: GraphClusterInput, parent: Rect | null, item: 
     ${b.toggle
       ? html`<span class="cue">${toggleControl(h, b.id, b.path?.map((p) => p.label).join(' › ') ?? b.label, true)}</span>`
       : b.drill
-        ? html`<span class="cue" aria-hidden="true">${innerIcon()}</span>`
+        ? html`<span class="cue" aria-hidden="true" title=${h.words.drill}>${innerIcon()}</span>`
         : nothing}
     <div class="in">${repeat(kids, (id) => id, (id) => item(id, r))}</div>
   </section>`;
@@ -169,7 +169,7 @@ function node(h: GraphHost, n: GraphNode, parent: Rect | null) {
       <span class="right"><span class="count" aria-hidden="true" title=${n.progress.label}>${n.progress.done}/${n.progress.total}</span>${n.toggle
         ? toggleControl(h, n.id, n.label, false)
         : n.drill
-          ? html`<span class="cue" aria-hidden="true">${innerIcon()}</span>`
+          ? html`<span class="cue" aria-hidden="true" title=${h.words.drill}>${innerIcon()}</span>`
           : nothing}</span>
     </div>
     ${bar ? statusBar(h, n, group) : marks(h, group)}
@@ -230,7 +230,7 @@ function mark(h: GraphHost, g: MarkGroup, s: Slot, i: number, tabStop: boolean, 
   const look = h.states[m.state];
   return html`<button type="button" class="mark ${lit ? 'on' : ''} ${sel}" part="mark" data-tone=${toneAttr(look?.tone)} data-shape=${look?.shape ?? nothing}
     data-link=${link ?? nothing} data-i=${i} data-n=${m.badge ?? nothing} tabindex=${tabStop ? 0 : -1}
-    title=${m.tip ?? nothing}
+    title=${[m.tip, m.badge ? `${h.words.badge}: ${m.badge}` : ''].filter(Boolean).join('\n') || nothing}
     aria-label=${m.label} aria-pressed=${!!sel}
     @mouseenter=${() => (h.hover = hlKey)}
     @focus=${focus}

@@ -41,6 +41,8 @@ export const graphStyles = css`
   .edges path.ret-tip, .legend svg path.ret-head { fill: var(--text-2); stroke: none; opacity: 0.8; }
   .ic { display: block; flex: none; }
   .loop-ic { color: var(--text-2); }
+  /* an icon that names itself in a tooltip */
+  .tip-ic { display: inline-flex; line-height: 0; }
   .in-ic { color: var(--text-muted); }
 
   .stub { z-index: 1; font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); padding: 3px 9px;

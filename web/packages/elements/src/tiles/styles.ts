@@ -16,7 +16,10 @@ export const statTilesStyles = css`
   .label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
   .value { overflow-wrap: anywhere; font-size: 28px; font-weight: 700; line-height: 1.15; margin-top: 6px; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; color: var(--text); }
   .sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
-  .action { font-size: 11.5px; margin-top: 4px; }
+  /* a tile with an action is a link as a whole: the link covers the tile */
+  .action { position: absolute; inset: 0; border-radius: inherit; }
+  .action:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .tile:has(.action):hover { border-color: var(--accent); }
   .tile[data-tone] { --edge: var(--tone); }
   .tile[data-tone] .value, .tile[data-tone] .label::before { color: var(--tone); }
   .label[data-mark]::before { display: inline-block; }

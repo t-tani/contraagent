@@ -1,9 +1,9 @@
-import { elapsedS, result, runActivity, type HostSummary, type Plan, type Procs, type RunSummary } from '@contraagent/api';
+import { result, runActivity, runIdOf, type HostSummary, type Plan, type Procs, type RunSummary } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { starts } from '@contraagent/elements';
-import { facts, fmtDur, localTime, sentence } from '../../words/format.js';
+import { facts, localTime, sentence } from '../../words/format.js';
 import { hostFact, lastReport, noReportLabel } from '../../words/hosts.js';
 import { preflightLabel, preflightStoppedCause, preflightStoppedTitle, preflightTip } from '../../words/preflight.js';
 import { preflightRows } from '../../adapters/preflight.js';
@@ -80,7 +80,6 @@ export class CaRunDriver extends LitElement {
       // Its host stopped reporting (a hub): not known to run, not known to have ended.
       const quiet = runActivity(r) === 'unresponsive';
       const [title, tone]: [string, Tone] = quiet ? [sentence(noReportLabel()), 'attention'] : this.stateTitle();
-      const took = quiet ? null : elapsedS(r);
       return html`<div class="drv off">
         <div class="drv-ic" data-tone=${toneAttr(tone)} aria-hidden="true">${MARK[tone]}</div>
         <div>
@@ -89,8 +88,8 @@ export class CaRunDriver extends LitElement {
             this.plan.preflight?.stopped?.length ? preflightStoppedCause(this.plan.preflight.stopped) : '',
             quiet ? lastReport(this.host) : '',
             !r?.last_ts ? msg('No activity') : quiet ? msg(str`Last activity ${localTime(r.last_ts, true)}`) : msg(str`Ended ${localTime(r.last_ts, true)}`),
-            took == null ? '' : msg(str`Took ${fmtDur(took)}`),
-            r?.run_group ? msg(str`Run group ${r.run_group}`) : '',
+            // How long it took is in the header's run line; a run group named as the run is no fact of its own.
+            r?.run_group && r.run_group !== runIdOf(r) ? msg(str`Run group ${r.run_group}`) : '',
             quiet ? hostFact(r?.host_id ?? '') : '',
           )}</div>
           ${this.preflight()}
@@ -101,7 +100,7 @@ export class CaRunDriver extends LitElement {
     const since = starts.at(`drv:${p.pid ?? ''}`, Number.isNaN(started) ? 1 : (Date.now() - started) / 1000);
     const rows: [string, string | number][] = [
       [msg('PID'), p.pid ?? '—'],
-      [msg('Run group'), p.run_group],
+      ...(r && p.run_group === runIdOf(r) ? [] : [[msg('Run group'), p.run_group] as [string, string]]),
       [msg('Running at once (limit)'), p.max_workers || '—'],
       [msg('Started'), localTime(p.started_at, true)],
     ];

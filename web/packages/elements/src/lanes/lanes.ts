@@ -14,8 +14,8 @@ const SECONDS_BELOW_MS = 10 * 60e3;
 /**
  * Bars on a time axis, a lane per group: each bar as long as it took, the
  * overlapping bars of a lane stacked, a running bar (`end` null) growing until
- * now and a line at now. A bar's look is its style in `barStyles`, whose
- * labels are the legend (a row per `group`). The bars grow in when they are
+ * now and a line at now. A bar's look is its style in `barStyles`; the labels
+ * of the styles the bars use are the legend (a row per `group`). The bars grow in when they are
  * first drawn.
  *
  * Its look: `--cae-lanes-label-width` (the lanes' labels; 112px, 78px on a
@@ -117,10 +117,12 @@ export class CaeLanes extends LitElement {
     </div>`;
   }
 
-  /** A legend row per group of styles, in key order; the note of omitted bars ends the last. */
+  /** A legend row per group of the styles the bars use, in key order; the note of omitted bars ends the last. */
   private legends(s: LanesStrings): TemplateResult[] {
     const groups: LegendItem[][] = [];
-    for (const look of Object.values(this.barStyles)) {
+    const used = new Set(this.lanes.flatMap((l) => l.bars.map((b) => b.style)));
+    for (const [key, look] of Object.entries(this.barStyles)) {
+      if (!used.has(key)) continue;
       const g = look.group ?? 0;
       (groups[g] ??= []).push({
         label: look.label,

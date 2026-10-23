@@ -38,6 +38,11 @@ export class CaThemeSwitch extends LitElement {
         padding: 2px 10px 2px 7px; font-size: 11px; color: var(--text-muted); cursor: pointer; }
       .trig:hover, .trig[aria-expanded='true'] { color: var(--text); border-color: var(--line2); }
       .trig svg { width: 13px; height: 13px; }
+      /* on a phone the icon alone: the word stays the button's accessible name */
+      @media (max-width: 480px) {
+        .trig { padding: 4px 6px; }
+        .trig .lbl { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+      }
       .menu { position: absolute; right: 0; top: calc(100% + 8px); min-width: 236px; padding: 6px; z-index: 50;
         background: var(--panel); border: 1px solid var(--line2); border-radius: 12px;
         box-shadow: 0 18px 48px color-mix(in srgb, var(--shadow) 65%, transparent); animation: enter 0.16s var(--ease) both; }
@@ -148,7 +153,7 @@ export class CaThemeSwitch extends LitElement {
     return html`<button type="button" class="trig" aria-haspopup="menu" aria-expanded=${this.open ? 'true' : 'false'} aria-controls="menu"
         title=${msg(str`Theme: ${themeLabel(this.value)}`)} @click=${() => (this.open = !this.open)} @keydown=${(e: KeyboardEvent) => this.onTrigKey(e)}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor" /></svg>
-        ${msg('Theme')}
+        <span class="lbl">${msg('Theme')}</span>
       </button>
       ${this.open
         ? html`<div id="menu" class="menu" role="menu" aria-label=${msg('Theme')} @keydown=${(e: KeyboardEvent) => this.onMenuKey(e)}>

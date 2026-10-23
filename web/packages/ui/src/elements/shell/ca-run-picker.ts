@@ -270,7 +270,7 @@ export class CaRunPicker extends LitElement {
             </span>`
         : page === 'hosts'
           ? html`<span aria-hidden="true">⊞</span><span class="nm">${msg('Hosts')}</span><span class="when page">${hostsLine(this.hosts)}</span>`
-          : html`<span aria-hidden="true">▥</span><span class="nm">${trendsTitle()}</span><span class="when page">${trendsTip()}</span>`}
+          : html`<span aria-hidden="true">▥</span><span class="nm" title=${trendsTip()}>${trendsTitle()}</span>`}
     </div>`;
   }
 }

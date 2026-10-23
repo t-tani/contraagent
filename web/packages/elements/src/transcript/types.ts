@@ -106,7 +106,7 @@ export interface TranscriptMemory {
 }
 
 export interface TranscriptStrings {
-  /** The section picker's name. */
+  /** The section picker's accessible name (not shown). */
   sections: string;
   /** The section picker's tooltip. */
   sectionsTip: string;
@@ -117,6 +117,7 @@ export interface TranscriptStrings {
   /** As `newBelow`, while another section than the latest is shown. */
   newInLatest: (n: number) => string;
   prompt: string;
+  /** The name of the agent's messages: their avatar's accessible name and tooltip (no head is shown). */
   assistant: string;
   reasoning: string;
   characters: (n: number) => string;
