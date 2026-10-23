@@ -327,7 +327,7 @@ def test_the_api_serves_trends_and_trend_panels(runs):
     assert c.get("/api/runs/r1/panels/quality").status_code == 404
 
 
-def test_hundreds_of_runs_are_summed_quickly_and_read_back_without_their_logs(tmp_path, monkeypatch):
+def test_hundreds_of_runs_are_summed_reading_each_log_once_and_read_back_without_their_logs(tmp_path, monkeypatch):
     from contraagent._internal.monitor import trends
 
     root = tmp_path / "runs"
@@ -336,11 +336,17 @@ def test_hundreds_of_runs_are_summed_quickly_and_read_back_without_their_logs(tm
         rows = [row(f"2026-10-{day:02d}T{h:02d}:00:00+00:00", f"k{j}-u{h}", f"k{j}", cost=0.01) for h in range(4) for j in range(5)]
         write_run(root, f"run{i:03d}", rows, started=f"2026-10-{day:02d}T00:00:00+00:00", finished=f"2026-10-{day:02d}T05:00:00+00:00")
     period = Period.parse("2026-10-01", "2026-10-14", "UTC")
-    t0 = time.perf_counter()
+    digested: list[str] = []
+    real = trends.digest
+
+    def counted(source, run):
+        digested.append(run)
+        return real(source, run)
+
+    monkeypatch.setattr(trends, "digest", counted)
     v = Monitor(root).trends(period)
-    # Under a second here; a busy Windows runner took 17.5 s. The limit catches a slowdown
-    # of tens of times, not the speed of one machine.
-    assert time.perf_counter() - t0 < 40
+    # The sum reads each run's logs once: its work grows with the runs, whatever the machine.
+    assert sorted(digested) == [f"run{i:03d}" for i in range(300)]
     assert v["totals"]["attempts"] == 6000 and len(v["runs"]) == 300
 
     def no_logs(source, run):
