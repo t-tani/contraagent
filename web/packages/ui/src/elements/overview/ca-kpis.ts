@@ -19,7 +19,7 @@ import { emit } from '../../core/events.js';
  * @csspart label - a tile's label
  * @csspart value - a tile's value
  * @csspart sub - each line under the value
- * @csspart action - a tile's link
+ * @csspart action - a tile's link, over the whole tile
  */
 @customElement('ca-kpis')
 @localized()
@@ -31,6 +31,8 @@ export class CaKpis extends LitElement {
   @property({ attribute: false }) journal: JournalRow[] = [];
   /** The scheduled tasks; without it, tasks are counted from the journal. */
   @property({ attribute: false }) plan: Plan = { nodes: [], groups: [] };
+  /** Leaves the kind with the highest cost out of the cost tile, for a page that shows the cost by kind beside it. */
+  @property({ type: Boolean, attribute: 'no-highest-cost' }) noHighestCost = false;
 
   private readonly onAction = (e: CustomEvent<{ action: string }>): void => {
     e.stopPropagation();
@@ -40,7 +42,7 @@ export class CaKpis extends LitElement {
   };
 
   override render() {
-    return html`<cae-stat-tiles exportparts="tiles, tile, label, value, sub, action" .tiles=${kpiTiles(this.journal, deriveRun(this.journal, this.plan))} @cae-action=${this.onAction}></cae-stat-tiles>`;
+    return html`<cae-stat-tiles exportparts="tiles, tile, label, value, sub, action" .tiles=${kpiTiles(this.journal, deriveRun(this.journal, this.plan), { highestCost: !this.noHighestCost })} @cae-action=${this.onAction}></cae-stat-tiles>`;
   }
 }
 

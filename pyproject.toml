@@ -5,14 +5,14 @@ build-backend = "hatchling.build"
 [project]
 name = "contraagent"
 version = "0.8.0"
-description = "Run coding-agent CLIs (claude -p, omp) as typed, supervised, observable tasks: contracts, failover, scheduling, resume, live monitor"
+description = "Run coding agents (Claude Code, Codex CLI, opencode, oh-my-pi, pi) as typed, checked and supervised tasks: contracts, failover, scheduling, resume, a live monitor"
 readme = "src/contraagent/docs/README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Tomoaki Tani" }]
 requires-python = ">=3.12"
 dependencies = ["pydantic>=2.11,<3", "psutil>=7.2.2,<8", "typing-extensions>=4.12.2,<5"]
-keywords = ["coding-agent", "claude", "llm", "agents", "pipeline", "orchestration", "supervisor", "failover", "monitoring"]
+keywords = ["coding-agent", "claude", "codex", "opencode", "llm", "agents", "pipeline", "orchestration", "supervisor", "failover", "monitoring"]
 # No "License ::" classifier: PEP 639 forbids it next to a `license` expression.
 classifiers = [
     "Development Status :: 3 - Alpha",

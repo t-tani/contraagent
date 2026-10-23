@@ -37,7 +37,8 @@ solid is drawn, and the node table gives a column each. A node's `expected` is a
 count of items not in it yet, drawn after its marks in a dotted outline.
 
 A cluster is a box of nodes (and of other clusters). A cluster that `cycle`s draws
-a return from its last layer to its first; an edge with `ranks: false` closes that
+a return from its last layer to its first, and an icon before its name whose
+tooltip is `strings.cycle`; an edge with `ranks: false` closes that
 cycle: it never sets the layers and is not drawn. An edge may join items in
 different clusters, at any depth: it leaves and enters each box on its way.
 

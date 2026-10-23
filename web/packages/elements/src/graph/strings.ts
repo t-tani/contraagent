@@ -26,11 +26,13 @@ export interface LayeredGraphStrings {
   more: (n: number) => string;
   /** A node's count without `progress`: its marks of the tone `done`, of all its marks ("2 of 3 done"). */
   progress: (done: number, total: number) => string;
-  /** Legend words: a badge in a mark, the three edge styles, a cluster's return, an inner view. */
+  /** The label of a mark's badge in its tooltip ("count: 3"). */
   badge: string;
+  /** Legend words: the three edge styles. */
   solidEdge: string;
   dottedEdge: string;
   dashedEdge: string;
+  /** Tooltips: the mark of a cluster's return, and of an item with an inner view. */
   cycle: string;
   drill: string;
   /** The open and close controls of an item that can be drawn open ("Show inside", "Hide inside"). */

@@ -23,7 +23,7 @@ export interface GraphMark {
   label: string;
   /** The tooltip. */
   tip?: string;
-  /** A short text in the mark: a count. */
+  /** A short text in the mark: a count. The tooltip adds it after `strings.badge` ("count: 3"). */
   badge?: string;
   /** A short name, as a chip shows it (a node drawn as a bar lists its failed marks by it); default: its series id. */
   name?: string;

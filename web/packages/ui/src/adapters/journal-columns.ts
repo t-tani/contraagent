@@ -36,9 +36,19 @@ export function shortStop(stop: string | null | undefined): string {
   return stop === 'invalid_input' ? outcomeLabel('not_started') : stopLabel(stop);
 }
 
-/** The identity the attempt authenticated as; both when a model switch changed it. */
-function identity(e: JournalRow) {
-  const ids = [...new Set([...(e.hops ?? []).map((h) => h.credential), e.credential].filter(Boolean))];
+/** The identities an attempt authenticated as, in order; both when a model switch changed it. */
+const identities = (e: JournalRow): string[] => [...new Set([...(e.hops ?? []).map((h) => h.credential), e.credential].filter((c): c is string => !!c))];
+
+/** The one identity every attempt that ran authenticated as alone; '' when they differ or none is known. */
+export function sharedIdentity(journal: readonly JournalRow[]): string {
+  const seen = new Set(journal.filter(isLaunched).map((e) => identities(e).join('\n')));
+  const [only] = seen;
+  return seen.size === 1 && only && !only.includes('\n') ? only : '';
+}
+
+/** The identity the attempt authenticated as (both when a model switch changed it), unless `shared`: then the column's header names it. */
+function identity(e: JournalRow, shared: string) {
+  const ids = identities(e);
   if (!ids.length) return nothing;
   // The subscription usage the attempt's first session started at, when the agent reported one.
   const start = (e.quota ?? [])[0];
@@ -47,6 +57,7 @@ function identity(e: JournalRow) {
   const own = start && ids.length === 1 && (start.credential ?? '') === ids[0];
   const shown = start ? (own ? readingShort(start) : accountReading(start)) : '';
   const tips = [tip, ...ids.map(credentialTip)].filter(Boolean).join('\n');
+  if (shared) return start ? html`<span class="sub" title=${tips || nothing}><span class="q">${shown}</span></span>` : nothing;
   return html`<span class="sub" title=${tips || nothing}>${ids.map((c) => credentialLabel(c)).join(' → ')}${start ? html` <span class="q">${shown}</span>` : nothing}</span>`;
 }
 
@@ -55,6 +66,8 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
   const maxWall = Math.max(1, ...ctx.rows.map((e) => e.wall_s || 0));
   const tries = attemptFacts(ctx.journal);
   const index = new Map(ctx.journal.map((r, i) => [r, i]));
+  // Every attempt ran as one identity: the header names it once, the rows do not.
+  const shared = sharedIdentity(ctx.journal);
   /** The attempt that later did the task, after this one failed (0: none). */
   const laterTry = (e: JournalRow): number => {
     const f = tries.get(e.key);
@@ -133,11 +146,12 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
     },
     {
       id: 'agent',
-      header: msg('Agent, model, identity'),
+      header: shared ? msg('Agent, model') : msg('Agent, model, identity'),
+      ...(shared ? { tip: [msg(str`Identity: ${credentialLabel(shared)}`), credentialTip(shared)].filter(Boolean).join('\n') } : {}),
       width: 'minmax(150px,1fr)',
       cell: (e) =>
         html`<span class="jmono jdim two" title=${facts(e.route, modelSwitch(e.hops, null, e.skipped_hops)) || nothing}>${isLaunched(e)
-          ? html`<span>${[e.agent, e.model].filter(Boolean).join(' / ') || '—'}</span>${identity(e)}`
+          ? html`<span>${[e.agent, e.model].filter(Boolean).join(' / ') || '—'}</span>${identity(e, shared)}`
           : '—'}</span>`,
     },
     {

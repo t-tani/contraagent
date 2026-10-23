@@ -44,9 +44,12 @@ describe('cae-stat-tiles', () => {
     expect(tile('jobs').querySelector('[part="label"]')?.hasAttribute('data-mark')).toBe(false);
   });
 
-  it('sends cae-action with the tile and the action from its link', async () => {
+  it('makes a tile with an action a link named by its label, which sends cae-action', async () => {
     const { tile, events } = await mount();
-    tile('failed').querySelector<HTMLElement>('[part="action"]')!.click();
+    const link = tile('failed').querySelector<HTMLElement>('a[part="action"]')!;
+    expect(link.textContent?.trim()).toBe('Failed jobs');
+    expect(link.querySelector('.sr')).not.toBeNull();
+    link.click();
     expect(events).toEqual(['{"id":"failed","action":"show"}']);
     expect(tile('jobs').querySelector('[part="action"]')).toBeNull();
   });

@@ -16,7 +16,8 @@ const COLUMNS: readonly ModelMeasure[] = ['cost', 'tokens', 'time', 'sessions'];
 
 /**
  * What each model was used for in a run (`Plan.models`): the share of each model in
- * the chosen measure (cost, tokens, time or agent sessions) as one bar, and a table
+ * the chosen measure (cost, tokens, time or agent sessions) as one bar (the table
+ * names each segment, so the bar has no names under it), and a table
  * of every model with its share and every measure, and its peak context when
  * a session on it reported one. A model keeps its colour, and
  * its place, in the order it was first used, whatever the measure; past six models
@@ -74,7 +75,7 @@ export class CaModelUsage extends LitElement {
               @cae-change=${(e: CustomEvent<{ value: string }>) => (this.measure = e.detail.value as ModelMeasure)}></cae-segmented>
           </div>`
         : nothing}
-      ${shareBar(shareParts(this.models, measure), { label: measureLabel(measure) })}
+      ${shareBar(shareParts(this.models, measure), { label: measureLabel(measure), names: false })}
       <div class="wrap" data-scroll="x" tabindex="0" role="region" aria-label=${msg('Models')}>
         <table>
           <thead>

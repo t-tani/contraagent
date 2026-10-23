@@ -98,16 +98,29 @@ describe('ca-monitor', () => {
     el.remove();
   });
 
-  it('switches tabs with the number keys, and the bar counts what the tab lists', async () => {
+  it('switches tabs with the number keys; while a filter is on, the bar counts what the tab lists of all', async () => {
     const el = await monitor();
     const key = (key: string) => root(el).querySelector('nav .tab')!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, composed: true }));
+    const filter = async (q: string) => {
+      const input = root(el).querySelector<HTMLInputElement>('.bar input')!;
+      input.value = q;
+      input.dispatchEvent(new Event('input'));
+      await el.updateComplete;
+    };
     key('2');
     await el.updateComplete;
     expect(text(root(el).querySelector('nav .tab.sel'))).toMatch(/^≡ ?Tasks/);
-    expect(text(root(el).querySelector('.bar .meta'))).toBe('3 tasks');
+    // The tab's badge counts them all: no count in the bar without a filter.
+    expect(text(root(el).querySelector('.bar .meta'))).toBe('');
+    await filter('c-1');
+    expect(text(root(el).querySelector('.bar .meta'))).toBe('1 of 3 tasks');
+    await filter('');
     key('3');
     await el.updateComplete;
-    expect(text(root(el).querySelector('.bar .meta'))).toBe('3 attempts | 1 not started');
+    expect(text(root(el).querySelector('.bar .meta'))).toBe('');
+    await filter('d-1');
+    expect(text(root(el).querySelector('.bar .meta'))).toBe('0 of 3 attempts | 1 not started');
+    await filter('');
     el.remove();
   });
 

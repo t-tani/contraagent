@@ -287,7 +287,8 @@ describe('ca-task-view', () => {
 
     el.view = 'output';
     await el.updateComplete;
-    expect(headings()).toEqual(['Output files', 'Outcome', 'Later tasks']);
+    // The tab names the files and the header the attempts: no heading says them again.
+    expect(headings()).toEqual(['Later tasks']);
     expect(text(root(el).querySelector('.pane .down'))).toBe('write · a');
 
     el.view = 'definition';

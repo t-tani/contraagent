@@ -35,10 +35,12 @@ test.describe('docs: a review loop per unit', () => {
     const box = graph(page).locator('.cluster');
     await expect(box.locator('> .hd .count')).toHaveText('up to 2 passes');
     await expect(box.locator('> .hd .spread')).toHaveText('1 pass: 4 | 2 passes: 1');
-    await expect(box.locator('.mark[data-n="2"]').first()).toHaveAttribute('title', /gamma/);
-    // The return to the next pass: a dotted edge inside the box, named in the legend.
+    // A mark's badge names itself in its tooltip, not in the legend.
+    await expect(box.locator('.mark[data-n="2"]').first()).toHaveAttribute('title', /gamma[\s\S]*\nPasses: 2$/);
+    // The return to the next pass: a dotted edge inside the box; the loop's icon names it in its tooltip.
     await expect(graph(page).locator('.edges path.ret')).toHaveCount(1);
-    await expect(graph(page).locator('.legend')).toContainText('next pass');
+    await expect(box.locator('> .hd .name .tip-ic')).toHaveAttribute('title', 'Next pass');
+    await expect(graph(page).locator('.legend')).not.toContainText(/next pass|Passes/i);
   });
 
   test("shows the loop's passes as units by node and pass, and Escape goes back to the box", async ({ page }) => {

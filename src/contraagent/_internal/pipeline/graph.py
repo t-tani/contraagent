@@ -341,9 +341,10 @@ class Graph:
         self.results: dict[str, TaskResult] = {}
         self.driver: FlowDriver | None = None
         self.new_kind: Callable[[Any], None] | None = None
-        #: Why a task of a kind cannot run as the credential its task call names (empty: it
-        #: can); None while the kinds are not routed yet.
-        self.check_credential: Callable[[str, str], list[str]] | None = None
+        #: Why a task of a kind cannot run as the credential its task call names, in the
+        #: working directory it names (None: the run's), empty: it can; None while the kinds
+        #: are not routed yet.
+        self.check_credential: Callable[[str, str, Path | None], list[str]] | None = None
         #: The run-wide override's credential (`Overrides.credential`): it outranks a task call's.
         self.credential_override = ""
         self.tail: Callable[[Task], float | None] | None = None
@@ -447,12 +448,14 @@ class Graph:
             self.check_passes(frames, base, call_id)
             self.declare(spec)
             self.layout(spec)
-            if credential and self.check_credential is not None:
-                problems = self.check_credential(spec.kind, credential)
-                if problems:
-                    raise ValueError(f"{key}: credential={credential!r}: {'; '.join(problems)}")
             # Relative to the run's working directory; links not followed, as `Pipeline(cwd=)`.
             own = Path(os.path.abspath(self.cwd / cwd)) if cwd is not None else None
+            if (credential or own is not None) and self.check_credential is not None:
+                # An agent reads files of its working directory (omp's `.env`): a call's own
+                # directory is checked as a call's own credential is.
+                problems = self.check_credential(spec.kind, credential, own)
+                if problems:
+                    raise ValueError(f"{key}: {called_as(credential, own)}: {'; '.join(problems)}")
             base_dir = own or self.cwd
             params, fingerprinted, files = _params_json(spec, unit, params, lambda file: bind(file, base_dir, self.roots))
             claims = _expand_claims(spec, unit, key, params)  # before the key is taken: a raise leaves no gap in ~n
@@ -843,6 +846,12 @@ class Graph:
                 params=copy.deepcopy(node.params),
             ),
         )
+
+
+def called_as(credential: str, cwd: Path | None) -> str:
+    """What a task call names that its credential check is about: its credential
+    (`credential='name'`), else its working directory (`cwd=/path`)."""
+    return f"credential={credential!r}" if credential else f"cwd={cwd.as_posix() if cwd is not None else ''}"
 
 
 def kind_clash(a: Any, b: Any) -> str | None:

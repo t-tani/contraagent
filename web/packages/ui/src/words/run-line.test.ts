@@ -1,7 +1,7 @@
 // The header's run line and the history bar's count, from `deriveRun`.
 import { deriveRun, emptyRunState, type JournalRow, type Plan, type PlanNode, type RunState, type RunSummary, type Stop } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
-import { mixedReplay, runLine, runMark, triesLine } from './run-line.js';
+import { mixedReplay, runLine, runMark, shownTasksLine, shownTriesLine } from './run-line.js';
 
 const node = (key: string, state: PlanNode['state'], after: string[] = []): PlanNode => ({
   key, kind: key.split('-')[0]!, unit: key.split('-')[1] ?? '', after, state, level: 0, group: key.split('-')[0]!,
@@ -43,10 +43,11 @@ describe('runLine', () => {
   });
 });
 
-describe('triesLine', () => {
-  it('counts attempts and the tasks that did not start', () => {
-    expect(triesLine(deriveRun(journal, plan).tries)).toBe('3 attempts | 1 not started');
-    expect(triesLine({ tries: 1, notStarted: 0 })).toBe('1 attempt');
+describe('shownTriesLine', () => {
+  it('counts the attempts shown of all, and the tasks shown that did not start', () => {
+    expect(shownTriesLine(deriveRun(journal, plan).tries, 3)).toBe('3 of 3 attempts | 1 not started');
+    expect(shownTriesLine({ tries: 1, notStarted: 0 }, 3)).toBe('1 of 3 attempts');
+    expect(shownTasksLine(12, 30)).toBe('12 of 30 tasks');
   });
 });
 

@@ -34,7 +34,8 @@ describe('ca-trends', () => {
     ]);
     expect(root.querySelectorAll('.pairs [data-section]')).toHaveLength(2);
     expect(root.querySelector('[data-panel="quality"] h3')?.textContent).toContain('Quality');
-    expect(root.querySelector('.period')?.textContent).toBe('Oct 13 to Oct 14, 2026 | Asia/Tokyo');
+    // The time zone control beside it names the zone.
+    expect(root.querySelector('.period')?.textContent).toBe('Oct 13 to Oct 14, 2026');
   });
 
   it('has no tabs while no trend panel names one', async () => {

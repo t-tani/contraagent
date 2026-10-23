@@ -12,7 +12,7 @@ import './ca-transcript.js';
 import type { CaTranscript } from './ca-transcript.js';
 import { tagStyles } from '@contraagent/elements/transcript';
 import { isPy, type TaskContext } from './context.js';
-import { taskHeader } from './header.js';
+import { taskHeader, taskWho } from './header.js';
 import { noTranscript } from './panes/transcript.js';
 import { inputPane, outputPane } from './panes/io.js';
 import { definitionPane } from './panes/definition.js';
@@ -112,7 +112,7 @@ export class CaTaskView extends LitElement {
     const view = this.shownView(d);
     return html`${taskHeader(c, key, (q, nth) => this.revealSearch(q, nth))} ${this.renderViews(d, view)}
       ${d.stream
-        ? html`<ca-transcript .run=${this.run} .stream=${d.stream} base-url=${this.baseUrl} .client=${this.client} .live=${c.live}
+        ? html`<ca-transcript .run=${this.run} .stream=${d.stream} base-url=${this.baseUrl} .client=${this.client} .live=${c.live} .shownWho=${taskWho(c)}
             .rows=${d.rows} .round=${this.round} mode=${view === 'transcript' ? 'full' : view === 'input' ? 'tabs' : 'none'}
             @ca-rounds=${(e: CustomEvent<RoundsChangedDetail>) => {
               this.launches = e.detail.launches;

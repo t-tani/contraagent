@@ -10,7 +10,13 @@ test('the tasks tab counts and lists as many tasks as the header', async ({ page
   const total = Number(/\d+ of (\d+) tasks done/.exec((await line.textContent()) ?? '')?.[1]);
   expect(total).toBeGreaterThan(0);
   await expect(page.getByRole('tab', { name: /Tasks/ }).locator('.badge')).toHaveText(String(total));
-  await expect(page.locator('.bar .meta')).toHaveText(`${total} tasks`);
+  // The badge counts every task; the bar counts only while a filter is on: the rows shown of all.
+  await expect(page.locator('ca-task-table tbody tr')).toHaveCount(total);
+  await expect(page.locator('.bar .meta')).toHaveText('');
+  await page.locator('ca-monitor .bar input').fill('zeta');
+  await expect(page.locator('ca-task-table tbody tr')).toHaveCount(1);
+  await expect(page.locator('.bar .meta')).toHaveText(`1 of ${total} tasks`);
+  await page.locator('ca-monitor .bar input').fill('');
   await expect(page.locator('ca-task-table tbody tr')).toHaveCount(total);
   // Both passes of review · gamma, each its own row.
   const passes = page.locator('ca-task-table tbody tr', { hasText: 'gamma' }).filter({ hasText: 'review' }).locator('.pass');
@@ -85,9 +91,14 @@ test("a failed task names the flow call it stopped and where, and an earlier tas
   await page.goto('/?run=docs&tab=stream&key=python:prepare-zeta');
   const view = page.locator('ca-task-view');
   await expect(view.locator('.taskmeta .stopped')).toHaveText(/^This failure stopped review_loop at (\S+\/)?tasks\.py:\d+$/);
-  // review · gamma was given its summary and its figures: each earlier task says how.
+  // review · gamma was given its summary and its figures: each earlier task says how. A param
+  // names the task it was given ("From summarize · gamma"), so that task's row does not say it
+  // again; a lineage the params do not show keeps its tag.
   await page.goto('/?run=docs&tab=stream&key=review-gamma&view=input');
-  const summary = view.locator('.upstream', { hasText: 'summarize · gamma' }).locator('.lineage').first();
-  await expect(summary).toHaveText('given output');
-  await expect(summary).toHaveAttribute('title', /given_from/);
+  await expect(view.locator('.params .from', { hasText: 'summarize · gamma' })).toHaveText('From summarize · gamma');
+  await expect(view.locator('.upstream', { hasText: 'summarize · gamma' })).toBeVisible();
+  await expect(view.locator('.upstream', { hasText: 'summarize · gamma' }).locator('.lineage')).toHaveCount(0);
+  const score = view.locator('.upstream', { hasText: 'score · gamma' }).locator('.lineage');
+  await expect(score).toHaveText(['created after result']);
+  await expect(score).toHaveAttribute('title', /created_from/);
 });

@@ -294,14 +294,6 @@
   <source>page</source>
   <target>ページ</target>
 </trans-unit>
-<trans-unit id="s061a40d8b1403d96">
-  <source>OutputContract</source>
-  <target>OutputContract</target>
-</trans-unit>
-<trans-unit id="s28f91da403800c05">
-  <source>InputContract</source>
-  <target>InputContract</target>
-</trans-unit>
 <trans-unit id="se5d1247fe34fbb95">
   <source>monitor.Panel</source>
   <target>monitor.Panel</target>
@@ -329,14 +321,6 @@
 <trans-unit id="s558d71789938dd8d">
   <source>wrong identity used</source>
   <target>認証情報の不一致</target>
-</trans-unit>
-<trans-unit id="s2575361362fcf642">
-  <source>No task declares an OutputContract or an InputContract</source>
-  <target>OutputContract・InputContract を宣言したタスクはありません</target>
-</trans-unit>
-<trans-unit id="s3f18b1a78ce1a960">
-  <source>Files each task must write</source>
-  <target>各タスクが書き込むファイル</target>
 </trans-unit>
 <trans-unit id="s888d98a196a240d8">
   <source>Inputs</source>
@@ -534,10 +518,6 @@
   <source>Not started</source>
   <target>未実行</target>
 </trans-unit>
-<trans-unit id="s1bb7c4234aa7d213">
-  <source>All tasks started</source>
-  <target>すべてのタスクが開始済み</target>
-</trans-unit>
 <trans-unit id="sb9c8c7e97598bc93">
   <source>Python tasks: <x id="0" equiv-text="${fmtDur(k.pythonWall)}"/></source>
   <target>Python タスク: <x id="0" equiv-text="${fmtDur(k.pythonWall)}"/></target>
@@ -545,10 +525,6 @@
 <trans-unit id="s84fb675fb17d4455">
   <source>Retries</source>
   <target>リトライ</target>
-</trans-unit>
-<trans-unit id="sdf452c95fdeb4be0">
-  <source>No retries</source>
-  <target>リトライなし</target>
 </trans-unit>
 <trans-unit id="sae675aed0baadfc5">
   <source>Retried tasks in history</source>
@@ -558,10 +534,6 @@
   <source>Corrections</source>
   <target>修正依頼</target>
 </trans-unit>
-<trans-unit id="sdd826d4b3e02f41b">
-  <source>No corrections</source>
-  <target>修正依頼なし</target>
-</trans-unit>
 <trans-unit id="sb067d7b999cdf867">
   <source>Attempts with corrections in history</source>
   <target>実行履歴の修正依頼のあった試行</target>
@@ -569,10 +541,6 @@
 <trans-unit id="s4d890c06c9c42dee">
   <source>Model switches</source>
   <target>モデル切り替え</target>
-</trans-unit>
-<trans-unit id="s8162d2730a5efc31">
-  <source>No model switches</source>
-  <target>モデル切り替えなし</target>
 </trans-unit>
 <trans-unit id="s367d079d1aed1358">
   <source>Cost</source>
@@ -654,10 +622,6 @@
   <source>Subscription usage</source>
   <target>サブスクリプションの利用率</target>
 </trans-unit>
-<trans-unit id="s179ba9809bdf35c7">
-  <source>Per account, first → last reading</source>
-  <target>アカウントごと、最初の値 → 最後の値</target>
-</trans-unit>
 <trans-unit id="s0e6bbd9fe1101fbd">
   <source>Problems</source>
   <target>問題</target>
@@ -666,10 +630,6 @@
   <source>Process tree</source>
   <target>プロセスツリー</target>
 </trans-unit>
-<trans-unit id="s9a23fee499e1a22d">
-  <source>All processes</source>
-  <target>すべてのプロセス</target>
-</trans-unit>
 <trans-unit id="s478b912874fef59f">
   <source>Checked files (OutputContract, InputContract)</source>
   <target>検証対象のファイル（OutputContract、InputContract）</target>
@@ -677,10 +637,6 @@
 <trans-unit id="s066d70cf9d5e2915">
   <source>Outputs</source>
   <target>出力</target>
-</trans-unit>
-<trans-unit id="s2f4e0fd086ad4b96">
-  <source>All outputs</source>
-  <target>すべての出力</target>
 </trans-unit>
 <trans-unit id="s0668067982f84dcb">
   <source>Stage and step per unit (CursorStore)</source>
@@ -714,20 +670,12 @@
   <source><x id="0" equiv-text="${bad.length - shown.length}"/> more outputs</source>
   <target>ほかの出力 <x id="0" equiv-text="${bad.length - shown.length}"/> 件</target>
 </trans-unit>
-<trans-unit id="s1acc85c236fed879">
-  <source>1 output not written (task not started)</source>
-  <target>書き込まれていない出力 1 件（タスクが未実行）</target>
-</trans-unit>
-<trans-unit id="sc6c0d07e39170334">
-  <source><x id="0" equiv-text="${refused}"/> outputs not written (tasks not started)</source>
-  <target>書き込まれていない出力 <x id="0" equiv-text="${refused}"/> 件（タスクが未実行）</target>
-</trans-unit>
 <trans-unit id="s9340e2a9e1808cbd">
   <source>1 attempt</source>
   <target>試行 1 回</target>
 </trans-unit>
 <trans-unit id="s1dc338639fe7aae9">
-  <source><x id="0" equiv-text="${tries}"/> attempts</source>
+  <source><x id="0" equiv-text="${attempts}"/> attempts</source>
   <target>試行 <x id="0" equiv-text="${attempts}"/> 回</target>
 </trans-unit>
 <trans-unit id="sfc7ed987d0fe9679">
@@ -789,10 +737,6 @@
 <trans-unit id="sbf299a5316967a33">
   <source>No activity</source>
   <target>アクティビティなし</target>
-</trans-unit>
-<trans-unit id="s1f53dce0721a5fdc">
-  <source>Took <x id="0" equiv-text="${fmtDur(took)}"/></source>
-  <target>所要時間 <x id="0" equiv-text="${fmtDur(took)}"/></target>
 </trans-unit>
 <trans-unit id="s8d4bb019f3bc7202">
   <source>PID</source>
@@ -1242,10 +1186,6 @@
   <source>Usage after</source>
   <target>終了後の利用率</target>
 </trans-unit>
-<trans-unit id="s7a30a0774744040b">
-  <source>Output files</source>
-  <target>出力ファイル</target>
-</trans-unit>
 <trans-unit id="s649816288746372b">
   <source>Later tasks</source>
   <target>後続タスク</target>
@@ -1654,10 +1594,6 @@
   <source>No unit</source>
   <target>ユニットなし</target>
 </trans-unit>
-<trans-unit id="sa58fd816ed43f98e">
-  <source>number of passes</source>
-  <target>周回数</target>
-</trans-unit>
 <trans-unit id="s2f3435308f48080e">
   <source><x id="0" equiv-text="${n}"/> passes</source>
   <target><x id="0" equiv-text="${n}"/> 周</target>
@@ -1690,25 +1626,17 @@
   <source><x id="0" equiv-text="${k.python}"/> Python task attempts</source>
   <target>Python タスク <x id="0" equiv-text="${k.python}"/> 回</target>
 </trans-unit>
-<trans-unit id="sb45a9b8907f0b38a">
-  <source>1 task retried</source>
-  <target>リトライしたタスク 1 件</target>
-</trans-unit>
 <trans-unit id="sc1b187568fa11c8c">
-  <source><x id="0" equiv-text="${k.retriedTasks}"/> tasks retried</source>
+  <source><x id="0" equiv-text="${n}"/> tasks retried</source>
   <target>リトライしたタスク <x id="0" equiv-text="${k.retriedTasks}"/> 件</target>
 </trans-unit>
 <trans-unit id="s7239ff29fb5724bc">
-  <source><x id="0" equiv-text="${k.fixupTasks}"/> tasks with corrections</source>
+  <source><x id="0" equiv-text="${n}"/> tasks with corrections</source>
   <target>修正依頼のあったタスク <x id="0" equiv-text="${k.fixupTasks}"/> 件</target>
 </trans-unit>
 <trans-unit id="s0cf77430f4bd7c5c">
-  <source><x id="0" equiv-text="${k.switchTasks}"/> tasks with model switches</source>
+  <source><x id="0" equiv-text="${n}"/> tasks with model switches</source>
   <target>モデル切り替えのあったタスク <x id="0" equiv-text="${k.switchTasks}"/> 件</target>
-</trans-unit>
-<trans-unit id="sbb77dd1d4c08e701">
-  <source><x id="0" equiv-text="${again}"/> of <x id="1" equiv-text="${c.total}"/> tasks not done</source>
-  <target><x id="1" equiv-text="${c.total}"/> タスク中 <x id="0" equiv-text="${again}"/> 件が未完了</target>
 </trans-unit>
 <trans-unit id="s491765412b82838e">
   <source>Loop at <x id="0" equiv-text="${where(b.loop, b.file)}"/></source>
@@ -1813,10 +1741,6 @@
 <trans-unit id="s4fed3c544c5791df">
   <source>agent task</source>
   <target>エージェントタスク</target>
-</trans-unit>
-<trans-unit id="s52c75c50315f2111">
-  <source>next pass</source>
-  <target>次の周</target>
 </trans-unit>
 <trans-unit id="s05548eaadd7b3e53">
   <source>Selected item</source>
@@ -2317,14 +2241,6 @@
   <source>Models</source>
   <target>モデル別の内訳</target>
 </trans-unit>
-<trans-unit id="sdd4a8ac67f7885c1">
-  <source>1 model</source>
-  <target>モデル 1 種類</target>
-</trans-unit>
-<trans-unit id="s915525f01e5ebdb9">
-  <source><x id="0" equiv-text="${s.plan.models.length}"/> models</source>
-  <target>モデル <x id="0" equiv-text="${s.plan.models.length}"/> 種類</target>
-</trans-unit>
 <trans-unit id="s51383b9a7d305b0c">
   <source>Input, output, cache read and cache write</source>
   <target>入力・出力・キャッシュ読み込み・キャッシュ書き込みの合計</target>
@@ -2822,10 +2738,6 @@
   <source>Event types this contraagent version does not know (unread_events): <x id="0" equiv-text="${unread}"/></source>
   <target>このバージョンの contraagent が対応していないイベント種別（unread_events）: <x id="0" equiv-text="${unread}"/></target>
 </trans-unit>
-<trans-unit id="sf2c0a590370f775e">
-  <source>All attempts done</source>
-  <target>すべての試行が完了</target>
-</trans-unit>
 <trans-unit id="s0007e74d64dabdbc">
   <source>Tasks not started in history</source>
   <target>実行履歴の未実行のタスク</target>
@@ -2833,14 +2745,6 @@
 <trans-unit id="sf083efa5793bc94c">
   <source>Summed over agent sessions, including sessions that ran at once</source>
   <target>すべてのエージェントのセッションの合計（同時に実行した分も含む）</target>
-</trans-unit>
-<trans-unit id="se4ba2b7d91bd3060">
-  <source>1 task with a correction</source>
-  <target>修正依頼のあったタスク 1 件</target>
-</trans-unit>
-<trans-unit id="s46694c626352a2a7">
-  <source>1 task with a model switch</source>
-  <target>モデル切り替えのあったタスク 1 件</target>
 </trans-unit>
 <trans-unit id="s8807d2925482479b">
   <source>Summed over all attempts</source>
@@ -2858,10 +2762,6 @@
   <source>The model the agent session ran on</source>
   <target>エージェントのセッションが使ったモデル</target>
 </trans-unit>
-<trans-unit id="sa3f961297cb9207f">
-  <source>Files each task reads</source>
-  <target>各タスクが読み込むファイル</target>
-</trans-unit>
 <trans-unit id="s06b0f7bc0e6f72bd">
   <source>not running</source>
   <target>実行中ではありません</target>
@@ -2869,10 +2769,6 @@
 <trans-unit id="s1a4311a6ff81c6ec">
   <source>What the agent sessions spent on each model, each model of a model switch counted separately (Plan.models)</source>
   <target>モデルごとの、エージェントのセッションの使用量。モデル切り替えの前後は別々に集計（Plan.models）</target>
-</trans-unit>
-<trans-unit id="sa3ed6953c910cb53">
-  <source>Account-wide | read at each agent session start</source>
-  <target>アカウント全体の値 | エージェントのセッション開始時に取得</target>
 </trans-unit>
 <trans-unit id="s0bfe13de97b5bd62">
   <source>pass <x id="0" equiv-text="${x.loop_pass}"/></source>
@@ -2913,10 +2809,6 @@
 <trans-unit id="s7df2ff1b6d561ce9">
   <source>Finished with <x id="0" equiv-text="${r.notStarted}"/> tasks not started</source>
   <target>終了（未実行のタスク <x id="0" equiv-text="${r.notStarted}"/> 件）</target>
-</trans-unit>
-<trans-unit id="se6de387a56331077">
-  <source>has a level below</source>
-  <target>下の階層あり</target>
 </trans-unit>
 <trans-unit id="s7b33e5bf54c5ae56">
   <source>No runs match the search</source>
@@ -3433,6 +3325,63 @@
 <trans-unit id="seed22b61a74bd723">
   <source><x id="0" equiv-text="${path}"/> in the input root <x id="1" equiv-text="${root}"/></source>
   <target>入力ルート <x id="1" equiv-text="${root}"/> の <x id="0" equiv-text="${path}"/></target>
+</trans-unit>
+<trans-unit id="sa3db40076838d4d7">
+  <source>Agent, model</source>
+  <target>エージェント・モデル</target>
+</trans-unit>
+<trans-unit id="s3ffb8ae91df75075">
+  <source>Identity: <x id="0" equiv-text="${credentialLabel(shared)}"/></source>
+  <target>認証情報: <x id="0" equiv-text="${credentialLabel(shared)}"/></target>
+</trans-unit>
+<trans-unit id="saa9614e57f673c62">
+  <source>no task declares an OutputContract or an InputContract</source>
+  <target>OutputContract・InputContract を宣言したタスクなし</target>
+</trans-unit>
+<trans-unit id="s81a4ee43fe0936ee">
+  <source>Files each task must write (OutputContract)</source>
+  <target>各タスクが書き込むファイル（OutputContract）</target>
+</trans-unit>
+<trans-unit id="s3850065925d06b86">
+  <source>Files each task reads (InputContract)</source>
+  <target>各タスクが読み込むファイル（InputContract）</target>
+</trans-unit>
+<trans-unit id="s3b8db9525c909688">
+  <source>Account-wide | first and last reading per account | read at each agent session start</source>
+  <target>アカウント全体の値 | アカウントごとの最初と最後の値 | エージェントのセッション開始時に取得</target>
+</trans-unit>
+<trans-unit id="s53ebfdf5583cbe71">
+  <source>Next pass</source>
+  <target>次の周</target>
+</trans-unit>
+<trans-unit id="sb7471868c78302d7">
+  <source>Has a level below</source>
+  <target>下の階層あり</target>
+</trans-unit>
+<trans-unit id="s5d51d4e0b343cf54">
+  <source>Usage: <x id="0" equiv-text="${readingChange(start, next)}"/></source>
+  <target>利用率: <x id="0" equiv-text="${readingChange(start, next)}"/></target>
+</trans-unit>
+<trans-unit id="sb0cc319c72ab8ad8">
+  <source>weekly <x id="0" equiv-text="${pct(a.seven_day_pct)}"/> → <x id="1" equiv-text="${pct(b.seven_day_pct)}"/></source>
+  <target>週 <x id="0" equiv-text="${pct(a.seven_day_pct)}"/> → <x id="1" equiv-text="${pct(b.seven_day_pct)}"/></target>
+</trans-unit>
+<trans-unit id="s1a2c5a8f76ad9fe3">
+  <source>5-hour <x id="0" equiv-text="${pct(a.five_hour_pct)}"/> → <x id="1" equiv-text="${pct(b.five_hour_pct)}"/></source>
+  <target>5 時間枠 <x id="0" equiv-text="${pct(a.five_hour_pct)}"/> → <x id="1" equiv-text="${pct(b.five_hour_pct)}"/></target>
+</trans-unit>
+<trans-unit id="scbfbd1c90da088a2">
+  <source><x id="0" equiv-text="${shown.tries}"/> of <x id="1" equiv-text="${all}"/> attempts</source>
+  <target>試行 <x id="1" equiv-text="${all}"/> 回中 <x id="0" equiv-text="${shown.tries}"/> 回</target>
+</trans-unit>
+<trans-unit id="s29b5ddbe5c1003ee">
+  <source><x id="0" equiv-text="${shown}"/> of <x id="1" equiv-text="${all}"/> tasks</source>
+  <target><x id="1" equiv-text="${all}"/> タスク中 <x id="0" equiv-text="${shown}"/> 件</target>
+</trans-unit>
+<trans-unit id="sc59982d9c1f538fa">
+  <source><x id="0" equiv-text="${dayLabel(from, locale)}"/> to <x id="1" equiv-text="${dayLabel(to, locale)}"/>, <x id="2" equiv-text="${year}"/></source>
+  <target><x id="2" equiv-text="${year}"/> 年 <x id="0" equiv-text="${dayLabel(from, locale)}"/>〜<x id="1" equiv-text="${dayLabel(to, locale)}"/></target>
+  <note from="lit-localize">The days the trends cover</note>
 </trans-unit>
 </body>
 </file>

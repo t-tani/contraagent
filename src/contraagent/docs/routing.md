@@ -341,7 +341,7 @@ is its login's `oauthAccount.accountUuid` (in the config directory's
 or the token or key the credential holds; omp's is the account its usage report
 names. An OpenCode key is its own account on every agent: the digest of the key
 opencode, pi or omp would send (on omp, `OPENCODE_API_KEY` of the launch's
-environment, else of omp's `.env` files), so one login used on all three is one
+environment, else of omp's `.env` files, the launch's working directory's first), so one login used on all three is one
 account, and a rest on one of them holds on the others. A UUID and a token of one account give two digests, so a reading counts
 for the source it came from. A reading with no account (an older journal) counts
 for every account of its credential.
@@ -368,7 +368,7 @@ What is guaranteed:
   stored login. omp runs in a profile with no stored logins; omp keeps some
   logins outside its profiles, so for providers other than `anthropic`,
   `openai-codex` and `litellm` a task that requires traits is refused on omp.
-  omp also reads `.env` files at start (its working directory's, its agent
+  omp also reads `.env` files at start (the launch's working directory's, its agent
   directory's, its config root's and `~/.env`), and fills from them every
   variable the launch's environment leaves unset: when one of them sets the key
   or endpoint variable of the launch's provider and the credential does not, the
