@@ -1,1 +1,0 @@
-`<cae-layered-graph>` and `<ca-pipeline-graph>` have a `controls` property. Set to false, it draws a graph that is only shown, without the zoom buttons and "Graph | Table"; `<ca-pipeline-graph>` then also has no outline and no "Show all inside" and "Hide all inside".

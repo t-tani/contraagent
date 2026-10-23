@@ -10,6 +10,32 @@ The changes not released yet are the fragments in [`changelog.d/`](changelog.d/)
 
 <!-- towncrier release notes start -->
 
+## [0.8.1] - 2026-10-23
+
+### Added
+
+- `<cae-layered-graph>` and `<ca-pipeline-graph>` have a `controls` property. Set to false, it draws a graph that is only shown, without the zoom buttons and "Graph | Table"; `<ca-pipeline-graph>` then also has no outline and no "Show all inside" and "Hide all inside".
+
+### Changed
+
+- The monitor shows fewer labels that repeat what its layout already says. On
+  the overview, a count of tasks appears beside Pipeline only while the run is
+  running, a tile shows a line under its value only for a fact the value does
+  not give, and a tile, the Outputs heading and the Process tree heading are the
+  links to what they show. Rows that share a status sit under one chip or one
+  rule, and a task's detail names its agent, model and role once, in its header,
+  with its subscription usage in one line ("Usage: weekly 41% → 43% | 5-hour 14%
+  → 28%"). The list bar counts rows only while a filter is on ("12 of 30
+  tasks"), and the legends of the timeline and the pipeline graph name only what
+  is drawn. A label that leaves the screen stays as an accessible name or a
+  tooltip. `<ca-kpis>` takes `no-highest-cost`; `<cae-stat-tiles>` makes a tile
+  with an action a link as a whole; `shareBar` takes `names: false`.
+
+### Fixed
+
+- contraagent reads omp's `.omp/config.yml` and `.env` in the directory the launch runs in, as omp does, not in the directory the pipeline process was started in. A task call with its own working directory (`.options(cwd=)`) gets the account of the key in that directory's `.env`, and a `.env` there that would undo its credential's isolation refuses a task that requires traits before anything launches. The preflight probes each route in the run's working directory (`Pipeline(cwd=)`), and its line on omp's own model chain is that directory's. The model list that `contraagent check` and the preflight read from omp is the one of the run's working directory too, so a model of a provider whose key is in that directory's `.env` is no longer reported as missing.
+- The opencode model list that `contraagent check` and the preflight read leaves out the providers of an `opencode.json` in the directory the pipeline process was started in, as every opencode launch does: a model that a launch cannot use is no longer listed.
+- An opencode launch whose turn ends with an empty message after the model has written its output file is `completed`, and its output file is checked, where it was `no_output` before: opencode's last `step_finish` with the reason `stop` ends the turn, as the last message with `stop` does for pi and omp.
 ## [0.8.0] - 2026-10-22
 
 ### Added

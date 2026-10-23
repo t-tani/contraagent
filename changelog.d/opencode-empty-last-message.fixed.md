@@ -1,1 +1,0 @@
-An opencode launch whose turn ends with an empty message after the model has written its output file is `completed`, and its output file is checked, where it was `no_output` before: opencode's last `step_finish` with the reason `stop` ends the turn, as the last message with `stop` does for pi and omp.
