@@ -301,14 +301,12 @@
   left: 50%;
   bottom: 1.25rem;
   transform: translateX(-50%);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.85rem;
-  font-weight: 500;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   color: var(--hero-ink-2);
-  text-decoration: none;
-  white-space: nowrap;
 }
 .ca-down svg { animation: ca-bob 2.2s ease-in-out infinite; }
 .ca-down:hover { color: var(--hero-ink); }
@@ -431,7 +429,7 @@
   .ca-card-cmd { padding: 0.65rem 0.8rem; font-size: 0.75rem; }
   .ca-agent-list { margin-top: 0.5rem; }
   .ca-agent { padding: 0.3rem 0.6rem; }
-  .ca-down { bottom: 0.75rem; min-height: 44px; }
+  .ca-down { bottom: 0.75rem; }
 }
 
 @media (max-width: 40rem) {

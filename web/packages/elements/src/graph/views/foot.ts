@@ -8,14 +8,15 @@ import { slotsOf, type GraphHost } from '../host.js';
 import { innerIcon } from '../icons.js';
 
 /**
- * The legend on the left, the tools at the right end of the first line, and the keys
- * under them: their line keeps its room, and shows its words while the graph has the focus.
+ * The legend on the left, the tools at the right end of the first line (with
+ * `controls`), and the keys under them: their line keeps its room, and shows its
+ * words while the graph has the focus.
  */
-export function foot(h: GraphHost, matrix: MarkMatrixInput | null) {
+export function foot(h: GraphHost, matrix: MarkMatrixInput | null, controls: boolean) {
   const table = !!matrix || h.asTable;
   return html`<div class="foot">
     ${legend(h, matrix)}
-    <div class="tools">${table ? nothing : zoomTools(h)}${viewSwitch(h, table)}</div>
+    ${controls ? html`<div class="tools">${table ? nothing : zoomTools(h)}${viewSwitch(h, table)}</div>` : nothing}
     <div class="keys" part="keys">${keyHints(h, matrix).map((k, i) => html`${i ? ' | ' : ''}<span>${k}</span>`)}</div>
   </div>`;
 }

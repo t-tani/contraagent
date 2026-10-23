@@ -1,8 +1,8 @@
 // The "how it works" scene on a narrow screen (HowItWorks.astro, ./how.css): the steps
 // are cards side by side that scroll one at a time (scroll snap), with a button to
-// the step before and after, a dot for each step and the step's number. The step is
-// the scene's progress: the agent's loop lights its words up to it, and the list is as
-// tall as its card (--how-h), so the buttons are right under it. A button or a swipe
+// the step before and after and a dot for each step; a screen reader hears the step's
+// number and title (a live region). The list is as tall as the step's card (--how-h),
+// so the buttons are right under it. A button or a swipe
 // sets the step and scrolls the list to its card; any other scroll that comes to an
 // end (`scrollend`) sets the step to the card the list rests on, whatever moved the list.
 // A sideways swipe moves the list here, not in the browser, and at most one card: the
@@ -23,10 +23,6 @@ if (how && list && nav) {
   const dots = [...nav.querySelectorAll<HTMLElement>('.how-dot')];
   const [prev, next] = [...nav.querySelectorAll<HTMLButtonElement>('.how-go')];
   const at = nav.querySelector<HTMLElement>('.how-at')!;
-  const count = at.appendChild(document.createElement('span'));
-  const named = at.appendChild(document.createElement('span'));
-  named.className = 'how-sr';
-  const loop = [...how.querySelectorAll<HTMLElement>('.how-loop-step')];
   let current = -1;
 
   /**
@@ -67,13 +63,11 @@ if (how && list && nav) {
     current = k;
     dots.forEach((d, i) => d.classList.toggle('is-on', i === k));
     steps.forEach((s, i) => s.classList.toggle('is-current', i === k));
-    for (const l of loop) l.classList.toggle('is-on', k >= Number(l.dataset['from']));
     prev.setAttribute('aria-disabled', String(k === 0));
     next.setAttribute('aria-disabled', String(k === steps.length - 1));
     const title = steps[k].querySelector('.how-step-title')?.textContent ?? '';
-    // The step's number on screen; its title too for a screen reader (the card on screen shows it).
-    count.textContent = `Step ${k + 1} of ${steps.length}`;
-    named.textContent = `: ${title}`;
+    // For a screen reader: the dots and the card on screen show them.
+    at.textContent = `Step ${k + 1} of ${steps.length}: ${title}`;
     fit();
   };
 

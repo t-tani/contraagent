@@ -23,7 +23,7 @@ async function settle(el: CaPipelineGraph): Promise<ShadowRoot> {
   return inner.shadowRoot!;
 }
 
-async function graph(plan: Plan, props: Partial<Pick<CaPipelineGraph, 'layer' | 'sel' | 'live'>> = {}): Promise<Drawn> {
+async function graph(plan: Plan, props: Partial<Pick<CaPipelineGraph, 'layer' | 'sel' | 'live' | 'controls'>> = {}): Promise<Drawn> {
   const el = document.createElement('ca-pipeline-graph');
   Object.assign(el, { plan, ...props });
   const sent: CustomEvent<unknown>[] = [];
@@ -152,6 +152,17 @@ describe('ca-pipeline-graph', () => {
       expect(root.querySelector('cae-layered-graph')).toBe(inner);
       expect(g.activeElement).toBe(name);
     }
+  });
+
+  it('draws no outline, open controls, zoom buttons or view switch without controls', async () => {
+    const { el, root, g } = await graph(reviewRun({ a: 1, b: 2 }), { controls: false });
+    for (const wide of [false, true]) {
+      (el as unknown as { wide: boolean }).wide = wide;
+      await settle(el);
+      expect(root.querySelector('nav.outline')).toBeNull();
+    }
+    expect(root.querySelector('.opens')).toBeNull();
+    expect(g.querySelector('.foot .tools')).toBeNull();
   });
 
   it('sets the view route right, after the update, for a layer the run does not have', async () => {

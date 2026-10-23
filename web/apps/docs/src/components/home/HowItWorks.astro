@@ -24,9 +24,19 @@ const CHECK = `contraagent check tasks.py:docs --config pipeline.toml --stub --k
 const tone = (l: string) => (/^✓/.test(l) ? 'ok' : /^✗/.test(l) || /^\s*error:/.test(l) ? 'bad' : /^\s*warning:/.test(l) ? 'warn' : /^\s*read:/.test(l) ? 'read' : '');
 const out = (text: string) => text.split('\n').map((l) => ({ l, t: tone(l) }));
 
-interface Step { who: 'You' | 'The agent'; title: string; text: string; link?: { href: string; text: string } }
+interface Step { who: Who; title: string; text: string; link?: { href: string; text: string } }
+type Who = 'You' | 'The agent';
+/**
+ * Who does a step, as an icon before its title (its name for a screen reader, and as a
+ * tooltip): a person for you, the four-pointed star the monitor gives an agent task for
+ * the agent. Every step has its own, since the scene and the carousel show one at a time.
+ */
+const WHO: Record<Who, string> = {
+  You: '<svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14"><circle cx="8" cy="5" r="2.75" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M2.75 14c0-2.9 2.35-4.75 5.25-4.75S13.25 11.1 13.25 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  'The agent': '<svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14"><path d="M8 1.5c.5 3.4 3 5.9 6.5 6.5-3.5.6-6 3.1-6.5 6.5-.5-3.4-3-5.9-6.5-6.5 3.5-.6 6-3.1 6.5-6.5z" fill="currentColor"/></svg>',
+};
 const steps: Step[] = [
-  { who: 'You', title: 'Install contraagent', text: 'Linux, Python 3.12 or later, and one or more coding agents on PATH.', link: { href: withBase('/python/#install'), text: 'Install' } },
+  { who: 'You', title: 'Install contraagent', text: 'One or more coding agents on PATH.', link: { href: withBase('/python/#install'), text: 'Install' } },
   {
     who: 'You',
     title: 'Point your coding agent at the docs',
@@ -49,16 +59,9 @@ const steps: Step[] = [
   {
     who: 'You',
     title: 'Run it and watch it',
-    text: 'On the coding agent and model that pipeline.toml names for each kind. contraagent monitor shows the run live, as in the replay above.',
+    text: 'On the coding agent and model that pipeline.toml names for each kind. contraagent monitor shows the run live.',
     link: { href: '#rr-title', text: 'The replay above' },
   },
-];
-const LOOP = [
-  { word: 'write', from: 3 },
-  { word: 'check', from: 4 },
-  { word: 'fix', from: 4 },
-  { word: 'stub run', from: 5 },
-  { word: 'done', from: 6 },
 ];
 ---
 
@@ -68,14 +71,6 @@ const LOOP = [
       <div class="how-depth" aria-hidden="true"></div>
       <div class="how-left">
         <h2 id="how-title" class="how-title">Your coding agent writes the pipeline. You run it.</h2>
-        <p class="how-lede">
-          contraagent is made for a coding agent to build with. Its documentation is installed with it, contraagent check names
-          every problem and where it is explained, and a stub agent tests the flow with nothing spent. Nothing runs on a real
-          coding agent until you run it.
-        </p>
-        <ol class="how-loop" aria-label="The agent's loop">
-          {LOOP.map((s) => <li class="how-loop-step" data-from={s.from}>{s.word}</li>)}
-        </ol>
         <ol class="how-steps" id="how-steps" data-scroll="x" style={`--n:${STAGES}`}>
           {/* The rail behind the numbers: grid items under the steps (the numbers are opaque). */}
           <li class="how-rail how-rail-track" aria-hidden="true" />
@@ -86,7 +81,7 @@ const LOOP = [
                 <span class="how-n" aria-hidden="true">{k + 1}</span>
                 <span class="how-glow" aria-hidden="true" />
                 <div class="how-words">
-                  <p class="how-who">{s.who}</p>
+                  <span class="how-who" data-who={s.who === 'You' ? 'you' : 'agent'} title={s.who}><Fragment set:html={WHO[s.who]} /><span class="how-sr">{s.who}</span></span>
                   <h3 class="how-step-title">{s.title}</h3>
                   <p class="how-text">{s.text}</p>
                   {s.link && <a class="how-link" href={s.link.href}>{s.link.text}</a>}
@@ -176,11 +171,11 @@ const LOOP = [
           <button type="button" class="how-go" data-go="1" aria-controls="how-steps" aria-label="Next step">
             <svg aria-hidden="true" viewBox="0 0 16 16" width="18" height="18"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           </button>
-          <p class="how-at" aria-live="polite"></p>
+          <p class="how-at how-sr" aria-live="polite"></p>
         </div>
       </div>
       <div class="how-window" aria-hidden="true">
-        <div class="how-window-bar"><i></i><i></i><i></i><span>Your terminal and your coding agent</span></div>
+        <div class="how-window-bar"><i></i><i></i><i></i></div>
       </div>
     </div>
   </div>
