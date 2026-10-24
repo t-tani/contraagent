@@ -98,7 +98,7 @@ from contraagent._internal.monitor import api, export
 from contraagent._internal.monitor.core import Monitor
 from contraagent._internal.monitor.export import STATIC
 from contraagent._internal.monitor.trends import Period, PeriodError
-from contraagent._internal.monitor.views import VIEWS, View, serialize
+from contraagent._internal.monitor.views import VIEWS, View, serialize, serialize_kept
 from contraagent._internal.runs.names import BadName, is_plain
 
 log = logging.getLogger(__name__)
@@ -216,18 +216,15 @@ async def run_feed(monitor: Monitor, run: str, is_disconnected: Callable[[], Awa
             sigs["procs"] = sig
             yield {"event": "procs", "data": serialize(VIEWS["procs"].model, procs)}
         for name in monitor.run_panels():
-            try:
-                body = json.dumps(api.panel_data(await in_panel_pool(monitor.panel, name, run)), default=str)
-            except Exception as exc:  # one bad panel must not stop the feed
-                body = json.dumps({"error": f"{type(exc).__name__}: {exc}"})
+            body = await _panel_body(monitor, name, run)
             if body != sigs.get(name):
                 sigs[name] = body
                 yield {"event": f"panel:{name}", "data": body}
-        plan = serialize(VIEWS["plan"].model, await off(monitor.plan, run, procs))  # over the processes just read
+        plan = serialize_kept(VIEWS["plan"].model, await off(monitor.plan, run, procs))  # over the processes just read
         if plan != sigs.get("plan"):
             sigs["plan"] = plan
             yield {"event": "plan", "data": plan}
-        outs = serialize(VIEWS["outputs"].model, await off(VIEWS["outputs"].read, monitor, run))
+        outs = serialize_kept(VIEWS["outputs"].model, await off(VIEWS["outputs"].read, monitor, run))
         if outs != sigs.get("outputs"):
             sigs["outputs"] = outs
             yield {"event": "outputs", "data": outs}
@@ -244,6 +241,30 @@ async def run_feed(monitor: Monitor, run: str, is_disconnected: Callable[[], Awa
             replayed = True
             yield {"event": "ready", "data": serialize(api.FeedReady, {"journal": jpos})}
         await asyncio.sleep(TICK_S)
+
+
+#: Each run panel's body as a feed last sent it: (monitor, panel, run) -> (when, the body),
+#: and the lock of each, so that one client's feed calls a panel and the others of the same
+#: tick are given its body.
+_panel_bodies: dict[tuple[int, str, str], tuple[float, str]] = {}
+_panel_locks: dict[tuple[int, str, str], asyncio.Lock] = {}
+
+
+async def _panel_body(monitor: Monitor, name: str, run: str) -> str:
+    """Run panel `name`'s body for `run` as the feed sends it (JSON), called at most once a
+    tick (`TICK_S`) for every client that watches the run."""
+    key = (id(monitor), name, run)
+    lock = _panel_locks.setdefault(key, asyncio.Lock())
+    async with lock:
+        held = _panel_bodies.get(key)
+        if held is not None and time.monotonic() - held[0] < TICK_S:
+            return held[1]
+        try:
+            body = json.dumps(api.panel_data(await in_panel_pool(monitor.panel, name, run)), default=str)
+        except Exception as exc:  # one bad panel must not stop the feed
+            body = json.dumps({"error": f"{type(exc).__name__}: {exc}"})
+        _panel_bodies[key] = (time.monotonic(), body)
+        return body
 
 
 def _resume_line(value: str | None) -> int | None:

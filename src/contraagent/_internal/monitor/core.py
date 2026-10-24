@@ -27,6 +27,7 @@ from __future__ import annotations
 import functools
 import json
 import threading
+import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping, MutableMapping
 from concurrent.futures import Future
 from dataclasses import dataclass
@@ -50,9 +51,9 @@ from contraagent._internal.routing.quota import QuotaCap
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import parse_rows
 from contraagent._internal.runs.liveness import Liveness, StaticLiveness
-from contraagent._internal.runs.names import check_name
+from contraagent._internal.runs.names import BadName, check_name
 from contraagent._internal.runs.procs import ProcLiveness
-from contraagent._internal.runs.source import PAGE_BYTES, DirectorySource, RunFile, RunSource
+from contraagent._internal.runs.source import PAGE_BYTES, DirectorySource, LogPosition, RunFile, RunSource
 from contraagent._internal.runs.times import now, parse_iso
 
 
@@ -309,6 +310,12 @@ def _shown(file: str, cwd: Path | None) -> str:
     return file
 
 
+#: How many bytes of a transcript `Monitor._stream_lines` reads at a time to count its lines.
+COUNT_BYTES = 1 << 22
+#: How long `Monitor.outputs` gives a value it checked without checking it again (seconds).
+OUTPUTS_FRESH_S = 1.0
+#: The records `Monitor.outputs` is made of, beside the files the contracts name.
+_OUTPUT_RECORDS = (layout.RUN_INFO, layout.JOURNAL, layout.CONTRACTS)
 #: The records a run's row of `Monitor.runs` is made of: it is made again when one changes.
 _ROW_RECORDS = (layout.RUN_INFO, layout.JOURNAL, layout.PLAN, layout.DEFERRED, layout.FLOW_CALLS, layout.RESTS, layout.SERVICES)
 
@@ -380,6 +387,16 @@ class Monitor:
         self._infos: dict[str, tuple] = {}  # run -> (run.json's stat, run.json)
         self._shapes: dict[str, tuple[tuple, dict]] = {}  # run -> (its plan's and journal's stats, `run_shape`)
         self._run_rows: dict[str, tuple[tuple, dict[str, Any] | None]] = {}  # run -> (what its row was made of, the row)
+        # The views kept between requests (`_kept`): (view, run) -> (what it was made of, the
+        # value), and the lock of each, so one caller makes it at a time.
+        self._views: dict[tuple[str, str], tuple[Any, Any, float]] = {}  # ..., and when it was last checked
+        self._view_locks: dict[tuple[str, str], threading.Lock] = {}
+        # By (run, transcript): its size when it was last counted, and the position after its
+        # last complete line then (`_stream_lines`); its size when a page was last read, and
+        # the position after it (`stream_from`).
+        self._stream_counts: dict[tuple[str, str], tuple[int, LogPosition]] = {}
+        self._stream_pages: dict[tuple[str, str], tuple[int, LogPosition]] = {}
+        self._journal_agents: dict[str, tuple[int, dict[str, str]]] = {}  # run -> (journal lines read, `_agents`)
         self._trends: tuple[tuple, dict[str, Any]] | None = None  # the last trends, and what they were made of
         # Each trends panel's last body, and what it was made of; and those being made now,
         # so the same panel asked again (a page refreshes every few seconds) waits for it.
@@ -565,6 +582,33 @@ class Monitor:
         return out
 
     def plan(self, run: str, live: dict[str, Any] | None = None) -> dict[str, Any]:
+        """`_plan`, made again only when a record it is made of changed (`_ROW_RECORDS`),
+        or what runs in the run (from `live`, the run's processes, else this host's). Every
+        caller (each client's feed, the run's endpoint, the list of runs) is given the same
+        value, which none changes."""
+        snap = live if live is not None else self.liveness.snapshot(run)
+        sig = (tuple(self.source.stat(run, name) for name in _ROW_RECORDS), frozenset(_running_keys(snap)))
+        return self._kept("plan", run, lambda made: made == sig, lambda: (sig, self._plan(run, snap)))
+
+    def _kept(self, view: str, run: str, current: Callable[[Any], bool], make: Callable[[], tuple[Any, Any]], fresh_s: float = 0.0) -> Any:
+        """A view of a run kept between requests: the value kept when `current(what it was
+        made of)` says it still is, else the one `make()` gives with what it is made of. One
+        caller makes it at a time; the others wait for it and are given it. A value checked
+        less than `fresh_s` seconds ago is given unchecked: what many clients ask for in the
+        same tick of their feeds is checked once."""
+        with self._lock:
+            lock = self._view_locks.setdefault((view, run), threading.Lock())
+        with lock:
+            held = self._views.get((view, run))
+            at = time.monotonic()
+            if held is not None and (at - held[2] < fresh_s or current(held[0])):
+                self._views[(view, run)] = (held[0], held[1], held[2] if at - held[2] < fresh_s else at)
+                return held[1]
+            made, value = make()
+            self._views[(view, run)] = (made, value, time.monotonic())
+            return value
+
+    def _plan(self, run: str, live: dict[str, Any]) -> dict[str, Any]:
         """The pipeline as a graph: every task ever queued, its dependencies and
         state, plus the groups. `failed` is a task that ran and failed;
         `blocked` is one that did not start because an input was missing or
@@ -601,8 +645,7 @@ class Monitor:
             j = last.get(d.get("key", ""))
             if j is None or str(j.get("ts", "")) < str(d.get("ts", "")):
                 deferred[d.get("key", "")] = d
-        snap = live if live is not None else self.liveness.snapshot(run)
-        running = _running_keys(snap)
+        running = _running_keys(live)
         nodes = []
         for r in rows:
             j = last.get(r["key"])
@@ -910,13 +953,29 @@ class Monitor:
     def task_agent(self, run: str, key: str) -> str:
         """The coding agent a task ran on: its journal row, else its live process's
         executable name. Defaults to omp, whose normalizer is the lenient one."""
-        for e in reversed(self._read_journal(run)):
-            if e.get("key") == key and e.get("agent"):
-                return e["agent"]
+        agent = self._agents(run).get(key)
+        if agent:
+            return agent
         for c in self.liveness.snapshot(run).get("launches", []):
             if c.get("key") == key and c.get("full_cmd"):
                 return c["full_cmd"].split()[0].rsplit("/", 1)[-1]
         return "omp"
+
+    def _agents(self, run: str) -> dict[str, str]:
+        """By task key, the coding agent of its last journal row that names one, read on
+        from the line the last call read up to: a transcript's feed asks on every page."""
+        held = self._journal_agents.get(run)
+        count, agents = held if held is not None else (0, {})
+        lines, total = self.source.lines(run, layout.JOURNAL, count)
+        if total < count:  # another journal under the same name: read from its start
+            lines, total = self.source.lines(run, layout.JOURNAL, 0)
+            agents = {}
+        agents = dict(agents)
+        for e in parse_rows(lines):
+            if e.get("key") and e.get("agent"):
+                agents[e["key"]] = e["agent"]
+        self._journal_agents[run] = (total, agents)
+        return agents
 
     def stream_size(self, run: str, key: str) -> int:
         """A number that changes whenever task `key`'s transcript grows; -1 while it has
@@ -947,13 +1006,19 @@ class Monitor:
         line still being written (no newline yet) is not read (`RunSource.lines`)."""
         log = layout.stream(check_name(key, "task key"))
         start = since or 0
-        if self.source.size(run, log) < 0:
+        size = self.source.size(run, log)
+        if size < 0:
             return {"events": [], "total": start, "behind": 0}, start
+        total = self._stream_lines(run, log, size)
         behind = 0
         if since is None:
-            total = self.source.lines(run, log, 0, 0)[1]
             behind = start = max(0, total - limit)
-        lines, total = self.source.lines(run, log, start, limit * 4, max_bytes=PAGE_BYTES)
+        held = self._stream_pages.get((run, log))
+        at = held[1] if held is not None and held[1].line == start and held[0] <= size else self.source.position(run, log, start)
+        if at.line < start:  # fewer lines than `since`: another log under the same name
+            return {"events": [], "total": total, "behind": 0}, start
+        lines, after = self.source.lines_at(run, log, at, limit * 4, max_bytes=PAGE_BYTES)
+        total = max(total, after.line)
         fmt = resolve_format(self.task_agent(run, key), self.stream_formats)
         out: list[dict[str, Any]] = []
         tools: dict[str, str] = {}  # call id -> tool name: some formats name the tool only on its start
@@ -968,11 +1033,48 @@ class Monitor:
                 out.append(ev)
             if len(out) >= limit:
                 break
+        if end == after.line:  # the page read every line it took: the next one starts there
+            self._stream_pages[(run, log)] = (size, after)
         return {"events": out, "total": total, "behind": behind}, end
+
+    def _stream_lines(self, run: str, log: str, size: int) -> int:
+        """How many complete lines transcript `log` of `run` has, counted on from where the
+        last count ended (`size` is the log's `size`; a smaller one than then is another log,
+        counted from its start): while a log grows, each of its bytes is read once to count it."""
+        held = self._stream_counts.get((run, log))
+        at = held[1] if held is not None and held[0] <= size else LogPosition(0, 0)
+        while True:
+            got, after = self.source.lines_at(run, log, at, None, COUNT_BYTES)
+            if not got:
+                break
+            at = after
+        self._stream_counts[(run, log)] = (size, at)
+        return at.line
 
     # --- contracts: the files tasks must leave behind ----------------------
 
     def outputs(self, run: str) -> dict[str, Any]:
+        """`_outputs`, made again only when the journal, `run.json` or the contract records
+        changed, what runs in the run, or one of the files the contracts name (their sizes
+        and modification times). Every caller is given the same value, which none changes."""
+        running = frozenset(_running_keys(self.liveness.snapshot(run)))
+        sig = (tuple(self.source.stat(run, name) for name in _OUTPUT_RECORDS), running)
+
+        def current(made: tuple) -> bool:
+            return made[0] == sig and made[1] == self._file_stats(run, made[2])
+
+        def make() -> tuple[Any, Any]:
+            value = self._outputs(run, running)
+            paths = tuple(spec["path"] for rec in value["contracts"] for spec in rec.get("outputs", []) + rec.get("inputs", []))
+            return (sig, self._file_stats(run, paths), paths), value
+
+        # The outputs check thousands of files: checked at most once in a feed's tick.
+        return self._kept("outputs", run, current, make, fresh_s=OUTPUTS_FRESH_S)
+
+    def _file_stats(self, run: str, paths: Iterable[str]) -> tuple:
+        return tuple(self.source.file_stat(run, path) for path in paths)
+
+    def _outputs(self, run: str, running: frozenset[str]) -> dict[str, Any]:
         """Every declared `OutputContract` / `InputContract` of the run: its file,
         the model it must satisfy, and where it stands.
 
@@ -986,22 +1088,43 @@ class Monitor:
         last: dict[str, dict[str, Any]] = {}
         for e in self._read_journal(run):
             last[e.get("key", "")] = e
-        running = _running_keys(self.liveness.snapshot(run))
-        records = []
-        for rec in parse_rows(self.source.folder(run, layout.CONTRACTS)):
-            row = last.get(rec.get("key", ""))
-            for spec in rec.get("outputs", []) + rec.get("inputs", []):
-                spec["file"] = self._file_view(run, spec["path"], rows=spec.get("format") == "jsonl")
-                props = (spec.get("schema") or {}).get("properties", {})
-                req = set((spec.get("schema") or {}).get("required", []))
-                spec["fields"] = [{"name": n, "type": self._type_of(p), "required": n in req} for n, p in props.items()]
-                spec.pop("schema", None)
-            for spec in rec.get("outputs", []):
-                spec["status"], spec["rounds"], spec["errors"] = self._contract_status(row, spec["file"], rec.get("key") in running)
-            records.append(rec)
+        records = [self._contract(run, rec, last, running) for rec in parse_rows(self.source.folder(run, layout.CONTRACTS))]
         outs = [o for r in records for o in r["outputs"]]
         tally = {s: sum(1 for o in outs if o["status"] == s) for s in ("valid", "invalid", "refused", "pending", "failed", "running")}
         return {"contracts": records, "tally": tally}
+
+    def _contract(self, run: str, rec: dict[str, Any], last: Mapping[str, dict[str, Any]], running: frozenset[str]) -> dict[str, Any]:
+        """A contract record (`contracts/<key>.json`) as `outputs` shows it: each file with
+        its fields, and each output's status from its task's last journal row in `last`."""
+        row = last.get(rec.get("key", ""))
+        for spec in rec.get("outputs", []) + rec.get("inputs", []):
+            spec["file"] = self._file_view(run, spec["path"], rows=spec.get("format") == "jsonl")
+            props = (spec.get("schema") or {}).get("properties", {})
+            req = set((spec.get("schema") or {}).get("required", []))
+            spec["fields"] = [{"name": n, "type": self._type_of(p), "required": n in req} for n, p in props.items()]
+            spec.pop("schema", None)
+        for spec in rec.get("outputs", []):
+            spec["status"], spec["rounds"], spec["errors"] = self._contract_status(row, spec["file"], rec.get("key") in running)
+        return rec
+
+    def _contracts_of(self, run: str, keys: Iterable[str]) -> list[dict[str, Any]]:
+        """The contract records of the tasks `keys` alone, as `outputs` shows them."""
+        records = []
+        last: dict[str, dict[str, Any]] | None = None
+        running: frozenset[str] = frozenset()
+        for key in dict.fromkeys(keys):
+            try:
+                text = self.source.document(run, layout.task_entry(layout.CONTRACTS, key))
+            except BadName:
+                continue
+            rows = parse_rows([text]) if text else []
+            if not rows:
+                continue
+            if last is None:
+                last = {e.get("key", ""): e for e in self._read_journal(run)}
+                running = frozenset(_running_keys(self.liveness.snapshot(run)))
+            records.append(self._contract(run, rows[0], last, running))
+        return records
 
     @staticmethod
     def _type_of(prop: dict[str, Any]) -> str:
@@ -1075,11 +1198,14 @@ class Monitor:
         `outputs`, `plan_rows` and `rows`, when given, are the run's (`outputs(run)`, its plan
         rows) and the task's journal rows, read once for many tasks.
         """
-        outs = outputs if outputs is not None else self.outputs(run)
-        by_key = {c.get("key"): c for c in outs["contracts"]}
-        rec = by_key.get(key) or {}
         plan = {n["key"]: n for n in (plan_rows if plan_rows is not None else self._read_plan(run))}
         node = plan.get(key, {})
+        if outputs is not None:
+            by_key = {c.get("key"): c for c in outputs["contracts"]}
+        else:  # the task's own contracts and those of the tasks around it, not the run's
+            around = [key, *lineage_of(node), *(k for k, n in plan.items() if key in lineage_of(n))]
+            by_key = {c.get("key"): c for c in self._contracts_of(run, around)}
+        rec = by_key.get(key) or {}
         upstream = []
         for dep, lineage in lineage_of(node).items():
             d = by_key.get(dep)

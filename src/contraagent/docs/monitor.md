@@ -10,7 +10,10 @@ It reads `runs/<id>/`. A run directory may be a symbolic link to a directory kep
 elsewhere: a runs directory that holds links to some runs shows only those, and a
 record of a linked run is read inside the directory the link leads to, never outside
 it. The list of runs reads a run's records again only when one of them changed, so a
-finished run costs nothing after its first listing. For each run the monitor shows,
+finished run costs nothing after its first listing. A run's plan and outputs are made
+once for every client that watches the run, again only when a record, a running task or
+a file an output contract names changed, and a transcript is read on from where its
+last page ended. For each run the monitor shows,
 live, one tab each:
 
 - **Overview**: in the order a reader checks a run: its state, problems with
@@ -195,7 +198,9 @@ directory in the docstring of `contraagent.engine.Run`.
 ## Your own views: panels
 
 A pipeline adds views of its own with `monitor.Panel`: a function that returns
-the view's body, sent live whenever it changes. A typed body is drawn with the
+the view's body, sent live whenever it changes. The live feed of a run calls a run
+panel at most once a second for every client that watches the run, and each client
+is sent the body of that call. A typed body is drawn with the
 monitor's own elements: `tiles` (figures), a `table` (columns, each with a
 format: `usd`, `pct` (a fraction), `duration` (seconds), `tokens`, `datetime`,
 `number`; `bar` draws a bar in its cells, `link` names the key of each row that

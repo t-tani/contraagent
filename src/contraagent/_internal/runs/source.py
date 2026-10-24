@@ -244,6 +244,7 @@ class DirectorySource:
 
     def __init__(self, root: str | Path) -> None:
         self.root: Path = Path(root).resolve()
+        self._cwds: dict[str, tuple[Stat | None, str | None]] = {}  # run -> (run.json's stat, its cwd)
 
     def path(self, run: str, name: str = "") -> Path:
         """`root/<run>/<name>`, refused (`names.BadName`) when a part is not a plain name
@@ -353,11 +354,28 @@ class DirectorySource:
         return out
 
     def document(self, run: str, name: str) -> str | None:
-        path = self._entry(run, name)[0] if "/" not in name else self.path(run, name)
+        path = self._entry(run, name)[0] if "/" not in name else self._in_folder(run, name)
         try:
             return read_document(path)
         except OSError:
             return None
+
+    def _in_folder(self, run: str, name: str) -> str | Path:
+        """The path of `name` (`<folder>/<file>`): joined as strings when no part on the
+        way is a symbolic link (checked by `lstat`s), else by `path`'s full check. A folder
+        of thousands of documents (`contracts/`) is read once per view."""
+        folder, _, file = name.partition("/")
+        if "/" in file:
+            return self.path(run, name)
+        d = os.path.join(self.root, check_name(run, "run id"))
+        f = os.path.join(d, check_name(folder, "folder"))
+        p = os.path.join(f, check_name(file, "file name"))
+        try:
+            if any(stat.S_ISLNK(os.lstat(x).st_mode) for x in (d, f, p)):
+                return self.path(run, name)
+        except OSError:
+            return p
+        return p
 
     def folder(self, run: str, folder: str) -> list[str]:
         out = []
@@ -372,9 +390,18 @@ class DirectorySource:
         return st.mtime if st is not None else None
 
     def _file(self, run: str, path: str) -> Path:
-        info = self.info(run) or {}
-        cwd = info.get("cwd")
-        return layout.file_path(path, cwd if isinstance(cwd, str) else None)
+        return layout.file_path(path, self._cwd(run))
+
+    def _cwd(self, run: str) -> str | None:
+        """The run's working directory (`run.json` `cwd`), read again only when `run.json`
+        changed: a view names thousands of files of one run."""
+        st = self.stat(run, layout.RUN_INFO)
+        held = self._cwds.get(run)
+        if held is None or held[0] != st:
+            cwd = (self.info(run) or {}).get("cwd")
+            held = (st, cwd if isinstance(cwd, str) else None)
+            self._cwds[run] = held
+        return held[1]
 
     def file(self, run: str, path: str) -> RunFile | None:
         where = self._file(run, path)
