@@ -10,6 +10,12 @@ The changes not released yet are the fragments in [`changelog.d/`](changelog.d/)
 
 <!-- towncrier release notes start -->
 
+## [0.9.1] - 2026-10-25
+
+### Fixed
+
+- The monitor's live feed of a run makes the run's plan and outputs once for every client that watches the run, and again only when a record, a running task or a file an output contract names changed; it made both again every second for each client, which over a run of thousands of tasks kept a core busy with three pages open. A run panel is called at most once a second for every client of the run, and each client is sent the body of that call. A transcript is read on from where its last page ended, where every page read the whole file from its start; a task's detail reads the contracts of the task and the tasks around it, not those of the whole run; and the contract records of a run are read with no full path check where no symbolic link is on the way.
+- The monitor's list of runs (`/api/runs`, the run selector, `/api/hosts`) reads a run's records again only when one of them changed: a finished run's row is made once, where every request read every run's journal and made its plan again, which took seconds over tens of runs and kept a core busy while a page was open. A run directory may be a symbolic link to a directory kept elsewhere: the monitor reads its records inside that directory, where it refused them before.
 ## [0.9.0] - 2026-10-24
 
 ### Added
