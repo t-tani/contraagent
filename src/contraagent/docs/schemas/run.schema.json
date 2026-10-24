@@ -271,6 +271,22 @@
       "description": "the recordings directory a replay plays",
       "title": "Replay"
     },
+    "resumed_from": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "the run this run resumes from (`Pipeline.run(resume_from=)`, `--resume-from`): its `run_id` and `run_uid`; absent for a run that resumes from none",
+      "title": "Resumed From"
+    },
     "max_workers": {
       "anyOf": [
         {

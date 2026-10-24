@@ -346,9 +346,9 @@ cannot be loaded, 2 on a usage error (the flow's name, --kwargs, options)
 
 $ contraagent run --help
 usage: contraagent run [-h] [--config CONFIG] [--kwargs KWARGS] [--agent AGENT] [--model MODEL]
-                       [--input-root NAME=DIR] [--run-id RUN_ID] [--resume] [--runs-dir RUNS_DIR]
-                       [--preflight {substitute,stop,off}] [--stub] [--execute PATTERN]
-                       [--record DIR] [--replay DIR] [--record-max-file-mb N]
+                       [--input-root NAME=DIR] [--run-id RUN_ID] [--resume] [--resume-from RUN_ID]
+                       [--runs-dir RUNS_DIR] [--preflight {substitute,stop,off}] [--stub]
+                       [--execute PATTERN] [--record DIR] [--replay DIR] [--record-max-file-mb N]
                        [--record-exclude PATTERN] [--record-missing]
                        flow
 
@@ -368,6 +368,9 @@ options:
                         its resume or replay; repeatable
   --run-id RUN_ID       the run's id (default: the flow's name)
   --resume              continue the run: skip the tasks it already finished
+  --resume-from RUN_ID  start a new run that resumes from run RUN_ID of the runs directory: skip
+                        each task that run finished with the same fingerprint, run the rest. Not
+                        with --resume or --replay
   --runs-dir RUNS_DIR   where run directories are written (default: runs)
   --preflight {substitute,stop,off}
                         probe every route before the first task; a kind left with no route that

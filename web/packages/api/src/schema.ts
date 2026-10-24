@@ -1607,6 +1607,11 @@ export type components = {
              * @default false
              */
             replayed?: boolean;
+            /**
+             * Resumed From
+             * @default
+             */
+            resumed_from?: string;
         } & {
             [key: string]: unknown;
         };

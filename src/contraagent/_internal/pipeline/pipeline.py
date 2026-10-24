@@ -38,12 +38,22 @@ from contraagent._internal.dispatch.entry import run_sync
 from contraagent._internal.dispatch.flow import SECOND_RUN, FlowCall, FlowDriver, driven_here, generator_flow_error, never_awaited
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent._internal.dispatch.queue import GRACE_S, OVERDUE_S, RETRY_WAIT_S, THROTTLE_S
-from contraagent._internal.dispatch.task import STOP_CANCELLED, STOP_DEFERRED, STOP_INVALID_INPUT, STOP_PARTIAL, Deferral, Task, TaskResult
+from contraagent._internal.dispatch.task import (
+    STOP_CANCELLED,
+    STOP_DEFERRED,
+    STOP_INVALID_INPUT,
+    STOP_PARTIAL,
+    STOP_SKIPPED,
+    Deferral,
+    Task,
+    TaskResult,
+)
 from contraagent._internal.execution import teardown as _teardown
 from contraagent._internal.execution.adapter import McpServers
 from contraagent._internal.execution.changes import EXCLUDE
 from contraagent._internal.execution.python_tasks import recording
 from contraagent._internal.execution.recording import MAX_FILE_MB, UNDECLARED, Recorder, Replay, undeclared_warnings
+from contraagent._internal.execution.resume_from import EarlierRun
 from contraagent._internal.execution.run import Run, resume_skip
 from contraagent._internal.execution.runner import AgentRunner, RetryingRunner
 from contraagent._internal.execution.services import Service, Services
@@ -56,7 +66,7 @@ from contraagent._internal.routing.plan import Overrides, RoutingError, RoutingP
 from contraagent._internal.routing.preflight import PreflightPolicy, PreflightStopped, check_policy
 from contraagent._internal.routing.quota import QuotaRule
 from contraagent._internal.runs import layout
-from contraagent._internal.runs.names import portable
+from contraagent._internal.runs.names import check_portable, portable
 
 
 @dataclass
@@ -471,7 +481,16 @@ class Pipeline:
         each route of the same kinds. The `CheckReport` holds every problem found."""
         return check_flow(self, flow, args, kwargs)
 
-    def run(self, flow: Callable[..., Any], /, *args: Any, run_id: str | None = None, resume: bool = False, **kwargs: Any) -> RunReport:
+    def run(
+        self,
+        flow: Callable[..., Any],
+        /,
+        *args: Any,
+        run_id: str | None = None,
+        resume: bool = False,
+        resume_from: str | None = None,
+        **kwargs: Any,
+    ) -> RunReport:
         """Call `flow(*args, **kwargs)` and run the tasks it creates to the end.
 
         A flow that does not wait builds the whole task graph first. An async flow
@@ -495,6 +514,14 @@ class Pipeline:
         with the tasks that wait for it, and a task whose output no longer reads under its
         output schema).
 
+        `resume_from` names another run of the runs directory, which a new run id resumes
+        from: it skips, by the same rule, every task that run finished, and runs the rest;
+        it starts from a copy of that run's `out/`, `pipeline/` and `definitions/`, and each
+        task it skips gets a journal row naming that run (`resumed_from`). A run that does
+        not exist, or that another process drives, is refused (`EarlierRunError`), and so is
+        `resume_from` with `resume=True` or with a replay, or naming `run_id` itself
+        (ValueError). `contraagent docs tasks` says what is copied and what is not.
+
         A run record that cannot be written is said in a warning line of the run's log and
         counted in `RunReport.summary["record_failures"]`; the run goes on. A journal row
         is different, since a resume reads the journal: the run goes on to its end, then
@@ -511,13 +538,20 @@ class Pipeline:
         notebook), `run` raises RuntimeError: `await pipeline.run_async(...)` there instead.
         """
         return run_sync(
-            lambda: self.run_async(flow, *args, run_id=run_id, resume=resume, **kwargs),
+            lambda: self.run_async(flow, *args, run_id=run_id, resume=resume, resume_from=resume_from, **kwargs),
             called="Pipeline.run()",
             instead="await pipeline.run_async(...)",
         )
 
     async def run_async(
-        self, flow: Callable[..., Any], /, *args: Any, run_id: str | None = None, resume: bool = False, **kwargs: Any
+        self,
+        flow: Callable[..., Any],
+        /,
+        *args: Any,
+        run_id: str | None = None,
+        resume: bool = False,
+        resume_from: str | None = None,
+        **kwargs: Any,
     ) -> RunReport:
         """Run the flow as `run` does, on the running event loop, and return the same
         `RunReport`: the parameters, the run directory and the signal handling are
@@ -538,9 +572,25 @@ class Pipeline:
         run_id = run_id or f"{portable(flow.__name__)}{suffix}"
         if missing := missing_roots(self.input_roots):
             raise ValueError(f"Pipeline: {'; '.join(missing)}; an input root is a directory when the run starts")
-        with Run(
-            run_id, self.runs_dir, fresh=not resume, log=self.log, cwd=self.cwd, row_extras=self.row_extras, config=self.config
-        ) as run:
+        earlier = self._earlier(resume_from, run_id, resume)
+        try:
+            run = Run(
+                run_id,
+                self.runs_dir,
+                fresh=not resume,
+                log=self.log,
+                cwd=self.cwd,
+                row_extras=self.row_extras,
+                config=self.config,
+                resumed_from=earlier.info if earlier is not None else None,
+            )
+        except BaseException:
+            if earlier is not None:
+                earlier.release()
+            raise
+        with run:
+            if earlier is not None:
+                earlier.copy_into(run.dir)  # what a resume finds in its own run directory
             run.stop_on_signals()  # SIGTERM or Ctrl-C stops the agents too (on the main thread)
             run.update_info(flow=_name(flow))  # the runs of one flow: the monitor's forecast
             services = Services(
@@ -609,12 +659,25 @@ class Pipeline:
 
             # A resume gives the flow the results of the tasks it skips in the order the journal
             # recorded them, so the flow's code takes the path it took.
+            def take_over(result: TaskResult) -> None:
+                """Journal a task skipped as the run it resumes from finished it, with its records."""
+                if earlier is None or result.stop != STOP_SKIPPED:
+                    return
+                try:
+                    row = earlier.take_over(result.task.key, run_dir)
+                except Exception as exc:  # the monitor's records only: the journal row is written still
+                    run._record_failed(layout.CONTRACTS, exc, result.task.key)
+                    row = earlier.last_rows.get(result.task.key)
+                if row is not None:
+                    run.record_taken_over(result, row, earlier.run_id)
+
             driver = FlowDriver(
                 waits_for=graph.waits_for,
                 answer=graph.answer,
                 on_flow_call=on_flow_call,
                 holds=graph.holds,
-                replay=run.journal.places() if resume else None,
+                replay=earlier.places if earlier is not None else run.journal.places() if resume else None,
+                on_give=take_over if earlier is not None else None,
             )
             graph.driver = driver
             run.journal.filled_after = graph.filled_after
@@ -721,12 +784,12 @@ class Pipeline:
                         follow_up=follow_up,
                         resume=resume,
                         skip=resume_skip(
-                            run.journal.last_rows(),
+                            earlier.last_rows if earlier is not None else run.journal.last_rows(),
                             run.journal.reruns,
                             graph.output_reads,
                             warn=lambda line: run.progress(line, warning=True),
                         )
-                        if resume
+                        if resume or earlier is not None
                         else None,
                         max_concurrent=self.max_concurrent,
                         **self.queue_options,
@@ -766,6 +829,18 @@ class Pipeline:
                 value=value,
                 flow_errors=driver.flow_errors(),
             )
+
+    def _earlier(self, resume_from: str | None, run_id: str, resume: bool) -> EarlierRun | None:
+        """The run `resume_from` names, read with its lock held (`EarlierRun`); None without one."""
+        if resume_from is None:
+            return None
+        if resume:
+            raise ValueError("Pipeline.run(): resume=True continues run_id itself, resume_from= starts it from another run: give one")
+        if self.replay is not None:
+            raise ValueError("Pipeline.run(): a replay plays its recordings; it does not resume from another run")
+        if check_portable(resume_from, "run id") == run_id:
+            raise ValueError(f"Pipeline.run(): run {run_id!r} cannot resume from itself: resume it with resume=True")
+        return EarlierRun(self.runs_dir, resume_from)
 
     def _plays(self, task: Task) -> bool:
         """Whether this run plays `task` (a stub run, a replay): no function of its runs and

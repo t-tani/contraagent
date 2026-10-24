@@ -864,6 +864,11 @@
       "default": false,
       "title": "Replayed",
       "type": "boolean"
+    },
+    "resumed_from": {
+      "default": "",
+      "title": "Resumed From",
+      "type": "string"
     }
   },
   "required": [

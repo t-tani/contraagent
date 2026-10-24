@@ -3290,6 +3290,11 @@
             "type": "boolean",
             "title": "Replayed",
             "default": false
+          },
+          "resumed_from": {
+            "type": "string",
+            "title": "Resumed From",
+            "default": ""
           }
         },
         "additionalProperties": true,
