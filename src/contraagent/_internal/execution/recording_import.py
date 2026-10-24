@@ -32,7 +32,8 @@ rows left out):
 What it does not import, and why (`RecordingImport.unfinished`, `RecordingImport.not_imported`): a task
 whose last attempt did not finish ok (a replay of it, with no recording, ends `error` too,
 or launches with `--record-missing`); a task whose journal row holds no fingerprint; one
-whose output file, or a file its patterns saw change, is missing now; one whose output was
+whose output file, or a file its patterns saw change, is missing now; a task the run took
+over from the run it resumes from (`resumed_from`), whose attempt is that run's; one whose output was
 written again by a later task of the run (what the file holds now is that task's, not
 this one's); and one with a file over the cap (`record_max_file_mb`, as a recording's), which a
 replay could not play. A run of a run format this release does not read is refused whole
@@ -171,8 +172,13 @@ def import_recording(run_dir: str | Path, directory: str | Path, *, record_max_f
     if run_format not in layout.FORMATS:
         reads = ", ".join(map(str, layout.FORMATS))
         raise RecordingError(f"import: {run_dir} is a run of run format {info.get('format')!r}; this release reads run format {reads}")
-    rows = [r for r in read_rows(run_dir / layout.JOURNAL) if r.get("key") and r.get("stop") != STOP_SKIPPED]
-    if not rows:
+    every = read_rows(run_dir / layout.JOURNAL)
+    rows = [r for r in every if r.get("key") and r.get("stop") != STOP_SKIPPED]
+    # The tasks the run took over from the run it resumes from: their attempts are that run's.
+    taken = {
+        str(r["key"]): str(r["resumed_from"]) for r in every if r.get("key") and r.get("stop") == STOP_SKIPPED and r.get("resumed_from")
+    }
+    if not rows and not taken:
         raise RecordingError(f"import: {run_dir} has no journal row ({layout.JOURNAL}): nothing finished")
     cwd = str(info.get("cwd") or "")
     # A task whose call options named a working directory: its changes are relative to it.
@@ -208,7 +214,11 @@ def import_recording(run_dir: str | Path, directory: str | Path, *, record_max_f
 
     imported: list[str] = []
     unfinished: dict[str, str] = {}
-    not_imported: dict[str, str] = {}
+    not_imported: dict[str, str] = {
+        key: f"the run took it over from run {run} (resumed_from), whose journal holds its attempt: import that run too"
+        for key, run in taken.items()
+        if key not in last
+    }
     for key, (index, row) in last.items():
         stop = str(row.get("stop") or "")
         if not row.get("ok"):

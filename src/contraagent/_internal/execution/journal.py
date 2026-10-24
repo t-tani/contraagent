@@ -109,6 +109,10 @@ class Journal:
                 on_launch_error(exc)
         return row
 
+    def append_row(self, row: JournalRow) -> None:
+        """Append a row made apart from an attempt (`Run.record_taken_over`)."""
+        append_lines(self.path, [row.model_dump_json()])
+
     def rows(self) -> list[dict[str, Any]]:
         """Every row on disk, as dicts (a domain's extra columns included)."""
         return read_rows(self.path)

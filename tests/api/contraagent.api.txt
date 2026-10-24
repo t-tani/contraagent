@@ -152,6 +152,8 @@ class DeferralCause(RecordModel)
     rests: tuple[SkippedHop, ...] = Field(default=(), description='`rest`: each hop passed over and why its credential rests')
     def to_dict(self) -> dict[str, Any]
 
+class EarlierRunError(ContraagentError)
+
 class Frame(RecordModel)
     file: str = Field(description="relative to the run's working directory when under it, else as recorded")
     function: str = Field(description='`module.qualname`')
@@ -327,6 +329,7 @@ class Pipeline
         *args: Any,
         run_id: str | None = None,
         resume: bool = False,
+        resume_from: str | None = None,
         **kwargs: Any,
     ) -> RunReport
     async def run_async(
@@ -336,6 +339,7 @@ class Pipeline
         *args: Any,
         run_id: str | None = None,
         resume: bool = False,
+        resume_from: str | None = None,
         **kwargs: Any,
     ) -> RunReport
     runs_dir: Path
@@ -2043,6 +2047,7 @@ class FlowDriver
         past_grace: Callable[[], bool] | None = None,
         slow_step_s: float = 1.0,
         replay: Mapping[str, int] | None = None,
+        on_give: Callable[[TaskResult], None] | None = None,
     ) -> None
     def add(self, task: Task) -> None
     def alive(self) -> bool
@@ -2286,6 +2291,7 @@ class Run
         log: Callable[[str], None] | None = None,
         cwd: str | Path | None = None,
         config: PipelineConfig | None = None,
+        resumed_from: Mapping[str, str] | None = None,
     )
     def agent_runner(
         self,
@@ -2377,6 +2383,7 @@ class Run
         unawaited: Sequence[str] = (),
         ended_at: float | None = None,
     ) -> None
+    def record_taken_over(self, result: TaskResult, earlier: Mapping[str, Any], run_id: str) -> None
     def rows(self) -> list[dict[str, Any]]
     run_group: str
     run_id: str
@@ -3205,6 +3212,7 @@ class JournalRow(RecordModel)
     reason: str = ''
     replayed: bool = False
     rerun: str = ''
+    resumed_from: str = ''
     round_errors: list[list[str]] = Field(default_factory=list)
     rounds: int | None = None
     route: str = ''

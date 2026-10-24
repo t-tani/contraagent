@@ -386,13 +386,48 @@ run logs a warning, `[resume] <key>: divergence: ...`. Its fingerprint keeps a
 wrong output from being used: a divergence costs a run of the task, not a wrong
 result.
 
+### Resuming from another run
+
+A resume continues one run id. To run a flow again under a new run id after a change,
+and still not pay again for the work that did not change, start the new run from the
+earlier one: `contraagent run ... --run-id docs-2 --resume-from docs`, or
+`Pipeline.run(flow, run_id="docs-2", resume_from="docs")`. The new run is **resumed
+from** run `docs`:
+
+- It skips each task that run finished, by a resume's rule: the key's last journal
+  row there is ok, with the same fingerprint, and the output still reads under its
+  output schema. Every other task runs; one that the earlier run finished says why in
+  `rerun`, as on a resume, and a divergence is logged the same way.
+- It starts from a copy of the earlier run's `out/`, `pipeline/` and `definitions/`,
+  so the outputs, the files tasks fill in (`output_of`) and the pipeline's own records
+  are as a resume of that run would find them. Each task it skips gets the earlier
+  run's contract record and call file, their paths into the earlier run directory made
+  paths into the new one, and a journal row: stop `skipped`, the earlier row's
+  fingerprint and parts, and `resumed_from`, the earlier run's id. `run.json` names the
+  earlier run (`resumed_from`: `run_id`, `run_uid`). The new run has a run uid of its own.
+- The flow is given the results of the tasks it skips in the order the earlier run's
+  journal recorded them, and the new journal records them in that order, so a resume of
+  the new run, or a run resumed from it, takes the same path.
+- The working directory is not copied: the files tasks changed there (`changes=`)
+  are as they are now, as on a resume. Transcripts and launches stay in the earlier run
+  directory. The earlier run is only read, with its lock held while the new run copies
+  it; nothing in it changes.
+- A run that does not exist, one of a run format this release does not read, or one
+  that another process drives is refused (`EarlierRunError`), before anything is
+  written. So is `--resume-from` with `--resume`, with `--replay`, or naming the run
+  id itself.
+
+A replay is not this: it plays a task's recording by its key, also for a task whose
+fingerprint changed (its result's reason says so), and it spends nothing. A run
+resumed from another launches every task whose fingerprint changed.
+
 A program gives the run id and the resume to `Pipeline.run`, as
 `examples/runner/run.py` does with the `--run-id` and `--resume` it takes:
 
 ::code{file="examples/runner/run.py" from="    runs_dir = Path(args.runs_dir)" to="    for key, result"}
 
 `contraagent run` takes the flow's arguments, the config, an agent or model override,
-the run id, the resume, the preflight and the stub, record and replay options. A
+the run id, the resume (`--resume`, `--resume-from`), the preflight and the stub, record and replay options. A
 `Pipeline` argument that is a function or an object (`row_extras`, `quota_rule`,
 `scopes`, `enrichers`, `backends`, `log`), and `env`, `max_concurrent`, `cwd`, a
 credential override and the queue's options, need a program like this one; its
