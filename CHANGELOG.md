@@ -10,6 +10,17 @@ The changes not released yet are the fragments in [`changelog.d/`](changelog.d/)
 
 <!-- towncrier release notes start -->
 
+## [0.9.0] - 2026-10-24
+
+### Added
+
+- A replayed attempt names the recording it played: `TaskResult.played` and the journal row's `played` (`Played`: the `key` it was recorded for, and the `fingerprint` and `outside` state digest it was recorded with). A `played.fingerprint` other than the row's own `fingerprint` is a task whose work changed since the recording, now as data beside the reason's words. `contraagent recording import --by-key` (`import_recording(by_key=True)`) lets a replay play each imported recording for a task of its key whatever its fingerprint, as it plays a recorded one; the entry says so (`imported` `by_key`).
+- A run can resume from another run: `contraagent run ... --run-id NEW --resume-from OLD` (`Pipeline.run(resume_from=)`) starts run `NEW` from a copy of run `OLD`'s `out/`, `pipeline/` and `definitions/`, skips each task `OLD` finished with the same fingerprint, as a resume does, and runs the rest, each it had finished with its rerun's reason. Each task it skips gets a journal row with stop `skipped`, the fingerprint of `OLD`'s row and `resumed_from`, and `run.json` names the run (`resumed_from`). A run that does not exist, or that another process drives, is refused with `EarlierRunError`. `import_recording` names a task the run took over in `not_imported`.
+- An unread event (`LaunchResult.unread_events`, `JournalRow.unread_events`) now also counts a field the reader reads that an event of a known type lacked or held as another JSON type (`result.total_cost_usd`), and an event whose reading failed (`assistant: TypeError`), which the reader skips while the launch goes on; before, the reader raised an error out of the launch on such an event, and a field that changed went unnoticed. Each reader declares those fields in `EventFold.read_fields`, checked against the recordings of its coding agent, and a reader of another backend calls `EventFold.check_fields`. Claude Code now has a recording too (`tests/fixtures/claude/<version>/`, `tests/fixtures/claude/record.py`).
+
+### Fixed
+
+- The light on a running task's card in the monitor crosses the whole card; it stopped at about 60% of the width.
 ## [0.8.1] - 2026-10-23
 
 ### Added
