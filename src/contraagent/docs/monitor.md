@@ -6,7 +6,12 @@ A live, read-only view of every run, from the `monitor` extra:
 contraagent monitor --runs-dir runs          # http://127.0.0.1:8787; --help for every option
 ```
 
-It reads `runs/<id>/` and shows, live, one tab each:
+It reads `runs/<id>/`. A run directory may be a symbolic link to a directory kept
+elsewhere: a runs directory that holds links to some runs shows only those, and a
+record of a linked run is read inside the directory the link leads to, never outside
+it. The list of runs reads a run's records again only when one of them changed, so a
+finished run costs nothing after its first listing. For each run the monitor shows,
+live, one tab each:
 
 - **Overview**: in the order a reader checks a run: its state, problems with
   their causes and outputs side by side, the tasks running at once (while it
