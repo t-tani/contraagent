@@ -20,7 +20,7 @@ import re
 
 from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResult, Limits, Stop
 from contraagent._internal.backends.refusal import Ending, Signals
-from contraagent._internal.backends.wire import EventFold, feedback_errors, first_text, tokens, tool_preview
+from contraagent._internal.backends.wire import EventFold, JsonType, feedback_errors, first_text, tokens, tool_preview
 from contraagent._internal.dispatch.records import OtherModel, QuotaReading, QuotaWindow, SafetyStop
 from contraagent._internal.runs.times import iso_of, now_iso
 
@@ -60,6 +60,22 @@ KNOWN_EVENTS = frozenset(
         *("tool_progress", "tool_use_summary", "auth_status", "prompt_suggestion"),
     }
 )
+#: The fields `StreamReader` reads on every event of its kind (`EventFold.read_fields`),
+#: checked against `tests/fixtures/claude/`.
+READ_FIELDS: dict[str, dict[str, JsonType]] = {
+    "system/init": {
+        **{"session_id": "string", "claude_code_version": "string", "model": "string"},
+        **{"tools": "array", "apiKeySource": "string"},
+    },
+    "assistant": {
+        **{"message": "object", "message.id": "string", "message.content": "array", "message.usage": "object"},
+        **{"message.usage.input_tokens": "integer", "message.usage.output_tokens": "integer"},
+    },
+    "result": {
+        **{"subtype": "string", "is_error": "boolean", "num_turns": "integer", "session_id": "string"},
+        **{"total_cost_usd": "number", "usage": "object"},
+    },
+}
 #: Claude Code's web search tool; its input carries `query`.
 WEB_SEARCH_TOOL = "WebSearch"
 #: Claude Code's web page tool; its input carries `url` and `prompt`.
@@ -198,6 +214,7 @@ class StreamReader(EventFold):
 
     agent = "claude"
     known_events = KNOWN_EVENTS
+    read_fields = READ_FIELDS
     signals = SIGNALS
 
     def __init__(self, limits: Limits):
@@ -227,6 +244,7 @@ class StreamReader(EventFold):
         typ = str(ev.get("type") or "")
         if self.unknown(typ):
             return None
+        self.check_fields(f"system/{ev.get('subtype')}" if typ == "system" else typ, ev)
         if isinstance(ev.get("timestamp"), str):
             self._last_ts = ev["timestamp"]
         if typ == "user":

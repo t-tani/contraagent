@@ -403,8 +403,9 @@ class LaunchResult:
     #: Each safety stop of the launch, in order (`SafetyStop`): a safety classifier stopped
     #: part of it, and it went on. Claude Code reports them; other coding agents none.
     safety_stops: list[SafetyStop] = field(default_factory=list)
-    #: Event types the backend's reader does not know, with their counts: the coding
-    #: agent sends something newer than the reader (omp's `KNOWN_EVENTS`).
+    #: The events the backend's reader could not read, with their counts, keyed by what
+    #: was not read (`<type>`, `<event>.<field>`, `<event>: <error>`; `backends.wire`): a
+    #: coding agent of another version than the reader.
     unread_events: dict[str, int] = field(default_factory=dict)
     # From `system/init`: resolved model (`--agent`/fallback may change it),
     # tool count, load failures.

@@ -174,7 +174,7 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
       ${changesFold(tries)}
       ${safetyFold(tries)}
       ${unreadEvents(tries)
-        ? html`<div class="meta unread" title=${msg('Event types this contraagent version does not know (unread_events)')}>
+        ? html`<div class="meta unread" title=${msg('Events this contraagent version could not read (unread_events)')}>
             <span aria-hidden="true">⚠</span> ${msg(str`Unrecognized events: ${unreadEvents(tries)}`)}
           </div>`
         : nothing}

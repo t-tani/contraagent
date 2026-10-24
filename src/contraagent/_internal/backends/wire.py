@@ -6,7 +6,15 @@ while the launch runs (`Backend.run`), or every line of a finished output at onc
 (`EventFold.read`), it folds the events into the facts of a `LaunchResult` (`result`).
 The base keeps what every wire reports alike: whether anything was seen, the session id,
 each tool call (a bounded sample of its arguments), web searches, the tokens and cost of
-each API call, the context window, and the event types it does not know (`unread_events`).
+each API call, the context window, and the events it could not read (`unread_events`).
+
+An unread event is counted under a key that says what was not read: `<type>`, a type the
+reader does not know; `<event>.<field>`, a field the reader reads (`read_fields`) that the
+event lacked or held as another JSON type (`result.total_cost_usd`); `<event>: <error>`, an
+event whose reading failed (`assistant: TypeError`), which the reader then skips. `<event>`
+is the event's type, or its type and kind (`system/init`). Each tells of a coding agent
+newer or older than its reader; the launch goes on, and what the event would have told is
+missing from its result.
 
 `LimitsWatch` ends a launch on the budgets a coding agent cannot enforce itself
 (`max_budget_usd`, `context_budget`, `max_turns`), from what the fold has read so far.
@@ -18,14 +26,27 @@ from __future__ import annotations
 import json
 import logging
 from collections import Counter
-from collections.abc import Iterator
-from typing import Any, Self
+from collections.abc import Iterator, Mapping
+from typing import Any, Literal, Self
 
 from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResult, Limits, Stop, Usage, note_web_query
 from contraagent._internal.backends.refusal import Ending, Signals, classify_stop
 
 _logger = logging.getLogger(__name__)
 _warned: set[tuple[str, str]] = set()  # (agent, unread event type) already logged by this process
+
+#: A JSON type, as JSON Schema names it.
+JsonType = Literal["string", "integer", "number", "boolean", "object", "array"]
+_JSON_TYPES: dict[str, tuple[type, ...]] = {
+    "string": (str,),
+    "integer": (int,),
+    "number": (int, float),
+    "boolean": (bool,),
+    "object": (dict,),
+    "array": (list,),
+}
+#: What a reader may fail with on an event of a shape it does not expect.
+READ_ERRORS = (AttributeError, LookupError, TypeError, ValueError)
 
 #: Arguments kept per tool (`LaunchResult.raw_result["tool_args"]`), and characters per sample.
 TOOL_ARGS_MAX = 20
@@ -96,6 +117,11 @@ class EventFold:
     agent: str = ""
     #: The event types this reader knows; another is counted in `unread_events`. None: every type.
     known_events: frozenset[str] | None = None
+    #: The fields this reader reads on the events it knows, by event (`system/init`) and
+    #: path (`message.usage`), with the JSON type each holds: one an event lacks or holds
+    #: as another type is counted in `unread_events` (`<event>.<path>`). Only fields every
+    #: such event carries, whatever the launch did.
+    read_fields: Mapping[str, Mapping[str, JsonType]] = {}
     #: How this wire words a refusal (`refusal.Signals`).
     signals: Signals = Signals()
 
@@ -116,7 +142,15 @@ class EventFold:
     def feed_line(self, raw: bytes | str) -> Stop | None:
         """One line of the wire as it arrives (`Backend.run`'s sink)."""
         ev = parse_line(raw)
-        return self.feed(ev) if ev is not None else None
+        return self._feed(ev) if ev is not None else None
+
+    def _feed(self, ev: dict[str, Any]) -> Stop | None:
+        """`feed`, with an event whose reading fails counted in `unread_events` and skipped."""
+        try:
+            return self.feed(ev)
+        except READ_ERRORS as exc:
+            self.unread[f"{ev.get('type') or '<untyped>'}: {type(exc).__name__}"] += 1
+            return None
 
     def feed(self, ev: dict[str, Any]) -> Stop | None:
         """One event. A `Stop` ends the launch there."""
@@ -125,7 +159,7 @@ class EventFold:
     def read(self, data: bytes) -> Self:
         """Every line of a finished output, folded."""
         for ev in iter_jsonl(data):
-            self.feed(ev)
+            self._feed(ev)
         return self
 
     def unknown(self, typ: str) -> bool:
@@ -134,6 +168,17 @@ class EventFold:
             return False
         self.unread[typ or "<untyped>"] += 1
         return True
+
+    def check_fields(self, event: str, ev: dict[str, Any]) -> None:
+        """Count in `unread_events` each field of `read_fields[event]` that `ev` lacks or
+        holds as another JSON type."""
+        for path, kind in self.read_fields.get(event, {}).items():
+            value: Any = ev
+            for part in path.split("."):
+                value = value.get(part) if isinstance(value, dict) else None
+            types = _JSON_TYPES[kind]
+            if not isinstance(value, types) or (isinstance(value, bool) and bool not in types):
+                self.unread[f"{event}.{path}"] += 1
 
     def note_tool(self, name: str, args: object = None) -> None:
         """One tool call: counted, with a bounded sample of its arguments (what did 138 bash calls run?)."""
@@ -172,11 +217,12 @@ class EventFold:
         return Usage(calls=list(self.calls), output_total=sum(c.output for c in self.calls))
 
     def warn_unread(self) -> None:
-        """Log each unread event type once per process."""
-        for typ in sorted(t for t in self.unread if (self.agent, t) not in _warned):
-            _warned.add((self.agent, typ))
+        """Log each unread event's key once per process."""
+        for key in sorted(k for k in self.unread if (self.agent, k) not in _warned):
+            _warned.add((self.agent, key))
             _logger.warning(
-                f"[{self.agent}] event {typ!r} is not one this contraagent reads; a newer {self.agent}? (LaunchResult.unread_events)"
+                f"[{self.agent}] unread event {key!r}: another version of {self.agent} than this contraagent reads?"
+                " (LaunchResult.unread_events)"
             )
 
     def launch_result(self, launch: Launch, agent: str, stop: Stop, *, exit_code: int | None, **fields: Any) -> LaunchResult:
