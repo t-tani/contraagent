@@ -40,7 +40,7 @@ export class CaWorkers extends LitElement {
       .wk.py .wk-ic { color: var(--text-muted); }
       .wk-el { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--status-running); }
       .wk-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; overflow: hidden; }
-      .wk-bar i { position: absolute; top: 0; bottom: 0; width: 30%; background: linear-gradient(90deg, transparent, var(--status-running), transparent);
+      .wk-bar i { position: absolute; top: 0; bottom: 0; left: -30%; width: 30%; background: linear-gradient(90deg, transparent, var(--status-running), transparent);
         animation: scan 1.8s linear infinite; }
     `,
   ];

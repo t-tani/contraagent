@@ -13,7 +13,7 @@ export const motionStyles = css`
   @keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-running) 55%, transparent); } 80%, 100% { box-shadow: 0 0 0 9px transparent; } }
   @keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   @keyframes bump { 0% { transform: scale(1); } 35% { transform: scale(1.04); box-shadow: 0 0 0 1px var(--line2); } 100% { transform: scale(1); } }
-  @keyframes scan { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+  @keyframes scan { to { left: 100%; } }
   @keyframes growx { from { transform: scaleX(0); } to { transform: scaleX(1); } }
   @keyframes stripes { to { background-position: 17px 0; } }
   @keyframes toast-in { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: none; } }
