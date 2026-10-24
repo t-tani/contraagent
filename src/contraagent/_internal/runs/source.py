@@ -247,9 +247,14 @@ class DirectorySource:
 
     def path(self, run: str, name: str = "") -> Path:
         """`root/<run>/<name>`, refused (`names.BadName`) when a part is not a plain name
-        or the path leaves the runs directory."""
+        or the path leaves the runs directory. A run directory that is a symbolic link to a
+        directory (a run kept elsewhere, linked into the runs directory) is the directory it
+        leads to, and a path then leaves it when it leaves that directory."""
         parts = entry_parts(name) if name else ()
-        return under(self.root, check_name(run, "run id"), *parts)
+        link = self.root / check_name(run, "run id")
+        if link.is_symlink() and link.is_dir():
+            return under(link.resolve(), *parts) if parts else link.resolve()
+        return under(self.root, run, *parts)
 
     def _entry(self, run: str, name: str) -> tuple[str, os.stat_result | None]:
         """A record directly in the run's directory (the directory itself for `""`): its

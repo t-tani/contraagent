@@ -24,6 +24,7 @@ one host's `runs/` directory and `/proc`.
 
 from __future__ import annotations
 
+import functools
 import json
 import threading
 from collections.abc import Awaitable, Callable, Iterable, Mapping, MutableMapping
@@ -297,13 +298,19 @@ def _time_box(box: object) -> dict[str, Any] | None:
         return None
 
 
+@functools.lru_cache(maxsize=4096)
 def _shown(file: str, cwd: Path | None) -> str:
     """A flow code file as the monitor serves it: relative to the run's working
-    directory when under it, else as recorded."""
+    directory when under it, else as recorded. Kept for the files asked last: a run's
+    plan names the same few files in every task's flow path."""
     path = Path(file)
     if cwd is not None and path.is_absolute() and path.is_relative_to(cwd):
         return path.relative_to(cwd).as_posix()
     return file
+
+
+#: The records a run's row of `Monitor.runs` is made of: it is made again when one changes.
+_ROW_RECORDS = (layout.RUN_INFO, layout.JOURNAL, layout.PLAN, layout.DEFERRED, layout.FLOW_CALLS, layout.RESTS, layout.SERVICES)
 
 
 def _shown_flow(flow: list[Any], cwd: Path | None) -> list[Any]:
@@ -372,6 +379,7 @@ class Monitor:
         self._digests: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}  # run -> (signature, digest)
         self._infos: dict[str, tuple] = {}  # run -> (run.json's stat, run.json)
         self._shapes: dict[str, tuple[tuple, dict]] = {}  # run -> (its plan's and journal's stats, `run_shape`)
+        self._run_rows: dict[str, tuple[tuple, dict[str, Any] | None]] = {}  # run -> (what its row was made of, the row)
         self._trends: tuple[tuple, dict[str, Any]] | None = None  # the last trends, and what they were made of
         # Each trends panel's last body, and what it was made of; and those being made now,
         # so the same panel asked again (a page refreshes every few seconds) waits for it.
@@ -386,70 +394,81 @@ class Monitor:
     # --- runs --------------------------------------------------------------
 
     def runs(self) -> list[dict[str, Any]]:
-        """One row per run directory, newest activity first."""
+        """One row per run directory, newest activity first. A run's row is made again
+        only when a record it is made of changed, or whether it runs, or what runs in it."""
         out: list[dict[str, Any]] = []
         live = self.liveness.live()
         unresponsive = self.liveness.unresponsive()
         for run in self.source.runs():
-            info = self.source.info(run) or {}
-            n = ok = partial = not_run = 0
-            cost: float | None = None
-            tokens = dict.fromkeys(TOKENS, 0)
-            readings: list[dict[str, Any]] = []
-            wall = 0.0
-            last = ""
-            run_group = info.get("run_group", "")
-            kinds: dict[str, int] = {}
-            extras: dict[str, None] = {}
-            for e in self._read_journal(run):
-                n += 1
-                extras.update(dict.fromkeys(row_extras([e])))
-                partial += e.get("stop") == "partial"
-                ok += bool(e.get("ok")) and e.get("stop") != "partial"
-                not_run += e.get("stop") in ("invalid_input", "skipped")
-                if e.get("cost_usd") is not None:
-                    cost = (cost or 0.0) + float(e["cost_usd"])
-                readings += [q for q in e.get("quota") or [] if isinstance(q, dict)]
-                add_tokens(tokens, e.get("usage"))
-                wall += float(e.get("wall_s") or 0)
-                last = e.get("ts", last)
-                kinds[e.get("kind", "?")] = kinds.get(e.get("kind", "?"), 0) + 1
-                run_group = e.get("run_group") or run_group
-            if not last:
-                # A run on its first task has no journal row yet (rows land when
-                # a task finishes); still list it once it has live evidence.
-                if not info and not self.source.exists(run, layout.STREAMS):
-                    continue
-                last = self.source.activity(run) or ""
-                if not last:
-                    continue
-            out.append(
-                {
-                    "run": run,
-                    "run_group": run_group or run,
-                    "attempts": n,
-                    "ok": ok,
-                    "partial": partial,
-                    "not_run": not_run,
-                    "tasks": self._task_counts(run, live=run in live),
-                    "cost_usd": round(cost, 6) if cost is not None else None,
-                    "tokens": tokens,
-                    **_first_last(readings),
-                    "wall_s": round(wall),
-                    "last_ts": last,
-                    "kinds": kinds,
-                    "running": run in live,
-                    "unresponsive": run in unresponsive,
-                    "host_id": info.get("host_id", ""),
-                    "run_uid": info.get("run_uid", ""),
-                    "started_at": info.get("started_at", ""),
-                    "stub": info.get("stub") is True,
-                    "replay": info.get("replay") if isinstance(info.get("replay"), str) else "",
-                    "row_extras": list(extras),
-                }
-            )
+            running = frozenset(_running_keys(self.liveness.snapshot(run))) if run in live else None
+            sig = (tuple(self.source.stat(run, name) for name in _ROW_RECORDS), running)
+            held = self._run_rows.get(run)
+            if held is None or held[0] != sig:
+                row = self._run_row(run, live=running is not None)
+                held = (sig, row)
+                if row is not None and row["attempts"]:  # one with no journal row shows its latest activity
+                    self._run_rows[run] = held
+            if held[1] is not None:
+                out.append({**held[1], "running": run in live, "unresponsive": run in unresponsive})
         out.sort(key=lambda r: r["last_ts"], reverse=True)
         return out
+
+    def _run_row(self, run: str, live: bool) -> dict[str, Any] | None:
+        """A run's row of `runs`, but whether it runs or stopped reporting; None for a run
+        with nothing to show yet."""
+        info = self.source.info(run) or {}
+        n = ok = partial = not_run = 0
+        cost: float | None = None
+        tokens = dict.fromkeys(TOKENS, 0)
+        readings: list[dict[str, Any]] = []
+        wall = 0.0
+        last = ""
+        run_group = info.get("run_group", "")
+        kinds: dict[str, int] = {}
+        extras: dict[str, None] = {}
+        for e in self._read_journal(run):
+            n += 1
+            extras.update(dict.fromkeys(row_extras([e])))
+            partial += e.get("stop") == "partial"
+            ok += bool(e.get("ok")) and e.get("stop") != "partial"
+            not_run += e.get("stop") in ("invalid_input", "skipped")
+            if e.get("cost_usd") is not None:
+                cost = (cost or 0.0) + float(e["cost_usd"])
+            readings += [q for q in e.get("quota") or [] if isinstance(q, dict)]
+            add_tokens(tokens, e.get("usage"))
+            wall += float(e.get("wall_s") or 0)
+            last = e.get("ts", last)
+            kinds[e.get("kind", "?")] = kinds.get(e.get("kind", "?"), 0) + 1
+            run_group = e.get("run_group") or run_group
+        if not last:
+            # A run on its first task has no journal row yet (rows land when
+            # a task finishes); still list it once it has live evidence.
+            if not info and not self.source.exists(run, layout.STREAMS):
+                return None
+            last = self.source.activity(run) or ""
+            if not last:
+                return None
+        return {
+            "run": run,
+            "run_group": run_group or run,
+            "attempts": n,
+            "ok": ok,
+            "partial": partial,
+            "not_run": not_run,
+            "tasks": self._task_counts(run, live=live),
+            "cost_usd": round(cost, 6) if cost is not None else None,
+            "tokens": tokens,
+            **_first_last(readings),
+            "wall_s": round(wall),
+            "last_ts": last,
+            "kinds": kinds,
+            "host_id": info.get("host_id", ""),
+            "run_uid": info.get("run_uid", ""),
+            "started_at": info.get("started_at", ""),
+            "stub": info.get("stub") is True,
+            "replay": info.get("replay") if isinstance(info.get("replay"), str) else "",
+            "row_extras": list(extras),
+        }
 
     def hosts(self) -> dict[str, Any]:
         """The hosts that drive the runs, with their runs counted, and each account's first
