@@ -312,6 +312,18 @@ played for a `~n` key of its base. A recording that a recording run wrote is pla
 another fingerprint, as above; an imported one is not, since nothing observed the
 task as it ran then.
 
+`--by-key` (`import_recording(by_key=True)`) says that the run's answers stand for its
+keys whatever has changed since: a replay plays each imported recording for a task of
+its key as it plays one a recording run wrote, its result's reason saying that the
+fingerprint differs, and the entry's `imported` says `by_key`. Use it to take a run's
+answers on purpose; to take only the answers whose fingerprint still matches, resume
+from the run instead (`--resume-from`, [Tasks](tasks.md#resuming-from-another-run)).
+
+Each played attempt's journal row names the recording it played (`played`: the `key`
+it was recorded for, and the `fingerprint` and `outside` state digest it was recorded
+with). A `played.fingerprint` other than the row's own `fingerprint` is a task whose work
+changed since the recording: the row says so as data, beside its reason's words.
+
 ## Test: the stub agent
 
 `contraagent.testing.StubAgent` is a coding agent for tests. It reads its call

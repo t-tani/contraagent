@@ -100,6 +100,19 @@ class Changes(RecordModel):
     kept: tuple[str, ...] = ()
 
 
+class Played(RecordModel):
+    """The recording a replayed attempt played: the `key` it was recorded for, and the
+    `fingerprint` and `outside` state digest it was recorded with (empty when the recording
+    holds none). A replay plays a recording by its key: compared with the task's own
+    fingerprint, these say whether the task's work was what the recording did."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", frozen=True)
+
+    key: str
+    fingerprint: str = ""
+    outside: str = ""
+
+
 # --- hop ---------------------------------------------------------------------
 
 

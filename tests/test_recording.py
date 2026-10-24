@@ -210,6 +210,18 @@ def test_a_recording_of_another_fingerprint_is_played_and_noted(tmp_path):
     played = replay(tmp_path, flow_=lambda units: other(units[0]))
     assert played.ok
     assert "the recording has another fingerprint" in played.results["write-alpha"].reason
+    # The journal row names the recording it played: its fingerprint is not the row's.
+    row = next(r for r in journal(played) if r["key"] == "write-alpha")
+    assert row["replayed"] and row["played"]["key"] == "write-alpha"
+    assert row["played"]["fingerprint"] and row["played"]["fingerprint"] != row["fingerprint"]
+    assert played.results["write-alpha"].played is not None
+
+
+def test_a_recording_of_the_same_fingerprint_names_it_too(tmp_path):
+    record(tmp_path, flow_=lambda units: write(units[0]))
+    played = replay(tmp_path, flow_=lambda units: write(units[0]))
+    row = next(r for r in journal(played) if r["key"] == "write-alpha")
+    assert row["played"] == {"key": "write-alpha", "fingerprint": row["fingerprint"], "outside": ""}
 
 
 def test_a_replay_is_not_combined_with_what_would_launch_or_record(tmp_path):

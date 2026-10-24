@@ -364,6 +364,12 @@ class PipelineConfig
     def task_tables(self, errors: list[str] | None = None) -> dict[str, dict[str, Any]]
     def unknown_tables(self, errors: list[str] | None = None) -> None
 
+class Played(RecordModel)
+    fingerprint: str = ''
+    key: str
+    model_config: ConfigDict = ConfigDict(extra='allow', frozen=True)
+    outside: str = ''
+
 class PluginError(ContraagentError)
 
 class PreflightStopped(ContraagentError)
@@ -592,6 +598,7 @@ class TaskResult
         replayed: bool = False,
         payload: Any = None,
         max_corrections: int | None = None,
+        played: Played | None = None,
     ) -> None
     @classmethod
     def cancelled(cls, task: Task, reason: str = '') -> TaskResult
@@ -609,6 +616,7 @@ class TaskResult
     notes: dict[str, Any] = field(default_factory=dict)
     ok: bool
     payload: Any = None
+    played: Played | None = None
     reason: str = ''
     replayed: bool = False
     retryable: bool = True
@@ -891,6 +899,7 @@ def import_recording(
     directory: str | Path,
     *,
     record_max_file_mb: float = MAX_FILE_MB,
+    by_key: bool = False,
 ) -> RecordingImport
 
 def log(name: str, row: Mapping[str, Any] | BaseModel) -> None
@@ -3210,6 +3219,7 @@ class JournalRow(RecordModel)
     ok: bool
     output_of_after: str = ''
     outside: str = ''
+    played: Played | None = None
     quota: list[QuotaReading] = Field(default_factory=list)
     reason: str = ''
     replayed: bool = False

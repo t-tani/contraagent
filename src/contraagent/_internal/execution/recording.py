@@ -47,7 +47,9 @@ entry, attempt 2 the second, past the last the last again. It writes the recorde
 and changed files into place, deletes the recorded deletions, appends the recorded
 transcript, and returns the recorded result with no cost and no tokens: nothing was spent
 in this run. A Python task of a kind `execute` matches runs its function instead. A played
-attempt's result says `replayed` (`TaskResult.replayed`, the journal row's `replayed`).
+attempt's result says `replayed` (`TaskResult.replayed`, the journal row's `replayed`), and
+names the recording it played (`TaskResult.played`, the row's `played`: its key, and the
+fingerprint and outside state it was recorded with).
 
 With `record_missing` (`Pipeline(replay=, record_missing=True)`, `--record-missing`), a
 task with no recording launches, or runs its function, as in any run, and the `Recorder`
@@ -63,7 +65,8 @@ state (`outside_state=`): a replay calls the function in its own working directo
 
 An **imported recording** (`recording_import.import_recording`) was written from the run
 directory of a run that was not recorded; its entry names that run (`imported`). It is
-played only for a task of its own key and of the fingerprint each attempt holds: for
+played only for a task of its own key and of the fingerprint each attempt holds (one
+imported `by_key` for any fingerprint, as a recorded one): for
 another, the task ends `error` with a reason that names it, as a file kept by hash does,
 and with `record_missing` it counts as missing. A `~n` key never plays one of its base.
 """
@@ -89,7 +92,7 @@ from contraagent._internal.backends.base import Backend, ModelChains
 from contraagent._internal.backends.credentials import Credential, CredentialBinding
 from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
 from contraagent._internal.contracts.contract import OutputContract, Stamp
-from contraagent._internal.dispatch.records import SafetyStop
+from contraagent._internal.dispatch.records import Played, SafetyStop
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_matches, kind_name
 from contraagent._internal.errors import ContraagentError
 from contraagent._internal.execution.changes import EXCLUDE, compare, excluded, matcher, recent_digests, scan, scan_tree
@@ -676,16 +679,16 @@ class Replay:
 
     def _blocked(self, task: Task, key: str) -> str:
         """Why the recording `key` cannot be played for `task`: an imported recording of
-        another fingerprint, or a file it keeps by hash only."""
+        another fingerprint (not imported `by_key`), or a file it keeps by hash only."""
         body, _ = self.recordings[key]
         imported = body.get("imported")
-        if isinstance(imported, dict) and task.fingerprint:
+        if isinstance(imported, dict) and not imported.get("by_key") and task.fingerprint:
             for attempt in body.get("attempts") or ():
                 if attempt.get("fingerprint") != task.fingerprint:
                     return (
                         f"the recording of {key} was imported from run {imported.get('run') or '?'} with another fingerprint "
-                        f"({str(attempt.get('fingerprint') or '')[:12]}, task {task.fingerprint[:12]}): the task's definition "
-                        "or inputs changed since; import a run of this definition, or use --record-missing"
+                        f"({str(attempt.get('fingerprint') or '')[:12]}, task {task.fingerprint[:12]}): "
+                        "import a run of this definition, or with --by-key, or use --record-missing"
                     )
         for attempt in body.get("attempts") or ():
             for kept in attempt.get("by_hash") or ():
@@ -707,7 +710,7 @@ class Replay:
         if playing.blocked:
             return replace(result, retryable=False)
         if playing.key is not None and result.launch_result is not None:
-            return replace(result, replayed=True)
+            return replace(result, replayed=True, played=self._played_of(playing, task))
         if playing.key is None and not self.record_missing:
             return replace(result, retryable=False)
         return None
@@ -760,6 +763,7 @@ class Replay:
             wall_s=time.monotonic() - started,
             reason=reason,
             replayed=True,
+            played=self._played_of(playing, task),
         )
         return result, bool(attempt.get("retry_on"))
 
@@ -775,6 +779,15 @@ class Replay:
             _copy(files / "files" / rel, cwd / rel)
         for rel in attempt.get("deleted") or ():
             (cwd / rel).unlink(missing_ok=True)
+
+    @staticmethod
+    def _played_of(playing: _Playing, task: Task) -> Played:
+        """The recording `task` played on its attempt: its key, and the fingerprint and outside
+        state digest the attempt played was recorded with."""
+        attempt = playing.attempts[min(task.attempt, len(playing.attempts) - 1)] if playing.attempts else {}
+        return Played(
+            key=str(playing.key or ""), fingerprint=str(attempt.get("fingerprint") or ""), outside=str(attempt.get("outside") or "")
+        )
 
     @staticmethod
     def _notes(playing: _Playing, task: Task, attempt: dict[str, Any]) -> list[str]:

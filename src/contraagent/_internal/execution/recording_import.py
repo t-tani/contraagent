@@ -45,7 +45,10 @@ plays an imported recording only for a task of that fingerprint, and only for it
 a task whose definition, params or inputs changed since that run ends `error`, its
 reason naming the recording, or, with `record_missing`, launches and is recorded again.
 (A recorded recording of another fingerprint is played all the same, its reason saying
-so.) The import writes no `undeclared.json`: it never saw the working directory change.
+so.) An import with `by_key` (`contraagent recording import --by-key`) is the one who
+imports saying that the run's answers stand for its keys whatever changed: its entries
+say `by_key`, and a replay plays each for a task of its key as it plays a recorded one.
+The import writes no `undeclared.json`: it never saw the working directory change.
 """
 
 from __future__ import annotations
@@ -147,7 +150,9 @@ def _changes(row: Mapping[str, Any]) -> tuple[list[str], list[str]]:
     return written, list(changes.get("deleted") or ())
 
 
-def import_recording(run_dir: str | Path, directory: str | Path, *, record_max_file_mb: float = MAX_FILE_MB) -> RecordingImport:
+def import_recording(
+    run_dir: str | Path, directory: str | Path, *, record_max_file_mb: float = MAX_FILE_MB, by_key: bool = False
+) -> RecordingImport:
     """Write a recording of each task of the run in `run_dir` that finished ok (or
     `partial`) into the recordings directory `directory`, as if the run had recorded it
     (`Pipeline(record=)`), so a replay of the same flow plays it with nothing launched.
@@ -155,8 +160,11 @@ def import_recording(run_dir: str | Path, directory: str | Path, *, record_max_f
     The recording of each key it imports replaces the one `directory` held; the other
     recordings stay. A task with a file over `record_max_file_mb` (default 4 MB) is not
     imported. A task is imported as one attempt, its output files and changed files as they
-    are now; a replay plays it only for a task of the fingerprint the run recorded.
-    `contraagent docs testing` lists what is imported and what is not.
+    are now; a replay plays it only for a task of the fingerprint the run recorded. With
+    `by_key`, the one who imports says the run's answers stand for a task of its key whatever
+    its fingerprint: a replay plays it as it plays a recorded one, its result's reason
+    saying so and its journal row naming the recording it played (`played`), and the
+    entry says so (`imported` `by_key`). `contraagent docs testing` lists what is imported and what is not.
 
     `RecordingError` when `run_dir` holds no run (no `run.json` or no journal row) or a run
     of a run format this release does not read.
@@ -184,7 +192,9 @@ def import_recording(run_dir: str | Path, directory: str | Path, *, record_max_f
     # A task whose call options named a working directory: its changes are relative to it.
     own_cwd = {str(r["key"]): str(r["cwd"]) for r in read_rows(run_dir / layout.PLAN) if r.get("key") and r.get("cwd")}
     run_id = str(info.get("run_id") or run_dir.name)
-    imported_from = {"run": run_id, "run_uid": str(info.get("run_uid") or ""), "imported_at": now_iso()}
+    imported_from: dict[str, Any] = {"run": run_id, "run_uid": str(info.get("run_uid") or ""), "imported_at": now_iso()}
+    if by_key:
+        imported_from["by_key"] = True
     launches = {str(r.get("label")): r for r in read_rows(run_dir / layout.LAUNCHES)}
     cap = record_max_file_mb * _MB
 

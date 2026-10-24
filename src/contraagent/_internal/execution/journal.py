@@ -91,6 +91,7 @@ class Journal:
             output_of_after=self.filled_after(task) if self.filled_after is not None else "",
             flow_call=task.origin.flow_call if task.origin is not None else None,
             replayed=result.replayed,
+            played=result.played,
             **(self._row_extras(result) if self._row_extras else {}),
         )
 
