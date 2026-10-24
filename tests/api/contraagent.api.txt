@@ -1372,6 +1372,7 @@ class EventFold
     def add_call(self, call: CallUsage, cost: float | None = None) -> None
     agent: str = ''
     calls: list[CallUsage]
+    def check_fields(self, event: str, ev: dict[str, Any]) -> None
     context_window: int | None
     cost: float | None
     def ending(self, *, exit_code: int | None, killed: Stop | None) -> Ending
@@ -1390,6 +1391,7 @@ class EventFold
     def note_tool(self, name: str, args: object = None) -> None
     def note_web_query(self, query: object) -> None
     def read(self, data: bytes) -> Self
+    read_fields: Mapping[str, Mapping[str, JsonType]] = {}
     def result(
         self,
         launch: Launch,

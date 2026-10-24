@@ -33,7 +33,7 @@ from typing import Literal
 
 from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResult, Stop
 from contraagent._internal.backends.refusal import FAILED_STOPS, Ending, Signals
-from contraagent._internal.backends.wire import EventFold, feedback_errors, positive_int, tokens
+from contraagent._internal.backends.wire import EventFold, JsonType, feedback_errors, positive_int, tokens
 from contraagent._internal.dispatch.records import QuotaReading
 from contraagent._internal.runs.times import iso_of, now_iso
 
@@ -78,6 +78,13 @@ _FIVE_HOUR_MIN, _SEVEN_DAY_MIN = 300, 10080
 TOOL_ITEMS = ("command_execution", "file_change", "mcp_tool_call", "web_search")
 #: The token counts of a `usage` (`turn.completed`, a rollout's `last_token_usage`) that are read.
 TOKEN_KEYS = ("input_tokens", "cached_input_tokens", "cache_write_input_tokens", "output_tokens")
+#: The fields `EventReader` reads on every event of its type (`EventFold.read_fields`),
+#: checked against `tests/fixtures/codex/`.
+READ_FIELDS: dict[str, dict[str, JsonType]] = {
+    "thread.started": {"thread_id": "string"},
+    "item.completed": {"item": "object", "item.type": "string"},
+    "turn.completed": {"usage": "object", "usage.input_tokens": "integer", "usage.output_tokens": "integer"},
+}
 #: Every `--json` event type `EventReader` reads; another is counted in `unread`.
 KNOWN_EVENTS = frozenset(
     {"thread.started", "turn.started", "turn.completed", "turn.failed", "item.started", "item.updated", "item.completed", "error"}
@@ -109,6 +116,7 @@ class EventReader(EventFold):
 
     agent = "codex"
     known_events = KNOWN_EVENTS
+    read_fields = READ_FIELDS
     signals = SIGNALS
 
     def __init__(self) -> None:
@@ -141,6 +149,7 @@ class EventReader(EventFold):
         typ = str(ev.get("type") or "")
         if self.unknown(typ):
             return None
+        self.check_fields(typ, ev)
         if typ == "thread.started":
             self.session_id = str(ev.get("thread_id") or "")
         elif typ == "turn.started":

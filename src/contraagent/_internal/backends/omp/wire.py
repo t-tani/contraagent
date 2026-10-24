@@ -11,7 +11,7 @@ from typing import Self
 
 from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResult, Stop
 from contraagent._internal.backends.refusal import QUOTA_RE, Ending, Signals, quota_refusal
-from contraagent._internal.backends.wire import EventFold, feedback_errors, tokens, tool_preview
+from contraagent._internal.backends.wire import EventFold, JsonType, feedback_errors, tokens, tool_preview
 
 #: How omp words a refusal: a provider's quota in its own words (providers disagree on the
 #: wording), read only when the wire gives no status; a status decides alone. omp reports
@@ -226,6 +226,19 @@ KNOWN_UPDATES = {
     "toolcall_end",
     "image_end",
 }
+#: The fields `TraceReader` reads on every event of its type (`EventFold.read_fields`),
+#: an assistant's `message_end` apart (`message_end/assistant`); checked against
+#: `tests/fixtures/omp/` and `tests/fixtures/pi/`.
+READ_FIELDS: dict[str, dict[str, JsonType]] = {
+    "session": {"id": "string"},
+    "message_update": {"assistantMessageEvent": "object", "assistantMessageEvent.type": "string"},
+    "tool_execution_end": {"toolName": "string"},
+    "message_end": {"message": "object", "message.role": "string"},
+    "message_end/assistant": {
+        **{"message.model": "string", "message.usage": "object"},
+        **{"message.usage.input": "integer", "message.usage.output": "integer"},
+    },
+}
 
 
 def web_query(update: dict) -> str | None:
@@ -274,6 +287,7 @@ class TraceReader(EventFold):
     known_events = frozenset(KNOWN_EVENTS)
     #: The `message_update` kinds this reader knows (`unread_events`: the rest).
     known_updates = frozenset(KNOWN_UPDATES)
+    read_fields = READ_FIELDS
     signals = SIGNALS
 
     def __init__(self) -> None:
@@ -290,6 +304,7 @@ class TraceReader(EventFold):
         typ = str(ev.get("type") or "")
         if self.unknown(typ):
             return None
+        self.check_fields(typ, ev)
         self.saw_any = True
         if typ == "session":
             self.session_id = str(ev.get("id") or "")
@@ -333,6 +348,7 @@ class TraceReader(EventFold):
         if (said := stop_hook_feedback(message)) is not None:
             self.hook_errors.append(feedback_errors(said))
         if isinstance(message, dict) and message.get("role") == "assistant":
+            self.check_fields("message_end/assistant", ev)
             # The latest assistant message decides: an error omp retried past is not the outcome.
             self.api_status, self.api_error = None, ""
             self._error(message)

@@ -55,6 +55,11 @@ a checkout of a release:
     git worktree add /tmp/ca-062 0.6.2 && (cd /tmp/ca-062 && uv sync)
     /tmp/ca-062/.venv/bin/python benchmarks/schedule.py run --out benchmarks/results/0.6.2 --label 0.6.2
     git worktree remove /tmp/ca-062
+
+A results file says what it measured: the installed contraagent's version, and the commit
+of the checkout that contraagent is imported from (`commit`, with `modified` when its
+tree has changes not committed), since a version names a release and every tree after
+it alike. It also names the Python, the operating system and the CPUs it ran on.
 """
 
 from __future__ import annotations
@@ -64,8 +69,10 @@ import asyncio
 import json
 import math
 import os
+import platform
 import random
 import statistics
+import subprocess
 import sys
 import tempfile
 import threading
@@ -79,6 +86,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+import contraagent
 from contraagent import Overrides, Pipeline, TaskDeferred, agent_task, python_task, time_box
 from contraagent.backends import CallFile, Launch, LaunchResult
 from contraagent.testing import StubAgent, StubLaunch, writes_example
@@ -644,11 +652,18 @@ def summary(per_seed: list[dict[str, Any]]) -> dict[str, Any]:
     return out
 
 
+def _commit(result: dict[str, Any]) -> str:
+    """` (commit abc1234)`, ` (commit abc1234, modified)`, or '' for a file that names none."""
+    if not result.get("commit"):
+        return ""
+    return f" (commit {result['commit'][:7]}{', modified' if result.get('modified') else ''})"
+
+
 def markdown(result: dict[str, Any]) -> str:
     lines = [
         f"# Scheduling benchmark: {result['label']}",
         "",
-        f"contraagent {result['version']} on Python {result['python']}, {result['seeds']} seeds, "
+        f"contraagent {result['version']}{_commit(result)} on Python {result['python']}, {result['seeds']} seeds, "
         f"one minute of agent work run in {result['scale_s']} s. Written by `benchmarks/schedule.py`, whose "
         "docstring says what each figure means. Minutes of agent work, the median over the seeds; "
         "`worst` is the largest makespan.",
@@ -674,6 +689,20 @@ def markdown(result: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def checkout() -> dict[str, Any]:
+    """The commit of the checkout the imported contraagent is in, and whether its tree has
+    changes not committed (`modified`); empty outside a git checkout."""
+    where = Path(contraagent.__file__).parent
+
+    def git(*args: str) -> str:
+        return subprocess.run(["git", "-C", str(where), *args], capture_output=True, text=True, check=True).stdout.strip()
+
+    try:
+        return {"commit": git("rev-parse", "HEAD"), "modified": bool(git("status", "--porcelain"))}
+    except (OSError, subprocess.CalledProcessError):
+        return {}
+
+
 def run(args: argparse.Namespace) -> None:
     names = args.scenarios or [s.name for s in SCENARIOS]
     unknown = sorted(set(names) - {s.name for s in SCENARIOS})
@@ -692,7 +721,10 @@ def run(args: argparse.Namespace) -> None:
     result = {
         "label": args.label or version("contraagent"),
         "version": version("contraagent"),
+        **checkout(),
         "python": sys.version.split()[0],
+        "platform": platform.platform(),
+        "cpus": os.cpu_count(),
         "seeds": args.seeds,
         "scale_s": args.scale,
         "scenarios": scenarios,

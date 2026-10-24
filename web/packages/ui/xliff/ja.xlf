@@ -2734,10 +2734,6 @@
   <source>Input / output | cache read / cache write</source>
   <target>入力 / 出力 | キャッシュ読み込み / キャッシュ書き込み</target>
 </trans-unit>
-<trans-unit id="sbb0f058643587149">
-  <source>Event types this contraagent version does not know (unread_events): <x id="0" equiv-text="${unread}"/></source>
-  <target>このバージョンの contraagent が対応していないイベント種別（unread_events）: <x id="0" equiv-text="${unread}"/></target>
-</trans-unit>
 <trans-unit id="s0007e74d64dabdbc">
   <source>Tasks not started in history</source>
   <target>実行履歴の未実行のタスク</target>
@@ -2833,10 +2829,6 @@
 <trans-unit id="s4e7c49654e9033f5">
   <source>Done after <x id="0" equiv-text="${corrections}"/> corrections | first failed check: <x id="1" equiv-text="${first}"/></source>
   <target>修正依頼 <x id="0" equiv-text="${corrections}"/> 回で完了 | 最初の検証エラー: <x id="1" equiv-text="${first}"/></target>
-</trans-unit>
-<trans-unit id="s52bd9d64b4c399df">
-  <source>Event types this contraagent version does not know (unread_events)</source>
-  <target>このバージョンの contraagent が対応していないイベント種別（unread_events）</target>
 </trans-unit>
 <trans-unit id="s8d3d06c785c3c433">
   <source>Account or API key the coding agent used (credential)</source>
@@ -3382,6 +3374,14 @@
   <source><x id="0" equiv-text="${dayLabel(from, locale)}"/> to <x id="1" equiv-text="${dayLabel(to, locale)}"/>, <x id="2" equiv-text="${year}"/></source>
   <target><x id="2" equiv-text="${year}"/> 年 <x id="0" equiv-text="${dayLabel(from, locale)}"/>〜<x id="1" equiv-text="${dayLabel(to, locale)}"/></target>
   <note from="lit-localize">The days the trends cover</note>
+</trans-unit>
+<trans-unit id="s620484486a1868e2">
+  <source>Events this contraagent version could not read (unread_events): <x id="0" equiv-text="${unread}"/></source>
+  <target>このバージョンの contraagent が読めなかったイベント（unread_events）: <x id="0" equiv-text="${unread}"/></target>
+</trans-unit>
+<trans-unit id="sb8878a0ec9a8c292">
+  <source>Events this contraagent version could not read (unread_events)</source>
+  <target>このバージョンの contraagent が読めなかったイベント（unread_events）</target>
 </trans-unit>
 </body>
 </file>

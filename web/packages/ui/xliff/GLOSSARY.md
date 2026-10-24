@@ -135,7 +135,7 @@ wherever the UI shows a state or a count to the reader.
 | changed files (`changes`: what an attempt did under the task's patterns); removed / kept after the failed attempt | 変更したファイル; 試行の失敗後に削除 / 試行の失敗後も保持 |
 | created / modified / deleted (a changed file) | 作成 / 変更 / 削除 |
 | page (the web page a web fetch read) | ページ |
-| unrecognized events (`unread_events`: event types from a coding agent that this contraagent does not recognize) | 未対応のイベント |
+| unrecognized events (`unread_events`: events from a coding agent that this contraagent could not read: an unknown type, a missing field, a field of another type) | 未対応のイベント |
 | Tokens per API call unknown / Tokens unknown (`usage_unknown`: tokens of a launch that could not be read) | API 呼び出しごとのトークンは不明 / トークンは不明 |
 | 5-hour / weekly usage (a subscription's utilization) | 5 時間枠 / 週の利用率 |
 | 5-hour / weekly (a usage window), weekly (`model`) (a model's own) | 5 時間枠 / 週, 週（`model`） |

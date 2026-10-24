@@ -112,8 +112,9 @@ class JournalRow(RecordModel):
     #: Each safety stop of the attempt, in order (rounds and hops included): a safety
     #: classifier stopped part of a launch, and the launch went on (`SafetyStop`).
     safety_stops: list[SafetyStop] = Field(default_factory=list)
-    #: Event types the coding agent sent that this contraagent does not read, with their
-    #: counts (rounds and hops summed): a newer coding agent than its reader.
+    #: The events the coding agent sent that this contraagent could not read, with their
+    #: counts (rounds and hops summed), keyed by what was not read (`<type>`,
+    #: `<event>.<field>`, `<event>: <error>`): a coding agent of another version than its reader.
     unread_events: dict[str, int] = Field(default_factory=dict)
     #: What of the attempt's tokens could not be read (`LaunchResult.usage_unknown`; over its
     #: rounds and hops, `tokens` when any launch's are unknown, else `calls` when any launch's
