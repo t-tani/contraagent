@@ -5,6 +5,7 @@ the records of the work it took over, so it can be resumed, and resumed from, in
 import asyncio
 import json
 import os
+from pathlib import Path
 
 import pytest
 from pydantic import BaseModel
@@ -84,7 +85,7 @@ def test_a_new_run_skips_what_the_earlier_run_finished_and_holds_its_records(tmp
     # The outputs, and the records that name them, are the new run's.
     assert json.loads((rep.run_dir / "out" / "write" / "u.json").read_text())["text"] == "first"
     record = json.loads((rep.run_dir / "contracts" / "write-u.json").read_text())
-    assert record["outputs"][0]["path"] == str((rep.run_dir / "out" / "write" / "u.json").resolve())
+    assert Path(record["outputs"][0]["path"]) == (rep.run_dir / "out" / "write" / "u.json").resolve()
     assert (old.run_dir / "journal.jsonl").read_text() == before
 
 
