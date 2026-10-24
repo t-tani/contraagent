@@ -5,6 +5,7 @@ transcript's last page ended and how many lines it has."""
 
 import asyncio
 import json
+from pathlib import Path
 
 from pydantic import BaseModel
 
@@ -67,8 +68,8 @@ def test_the_outputs_are_kept_until_a_file_they_show_changes(tmp_path, monkeypat
     assert monitor.outputs("r") is first
     monkeypatch.setattr(core, "OUTPUTS_FRESH_S", 0.0)
     again = monitor.outputs("r")
-    shown = {spec["path"]: spec["file"]["content"] for rec in again["contracts"] for spec in rec["outputs"]}
-    assert again is not first and shown[str(out.resolve())]["text"] == "changed by hand"
+    shown = {Path(spec["path"]): spec["file"]["content"] for rec in again["contracts"] for spec in rec["outputs"]}
+    assert again is not first and shown[out.resolve()]["text"] == "changed by hand"
     assert monitor.outputs("r") is again
 
 
