@@ -1608,6 +1608,11 @@ export type components = {
              */
             replayed?: boolean;
             played?: components["schemas"]["Played"] | null;
+            /**
+             * Resumed From
+             * @default
+             */
+            resumed_from?: string;
         } & {
             [key: string]: unknown;
         };

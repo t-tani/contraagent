@@ -3300,6 +3300,11 @@
                 "type": "null"
               }
             ]
+          },
+          "resumed_from": {
+            "type": "string",
+            "title": "Resumed From",
+            "default": ""
           }
         },
         "additionalProperties": true,

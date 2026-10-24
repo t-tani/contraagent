@@ -12,6 +12,8 @@ contraagent check tasks.py:docs --config pipeline.toml --kwargs '{"units": ["alp
 contraagent run tasks.py:docs --config pipeline.toml --kwargs '{"units": ["alpha"]}' [--run-id ID] [--resume]
                                          [--preflight substitute|stop|off]
                                          # the same flow, run (exit 1 when a task or the flow failed)
+contraagent run tasks.py:docs --run-id docs-2 --resume-from docs
+                                         # a new run that skips what run docs finished
 contraagent run tasks.py:docs --stub [--execute PATTERN]
                                          # a stub run: the stub agent plays every task with its output's
                                          # example, and the tasks the flow created are listed
@@ -239,6 +241,13 @@ def _run_arguments(run: argparse.ArgumentParser) -> None:
     _flow_arguments(run)
     run.add_argument("--run-id", default="", help="the run's id (default: the flow's name)")
     run.add_argument("--resume", action="store_true", help="continue the run: skip the tasks it already finished")
+    run.add_argument(
+        "--resume-from",
+        metavar="RUN_ID",
+        default=None,
+        help="start a new run that resumes from run RUN_ID of the runs directory: skip each task that run finished "
+        "with the same fingerprint, run the rest. Not with --resume or --replay",
+    )
     add_runs_dir(run, "where run directories are written (default: runs)")
     run.add_argument(
         "--preflight",
@@ -407,6 +416,10 @@ def _flow_command(args) -> int:
         if args.cmd == "run" and args.record_missing and replay is None:
             print("--record-missing: only with --replay", file=sys.stderr)
             return 2
+        resume_from = getattr(args, "resume_from", None)
+        if resume_from is not None and (args.resume or replay is not None):
+            print(f"--resume-from: not with {'--resume' if args.resume else '--replay'}", file=sys.stderr)
+            return 2
         if replay is not None and (args.stub or record is not None):
             print(f"--replay: not with {'--stub' if args.stub else '--record'}", file=sys.stderr)
             return 2
@@ -439,7 +452,7 @@ def _flow_command(args) -> int:
         return 1
     setup_logging("%(asctime)s %(message)s", "%H:%M:%S")
     try:
-        result = pipeline.run(flow, run_id=args.run_id or None, resume=args.resume, **kwargs)
+        result = pipeline.run(flow, run_id=args.run_id or None, resume=args.resume, resume_from=args.resume_from, **kwargs)
     except RunExists as exc:  # in the command line's words, not the Python API's
         print(
             f"✗ {args.flow}\n  error: {Path(exc.run_dir).as_posix()} already holds a run ({exc.rows} journal rows): "

@@ -157,6 +157,10 @@ class JournalRow(RecordModel):
     #: fingerprint and outside state digest it was recorded with, to compare with the row's own.
     #: None for any other attempt.
     played: Played | None = None
+    #: For a task this run took over from the run it resumes from (`Pipeline.run(resume_from=)`):
+    #: that run's id. The row's stop is `skipped`, and its fingerprint and parts are those of
+    #: that run's row, which matched. Empty for any other row.
+    resumed_from: str = ""
 
 
 # --- launches --------------------------------------------------------------
@@ -388,6 +392,11 @@ class RunInfo(RecordModel):
     finished_at: str | None = Field(None, description="when the run finished; absent while it runs or after it was killed")
     stub: bool | None = Field(None, description="true for a stub run")
     replay: str | None = Field(None, description="the recordings directory a replay plays")
+    resumed_from: dict[str, str] | None = Field(
+        None,
+        description="the run this run resumes from (`Pipeline.run(resume_from=)`, `--resume-from`): its `run_id` and "
+        "`run_uid`; absent for a run that resumes from none",
+    )
     max_workers: int | None = Field(None, description="how many tasks run at once")
     quota_caps: dict[str, dict[Literal["five_hour_pct", "seven_day_pct"], float]] | None = Field(
         None, description="by credential, the quota caps of each that has one"

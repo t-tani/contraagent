@@ -900,6 +900,11 @@
         }
       ],
       "default": null
+    },
+    "resumed_from": {
+      "default": "",
+      "title": "Resumed From",
+      "type": "string"
     }
   },
   "required": [

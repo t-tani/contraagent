@@ -417,7 +417,8 @@ class FlowDriver:
 
     `replay`, on a resume: each task key's place in the journal of the run's earlier
     attempts (the index of its last journal row); the results of skipped tasks are given
-    to the flow code in that order (see the module docstring).
+    to the flow code in that order (see the module docstring). `on_give(result)` is called
+    with each result as the flow code is given it, in that order.
     """
 
     def __init__(
@@ -430,8 +431,10 @@ class FlowDriver:
         past_grace: Callable[[], bool] | None = None,
         slow_step_s: float = 1.0,
         replay: Mapping[str, int] | None = None,
+        on_give: Callable[[TaskResult], None] | None = None,
     ) -> None:
         self._waits_for = waits_for or _task_itself
+        self._on_give = on_give
         self._answer = answer or (lambda item, result: result)
         self._on_flow_call = on_flow_call or (lambda event, call: None)
         self._holds: Holds = holds or (lambda value: ())
@@ -577,6 +580,8 @@ class FlowDriver:
         """Give one result to the flow code: record it and complete the futures that wait for
         it, their callbacks caused by its key."""
         key = result.task.key
+        if self._on_give is not None:
+            self._on_give(result)
         if result.stop != STOP_DUPLICATE_KEY:  # the key's own result is still to come
             self.done[key] = result
             self._open.discard(key)

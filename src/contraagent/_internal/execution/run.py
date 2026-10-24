@@ -308,6 +308,7 @@ class Run:
         log: Callable[[str], None] | None = None,
         cwd: str | Path | None = None,
         config: PipelineConfig | None = None,
+        resumed_from: Mapping[str, str] | None = None,
     ):
         """`run_group` is a label grouping runs (default: the run id).
         `row_extras(result)` adds a domain's own columns to a journal row;
@@ -322,6 +323,8 @@ class Run:
         `contraagent.pipeline_table` reads in the run (none without it).
         `fresh` refuses a run id whose journal already has rows (`RunExists`), before
         anything is written: not its `run.json`, nor its lock file.
+        `resumed_from` is the run this one resumes from (`EarlierRun.info`), for `run.json`;
+        a run resumed later keeps it.
         A `run_id` that is not a file name on every operating system (`<lambda>`, `a:b`,
         `CON`, a trailing `.`) is refused with ValueError, on every system alike."""
         self.run_id: str = check_portable(run_id, "run id")
@@ -382,6 +385,7 @@ class Run:
                     "argv": list(sys.argv),
                     "cwd": str(Path(cwd or os.getcwd()).resolve()),
                     "started_at": now_iso(),
+                    **({"resumed_from": dict(earlier)} if (earlier := resumed_from or self._previous("resumed_from")) else {}),
                 }
             ),
         )
@@ -416,6 +420,10 @@ class Run:
         """The `run_uid` of an earlier attempt of this run id: a resumed run keeps it."""
         uid = (self._info() or {}).get("run_uid")
         return uid if isinstance(uid, str) and uid else None
+
+    def _previous(self, field: str) -> Any:
+        """What `run.json` of an earlier attempt of this run id says in `field`, else None."""
+        return (self._info() or {}).get(field)
 
     # --- lock and lifecycle ------------------------------------------------
 
@@ -525,6 +533,27 @@ class Run:
         atexit.register(self.teardown)
 
     # --- journal -----------------------------------------------------------
+
+    def record_taken_over(self, result: TaskResult, earlier: Mapping[str, Any], run_id: str) -> None:
+        """Journal a task this run took over from run `run_id`, which it resumes from: the row
+        of its skipped result, with the fingerprint, its parts, the outside state and the
+        digest of the file it fills in (`output_of_after`) of `earlier`, that run's last row
+        of the task, and `resumed_from`. A row that cannot be written is said as
+        `record_attempt` says it."""
+        key = result.task.key
+        try:
+            row = self.journal.row(result).model_copy(
+                update={
+                    "fingerprint": str(earlier.get("fingerprint") or ""),
+                    "fingerprint_parts": dict(earlier.get("fingerprint_parts") or {}),
+                    "outside": str(earlier.get("outside") or ""),
+                    "output_of_after": str(earlier.get("output_of_after") or ""),
+                    "resumed_from": run_id,
+                }
+            )
+            self.journal.append_row(row)
+        except Exception as exc:  # the task's result stands; the run fails at its end
+            self._record_failed(layout.JOURNAL, exc, key)
 
     def record_attempt(self, result: TaskResult) -> None:
         """Journal one finished attempt, and say so in one progress line.
