@@ -210,7 +210,7 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
               >${safetyStopCount(stops.length)}</span
             >`
           : nothing}${unread
-          ? html` <span class="unread nw" title=${msg(str`Event types this contraagent version does not know (unread_events): ${unread}`)}
+          ? html` <span class="unread nw" title=${msg(str`Events this contraagent version could not read (unread_events): ${unread}`)}
               ><span aria-hidden="true">⚠</span> ${msg('Unrecognized events')}</span
             >`
           : nothing}${unknown

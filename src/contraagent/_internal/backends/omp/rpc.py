@@ -128,7 +128,7 @@ class RpcReader(TraceReader):
         finally:
             del self.chunks[cid]
         if isinstance(logical, dict):
-            self.feed(logical)
+            self._feed(logical)
 
     def apply_state(self, data: dict) -> None:
         """The session id and the model's context window (`model.contextWindow`) from a

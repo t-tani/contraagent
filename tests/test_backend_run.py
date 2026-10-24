@@ -226,7 +226,9 @@ def test_claude_counts_the_events_it_does_not_know():
     reader.feed({"type": "brand_new_event"})
     reader.feed({"type": "result", "subtype": "success", "result": "ok"})
     result = reader.result(Launch(prompt="x", label="t"), "claude", exit_code=0, killed=None)
-    assert result.stop == Stop.COMPLETED and result.unread_events == {"brand_new_event": 1}
+    # These events carry fewer fields than Claude Code's: those count too (`<event>.<field>`).
+    types = {k: n for k, n in result.unread_events.items() if "." not in k}
+    assert result.stop == Stop.COMPLETED and types == {"brand_new_event": 1}
 
 
 # --- omp-rpc: the template's second look, credential check and catalogue --------------------

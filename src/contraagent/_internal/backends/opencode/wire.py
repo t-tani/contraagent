@@ -20,7 +20,7 @@ import re
 
 from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResult, Stop
 from contraagent._internal.backends.refusal import QUOTA_RE, Ending, Signals, quota_refusal
-from contraagent._internal.backends.wire import EventFold, first_text, tool_preview
+from contraagent._internal.backends.wire import EventFold, JsonType, first_text, tool_preview
 from contraagent._internal.backends.wire import tokens as count
 
 #: How opencode words a refusal: providers word a quota differently, and opencode passes
@@ -30,6 +30,17 @@ SIGNALS = Signals(quota=QUOTA_RE, stderr_stops=frozenset())
 #: The event types `opencode run --format json` prints (checked against opencode 1.19.0).
 #: Another type is counted in `LaunchResult.unread_events`: a newer opencode sends it.
 KNOWN_EVENTS = frozenset({"step_start", "step_finish", "text", "reasoning", "tool_use", "error"})
+#: The fields `EventReader` reads on every event of its type (`EventFold.read_fields`),
+#: checked against `tests/fixtures/opencode/`.
+READ_FIELDS: dict[str, dict[str, JsonType]] = {
+    "step_start": {"sessionID": "string", "part": "object"},
+    "text": {"sessionID": "string", "part.messageID": "string", "part.text": "string"},
+    "tool_use": {"sessionID": "string", "part.tool": "string", "part.state": "object"},
+    "step_finish": {
+        **{"sessionID": "string", "part.reason": "string", "part.tokens": "object"},
+        **{"part.tokens.input": "integer", "part.tokens.output": "integer", "part.cost": "number"},
+    },
+}
 #: opencode's web search and web page tools; their inputs carry `query` and `url`.
 WEB_SEARCH_TOOL = "websearch"
 WEB_FETCH_TOOL = "webfetch"
@@ -96,6 +107,7 @@ class EventReader(EventFold):
 
     agent = "opencode"
     known_events = KNOWN_EVENTS
+    read_fields = READ_FIELDS
     signals = SIGNALS
 
     def __init__(self, model: str = "") -> None:
@@ -111,6 +123,7 @@ class EventReader(EventFold):
         typ = str(ev.get("type") or "")
         if self.unknown(typ):
             return None
+        self.check_fields(typ, ev)
         self.saw_any = True
         self.session_id = self.session_id or str(ev.get("sessionID") or "")
         part = _part(ev)
