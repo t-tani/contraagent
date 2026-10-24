@@ -40,6 +40,7 @@ from contraagent._internal.dispatch.records import (
     Executor,
     Frame,
     Hop,
+    Played,
     QuotaReading,
     RecordModel,
     SafetyStop,
@@ -152,6 +153,10 @@ class JournalRow(RecordModel):
     flow_call: str | None = None
     #: The attempt was played from a recording (a replay), not launched or called: it spent nothing.
     replayed: bool = False
+    #: The recording a replayed attempt played (`Played`): the key it was recorded for, and the
+    #: fingerprint and outside state digest it was recorded with, to compare with the row's own.
+    #: None for any other attempt.
+    played: Played | None = None
 
 
 # --- launches --------------------------------------------------------------

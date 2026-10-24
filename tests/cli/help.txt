@@ -303,7 +303,7 @@ options:
   -h, --help  show this help message and exit
 
 $ contraagent recording import --help
-usage: contraagent recording import [-h] [--record-max-file-mb N] RUN_DIR DIR
+usage: contraagent recording import [-h] [--record-max-file-mb N] [--by-key] RUN_DIR DIR
 
 positional arguments:
   RUN_DIR               the run's directory (runs/<run-id>)
@@ -314,6 +314,10 @@ options:
   --record-max-file-mb N
                         a task with a file larger than N MB is not imported (default 4), as a
                         recording keeps it by hash only
+  --by-key              a replay plays each imported recording for a task of its key whatever its
+                        fingerprint, as it plays a recorded one (its result's reason and its
+                        journal row's played say so); without it, only for the fingerprint the run
+                        recorded
 
 exit status: 0 when every task the run finished was imported, 1 when one could not be (a missing
 or rewritten file, a file over the cap) or none was, or when the run directory cannot be read; a

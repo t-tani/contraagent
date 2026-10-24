@@ -158,6 +158,31 @@
       "title": "OtherModel",
       "type": "object"
     },
+    "Played": {
+      "additionalProperties": true,
+      "description": "The recording a replayed attempt played: the `key` it was recorded for, and the\n`fingerprint` and `outside` state digest it was recorded with (empty when the recording\nholds none). A replay plays a recording by its key: compared with the task's own\nfingerprint, these say whether the task's work was what the recording did.",
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "fingerprint": {
+          "default": "",
+          "title": "Fingerprint",
+          "type": "string"
+        },
+        "outside": {
+          "default": "",
+          "title": "Outside",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "title": "Played",
+      "type": "object"
+    },
     "QuotaReading": {
       "additionalProperties": true,
       "description": "A subscription's utilization during a launch, from one of these sources:\n\n* Claude Code: in its stream, when a session starts or resumes;\n* Codex: in its stream, with each API call of a ChatGPT login;\n* omp (`omp`, `omp-rpc`): at each launch, what the account's latest request reported\n  (`omp usage --json`, read before the launch: `Backend.usage_reading`);\n* opencode and pi: for an OpenCode Go model only, OpenCode's usage endpoint, read by\n  contraagent before each launch (`Backend.usage_reading`); the agents report none.\n\nAccount-wide: it includes whatever else used the same account, parallel tasks too.\n`LaunchResult.quota` holds a launch's, the journal's `quota` an attempt's that give a\n5-hour or weekly utilization.",
@@ -864,6 +889,17 @@
       "default": false,
       "title": "Replayed",
       "type": "boolean"
+    },
+    "played": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Played"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from contraagent._internal.dispatch.records import Changes, DeferralCause, Executor, Frame, Hop, SkippedHop
+from contraagent._internal.dispatch.records import Changes, DeferralCause, Executor, Frame, Hop, Played, SkippedHop
 
 #: The key prefix of a Python task (`Task.fn`): `python:<kind>` or `python:<kind>-<unit>`.
 PYTHON_KEY_PREFIX = "python:"
@@ -309,6 +309,7 @@ class TaskResult:
     example that failed its checks, a command the operating system refused to start). Neither the retrying
     runner nor the queue's `retry_on` tries it again.
     `replayed`: True when the attempt was played from a recording, not launched or called.
+    `played`: the recording a replayed attempt played (`Played`); None for any other attempt.
     `payload`: domain data a `ResultEnricher` attached; never read by this module.
     """
 
@@ -334,6 +335,7 @@ class TaskResult:
     payload: Any = None
     # Fields new since 0.1.0 come last, so a positional argument keeps its place.
     max_corrections: int | None = None
+    played: Played | None = None
 
     @classmethod
     def skipped(cls, task: Task) -> TaskResult:

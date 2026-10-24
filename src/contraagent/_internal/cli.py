@@ -157,6 +157,13 @@ def parser(command: str | None = "") -> argparse.ArgumentParser:
         metavar="N",
         help="a task with a file larger than N MB is not imported (default 4), as a recording keeps it by hash only",
     )
+    imp.add_argument(
+        "--by-key",
+        action="store_true",
+        help="a replay plays each imported recording for a task of its key whatever its fingerprint, as it plays a "
+        "recorded one (its result's reason and its journal row's played say so); without it, only for the "
+        "fingerprint the run recorded",
+    )
 
     add_command(
         sub,
@@ -205,7 +212,7 @@ def _recording(args) -> int:
 
     cap = args.record_max_file_mb if args.record_max_file_mb is not None else MAX_FILE_MB
     try:
-        report = import_recording(args.run_dir, args.directory, record_max_file_mb=cap)
+        report = import_recording(args.run_dir, args.directory, record_max_file_mb=cap, by_key=args.by_key)
     except RecordingError as exc:
         print(f"✗ {exc}")
         return 1

@@ -213,3 +213,16 @@ def test_the_cli_imports_a_run(tmp_path, monkeypatch, capsys):
     (live.run_dir / "out" / "write" / "alpha.json").unlink()
     assert main(["recording", "import", str(live.run_dir), "rec"]) == 1
     assert "not imported write-alpha:" in capsys.readouterr().out
+
+
+def test_an_import_by_key_plays_for_a_changed_definition_and_says_so(tmp_path):
+    live = stub_run(tmp_path, flow_=lambda units: write(units[0]))
+    assert import_recording(live.run_dir, tmp_path / "rec", by_key=True).ok
+    entry = json.loads((tmp_path / "rec" / "write" / "write-alpha.json").read_text())
+    assert entry["imported"]["by_key"] is True
+    longer = agent_task("write", instructions="Write a longer note.", output=Note, changes=["topics/{unit}/**"], max_turns=5, timeout_s=60)
+    played = replay(tmp_path, flow_=lambda units: longer(units[0]))
+    result = played.results["write-alpha"]
+    assert result.ok and "the recording has another fingerprint" in result.reason
+    row = next(r for r in journal(played) if r["key"] == "write-alpha")
+    assert row["played"]["fingerprint"] == live.results["write-alpha"].task.fingerprint != row["fingerprint"]

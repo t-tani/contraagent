@@ -1607,6 +1607,7 @@ export type components = {
              * @default false
              */
             replayed?: boolean;
+            played?: components["schemas"]["Played"] | null;
         } & {
             [key: string]: unknown;
         };
@@ -2214,6 +2215,29 @@ export type components = {
              * @default
              */
             rerun?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * Played
+         * @description The recording a replayed attempt played: the `key` it was recorded for, and the
+         *     `fingerprint` and `outside` state digest it was recorded with (empty when the recording
+         *     holds none). A replay plays a recording by its key: compared with the task's own
+         *     fingerprint, these say whether the task's work was what the recording did.
+         */
+        Played: {
+            /** Key */
+            key: string;
+            /**
+             * Fingerprint
+             * @default
+             */
+            fingerprint?: string;
+            /**
+             * Outside
+             * @default
+             */
+            outside?: string;
         } & {
             [key: string]: unknown;
         };
