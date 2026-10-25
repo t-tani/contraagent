@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from contraagent._internal.platform import envvars, processes, telemetry
@@ -74,14 +76,15 @@ def _env_of_telemetry(cmd: str) -> dict[str, str]:
     return {k: "" if v == "-" else v for k, v in values.items()}
 
 
-def snapshot(source: DirectorySource, run: str) -> dict:
-    """Live processes of one run: its agent launches, the full tree, and running Python tasks."""
+def snapshot(source: DirectorySource, run: str, scan: Callable[[], dict[int, dict]] | None = None) -> dict:
+    """Live processes of one run: its agent launches, the full tree, and running Python tasks.
+    `scan()` gives the host's processes (default: a scan of them now)."""
     info = source.info(run)
     alive = is_alive(info)
     out = empty_snapshot(run, info, alive)
     if not alive or info is None:
         return out
-    procs = _scan()
+    procs = (scan or _scan)()
     by_ppid: dict[int, list[dict]] = {}
     for p in procs.values():
         by_ppid.setdefault(p["ppid"], []).append(p)
@@ -163,16 +166,50 @@ def _inflight(source: DirectorySource, run: str, info: dict) -> list[dict]:
 
 
 class ProcLiveness:
-    """Live runs of one `runs/` directory on this host: the pid in `run.json`, checked against the OS."""
+    """Live runs of one `runs/` directory on this host: the pid in `run.json`, checked against the OS.
 
-    def __init__(self, root: str | Path) -> None:
+    A run's `snapshot` scans every process of the host. One taken less than `fresh_s`
+    seconds ago is given again while the run's `run.json` and `inflight/` are as they were
+    then, so the views a tick asks for (the processes, the plan, the outputs, of each
+    client's feed and of the list of runs) scan the host once."""
+
+    def __init__(self, root: str | Path, fresh_s: float = 1.0) -> None:
         self.source = DirectorySource(root)
+        self.fresh_s = fresh_s
+        self._snapshots: dict[str, tuple[float, tuple, dict]] = {}  # run -> (when, the records' stats then, the snapshot)
+        self._scanned: tuple[float, dict[int, dict]] | None = None  # the host's processes, and when
+        self._lock = threading.Lock()
+
+    def _scan(self) -> dict[int, dict]:
+        """The host's processes, scanned again once `fresh_s` seconds have passed: the
+        snapshots of every live run in a tick share one scan."""
+        at = time.monotonic()
+        held = self._scanned
+        if held is not None and at - held[0] < self.fresh_s:
+            return held[1]
+        scanned = _scan()
+        self._scanned = (at, scanned)
+        return scanned
 
     def live(self) -> set[str]:
         return live_runs(self.source)
 
     def snapshot(self, run: str) -> dict:
-        return snapshot(self.source, run)
+        """The run's processes (`snapshot`), taken again once `fresh_s` seconds have passed.
+        Every caller is given the same value, which none changes."""
+        at = time.monotonic()
+        # A run that ends (`run.json`), or a task that starts or ends (`inflight/`), is seen at once.
+        records = (self.source.stat(run, layout.RUN_INFO), self.source.stat(run, layout.INFLIGHT))
+        with self._lock:
+            held = self._snapshots.get(run)
+            if held is not None and at - held[0] < self.fresh_s and held[1] == records:
+                return held[2]
+        taken = snapshot(self.source, run, self._scan)
+        with self._lock:
+            self._snapshots[run] = (at, records, taken)
+            for old in [r for r, (t, _, _) in self._snapshots.items() if at - t >= self.fresh_s]:
+                del self._snapshots[old]
+        return taken
 
     def unresponsive(self) -> set[str]:
         return set()
