@@ -129,7 +129,11 @@ def _release_watchdog() -> None:
 
 
 def epoch() -> int:
-    """The current teardown epoch; pass it to `register` as `since`."""
+    """The current teardown epoch; pass it to `register` as `since`. Every spawn site calls
+    it before it starts an agent, so it first seals this process (`processes.seal_self`):
+    an agent cannot read the environment or the memory of the process that holds every
+    hop's credential."""
+    processes.seal_self()
     with _lock:
         return _epoch
 

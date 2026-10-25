@@ -5,6 +5,7 @@ against a fake of the calls they make, so a Linux run still tests the Windows co
 
 import ctypes
 import errno
+import json
 import os
 import subprocess
 import sys
@@ -106,6 +107,67 @@ def test_the_scan_and_environment_of_a_child():
         proc.kill()
         proc.wait()
     assert processes.environ(proc.pid) == {}
+
+
+#: Run in a process of its own, which seals itself and starts a child that reads it as an
+#: agent would, and as the monitor and the watchdog read it.
+_SEALED = """
+import json, os, subprocess, sys
+sys.path.insert(0, sys.argv[1])
+import processes
+assert processes.seal_self() and processes.seal_self()
+child = '''
+import json, os, sys
+sys.path.insert(0, sys.argv[1])
+import processes
+pid = int(sys.argv[2])
+out = {}
+for name in ("environ", "mem", "cwd"):
+    try:
+        os.readlink(f"/proc/{pid}/cwd") if name == "cwd" else open(f"/proc/{pid}/{name}", "rb").read(1)
+        out[name] = "read"
+    except PermissionError:
+        out[name] = "denied"
+out["scanned"] = pid in processes.scan()
+out["start"] = processes.start_ticks(pid) is not None
+out["tree"] = pid in processes.tree(pid)
+out["own_mb"] = processes.own_mb(pid) > 0
+print(json.dumps(out), flush=True)
+sys.stdin.read()  # alive until its parent has read its environment
+'''
+argv = [sys.executable, "-c", child, sys.argv[1], str(os.getpid())]
+proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+seen = json.loads(proc.stdout.readline())
+seen["child_environ"] = processes.environ(proc.pid, "SEALED_") == {"SEALED_SECRET": "x"}
+proc.stdin.close()
+proc.wait()
+print(json.dumps(seen))
+"""
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="PR_SET_DUMPABLE is Linux's")
+def test_a_sealed_process_hides_its_environment_and_memory_but_not_what_is_scanned():
+    env = {**os.environ, "SEALED_SECRET": "x"}
+    out = subprocess.run(
+        [sys.executable, "-c", _SEALED, os.path.dirname(processes.__file__)], env=env, capture_output=True, text=True, timeout=60
+    )
+    assert out.returncode == 0, out.stderr
+    seen = json.loads(out.stdout)
+    assert seen == {
+        "environ": "denied",  # a child of the same user cannot read the keys of its parent
+        "mem": "denied",
+        "cwd": "denied",
+        "scanned": True,  # what the monitor and the watchdog read stays readable
+        "start": True,
+        "tree": True,
+        "own_mb": True,
+        "child_environ": True,  # the program it starts is dumpable again: its task variables stay readable
+    }
+
+
+@pytest.mark.skipif(sys.platform == "linux", reason="elsewhere only")
+def test_sealing_does_nothing_where_the_os_has_no_such_switch():
+    assert processes.seal_self() is False
 
 
 class _Process:

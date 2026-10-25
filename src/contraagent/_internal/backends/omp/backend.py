@@ -19,7 +19,6 @@ from types import ModuleType
 from contraagent._internal.backends import opencode_key, plugin_files
 from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend, ModelChains, preamble_in_prompt
 from contraagent._internal.backends.credentials import (
-    SECRET_NAME_RE,
     SENSITIVE,
     Ambient,
     ApiKey,
@@ -32,6 +31,7 @@ from contraagent._internal.backends.credentials import (
     check_provider,
     child_env,
     key_var,
+    looks_secret,
     model_provider,
     scrubbed,
     secret_value,
@@ -178,7 +178,7 @@ def dotenv_credentials(env: dict[str, str], args: tuple[str, ...], cwd: Path, na
     found: dict[str, Path] = {}
     for f in omp_dotenv_files(env, args, cwd):
         for name, value in opencode_key.dotenv(f).items():
-            wanted = name in names if names is not None else (name in SENSITIVE or SECRET_NAME_RE.search(name))
+            wanted = name in names if names is not None else (name in SENSITIVE or looks_secret(name, value))
             if wanted and value and not env.get(name) and name not in found:
                 found[name] = f
     return found

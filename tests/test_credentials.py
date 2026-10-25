@@ -146,6 +146,58 @@ def test_the_child_sees_only_the_chosen_credential(tmp_path, fake_claude):
     assert env["CLAUDE_CONFIG_DIR"] != "/home/someone/.claude"  # isolated from the stored login
 
 
+#: Variables of a developer's host that hold a secret, or a way to one, and that no task
+#: agent on a chosen credential sees.
+HOST_SECRETS = {
+    "GITHUB_TOKEN": "ghp_x",
+    "GH_TOKEN": "gho_x",
+    "GH_PAT": "x",
+    "NPM_TOKEN": "x",
+    "HF_TOKEN": "x",
+    "AWS_ACCESS_KEY_ID": "AKIA",
+    "AWS_SESSION_TOKEN": "x",
+    "AZURE_CLIENT_SECRET": "x",
+    "DJANGO_SECRET_KEY": "x",
+    "PGPASSWORD": "x",
+    "GOOGLE_APPLICATION_CREDENTIALS": "/home/someone/sa.json",
+    "DOCKER_AUTH_CONFIG": "{}",
+    "SSH_AUTH_SOCK": "/run/user/1000/ssh-agent.socket",
+    "npm_config_//registry.npmjs.org/:_authToken": "x",
+    "DATABASE_URL": "postgres://app:hunter2@db:5432/app",
+    "REDIS_URL": "redis://:hunter2@cache:6379/0",
+}
+#: Variables that only look close to one, and the proxy that the agent reaches its provider through.
+HOST_OTHERS = {
+    "PATH": "/usr/bin",
+    "TOKENIZERS_PARALLELISM": "false",
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "8000",
+    "PYTHON_KEYRING_BACKEND": "keyring.backends.null.Keyring",
+    "KEYTIMEOUT": "1",
+    "AZURE_TENANT_ID": "t",
+    "GIT_AUTHOR_NAME": "someone",
+    "SSH_AGENT_PID": "42",
+    "DATABASE_HOST": "db",
+    "DOCS_URL": "https://example.com/a:b@c",
+    "HTTPS_PROXY": "http://user:pass@proxy:3128",
+    "https_proxy": "http://user:pass@proxy:3128",
+}
+
+
+def test_a_chosen_credential_removes_every_variable_that_holds_a_secret():
+    from contraagent._internal.backends.credentials import scrubbed
+
+    assert scrubbed({**HOST_SECRETS, **HOST_OTHERS}) == HOST_OTHERS
+
+
+def test_a_tool_gets_a_host_secret_only_when_the_pipeline_passes_it(tmp_path, fake_claude):
+    base = {"PATH": fake_claude, "ZDR_KEY": "sk-zdr", "HOME": str(tmp_path), **HOST_SECRETS}
+    passed = {"GH_TOKEN": "gho_x", "SSH_AUTH_SOCK": HOST_SECRETS["SSH_AUTH_SOCK"]}
+    assert ClaudeBackend(base_env=base).run(launch(tmp_path, ApiKey(name="zdr", key="env:ZDR_KEY"), **passed)).ok
+    env = json.loads((tmp_path / "env.json").read_text())
+    assert {k for k in HOST_SECRETS if k in env} == set(passed)
+    assert env["ANTHROPIC_API_KEY"] == "sk-zdr"
+
+
 def test_a_secret_that_does_not_resolve_fails_the_launch(tmp_path, fake_claude):
     out = ClaudeBackend(base_env={"PATH": fake_claude}).run(launch(tmp_path, ApiKey(name="zdr", key="env:ZDR_KEY")))
     assert out.stop == Stop.LAUNCH_FAILED and "env:ZDR_KEY is not set" in out.stderr_tail

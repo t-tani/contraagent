@@ -1,7 +1,7 @@
 """The host's processes and room: one known pid's identity, the processes running, and the
 host's free memory and usable cores, a process's descendants (`tree`) and the memory it
 holds of its own (`own_mb`). Every read of another process's state in the package
-is here.
+is here, and so is what keeps the others from reading this one (`seal_self`).
 
 Linux, macOS and Windows alike, read through `psutil`, but for a process's start: a
 pid is recycled once its process is gone, so a pid is trusted only together with its
@@ -211,3 +211,31 @@ def usable_cores() -> int:
     if sys.platform == "linux":
         return max(1, len(os.sched_getaffinity(0)))
     return max(1, os.cpu_count() or 1)
+
+
+#: `PR_SET_DUMPABLE` of `<linux/prctl.h>`.
+_PR_SET_DUMPABLE = 4
+_sealed = False
+
+
+def seal_self() -> bool:
+    """Make this process's environment and memory unreadable to the other processes of its
+    user, the coding agents it starts among them; True when it is so. On Linux the process
+    is made not dumpable (`prctl(PR_SET_DUMPABLE, 0)`): its `/proc/<pid>/environ`, `mem`,
+    `fd` and `cwd` are then open to root only, a process of the same user cannot attach
+    to it (ptrace), and it writes no core dump. Its `stat`, `status`, `cmdline`, `statm`
+    and list of children stay readable, which is all `scan`, `tree`, `own_mb` and
+    `start_ticks` read of it. A program it starts is dumpable again, as `execve` makes
+    every program, so the environment of an agent stays readable (`environ`). The first
+    call does it, and a later one only answers; it never raises. Elsewhere it does
+    nothing and answers False."""
+    global _sealed
+    if _sealed or sys.platform != "linux":
+        return _sealed
+    try:
+        import ctypes
+
+        _sealed = ctypes.CDLL(None, use_errno=True).prctl(_PR_SET_DUMPABLE, 0, 0, 0, 0) == 0
+    except (OSError, AttributeError):
+        pass
+    return _sealed

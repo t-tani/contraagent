@@ -103,10 +103,9 @@ accepts. The facts that concern security:
   it nowhere.
 - The journal records a credential's name, never its value.
 - A launch on any credential but `ambient` starts without the host's credential
-  variables (`ANTHROPIC_API_KEY`, any `*_API_KEY`, `*_AUTH_TOKEN`, ...), then gets
-  the one credential that its hop names. A tool that needs a key of its own gets it
-  through `Pipeline(env=...)`.
-- A launch on `ambient` keeps the host's environment as it is.
+  variables and without any other variable that holds a secret, then gets the one
+  credential that its hop names. The next section gives the rule.
+- A launch on `ambient` keeps the host's environment as it is, its secrets included.
 - A task call may name the credential of that one task
   ([A task call's credential](routing.md#a-task-calls-credential)). It runs as that
   credential on every hop of its kind, so a refusal or a 429 never moves it to
@@ -120,6 +119,72 @@ accepts. The facts that concern security:
   `base_url` and `headers` are arguments of the command line (`-c
   model_providers...`), so `launches.jsonl` records them. Its token is in the
   environment, not on the command line.
+
+## Variables that hold a secret
+
+On any credential but `ambient`, a launch's environment leaves out the variables
+that the coding agents read a credential from, and every variable that holds a
+secret by this rule:
+
+- A word of its name ends with `KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `PASSWD`,
+  `PASSPHRASE`, `CREDENTIAL` or `CREDENTIALS`, or is `PAT` or `AUTH`. A word is a run
+  of letters and digits, in any case. So `GITHUB_TOKEN`, `GH_TOKEN`, `NPM_TOKEN`,
+  `HF_TOKEN`, `GH_PAT`, `AWS_ACCESS_KEY_ID`, `AZURE_CLIENT_SECRET`, `PGPASSWORD`,
+  `GOOGLE_APPLICATION_CREDENTIALS`, `DOCKER_AUTH_CONFIG` and `SSH_AUTH_SOCK` are left
+  out, and `TOKENIZERS_PARALLELISM` and `PYTHON_KEYRING_BACKEND` are kept.
+- Its value is a URL with a password, such as `postgres://app:secret@db/app` in a
+  `DATABASE_URL`.
+
+A proxy variable (a name that ends with `PROXY`, in any case) is kept with its
+password, because the coding agent reaches its provider through it. Variables that
+only name a file, such as `KUBECONFIG` or `DOCKER_CONFIG`, are kept: the file stays
+readable either way, as the next section states.
+
+A task that needs one of these variables gets it only when the pipeline passes it:
+`Pipeline(env={"GH_TOKEN": os.environ["GH_TOKEN"]})` for the `gh` command, or the
+value of `SSH_AUTH_SOCK` for a task that pushes over SSH. Each launch of the pipeline
+then gets it, whatever its credential. A variable that selects a coding agent's own
+credential (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, ...) is never taken from there.
+
+## What a task agent can reach on the host
+
+A task agent runs as the user who runs the pipeline, and an agent with a shell can
+run any command that user can run. Text that the agent reads, such as a file of the
+task or a web page, can tell it to do so. contraagent does not run agents in a
+sandbox of its own, as a container or a separate user does. It does these things:
+
+- It leaves the host's secrets out of the agent's environment, as the previous
+  section states. This keeps them out of the agent's tools and transcripts. It does
+  not keep them from an agent that looks for them on purpose.
+- On Linux, the pipeline's process makes itself unreadable to the other processes of
+  the user before it starts its first agent (`prctl(PR_SET_DUMPABLE, 0)`). An agent
+  then cannot read the pipeline's environment or memory, which hold the secret of
+  every hop's credential, from `/proc/<pid>/environ` or `/proc/<pid>/mem`, and
+  cannot attach a debugger to it. As a result, the pipeline's process writes no core
+  dump, and a profiler such as `py-spy` attaches to it only as root. The agents
+  themselves stay readable, because the monitor reads their task variables. On macOS
+  the OS shows no process's environment to another process. On Windows a process of
+  the same user can read the memory of another, and contraagent does nothing there.
+
+These things stay readable by a task agent:
+
+- Every file the user can read, under `HOME` and elsewhere: the logins of the coding
+  agents (`~/.claude/.credentials.json`, `~/.codex/auth.json`), `~/.ssh`, `~/.aws`,
+  `~/.kube/config`, `.env` files, and the file of a `file:` secret. Where
+  contraagent gives a coding agent a config directory of its own (Claude Code's
+  `CLAUDE_CONFIG_DIR`, Codex's `CODEX_HOME`), only the coding agent itself reads it
+  in place of the user's. The commands that an agent runs see the real `HOME`, so
+  that `git`, package managers and their caches work, and a path to the user's files
+  reaches them in any case. Codex's `workspace-write` sandbox limits where it
+  writes, not what it reads.
+- The environment of every other process of the user that holds a secret: the shell
+  that started the pipeline, a `uv run` that waits for it, and the other agents of
+  the run, each of which holds its own credential.
+- The network, unless the coding agent's own sandbox closes it.
+
+So a pipeline that gives a task text it does not trust runs where a leak costs
+little: in a container or a virtual machine, or as a user of its own, that holds
+only the credentials of the run.
 
 ## What each coding agent enforces
 

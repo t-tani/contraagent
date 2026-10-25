@@ -359,10 +359,10 @@ What is guaranteed:
   requires, and the coding agent can use it with that model. A 429 can never
   move a ZDR task onto a subscription.
 - **Nothing else in the environment.** For any credential but `ambient`, every
-  credential-selecting variable, and every variable that looks like a secret
-  (`*_API_KEY`, `*_AUTH_TOKEN`, ...), is removed from the child before the chosen
-  one is set. A tool that needs a key of its own gets it back through
-  `Pipeline(env=...)`.
+  credential-selecting variable, and every variable that holds a secret, is removed
+  from the child before the chosen one is set.
+  [Variables that hold a secret](security.md#variables-that-hold-a-secret) gives the
+  rule. A tool that needs one of them gets it back through `Pipeline(env=...)`.
 - **Nothing the agent loads by itself.** Claude Code runs with empty config
   directories, so a key that does not work fails instead of falling back to a
   stored login. omp runs in a profile with no stored logins; omp keeps some

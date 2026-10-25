@@ -421,11 +421,30 @@ SENSITIVE = (
 )
 
 
-#: Names that look like a secret whatever they belong to. omp, for one, turns on
-#: a provider for any `<PROVIDER>_API_KEY` it finds, so a list of known names
-#: alone would let an unknown key through. A tool that needs one of these (a
-#: search API key, say) gets it back explicitly through the launch's `env`.
-SECRET_NAME_RE = re.compile(r"(_API_KEY|_AUTH_TOKEN|_OAUTH_TOKEN|_ACCESS_TOKEN|_SECRET_ACCESS_KEY|_SESSION_TOKEN)$")
+#: The words of a variable's name that mark it as a secret, whatever it belongs to.
+#: A word is a run of letters and digits; it marks a secret when it ends with one of
+#: `_SECRET_ENDINGS` (`GITHUB_TOKEN`, `PGPASSWORD`, `npm_config_//host/:_authToken`) or
+#: is one of `_SECRET_WORDS` (`GH_PAT`, `SSH_AUTH_SOCK`, `DOCKER_AUTH_CONFIG`). omp, for
+#: one, turns on a provider for any `<PROVIDER>_API_KEY` it finds, so a list of known
+#: names alone would let an unknown key through. Codex's own `shell_environment_policy`
+#: filters names that hold `KEY`, `SECRET` or `TOKEN` in the same way. A tool that needs
+#: one of these (a search API key, `GH_TOKEN`, the SSH agent's socket) gets it back
+#: explicitly through the launch's `env`.
+_SECRET_ENDINGS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "PASSPHRASE", "CREDENTIAL", "CREDENTIALS")
+_SECRET_WORDS = frozenset({"PAT", "AUTH"})
+_WORD_RE = re.compile(r"[A-Za-z0-9]+")
+#: A URL that carries a password: `scheme://user:password@host` (a `DATABASE_URL`, a
+#: package index's URL with a token in it).
+_URL_PASSWORD_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://[^\s/@:]*:[^\s/@]+@")
+
+
+def looks_secret(name: str, value: str = "") -> bool:
+    """Whether a variable holds a secret, by its name (`_SECRET_ENDINGS`, `_SECRET_WORDS`) or
+    by its value (a URL with a password). A proxy (a name that ends with `PROXY`) is kept
+    with its password: the coding agent reaches its provider through it."""
+    if any(w.endswith(_SECRET_ENDINGS) or w in _SECRET_WORDS for w in (w.upper() for w in _WORD_RE.findall(name))):
+        return True
+    return not name.upper().endswith("PROXY") and bool(_URL_PASSWORD_RE.match(value))
 
 
 def child_env(
@@ -456,4 +475,4 @@ def child_env(
 def scrubbed(base: dict[str, str], extra: tuple[str, ...] = ()) -> dict[str, str]:
     """`base` minus every credential-selecting or secret-looking variable (and `extra`)."""
     drop = set(SENSITIVE) | set(extra)
-    return {k: v for k, v in base.items() if k not in drop and not SECRET_NAME_RE.search(k)}
+    return {k: v for k, v in base.items() if k not in drop and not looks_secret(k, v)}
