@@ -68,6 +68,20 @@ function find(page: Page, selector: string, axis: 'x' | 'y'): Promise<string[]> 
   );
 }
 
-/** Two frames, so the layout, the resize observers and what they set have settled. */
+/** Two frames, so the layout, the resize observers and what they set have settled, and the
+ * end of every animation that ends (a tile's bump scales it past its grid while it runs), in
+ * the document and in every shadow root. One that runs on (a running task's light) is not waited for. */
 export const settle = (page: Page): Promise<void> =>
-  page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(done, 150)))));
+  page.evaluate(async () => {
+    const frames = () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(done, 150))));
+    await frames();
+    const roots: (Document | ShadowRoot)[] = [document];
+    for (let i = 0; i < roots.length; i++) {
+      for (const e of roots[i]!.querySelectorAll('*')) if (e.shadowRoot) roots.push(e.shadowRoot);
+    }
+    const ending = roots
+      .flatMap((root) => root.getAnimations())
+      .filter((a) => a.playState === 'running' && Number.isFinite(a.effect?.getComputedTiming().endTime ?? Infinity));
+    await Promise.all(ending.map((a) => a.finished.catch(() => undefined)));
+    if (ending.length) await frames();
+  });
