@@ -1,6 +1,6 @@
 {
   "name": "@contraagent/ui",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Web components for the contraagent monitor: transcripts, task tables, the journal, plans, contracts. Framework-free (Lit), typed by @contraagent/api",
   "license": "MIT",
   "keywords": [

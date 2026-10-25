@@ -1,6 +1,6 @@
 {
   "name": "@contraagent/elements",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Generic web components (Lit) and their parts: design tokens, themes, status pills, legends, a segmented control, a data table, a layered graph, a mark matrix, stat tiles, time lanes, charts (columns, lines, a heatmap, horizontal bars), a check table, a transcript, a JSON tree, markdown, highlighted code, a tree of items and counters. No contraagent data, no localization library",
   "license": "MIT",
   "keywords": [
