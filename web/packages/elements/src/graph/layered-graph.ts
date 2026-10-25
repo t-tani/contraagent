@@ -31,6 +31,27 @@ type Changed = PropertyValues<CaeLayeredGraph> & PropertyValueMap<{ down: boolea
 
 const EMPTY: GraphInput = { series: [], nodes: [], clusters: [], edges: [], stubs: [] };
 
+/** An arrangement's slots and the slots each edge passes, as one string: the same string, the same layout from the same sizes. */
+const structures = new WeakMap<Arrangement, string>();
+function structureOf(a: Arrangement): string {
+  let s = structures.get(a);
+  if (s === undefined) {
+    s = JSON.stringify([a.slots, a.edgePaths.map((r) => r.steps.map((x) => x.id))]);
+    structures.set(a, s);
+  }
+  return s;
+}
+
+type LayKey = { key: string; structure: string; down: boolean; sizes: [string, number, number][] };
+
+function sameLayKey(a: LayKey, b: LayKey | null): boolean {
+  if (!b || a.key !== b.key || a.down !== b.down || a.structure !== b.structure || a.sizes.length !== b.sizes.length) return false;
+  return a.sizes.every((x, i) => {
+    const y = b.sizes[i] as [string, number, number];
+    return x[0] === y[0] && x[1] === y[1] && x[2] === y[2];
+  });
+}
+
 /**
  * A layered graph: each node in a layer by the longest path to it, edges bending only
  * in the gaps between layers and never passing a node or a cluster's label; a cluster
@@ -169,10 +190,13 @@ export class CaeLayeredGraph extends LitElement {
   private readonly active = new Map<string, number>();
   /** What the sizes were last measured for, what the layout was computed from, and the graph it is of. */
   private measured: { graph: GraphInput; key: string } | null = null;
-  private layKey = '';
+  /** What the layout was computed from: the graph's key, its structure (`structureOf`), the direction and the sizes. */
+  private layKey: LayKey | null = null;
   private layFor: string | null = null;
   private litCache: { key: string | null; graph: GraphInput; related: unknown; on: LitMarks | null } | null = null;
   private scrolled: Element | null = null;
+  /** The marks by id, for the graph and the matrix they were found in (`findMark`). */
+  private markIx: { drawn: DrawnGraph; matrix: MarkMatrixInput | null; marks: Map<string, { drill?: boolean }> } | null = null;
 
   private readonly pz = new PanZoomController(this, {
     frame: () => this.renderRoot.querySelector<HTMLElement>('.frame'),
@@ -299,8 +323,8 @@ export class CaeLayeredGraph extends LitElement {
     const sizes = new Map<string, Size>();
     for (const el of dagEl.querySelectorAll<HTMLElement>('[data-id]')) sizes.set(el.dataset['id'] ?? '', { w: el.offsetWidth, h: el.offsetHeight });
     const a = this.arr;
-    const key = JSON.stringify([this.key, a.slots, a.edgePaths.map((r) => r.steps.map((s) => s.id)), this.down, [...sizes]]);
-    if (key === this.layKey) return this.fit();
+    const key = { key: this.key, structure: structureOf(a), down: this.down, sizes: [...sizes].map(([id, s]): [string, number, number] => [id, s.w, s.h]) };
+    if (sameLayKey(key, this.layKey)) return this.fit();
     this.layKey = key;
     this.layFor = this.key;
     this.lay = layoutGraph(a, sizes, this.down);
@@ -335,9 +359,18 @@ export class CaeLayeredGraph extends LitElement {
   }
 
   private findMark(id: string): { drill?: boolean } | null {
-    for (const n of this.drawn.nodes) for (const m of [...n.marks, ...n.loose]) if (m?.id === id) return m;
-    for (const r of this.matrix?.rows ?? []) for (const m of r.cells) if (m?.id === id) return m;
-    return null;
+    let ix = this.markIx;
+    if (!ix || ix.drawn !== this.drawn || ix.matrix !== this.matrix) {
+      // Each mark by its id: the first of the nodes', then the matrix's.
+      const marks = new Map<string, { drill?: boolean }>();
+      for (const n of this.drawn.nodes) {
+        for (const m of n.marks) if (m && !marks.has(m.id)) marks.set(m.id, m);
+        for (const m of n.loose) if (m && !marks.has(m.id)) marks.set(m.id, m);
+      }
+      for (const r of this.matrix?.rows ?? []) for (const m of r.cells) if (m && !marks.has(m.id)) marks.set(m.id, m);
+      ix = this.markIx = { drawn: this.drawn, matrix: this.matrix, marks };
+    }
+    return ix.marks.get(id) ?? null;
   }
 
   /** The series (or mark id) highlighted: the one hovered or focused, else the selected mark's, else `highlight`; and the marks it lights. */

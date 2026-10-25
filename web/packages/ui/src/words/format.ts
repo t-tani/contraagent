@@ -1,26 +1,10 @@
 // Durations, times and small text helpers shared by the views.
 import { msg, str } from '@lit/localize';
 import { getLocale } from '../core/i18n.js';
+import { clockFormat } from './clock-format.js';
 
 // The formats that read the same in every language are the generic package's.
 export { esc, fmtDur } from '@contraagent/elements';
-
-const formats = new Map<string, Intl.DateTimeFormat>();
-function formatter(locale: string, withDate: boolean): Intl.DateTimeFormat {
-  const id = `${locale}|${withDate}`;
-  let f = formats.get(id);
-  if (!f) {
-    f = new Intl.DateTimeFormat(locale, {
-      ...(withDate ? { month: 'short', day: 'numeric' } : {}),
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hourCycle: 'h23',
-    });
-    formats.set(id, f);
-  }
-  return f;
-}
 
 /**
  * An ISO time in the reader's time zone, as the UI locale writes it: `10:38:40`,
@@ -31,7 +15,7 @@ export function localTime(ts: string | null | undefined, withDate = false, local
   if (!ts) return '';
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return ts;
-  return formatter(locale, withDate).format(d);
+  return clockFormat(locale, withDate).format(d);
 }
 
 /** An ISO time as `just now`, `5m ago`, `3h ago`, `2d ago` (the run picker only; rows and chips show `localTime`). */

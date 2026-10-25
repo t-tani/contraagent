@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, createMonitorClient, type MonitorClient } from './client.js';
+import type { RunFeedOpener } from './export.js';
+import { rowId } from './run-state.js';
 import { MonitorStore } from './store.js';
-import type { Info } from './types.js';
+import type { Info, JournalRow } from './types.js';
 
 /** Records which SSE event names each opened feed listens for. */
 function fakeEventSource(opened: string[][]) {
@@ -219,6 +221,46 @@ describe('MonitorStore refreshes', () => {
     runs = [run('2026-10-15T01:05:00Z')]; // a new record
     await vi.advanceTimersByTimeAsync(1000);
     expect([trends.length, panels.length]).toEqual([2, 2]);
+    store.stop();
+  });
+});
+
+describe('MonitorStore folds the feed', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('draws the replay a few times, its first batch and its end at once, and a fresh row until its time', async () => {
+    vi.useFakeTimers();
+    let on: Parameters<RunFeedOpener>[2] | null = null;
+    const client = { baseUrl: '', info: () => Promise.resolve({ title: 't', panels: [], api_version: '1' }), runs: () => Promise.resolve([]) } as unknown as MonitorClient;
+    const store = new MonitorStore({ client, runsEveryMs: 0, openRunFeed: (_r, _p, handlers) => ((on = handlers), () => {}) });
+    const drawn: number[] = [];
+    store.subscribe((s) => drawn.at(-1) !== s.state.journal.length && drawn.push(s.state.journal.length));
+    store.selectRun('r');
+    on!.open?.();
+    const row = (i: number): JournalRow => ({ ts: `2026-10-11T00:00:${String(i).padStart(2, '0')}`, key: `k${i}`, kind: 'k', stop: 'completed', ok: true, attempt: 0 });
+    // The replay: a row every 10 ms for 400 ms. Its first batch is drawn after one batch's time, the others after five.
+    for (let i = 0; i < 40; i++) {
+      on!.message({ event: 'journal', data: row(i) });
+      await vi.advanceTimersByTimeAsync(10);
+    }
+    expect(drawn).toEqual([0, 5, 30]);
+    on!.message({ event: 'ready', data: { journal: 40 } });
+    await vi.advanceTimersByTimeAsync(50);
+    expect(store.snapshot.state.ready).toBe(true);
+    expect(store.snapshot.state.journal).toHaveLength(40);
+    expect(store.snapshot.fresh.size).toBe(0);
+    // A row after the replay: drawn within one batch, fresh, then not.
+    on!.message({ event: 'journal', data: row(50) });
+    await vi.advanceTimersByTimeAsync(50);
+    expect(store.snapshot.state.journal).toHaveLength(41);
+    expect([...store.snapshot.fresh]).toEqual([rowId(row(50))]);
+    on!.message({ event: 'journal', data: row(51) });
+    await vi.advanceTimersByTimeAsync(50);
+    expect(store.snapshot.fresh.size).toBe(2);
+    await vi.advanceTimersByTimeAsync(3950);
+    expect([...store.snapshot.fresh]).toEqual([rowId(row(51))]);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(store.snapshot.fresh.size).toBe(0);
     store.stop();
   });
 });

@@ -22,8 +22,10 @@ import {
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { guard } from 'lit/directives/guard.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../core/events.js';
+import { getLocale } from '../../core/i18n.js';
 import { facts, kindUnit, localTime, sentence } from '../../words/format.js';
 import { notStartedCause, outcomeLabel, stateCount, stopLabel } from '../../words/index.js';
 import { base } from '@contraagent/elements/styles';
@@ -263,7 +265,7 @@ export class CaOverview extends LitElement {
         ${s.cursor
           ? html`<section class="panel enter">
               <h3 title=${msg('Stage and step per unit (CursorStore)')}>${msg('Resume cursor')}</h3>
-              ${this.cursor()}
+              ${guard([s.cursor, getLocale()], () => this.cursor())}
             </section>`
           : nothing}
       </div>

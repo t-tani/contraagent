@@ -78,6 +78,14 @@ export interface OpenChoice {
 /** A failed or closed flow call (`raised`, `closed`). */
 const stopped = (c: FlowCallNode | undefined) => c?.state === 'raised' || c?.state === 'closed';
 
+/** The flow call `call` (dotted, `a.b.c`) or one around it (`a.b`, `a`) is in `raised`: one look per dot, not one per call raised. */
+export function inRaised(call: string, raised: ReadonlySet<string>): boolean {
+  if (!raised.size) return false;
+  if (raised.has(call)) return true;
+  for (let i = call.indexOf('.'); i >= 0; i = call.indexOf('.', i + 1)) if (raised.has(call.slice(0, i))) return true;
+  return false;
+}
+
 /** Every function place under the layer `focus`, with what it holds. */
 export function placeStats(ix: FlowIndex, focus: readonly string[], live = false): Map<string, PlaceStats> {
   const d0 = focus.length;
@@ -87,7 +95,7 @@ export function placeStats(ix: FlowIndex, focus: readonly string[], live = false
   for (const t of ix.tasks) {
     if (!startsWith(t.path, focus)) continue;
     const st = t.n.state;
-    const callErr = !!t.call && [...raised].some((r) => t.call === r || t.call.startsWith(`${r}.`));
+    const callErr = !!t.call && inRaised(t.call, raised);
     let parent: string | null = null;
     for (let d = d0; d < t.path.length; d++) {
       const p = placeOf(t, d);

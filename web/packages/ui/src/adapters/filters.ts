@@ -13,11 +13,14 @@ export function filterTasks(tasks: readonly TaskRow[], kind: string, q: string):
 /** Failed first, then not started, partly done, running and waiting; the rest after them. */
 const RANK: Partial<Record<Outcome, number>> = { failed: 0, not_started: 1, partial: 2, running: 3, waiting: 4 };
 
+/** The order `localeCompare` gives, made once. */
+const text = new Intl.Collator();
+
 /** The tasks list's order: by `RANK`, then the latest journal row first, then plan order. */
 export function sortTasks(tasks: readonly TaskRow[]): TaskRow[] {
   return tasks
     .map((t, i) => ({ t, i }))
-    .sort((a, b) => (RANK[a.t.outcome] ?? 9) - (RANK[b.t.outcome] ?? 9) || b.t.last_ts.localeCompare(a.t.last_ts) || a.i - b.i)
+    .sort((a, b) => (RANK[a.t.outcome] ?? 9) - (RANK[b.t.outcome] ?? 9) || text.compare(b.t.last_ts, a.t.last_ts) || a.i - b.i)
     .map((x) => x.t);
 }
 

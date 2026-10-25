@@ -111,6 +111,13 @@ export function taskOutcomes(journal: readonly JournalRow[], plan: Plan): Map<st
   }
   const nodes = new Map(plan.nodes.map((n) => [n.key, n]));
   const keys = [...new Set([...plan.nodes.map((n) => n.key), ...rows.keys()])];
+  const fnOf = new Map<string, string>();
+  // The first flow call of an id, as `find` in `deferredIn` takes it.
+  for (const c of plan.flow_calls ?? []) if (!fnOf.has(c.id)) fnOf.set(c.id, c.function);
+  const deferredBy = (cause: DeferralCause | null | undefined): string => {
+    const id = cause?.flow_call;
+    return id ? (fnOf.get(id) ?? '') : '';
+  };
   const out = new Map<string, TaskOutcome>();
   for (const key of keys) {
     const node = nodes.get(key);
@@ -127,25 +134,78 @@ export function taskOutcomes(journal: readonly JournalRow[], plan: Plan): Map<st
       cause: null,
       deferred: node?.deferred ?? '',
       deferredCause: node?.deferred_cause ?? null,
-      deferredIn: deferredIn(plan, node?.deferred_cause),
+      deferredIn: deferredBy(node?.deferred_cause),
     });
   }
   // A task that did not start: follow what it waits for to the task that actually failed.
-  const rootOf = (key: string, seen: Set<string>): string | null => {
+  for (const [key, cause] of notStartedCauses(nodes, out)) (out.get(key) as TaskOutcome).cause = cause;
+  return out;
+}
+
+/**
+ * Each task that did not start, and the failed task upstream that stopped it: the first
+ * failed task a depth-first walk of what it waits for meets (`after`, in order), going
+ * on only through tasks that did not start either; null when there is none. Each task's
+ * answer is computed once and shared by the tasks that wait for it, so a long chain of
+ * tasks that did not start costs its length, not its length squared.
+ */
+function notStartedCauses(nodes: ReadonlyMap<string, Pick<PlanNode, 'after'>>, out: ReadonlyMap<string, Pick<TaskOutcome, 'outcome'>>): Map<string, string | null> {
+  const memo = new Map<string, string | null>();
+  /** Being walked: an edge back to one closes a cycle, which the plan should not have. */
+  const open = new Set<string>();
+  let cycle = false;
+  const rootOf = (key: string): string | null => {
+    const had = memo.get(key);
+    if (had !== undefined) return had;
+    open.add(key);
+    let found: string | null = null;
     for (const dep of nodes.get(key)?.after ?? []) {
+      const d = out.get(dep);
+      if (d?.outcome === 'failed') {
+        found = dep;
+        break;
+      }
+      if (d?.outcome === 'not_started') {
+        if (open.has(dep)) {
+          cycle = true;
+          continue;
+        }
+        const r = rootOf(dep);
+        if (r) {
+          found = r;
+          break;
+        }
+      }
+    }
+    open.delete(key);
+    memo.set(key, found);
+    return found;
+  };
+  const causes = new Map<string, string | null>();
+  for (const [key, t] of out) if (t.outcome === 'not_started') causes.set(key, rootOf(key));
+  if (!cycle) return causes;
+  // With a cycle the walk's answer depends on where it starts: walk from each task alone.
+  for (const key of causes.keys()) causes.set(key, walkCause(nodes, out, key));
+  return causes;
+}
+
+/** One task's cause by a walk of its own (`notStartedCauses`), each task visited once. */
+function walkCause(nodes: ReadonlyMap<string, Pick<PlanNode, 'after'>>, out: ReadonlyMap<string, Pick<TaskOutcome, 'outcome'>>, key: string): string | null {
+  const seen = new Set<string>();
+  const rootOf = (k: string): string | null => {
+    for (const dep of nodes.get(k)?.after ?? []) {
       if (seen.has(dep)) continue;
       seen.add(dep);
       const d = out.get(dep);
       if (d?.outcome === 'failed') return dep;
       if (d?.outcome === 'not_started') {
-        const r = rootOf(dep, seen);
+        const r = rootOf(dep);
         if (r) return r;
       }
     }
     return null;
   };
-  for (const t of out.values()) if (t.outcome === 'not_started') t.cause = rootOf(t.key, new Set());
-  return out;
+  return rootOf(key);
 }
 
 export interface Problem {

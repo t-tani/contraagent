@@ -183,3 +183,51 @@ describe('taskRows', () => {
     expect(latestTask(taskRows(taskOutcomes([], p), p))).toBeNull();
   });
 });
+
+describe('taskOutcomes causes', () => {
+  // A walk of each task's own: depth first from the task, each task visited once.
+  const walk = (plan: Plan, out: Map<string, { outcome: string }>, key: string): string | null => {
+    const nodes = new Map(plan.nodes.map((n) => [n.key, n]));
+    const seen = new Set<string>();
+    const rootOf = (k: string): string | null => {
+      for (const dep of nodes.get(k)?.after ?? []) {
+        if (seen.has(dep)) continue;
+        seen.add(dep);
+        const d = out.get(dep);
+        if (d?.outcome === 'failed') return dep;
+        if (d?.outcome === 'not_started') {
+          const r = rootOf(dep);
+          if (r) return r;
+        }
+      }
+      return null;
+    };
+    return rootOf(key);
+  };
+  const random = (seed: number) => () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
+  const states: PlanNode['state'][] = ['blocked', 'blocked', 'blocked', 'failed', 'done', 'pending'];
+
+  it('names the cause a walk from each task names, on random plans with and without cycles', () => {
+    for (let s = 1; s <= 300; s++) {
+      const r = random(s);
+      const n = 2 + Math.floor(r() * 30);
+      const cyclic = s % 3 === 0;
+      const keys = Array.from({ length: n }, (_, i) => `k${i}`);
+      const plan: Plan = {
+        nodes: keys.map((k, i) => {
+          const after: string[] = [];
+          const m = Math.floor(r() * 4);
+          for (let j = 0; j < m; j++) {
+            const to = Math.floor(r() * n);
+            if (cyclic ? to !== i : to < i) after.push(`k${to}`);
+          }
+          if (r() < 0.1) after.push('missing');
+          return node(k, states[Math.floor(r() * states.length)]!, after);
+        }),
+        groups: [],
+      };
+      const out = taskOutcomes([], plan);
+      for (const t of out.values()) if (t.outcome === 'not_started') expect(t.cause, `seed ${s}, ${t.key}`).toBe(walk(plan, out, t.key));
+    }
+  });
+});

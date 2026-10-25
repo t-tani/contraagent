@@ -56,6 +56,9 @@ export const isSortable = <R>(c: DataColumn<R>): boolean => c.sortable ?? !!c.co
  * its cell when that is a string or a number; equal rows keep their order. The rows
  * as they are when no column matches.
  */
+/** The order `localeCompare` gives with `numeric`, made once. */
+const numericText = new Intl.Collator(undefined, { numeric: true });
+
 export function sortRows<R>(rows: readonly R[], columns: readonly DataColumn<R>[], sort: SortState | null): R[] {
   const c = sort && columns.find((x) => x.id === sort.id);
   if (!sort || !c) return [...rows];
@@ -68,6 +71,6 @@ export function sortRows<R>(rows: readonly R[], columns: readonly DataColumn<R>[
   };
   const keyed = rows.map((r, i) => ({ r, i, v: compare ? 0 : value(r, i) }));
   const cmp = (a: (typeof keyed)[number], b: (typeof keyed)[number]) =>
-    compare ? compare(a.r, b.r) : typeof a.v === 'number' && typeof b.v === 'number' ? a.v - b.v : String(a.v).localeCompare(String(b.v), undefined, { numeric: true });
+    compare ? compare(a.r, b.r) : typeof a.v === 'number' && typeof b.v === 'number' ? a.v - b.v : numericText.compare(String(a.v), String(b.v));
   return keyed.sort((a, b) => sign * cmp(a, b) || a.i - b.i).map((x) => x.r);
 }

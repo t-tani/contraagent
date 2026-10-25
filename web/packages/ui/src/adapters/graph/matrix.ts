@@ -1,7 +1,7 @@
 // A loop's passes: a loop box unrolled into units by (node, pass).
 import type { Plan, TaskState } from '@contraagent/api';
 import { arrange, type GraphOrder } from '@contraagent/elements/graph';
-import { cmpPasses, passesAt, push, type FlowTask } from './flow-index.js';
+import { passesAt, push, type FlowTask } from './flow-index.js';
 import { arranged, flowMarks, project, shapeOf, taskMark, type Draft, type Projection } from './project.js';
 import { SEVERITY, worstOf } from './states.js';
 import { LOOP_SEGMENT, type LayerMark, type GraphNode, type LoopBox } from './types.js';
@@ -62,10 +62,39 @@ export function passMatrix(plan: Plan, path: readonly string[], box: string, pre
   const rel = (t: FlowTask) => passesAt(t, d).slice(i0);
   const leaves = (x: LoopBox): string[] => x.layers.flat().flatMap((id) => (byBox.has(id) ? leaves(byBox.get(id) as LoopBox) : [id]));
   const tasksOf = (x: LoopBox): FlowTask[] => leaves(x).flatMap((id) => drafts.get(id)?.tasks ?? []);
-  const same = (a: readonly number[], p: readonly number[]) => a.length === p.length && cmpPasses(a, p) === 0;
-  const build = (x: LoopBox, prefix: number[]): ColTree[] => {
+  // Two pass lists are the same (`cmpPasses`, of one length) exactly when their JSON is.
+  const passKey = (v: readonly number[]) => JSON.stringify(v);
+  // Each node's tasks by their passes, in task order.
+  const byPasses = new Map<string, Map<string, FlowTask[]>>();
+  const tasksAt = (id: string, at: readonly number[]): readonly FlowTask[] => {
+    let m = byPasses.get(id);
+    if (!m) {
+      m = new Map();
+      for (const t of drafts.get(id)?.tasks ?? []) push(m, passKey(rel(t)), t);
+      byPasses.set(id, m);
+    }
+    return m.get(passKey(at)) ?? [];
+  };
+  // The passes the tasks of a box ran after each list of earlier passes: by box, by the length of that list.
+  const nextPasses = new Map<LoopBox, Map<number, Map<string, Set<number>>>>();
+  const passesAfter = (x: LoopBox, prefix: readonly number[]): number[] => {
     const k = prefix.length;
-    const passes = [...new Set(tasksOf(x).map(rel).filter((v) => v.length > k && cmpPasses(v.slice(0, k), prefix) === 0).map((v) => v[k] as number))].sort((a, c) => a - c);
+    let byK = nextPasses.get(x);
+    if (!byK) nextPasses.set(x, (byK = new Map<number, Map<string, Set<number>>>()));
+    let byPrefix = byK.get(k);
+    if (!byPrefix) {
+      byPrefix = new Map();
+      for (const v of tasksOf(x).map(rel)) {
+        if (v.length <= k) continue;
+        const key = passKey(v.slice(0, k));
+        (byPrefix.get(key) ?? byPrefix.set(key, new Set()).get(key))?.add(v[k] as number);
+      }
+      byK.set(k, byPrefix);
+    }
+    return [...(byPrefix.get(passKey(prefix)) ?? [])].sort((a, c) => a - c);
+  };
+  const build = (x: LoopBox, prefix: number[]): ColTree[] => {
+    const passes = passesAfter(x, prefix);
     return passes.flatMap((p): ColTree[] => {
       const at = [...prefix, p];
       const kids = x.layers.flat().flatMap((id): ColTree[] => {
@@ -75,7 +104,7 @@ export function passMatrix(plan: Plan, path: readonly string[], box: string, pre
           return sub.length ? [{ type: 'loop', box: inner, kids: sub }] : [];
         }
         const node = byNode.get(id);
-        return node && drafts.get(id)?.tasks.some((t) => same(rel(t), at)) ? [{ type: 'node', node, passes: at }] : [];
+        return node && tasksAt(id, at).length ? [{ type: 'node', node, passes: at }] : [];
       });
       return kids.length ? [{ type: 'pass', box: x, pass: p, kids }] : [];
     });
@@ -103,7 +132,7 @@ export function passMatrix(plan: Plan, path: readonly string[], box: string, pre
   const rowUnits = [...graph.units.filter((u) => unitsIn.has(u)), ...(unitsIn.has('') ? [''] : [])];
   const cellTasks = new Map<string, FlowTask[]>(); // `${column}\0${unit}`
   columns.forEach((c, ci) => {
-    for (const t of drafts.get(c.node.id)?.tasks ?? []) if (same(rel(t), c.passes)) push(cellTasks, `${ci}\u0000${t.n.unit || ''}`, t);
+    for (const t of tasksAt(c.node.id, c.passes)) push(cellTasks, `${ci}\u0000${t.n.unit || ''}`, t);
   });
   const markOf = (c: MatrixColumn, ts: readonly FlowTask[], unit: string): LayerMark | null => {
     const x = drafts.get(c.node.id) as Draft;
@@ -111,12 +140,14 @@ export function passMatrix(plan: Plan, path: readonly string[], box: string, pre
     const m = flowMarks(ts, d, x.name, ix.calls);
     return unit ? (m.byUnit.get(unit) ?? m.single[0] ?? null) : (m.single[0] ?? null);
   };
+  const mineOf = new Map<string, FlowTask[]>();
+  for (const t of mine) push(mineOf, t.n.unit || '', t);
   const rows = rowUnits.map((unit): MatrixRow => {
     const cells = columns.map((c, ci) => {
       const ts = cellTasks.get(`${ci}\u0000${unit}`);
       return ts?.length ? markOf(c, ts, unit) : null;
     });
-    const passes = new Set(mine.filter((t) => (t.n.unit || '') === unit).map((t) => passesAt(t, d).slice(0, i0 + 1).join('.'))).size;
+    const passes = new Set((mineOf.get(unit) ?? []).map((t) => passesAt(t, d).slice(0, i0 + 1).join('.'))).size;
     return { unit, passes, state: worstOf(cells.filter((m): m is LayerMark => m !== null).map((m) => m.state)), cells };
   });
   return { box: b, columns, head, rows };

@@ -154,13 +154,24 @@ const ACTIVITY_ORDER: RunActivity[] = ['running', 'unresponsive', 'stopped'];
  * then the rest, each in the order given (the run list's: most recent first).
  */
 export function hostGroups(runs: readonly RunSummary[], hosts: readonly HostSummary[] = []): HostGroup[] {
-  const ids = [...new Set(runs.map((r) => r.host_id ?? ''))];
+  // Each host's runs in the order given, and each host id's first host.
+  const byHost = new Map<string, RunSummary[]>();
+  for (const r of runs) {
+    const id = r.host_id ?? '';
+    const xs = byHost.get(id);
+    if (xs) xs.push(r);
+    else byHost.set(id, [r]);
+  }
+  const ids = [...byHost.keys()];
   const known = hosts.map((h) => h.host_id);
+  const knownSet = new Set(known);
+  const hostOfId = new Map<string, HostSummary>();
+  for (const h of hosts) if (!hostOfId.has(h.host_id)) hostOfId.set(h.host_id, h);
   const rank = (r: RunSummary) => ACTIVITY_ORDER.indexOf(runActivity(r));
-  return [...known.filter((id) => ids.includes(id)), ...ids.filter((id) => !known.includes(id)).sort()].map((hostId) => ({
+  return [...known.filter((id) => byHost.has(id)), ...ids.filter((id) => !knownSet.has(id)).sort()].map((hostId) => ({
     hostId,
-    host: hosts.find((h) => h.host_id === hostId),
+    host: hostOfId.get(hostId),
     // A stable sort: equal runs keep the order given.
-    runs: runs.filter((r) => (r.host_id ?? '') === hostId).sort((a, b) => rank(a) - rank(b)),
+    runs: [...(byHost.get(hostId) ?? [])].sort((a, b) => rank(a) - rank(b)),
   }));
 }

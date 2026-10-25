@@ -149,21 +149,42 @@ export function layoutGraph(g: Pick<Arrangement, 'clusters' | 'slots' | 'edgePat
     const step = steps[inner] as EdgePathStep;
     return padOf(s.id).v0 + (local.get(s.id)?.top.get(step.id) ?? 0) + attach(ri, inner);
   };
+  for (const c of containers) layerIn.set(c, new Map((g.slots[c] ?? []).flatMap((r, i) => r.map((id) => [id, i] as const))));
+  // Each container's joins, as steps of the edge paths: slot a of layer l to slot b of layer l + 1.
+  const joinsIn = new Map<string, [number, number][]>();
+  g.edgePaths.forEach((r, ri) =>
+    r.steps.forEach((s, si) => {
+      const p = r.steps[si - 1];
+      if (!si || !p || p.in !== s.in) return;
+      const lv = layerIn.get(s.in);
+      if (!lv || lv.get(p.id) === lv.get(s.id)) return;
+      const js = joinsIn.get(s.in);
+      if (js) js.push([ri, si]);
+      else joinsIn.set(s.in, [[ri, si]]);
+    }),
+  );
   for (const c of containers) {
     const rows = (g.slots[c] ?? []).map((r) => [...r]);
-    layerIn.set(c, new Map(rows.flatMap((r, i) => r.map((id) => [id, i] as const))));
-    const width = rows.map((r) => Math.max(0, ...r.map((id) => slotSize(id).u)));
+    const width = rows.map((r) => {
+      let w = 0;
+      for (const id of r) w = Math.max(w, slotSize(id).u);
+      return w;
+    });
     const gap = c === '' ? S.gap : S.boxGap;
     const start: number[] = [];
     width.forEach((_, i) => start.push(i ? (start[i - 1] as number) + (width[i - 1] as number) + gap : 0));
     // The joins inside this container: slot a of layer l to slot b of layer l + 1.
-    const links: { a: string; b: string; oa: number; ob: number }[] = [];
-    g.edgePaths.forEach((r, ri) =>
-      r.steps.forEach((s, si) => {
-        const p = r.steps[si - 1];
-        if (si && p && p.in === c && s.in === c && layerIn.get(c)?.get(p.id) !== layerIn.get(c)?.get(s.id)) links.push({ a: p.id, b: s.id, oa: attach(ri, si - 1), ob: attach(ri, si) });
-      }),
-    );
+    type Link = { a: string; b: string; oa: number; ob: number };
+    const links: Link[] = (joinsIn.get(c) ?? []).map(([ri, si]) => {
+      const steps = (g.edgePaths[ri] as (typeof g.edgePaths)[number]).steps;
+      return { a: (steps[si - 1] as EdgePathStep).id, b: (steps[si] as EdgePathStep).id, oa: attach(ri, si - 1), ob: attach(ri, si) };
+    });
+    const intoOf = new Map<string, Link[]>();
+    const outOf = new Map<string, Link[]>();
+    for (const l of links) {
+      (intoOf.get(l.b) ?? intoOf.set(l.b, []).get(l.b))?.push(l);
+      (outOf.get(l.a) ?? outOf.set(l.a, []).get(l.a))?.push(l);
+    }
     // Points sit close to each other and to a node, further from a box (its next-pass mark is on its edge).
     const sepOf = (a: string, b: string | undefined) =>
       b === undefined ? 0 : boxIds.has(a) || boxIds.has(b) || !(isPoint(a) || isPoint(b)) ? S.sep : S.pointSep;
@@ -198,18 +219,20 @@ export function layoutGraph(g: Pick<Arrangement, 'clusters' | 'slots' | 'edgePat
       const real = isPoint(id) ? ls : ls.filter((x) => !isPoint(x.other));
       return (real.length ? real : ls).map((x) => x.at);
     };
-    const fromPrev = (id: string) => near(id, links.filter((l) => l.b === id).map((l) => ({ other: l.a, at: (top.get(l.a) ?? 0) + l.oa - l.ob })));
-    const fromNext = (id: string) => near(id, links.filter((l) => l.a === id).map((l) => ({ other: l.b, at: (top.get(l.b) ?? 0) + l.ob - l.oa })));
+    const fromPrev = (id: string) => near(id, (intoOf.get(id) ?? []).map((l) => ({ other: l.a, at: (top.get(l.a) ?? 0) + l.oa - l.ob })));
+    const fromNext = (id: string) => near(id, (outOf.get(id) ?? []).map((l) => ({ other: l.b, at: (top.get(l.b) ?? 0) + l.ob - l.oa })));
     for (let sweep = 0; sweep < 8; sweep++) {
       const order = rows.map((_, i) => i);
       if (sweep % 2) order.reverse();
       for (const i of order) place(rows[i] as string[], sweep % 2 ? fromNext : fromPrev);
     }
     for (const r of rows) place(r, (id) => [...fromPrev(id), ...fromNext(id)]);
-    const lo = top.size ? Math.min(...top.values()) : 0;
+    let lo = top.size ? Infinity : 0;
+    for (const x of top.values()) lo = Math.min(lo, x);
     for (const [id, v] of top) top.set(id, v - lo);
     const u = (start[start.length - 1] ?? 0) + (width[width.length - 1] ?? 0);
-    const v = Math.max(0, ...rows.flat().map((id) => (top.get(id) ?? 0) + slotSize(id).v));
+    let v = 0;
+    for (const r of rows) for (const id of r) v = Math.max(v, (top.get(id) ?? 0) + slotSize(id).v);
     local.set(c, { rows, start, width, top, u, v });
     if (c !== '') {
       const p = padOf(c);

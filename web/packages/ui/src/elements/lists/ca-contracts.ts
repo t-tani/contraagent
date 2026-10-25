@@ -29,6 +29,9 @@ export const taskName = (c: { key: string; kind?: string; unit?: string }): stri
 /** Problems first (the order of `CT_ORDER`), then by task. */
 const rank = (s: ContractStatus | null | undefined) => (s ? CT_ORDER.indexOf(s) : CT_ORDER.length);
 
+/** The tasks' keys in the order `localeCompare` puts them, made once. */
+const byKey = new Intl.Collator();
+
 /**
  * The files each task must write (`OutputContract`) and read (`InputContract`),
  * problems first, each with the chip of its status, then the passed ones under
@@ -77,6 +80,10 @@ export class CaContracts extends LitElement {
   /** The run's plan: with the journal, what happened to the task that writes a missing input. Optional. */
   @property({ attribute: false }) plan: Plan | null = null;
   private outcomes: ReadonlyMap<string, TaskOutcome> = new Map();
+  /** The outputs' rows sorted, each output's writer, and each task's last journal row: for the objects they were made from. */
+  private sorted: { outputs: Outputs | null; outs: (readonly [ContractRecord, ContractSpec])[] } | null = null;
+  private writers: { outputs: Outputs | null; by: Map<string, readonly [ContractRecord, ContractSpec]> } | null = null;
+  private lastRows: { journal: JournalRow[]; by: Map<string, JournalRow> } | null = null;
 
   /** Which contracts the reader opened, kept across Back and reload. */
   private readonly open = new RememberedSet('contracts:open', this);
@@ -87,9 +94,13 @@ export class CaContracts extends LitElement {
     if (!cs.length) {
       return html`<div class="blank"><span class="ic" aria-hidden="true">▣</span><b>${facts(msg('No checked files'), msg('no task declares an OutputContract or an InputContract'))}</b></div>`;
     }
-    const outs = cs
-      .flatMap((c) => (c.outputs ?? []).map((o) => [c, o] as const))
-      .sort(([a, x], [b, y]) => rank(x.status) - rank(y.status) || a.key.localeCompare(b.key));
+    if (this.sorted?.outputs !== this.outputs) {
+      const outs = cs
+        .flatMap((c) => (c.outputs ?? []).map((o) => [c, o] as const))
+        .sort(([a, x], [b, y]) => rank(x.status) - rank(y.status) || byKey.compare(a.key, b.key));
+      this.sorted = { outputs: this.outputs, outs };
+    }
+    const outs = this.sorted.outs;
     const ins = cs.flatMap((c) => (c.inputs ?? []).map((i) => [c, i] as const));
     const others = outs.filter(([, o]) => o.status !== 'valid');
     const passed = outs.filter(([, o]) => o.status === 'valid');
@@ -139,20 +150,27 @@ export class CaContracts extends LitElement {
 
   /** Who writes each output file: for naming the task a missing input should have come from. */
   private producerOf = (path: string): Producer | undefined => {
-    for (const c of this.outputs?.contracts ?? []) {
-      const o = (c.outputs ?? []).find((x) => x.path === path);
-      if (o) return { name: taskName(c), written: !!o.file.exists, outcome: this.outcomes.get(c.key)?.outcome };
+    if (this.writers?.outputs !== this.outputs) {
+      // The first task that declares the path, and its first output of it.
+      const by = new Map<string, readonly [ContractRecord, ContractSpec]>();
+      for (const c of this.outputs?.contracts ?? []) for (const o of c.outputs ?? []) if (!by.has(o.path)) by.set(o.path, [c, o]);
+      this.writers = { outputs: this.outputs, by };
     }
-    return undefined;
+    const w = this.writers.by.get(path);
+    if (!w) return undefined;
+    const [c, o] = w;
+    return { name: taskName(c), written: !!o.file.exists, outcome: this.outcomes.get(c.key)?.outcome };
   };
 
   /** The reason of a task's last journal row (run-relative), when the journal was given. */
   private reasonOf(key: string): string {
-    for (let i = this.journal.length - 1; i >= 0; i--) {
-      const r = this.journal[i];
-      if (r?.key === key) return runRelative(r.reason, this.run);
+    if (this.lastRows?.journal !== this.journal) {
+      const by = new Map<string, JournalRow>();
+      for (const r of this.journal) by.set(r.key, r);
+      this.lastRows = { journal: this.journal, by };
     }
-    return '';
+    const r = this.lastRows.by.get(key);
+    return r ? runRelative(r.reason, this.run) : '';
   }
 
   private outRow(c: ContractRecord, o: ContractSpec) {

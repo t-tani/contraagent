@@ -1,6 +1,6 @@
 import { arrange, extentOf } from '@contraagent/elements/graph';
 import { describe, expect, it } from 'vitest';
-import { compound, doi, FLOW_BOX, IN_SEP, placeKey, placeStats } from './compound.js';
+import { compound, doi, FLOW_BOX, IN_SEP, inRaised, placeKey, placeStats } from './compound.js';
 import { indexOf } from './flow-index.js';
 import { F, ft, planOf } from './plans.fixture.js';
 import { shapeOf } from './project.js';
@@ -125,5 +125,18 @@ describe('compound: the layer shown with functions drawn open', () => {
     expect(c.model.nodes.length).toBeLessThanOrEqual(60);
     expect(a.layers.length).toBeGreaterThan(0);
     expect(ms).toBeLessThan(1500);
+  });
+});
+
+describe('inRaised', () => {
+  it('says what a look at every raised call says', () => {
+    const before = (call: string, raised: Set<string>) => [...raised].some((r) => call === r || call.startsWith(`${r}.`));
+    const ids = ['', 'a', 'a.b', 'a.b.c', 'a.bc', 'ab', 'b', 'b.a', '.a', 'a..b', 'a.b.'];
+    let seed = 3;
+    const r = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
+    for (let n = 0; n < 300; n++) {
+      const raised = new Set(ids.filter(() => r() < 0.3));
+      for (const call of ids) expect(inRaised(call, raised), `${call} in ${[...raised].join(',')}`).toBe(before(call, raised));
+    }
   });
 });

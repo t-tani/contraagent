@@ -94,6 +94,15 @@ export class MonitorStore {
   private closeFeed: Unsubscribe | null = null;
   private queue: RunAction[] = [];
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  /** When the pending flush runs (epoch ms). */
+  private flushAt = 0;
+  /** The queue ends in the feed's replay: the last `connected` or `ready` queued, else the state's. */
+  private replaying = true;
+  /** A batch of the replay under way has been drawn: the next ones wait longer. */
+  private replayDrawn = false;
+  /** The fresh rows of each flush, oldest first, and when they stop being fresh: one timer for the first. */
+  private expiries: { at: number; rows: JournalRow[] }[] = [];
+  private freshTimer: ReturnType<typeof setTimeout> | null = null;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly opts: Required<Pick<StoreOptions, 'runsEveryMs' | 'batchMs' | 'freshMs'>> & StoreOptions;
 
@@ -271,6 +280,7 @@ export class MonitorStore {
     this.closeFeed?.();
     this.closeFeed = null;
     this.queue = [];
+    this.replayDrawn = false;
     this.set({ run, state: emptyRunState(), connected: false, fresh: new Set() });
     if (!run) return;
     const panels = this.snap.info.panels.filter(isRunPanel).map((p) => p.name);
@@ -298,15 +308,32 @@ export class MonitorStore {
     this.flushTimer = null;
   }
 
+  /**
+   * Queue `a` for the next flush, `batchMs` after the first message queued. While the feed
+   * replays the run, the batches after its first are five times as far apart: the replay is
+   * drawn a few times, not once per batch; once it is over (`ready`), the next flush comes
+   * `batchMs` after.
+   */
   private push(a: RunAction): void {
+    if (!this.queue.length) this.replaying = !this.snap.state.ready;
     this.queue.push(a);
-    this.flushTimer ??= setTimeout(() => this.flush(), this.opts.batchMs);
+    if (a.event === 'connected') {
+      this.replaying = true;
+      this.replayDrawn = false;
+    } else if (a.event === 'ready') this.replaying = false;
+    const wait = this.replaying && this.replayDrawn ? this.opts.batchMs * 5 : this.opts.batchMs;
+    const at = Date.now() + wait;
+    if (this.flushTimer && at >= this.flushAt) return;
+    if (this.flushTimer) clearTimeout(this.flushTimer);
+    this.flushAt = at;
+    this.flushTimer = setTimeout(() => this.flush(), wait);
   }
 
   private flush(): void {
     this.flushTimer = null;
     const batch = this.queue;
     this.queue = [];
+    if (this.replaying) this.replayDrawn = true;
     // Rows that arrive once the replay is over are new: announce them and mark them fresh.
     let ready = this.snap.state.ready;
     const fresh: JournalRow[] = [];
@@ -324,11 +351,24 @@ export class MonitorStore {
     for (const row of fresh) ids.add(rowId(row));
     this.set({ state, fresh: ids });
     for (const row of fresh) for (const fn of this.rowListeners) fn(row);
-    setTimeout(() => {
-      const left = new Set(this.snap.fresh);
-      for (const row of fresh) left.delete(rowId(row));
-      this.set({ fresh: left });
-    }, this.opts.freshMs);
+    this.expiries.push({ at: Date.now() + this.opts.freshMs, rows: fresh });
+    if (!this.freshTimer) this.expireLater();
+  }
+
+  /** The first rows still fresh stop being fresh at their time; then the next. */
+  private expireLater(): void {
+    const first = this.expiries[0];
+    if (!first) return;
+    this.freshTimer = setTimeout(() => {
+      this.freshTimer = null;
+      const due = this.expiries.shift();
+      if (due) {
+        const left = new Set(this.snap.fresh);
+        for (const row of due.rows) left.delete(rowId(row));
+        this.set({ fresh: left });
+      }
+      this.expireLater();
+    }, Math.max(0, first.at - Date.now()));
   }
 
   private set(patch: Partial<MonitorSnapshot>): void {

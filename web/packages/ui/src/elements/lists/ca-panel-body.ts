@@ -85,6 +85,8 @@ export class CaPanelBody extends LitElement {
 
   /** The order of each table's rows, by the table's place in the body. */
   @state() private sorts = new Map<string, SortState>();
+  /** Each table's rows as last sorted, for the body and the order they were sorted for. */
+  private sorted = new Map<string, { b: TableBody; sort: SortState; rows: BodyRow[] }>();
   /** The node the reader selected in each tree, by the tree's place in the body. */
   @state() private picks = new Map<string, string>();
 
@@ -191,12 +193,20 @@ export class CaPanelBody extends LitElement {
     }
   }
 
+  private sortedRows(at: string, b: TableBody, sort: SortState, make: () => BodyRow[]): BodyRow[] {
+    const had = this.sorted.get(at);
+    if (had && had.b === b && had.sort === sort) return had.rows;
+    const rows = make();
+    this.sorted.set(at, { b, sort, rows });
+    return rows;
+  }
+
   private table(b: TableBody, at: string): TemplateResult {
     const columns = bodyColumns(b);
     const rows = b.rows as BodyRow[];
     const keys = new Map(rows.map((r, i) => [r, String(i)]));
     const sort = this.sorts.get(at) ?? null;
-    const shown = sort ? sortRows(rows, columns, sort) : rows;
+    const shown = sort ? this.sortedRows(at, b, sort, () => sortRows(rows, columns, sort)) : rows;
     return html`<cae-data-table
       .columns=${columns}
       .rows=${shown}

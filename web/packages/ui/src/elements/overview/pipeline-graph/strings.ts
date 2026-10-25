@@ -2,6 +2,7 @@
 import type { LayeredGraphStrings } from '@contraagent/elements/graph';
 import type { MarkMatrixStrings } from '@contraagent/elements/matrix';
 import { msg, str } from '@lit/localize';
+import { getLocale } from '../../../core/i18n.js';
 import { listText } from '../../../words/format.js';
 import { lineageWord } from '../../../words/lineage.js';
 
@@ -11,6 +12,17 @@ import { lineageWord } from '../../../words/lineage.js';
  * node always has its `progress`, so the words of a node's default count are not needed.
  */
 export function graphStrings(up: boolean, functions: boolean): Omit<LayeredGraphStrings, 'progress'> {
+  // The same words are the same object: the graph does not draw its nodes again for them.
+  const id = `${getLocale()}|${up}|${functions}`;
+  let words = made.get(id);
+  if (!words) made.set(id, (words = makeGraphStrings(up, functions)));
+  return words;
+}
+
+const made = new Map<string, Omit<LayeredGraphStrings, 'progress'>>();
+let madeMatrix: { locale: string; words: MarkMatrixStrings } | null = null;
+
+function makeGraphStrings(up: boolean, functions: boolean): Omit<LayeredGraphStrings, 'progress'> {
   const enter = msg('Enter: open');
   return {
     graph: msg('Graph', { id: 'view-graph', desc: 'Button: show the pipeline as a graph' }),
@@ -52,5 +64,7 @@ export function graphStrings(up: boolean, functions: boolean): Omit<LayeredGraph
 
 /** The words of a loop's passes. */
 export function matrixStrings(): MarkMatrixStrings {
-  return { sortBy: msg('Sort units'), rowsHeader: msg('Unit') };
+  const locale = getLocale();
+  if (madeMatrix?.locale !== locale) madeMatrix = { locale, words: { sortBy: msg('Sort units'), rowsHeader: msg('Unit') } };
+  return madeMatrix.words;
 }

@@ -36,9 +36,14 @@ const STEP_MS = 60e3;
 export function fitRange(lanes: readonly Lane[], now: number): TimeRange | null {
   const bars = lanes.flatMap((l) => l.bars);
   if (!bars.length) return null;
-  const start = Math.min(...bars.map((b) => b.start));
+  let start = Infinity;
+  let last = -Infinity;
+  for (const b of bars) {
+    start = Math.min(start, b.start);
+    last = Math.max(last, b.end ?? now);
+  }
   const running = bars.some((b) => b.end === null);
-  const end = running ? start + Math.ceil((now - start + MARGIN_MS) / STEP_MS) * STEP_MS : Math.max(...bars.map((b) => b.end ?? now));
+  const end = running ? start + Math.ceil((now - start + MARGIN_MS) / STEP_MS) * STEP_MS : last;
   return { start, end };
 }
 
