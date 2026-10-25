@@ -95,23 +95,37 @@ export class CaJournalTable extends LitElement {
   /** The run is a replay that also launched (`mixedReplay`): each attempt played from its recording is marked, and counted in a filter. */
   @property({ type: Boolean, attribute: 'replay-marks' }) replayMarks = false;
 
+  /** The counts of the rows, and the rows shown: for the rows (and filter) they were made from. */
+  private counts: { rows: JournalRow[]; replayMarks: boolean; fixups: number; retried: number; replayed: number; tally: ReturnType<typeof journalTally> } | null = null;
+  private shown: { rows: JournalRow[]; kind: string; stop: string; q: string; shown: JournalRow[] } | null = null;
+
   private open(rows: readonly JournalRow[], id: string): void {
     const e = rows.find((r) => rowId(r) === id);
     if (e) emit(this, 'ca-open-task', isPython(e) ? { key: e.key, view: 'output' } : { key: e.key });
   }
 
   override render() {
-    const rows = filterJournal(this.rows, this.kind, this.stop, this.q).reverse();
-    const fixups = this.rows.filter(hadFixup).length;
-    const retried = retriedKeys(this.rows).size;
-    const replayed = this.replayMarks ? this.rows.filter((r) => r.replayed).length : 0;
+    const s = this.shown;
+    const rows = s && s.rows === this.rows && s.kind === this.kind && s.stop === this.stop && s.q === this.q ? s.shown : filterJournal(this.rows, this.kind, this.stop, this.q).reverse();
+    this.shown = { rows: this.rows, kind: this.kind, stop: this.stop, q: this.q, shown: rows };
+    if (this.counts?.rows !== this.rows || this.counts.replayMarks !== this.replayMarks) {
+      this.counts = {
+        rows: this.rows,
+        replayMarks: this.replayMarks,
+        fixups: this.rows.filter(hadFixup).length,
+        retried: retriedKeys(this.rows).size,
+        replayed: this.replayMarks ? this.rows.filter((r) => r.replayed).length : 0,
+        tally: journalTally(this.rows),
+      };
+    }
+    const { fixups, retried, replayed, tally } = this.counts;
     const chip = (k: string, label: string, n: number, tip: string, tone: Tone = 'neutral') =>
       html`<button type="button" class="jchip ${this.stop === k ? 'on' : ''}" data-tone=${toneAttr(tone)} data-mark=${markOf(tone) ?? nothing}
         aria-pressed=${this.stop === k} title=${tip}
         @click=${() => emit(this, 'ca-filter', { stop: this.stop === k ? '' : k })}>${label} <b>${n}</b></button>`;
     const columns = journalColumns({ run: this.run, outcomes: deriveRun(this.rows, this.plan).outcomes, journal: this.rows, rows, extras: this.extras, replayMarks: this.replayMarks });
     return html`<div class="jtally">
-        ${journalTally(this.rows).map(([k, c]) => chip(k, shortStop(k), c, k, stopTone(k)))}
+        ${tally.map(([k, c]) => chip(k, shortStop(k), c, k, stopTone(k)))}
         ${fixups ? chip('fixup', msg('attempts with corrections'), fixups, correctionTip()) : nothing}
         ${retried ? chip('retried', msg('tasks retried'), retried, retryTip()) : nothing}
         ${replayed ? chip('replayed', msg('attempts replayed'), replayed, replayedTip()) : nothing}

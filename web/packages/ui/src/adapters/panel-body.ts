@@ -19,15 +19,25 @@ export const rowTone = (r: BodyRow): Tone | undefined => (typeof r._tone === 'st
 /** The formats of numbers: their columns are right-aligned. */
 const NUMERIC = new Set(['usd', 'pct', 'duration', 'tokens', 'number']);
 
-/** A cell as the text it is ordered by. */
-const cellKey = (v: unknown): string => (typeof v === 'string' ? v : JSON.stringify(v));
+/** A cell as the text it is ordered by; an object's is written once. */
+const objectKeys = new WeakMap<object, string>();
+const cellKey = (v: unknown): string => {
+  if (typeof v === 'string') return v;
+  if (typeof v !== 'object' || v === null) return JSON.stringify(v);
+  let k = objectKeys.get(v);
+  if (k === undefined) objectKeys.set(v, (k = JSON.stringify(v)));
+  return k;
+};
+
+/** The order `localeCompare` gives, made once. */
+const text = new Intl.Collator();
 
 /** The order of two cells: numbers by value, then text; empty cells last. */
 function compareCells(a: unknown, b: unknown): number {
   const empty = (v: unknown) => v === null || v === undefined || v === '';
   if (empty(a) || empty(b)) return empty(a) === empty(b) ? 0 : empty(a) ? 1 : -1;
   if (typeof a === 'number' && typeof b === 'number') return a - b;
-  return cellKey(a).localeCompare(cellKey(b));
+  return text.compare(cellKey(a), cellKey(b));
 }
 
 /** `v` as a URL a cell may lead to: http or https only; null for anything else. */

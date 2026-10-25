@@ -31,7 +31,10 @@ export function autoLayer(plan: Plan): string[] {
   // cannot tell its failure sites, so it descends as if there were none.
   const raised = new Set<string>();
   if (ix.calls) for (const c of ix.calls.values()) if (c.state === 'raised' || c.state === 'closed') raised.add(c.id);
-  const isSite = (id: string): boolean => raised.has(id) && ![...raised].some((r) => r !== id && r.startsWith(`${id}.`));
+  // The calls with a raised call inside them: every call a raised one's id starts with, and a dot.
+  const around = new Set<string>();
+  for (const r of raised) for (let i = r.indexOf('.'); i >= 0; i = r.indexOf('.', i + 1)) around.add(r.slice(0, i));
+  const isSite = (id: string): boolean => raised.has(id) && !around.has(id);
   for (;;) {
     let only: { id: string; name: string } | null = null;
     let one = true;

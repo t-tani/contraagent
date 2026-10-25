@@ -87,7 +87,8 @@ function inspect(h: PipelineHost, s: Selected) {
       </dl>
       <div class="acts">${link(msg(str`Inside ${shortName(m.flow)}`), () => primary(h, s), true)}${clear}</div>`;
   }
-  const rows = h.journal.filter((r) => m.keys.includes(r.key));
+  const keys = new Set(m.keys);
+  const rows = h.journal.filter((r) => keys.has(r.key));
   const ran = rows.filter(isLaunched);
   const costs = ran.map((r) => r.cost_usd).filter((x): x is number => typeof x === 'number');
   const wall = ran.reduce((a, r) => a + (r.wall_s ?? 0), 0);

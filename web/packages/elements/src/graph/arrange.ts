@@ -25,7 +25,14 @@ const pairKey = (a: string, b: string) => `${a}\u0000${b}`;
 export function rankLayers(ids: readonly string[], edges: readonly (readonly [string, string])[], fixed: ReadonlyMap<string, number>): Map<string, number> {
   const known = new Set(ids);
   const all = new Map<string, string[]>(ids.map((id) => [id, []]));
-  for (const [a, b] of edges) if (a !== b && known.has(a) && known.has(b) && !all.get(a)?.includes(b)) all.get(a)?.push(b);
+  const joined = new Set<string>();
+  for (const [a, b] of edges) {
+    if (a === b || !known.has(a) || !known.has(b)) continue;
+    const k = pairKey(a, b);
+    if (joined.has(k)) continue;
+    joined.add(k);
+    all.get(a)?.push(b);
+  }
   const back = new Set<string>();
   const seen = new Map<string, 1 | 2>();
   for (const root of ids) {
@@ -62,8 +69,11 @@ export function rankLayers(ids: readonly string[], edges: readonly (readonly [st
   const indeg = new Map(ids.map((id) => [id, pred.get(id)?.length ?? 0]));
   const queue = ids.filter((id) => !indeg.get(id));
   const layer = new Map<string, number>();
-  for (let q = queue.shift(); q !== undefined; q = queue.shift()) {
-    layer.set(q, fixed.get(q) ?? Math.max(0, ...(pred.get(q) ?? []).map((p) => (layer.get(p) ?? 0) + 1)));
+  for (let head = 0; head < queue.length; head++) {
+    const q = queue[head] as string;
+    let deepest = 0;
+    for (const p of pred.get(q) ?? []) deepest = Math.max(deepest, (layer.get(p) ?? 0) + 1);
+    layer.set(q, fixed.get(q) ?? deepest);
     for (const s of succ.get(q) ?? []) {
       indeg.set(s, (indeg.get(s) ?? 0) - 1);
       if (!indeg.get(s)) queue.push(s);
@@ -74,6 +84,7 @@ export function rankLayers(ids: readonly string[], edges: readonly (readonly [st
 
 /** Pairs (a, b) between adjacent layers that cross, for the order `pos`. */
 function crossings(rows: readonly string[][], links: readonly (readonly [string, string])[], pos: ReadonlyMap<string, number>, layerOf: ReadonlyMap<string, number>): number {
+  if (!rows.length) return 0;
   let n = 0;
   const by = new Map<number, [number, number][]>();
   for (const [a, b] of links) {
@@ -81,14 +92,46 @@ function crossings(rows: readonly string[][], links: readonly (readonly [string,
     if (l === undefined) continue;
     push(by, l, [pos.get(a) ?? 0, pos.get(b) ?? 0]);
   }
-  for (const ls of by.values())
-    for (let i = 0; i < ls.length; i++)
-      for (let j = i + 1; j < ls.length; j++) {
-        const [a1, b1] = ls[i] as [number, number];
-        const [a2, b2] = ls[j] as [number, number];
-        if ((a1 - a2) * (b1 - b2) < 0) n++;
-      }
-  return rows.length ? n : 0;
+  for (const ls of by.values()) n += crossingPairs(ls);
+  return n;
+}
+
+/**
+ * How many pairs of `ls` cross: one's ends are both before the other's, on opposite
+ * sides ((a1 - a2) * (b1 - b2) < 0). Sorted by `a` (then `b`), they are the pairs whose
+ * `b` goes down, counted with a Fenwick tree over the `b` values: O(n log n), not n².
+ */
+export function crossingPairs(ls: readonly (readonly [number, number])[]): number {
+  if (ls.length < 2) return 0;
+  // Positions are small whole numbers; anything else is counted pair by pair.
+  let top = 0;
+  for (const [a, b] of ls) {
+    if (!Number.isInteger(a) || !Number.isInteger(b) || b < 0 || b > 1e7) return crossingPairsSlow(ls);
+    if (b > top) top = b;
+  }
+  const sorted = [...ls].sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  const tree = new Array<number>(top + 2).fill(0);
+  let n = 0;
+  sorted.forEach(([, b], seen) => {
+    // Earlier pairs (a smaller or the same) with a larger b: a crossing when a is smaller;
+    // a pair with the same a has a b no larger, sorted so.
+    let atMost = 0;
+    for (let i = b + 1; i > 0; i -= i & -i) atMost += tree[i] as number;
+    n += seen - atMost;
+    for (let i = b + 1; i < tree.length; i += i & -i) tree[i] = (tree[i] as number) + 1;
+  });
+  return n;
+}
+
+function crossingPairsSlow(ls: readonly (readonly [number, number])[]): number {
+  let n = 0;
+  for (let i = 0; i < ls.length; i++)
+    for (let j = i + 1; j < ls.length; j++) {
+      const [a1, b1] = ls[i] as readonly [number, number];
+      const [a2, b2] = ls[j] as readonly [number, number];
+      if ((a1 - a2) * (b1 - b2) < 0) n++;
+    }
+  return n;
 }
 
 /** True for a point where an edge crosses a layer. */
@@ -160,7 +203,31 @@ export interface GraphShape {
   stubs: readonly Pick<GraphStubInput, 'id' | 'to' | 'style'>[];
 }
 
-const arranged = new WeakMap<GraphShape, { prev: GraphOrder | undefined; down: boolean; out: Arrangement }[]>();
+type Arranged = { prev: GraphOrder | undefined; down: boolean; out: Arrangement }[];
+
+/** The structure each shape object was found to have (`shapeKey`). */
+const keys = new WeakMap<GraphShape, string>();
+/** The last few arrangements, by structure, the latest last. */
+const arranged = new Map<string, Arranged>();
+const KEPT = 16;
+
+/** A value as the key writes it: null, undefined and a string kept apart. */
+const tag = (v: string | null | undefined): string => (v === undefined ? 'u' : v === null ? 'n' : `s${v}`);
+
+/** Everything `arrangeNew` reads of `g`, as one string: two shapes with the same key give the same arrangement. */
+function shapeKey(g: GraphShape): string {
+  let k = keys.get(g);
+  if (k === undefined) {
+    k = JSON.stringify([
+      g.nodes.map((n) => [tag(n.id), tag(n.cluster)]),
+      g.clusters.map((c) => [tag(c.id), tag(c.parent), !!c.cycle]),
+      g.edges.map((e) => [tag(e.from), tag(e.to), tag(e.style), !!e.ranks]),
+      g.stubs.map((s) => [tag(s.id), tag(s.to), tag(s.style)]),
+    ]);
+    keys.set(g, k);
+  }
+  return k;
+}
 
 /**
  * The order of `g`'s drawing: each container's layers (the top level, then each
@@ -168,14 +235,17 @@ const arranged = new WeakMap<GraphShape, { prev: GraphOrder | undefined; down: b
  * and the slots each edge passes. Pass a previous `order` of the same graph as
  * `prev` to keep its items where they are (new ones are appended to their layer);
  * `down` lays out the edge paths for a drawing top to bottom (a cluster's label is then on
- * the side its edges come in). The same `g`, `prev` and `down` give the same object.
+ * the side its edges come in). The same `g` (or a graph of the same ids, clusters and links),
+ * `prev` and `down` give the same object.
  */
 export function arrange(g: GraphShape, prev?: GraphOrder, down = false): Arrangement {
-  const seen = arranged.get(g) ?? [];
+  const key = shapeKey(g);
+  const seen = arranged.get(key) ?? [];
+  arranged.delete(key);
   const hit = seen.find((x) => x.prev === prev && x.down === down);
-  if (hit) return hit.out;
-  const out = arrangeNew(g, prev, down);
-  arranged.set(g, [...seen.slice(-3), { prev, down, out }]);
+  const out = hit?.out ?? arrangeNew(g, prev, down);
+  arranged.set(key, hit ? seen : [...seen.slice(-3), { prev, down, out }]);
+  if (arranged.size > KEPT) arranged.delete(arranged.keys().next().value as string);
   return out;
 }
 
@@ -187,16 +257,23 @@ function arrangeNew(g: GraphShape, prev: GraphOrder | undefined, down: boolean):
   const stubIds = [...new Set(g.stubs.map((s) => s.id))];
   const isStub = new Set(stubIds);
 
-  // The clusters an id sits in, innermost first (for a cluster id, itself first).
-  const boxPath = (id: string): string[] => {
-    const out: string[] = [];
-    let b: string | null = clusterIds.has(id) ? id : (boxOf.get(id) ?? null);
-    while (b) {
-      out.push(b);
-      b = parentOf.get(b) ?? null;
+  // The clusters an id sits in, innermost first (for a cluster id, itself first); read only.
+  const paths = new Map<string, { list: string[]; set: Set<string> }>();
+  const pathOf = (id: string): { list: string[]; set: Set<string> } => {
+    let p = paths.get(id);
+    if (!p) {
+      const list: string[] = [];
+      let b: string | null = clusterIds.has(id) ? id : (boxOf.get(id) ?? null);
+      while (b) {
+        list.push(b);
+        b = parentOf.get(b) ?? null;
+      }
+      p = { list, set: new Set(list) };
+      paths.set(id, p);
     }
-    return out;
+    return p;
   };
+  const boxPath = (id: string): readonly string[] => pathOf(id).list;
   // The direct child of `container` (a cluster, or '' for the top level) that holds a node `id`.
   const itemIn = (id: string, container: string): string | undefined => {
     const bp = boxPath(id);
@@ -207,7 +284,8 @@ function arrangeNew(g: GraphShape, prev: GraphOrder | undefined, down: boolean):
   // The deepest cluster holding both ends of an edge (the top level when none).
   const commonBox = (a: string, b: string): string => {
     const bp = boxPath(a);
-    return bp.find((x) => boxPath(b).includes(x)) ?? '';
+    const other = pathOf(b).set;
+    return bp.find((x) => other.has(x)) ?? '';
   };
   // The container a slot is in: a stub's is the top level.
   const containerOf = (id: string): string => (isStub.has(id) ? '' : (boxOf.get(id) ?? ''));
@@ -216,21 +294,34 @@ function arrangeNew(g: GraphShape, prev: GraphOrder | undefined, down: boolean):
   // clusters nested in it). Each cluster is one item of its parent.
   const containers = ['', ...g.clusters.map((c) => c.id)];
   const kidsOf = new Map<string, string[]>(containers.map((c) => [c, []]));
+  const kidSet = new Map<string, Set<string>>(containers.map((c) => [c, new Set()]));
+  const addKid = (c: string, it: string): void => {
+    const set = kidSet.get(c);
+    if (!set || set.has(it)) return;
+    set.add(it);
+    kidsOf.get(c)?.push(it);
+  };
+  // A node is an item of the top level and of each cluster around it, and of no other container.
   for (const { id } of g.nodes) {
-    for (const c of containers) {
-      const it = itemIn(id, c);
-      if (it !== undefined && !kidsOf.get(c)?.includes(it)) kidsOf.get(c)?.push(it);
-    }
+    const bp = boxPath(id);
+    addKid('', bp[bp.length - 1] ?? id);
+    bp.forEach((c, i) => addKid(c, i === 0 ? id : (bp[i - 1] as string)));
   }
+  // Each edge's container: the deepest cluster around both ends.
+  const edgeBox = g.edges.map((e) => commonBox(e.from, e.to));
+  const edgesIn = new Map<string, number[]>();
+  edgeBox.forEach((c, i) => push(edgesIn, c, i));
   const lay = new Map<string, Map<string, number>>();
   for (const c of containers) {
     const kids = kidsOf.get(c) ?? [];
+    const own = kidSet.get(c) ?? new Set<string>();
     const prevRows = c === '' ? prev?.layers : prev?.clusters[c];
     const fixed = new Map<string, number>();
-    prevRows?.forEach((row, i) => row.forEach((id) => kids.includes(id) && fixed.set(id, i)));
+    prevRows?.forEach((row, i) => row.forEach((id) => own.has(id) && fixed.set(id, i)));
     // An edge that closes a cycle does not set the layers.
-    const es = g.edges
-      .filter((e) => e.ranks && commonBox(e.from, e.to) === c)
+    const es = (edgesIn.get(c) ?? [])
+      .map((i) => g.edges[i] as (typeof g.edges)[number])
+      .filter((e) => e.ranks)
       .map((e) => [itemIn(e.from, c) as string, itemIn(e.to, c) as string] as const);
     lay.set(c, rankLayers(kids, es, fixed));
   }
@@ -238,35 +329,40 @@ function arrangeNew(g: GraphShape, prev: GraphOrder | undefined, down: boolean):
   const top = lay.get('') as Map<string, number>;
   const prevTop = new Map<string, number>();
   prev?.layers.forEach((row, i) => row.forEach((id) => prevTop.set(id, i)));
-  const stubAt = new Map(
-    stubIds.map((id) => [id, prevTop.get(id) ?? Math.min(...g.stubs.filter((s) => s.id === id).map((s) => top.get(itemIn(s.to, '') as string) ?? 0)) - 1]),
-  );
+  const firstTo = new Map<string, number>();
+  for (const s of g.stubs) firstTo.set(s.id, Math.min(firstTo.get(s.id) ?? Infinity, top.get(itemIn(s.to, '') as string) ?? 0));
+  const stubAt = new Map(stubIds.map((id) => [id, prevTop.get(id) ?? (firstTo.get(id) as number) - 1]));
   if ([...stubAt.values()].some((l) => l < 0)) {
     for (const [id, l] of top) top.set(id, l + 1);
     for (const [id, l] of stubAt) stubAt.set(id, l + 1);
   }
   for (const [id, l] of stubAt) top.set(id, l);
   const layerOf = (c: string, id: string): number => lay.get(c)?.get(id) ?? 0;
-  const lastLayer = (c: string): number => Math.max(0, ...(lay.get(c)?.values() ?? []));
+  const lastOf = new Map<string, number>();
+  const lastLayer = (c: string): number => {
+    let l = lastOf.get(c);
+    if (l === undefined) {
+      l = 0;
+      for (const v of lay.get(c)?.values() ?? []) l = Math.max(l, v);
+      lastOf.set(c, l);
+    }
+    return l;
+  };
 
   // Every edge whose end is not in a later layer than its start goes back: not drawn.
-  const isBack = (from: string, to: string): boolean => {
-    const c = commonBox(from, to);
-    return layerOf(c, itemIn(from, c) as string) >= layerOf(c, itemIn(to, c) as string);
-  };
-  const back = g.edges.map((e) => isBack(e.from, e.to));
+  const back = g.edges.map((e, i) => {
+    const c = edgeBox[i] as string;
+    return layerOf(c, itemIn(e.from, c) as string) >= layerOf(c, itemIn(e.to, c) as string);
+  });
 
   // Each container's rows: its items by layer, a previous order kept, new items after it.
   const rows = new Map<string, string[][]>();
   for (const c of containers) {
     const prevRows = c === '' ? prev?.layers : prev?.clusters[c];
-    const kept = (prevRows ?? []).flat();
+    const kept = new Map<string, number>();
+    (prevRows ?? []).flat().forEach((id, i) => kept.has(id) || kept.set(id, i));
     const ids = [...(c === '' ? [...stubIds] : []), ...(kidsOf.get(c) ?? [])];
-    ids.sort((a, b) => {
-      const ka = kept.indexOf(a);
-      const kb = kept.indexOf(b);
-      return (ka < 0 ? Infinity : ka) - (kb < 0 ? Infinity : kb);
-    });
+    ids.sort((a, b) => (kept.get(a) ?? Infinity) - (kept.get(b) ?? Infinity));
     const r: string[][] = Array.from({ length: lastLayer(c) + 1 }, () => []);
     for (const id of ids) r[layerOf(c, id)]?.push(id);
     rows.set(c, r);
@@ -333,24 +429,23 @@ function arrangeNew(g: GraphShape, prev: GraphOrder | undefined, down: boolean):
   });
   for (const s of g.stubs) edgePaths.push({ from: s.id, to: s.to, style: s.style, steps: edgePath(s.id, s.to, s.style) });
 
-  // The order within each layer.
+  // The order within each layer. Each container's joins: two steps of an edge in it, in two layers.
+  const levels = new Map<string, Map<string, number>>();
+  for (const c of containers) levels.set(c, new Map((rows.get(c) ?? []).flatMap((r, i) => r.map((id) => [id, i] as const))));
+  const linksIn = new Map<string, [string, string][]>(containers.map((c) => [c, []]));
+  for (const r of edgePaths)
+    for (let i = 1; i < r.steps.length; i++) {
+      const a = r.steps[i - 1] as EdgePathStep;
+      const b = r.steps[i] as EdgePathStep;
+      if (a.in !== b.in) continue;
+      const lv = levels.get(a.in);
+      if (lv && lv.get(a.id) !== lv.get(b.id)) linksIn.get(a.in)?.push([a.id, b.id]);
+    }
   const slots: Record<string, string[][]> = {};
   for (const c of containers) {
-    const links: [string, string][] = [];
-    const lv = new Map((rows.get(c) ?? []).flatMap((r, i) => r.map((id) => [id, i] as const)));
-    for (const r of edgePaths)
-      for (let i = 1; i < r.steps.length; i++) {
-        const a = r.steps[i - 1] as EdgePathStep;
-        const b = r.steps[i] as EdgePathStep;
-        if (a.in === c && b.in === c && lv.get(a.id) !== lv.get(b.id)) links.push([a.id, b.id]);
-      }
     const hasPrev = c === '' ? !!prev : !!prev?.clusters[c];
     // A point beside a cluster is right after it.
-    slots[c] = orderRows(rows.get(c) ?? [], links, hasPrev).map((row) => {
-      const by = row.filter((id) => id.includes('|by:'));
-      const rest = row.filter((id) => !id.includes('|by:'));
-      return rest.flatMap((id) => [id, ...by.filter((p) => p.includes(`|by:${id}|`))]);
-    });
+    slots[c] = orderRows(rows.get(c) ?? [], linksIn.get(c) ?? [], hasPrev).map(byPointsAfter);
   }
   const real = (r: readonly string[][]) => r.map((row) => row.filter((id) => !isPoint(id)));
   const clusters = g.clusters.map((c) => ({ id: c.id, parent: c.parent, cycle: !!c.cycle, layers: real(slots[c.id] ?? []).filter((r) => r.length) }));
@@ -368,6 +463,28 @@ function arrangeNew(g: GraphShape, prev: GraphOrder | undefined, down: boolean):
     edgePaths,
     order: { layers: real(slots[''] ?? []), clusters: Object.fromEntries(clusters.map((c) => [c.id, real(slots[c.id] ?? [])])) },
   };
+}
+
+/** A layer with each point beside a cluster (`|by:<cluster>|`) right after that cluster. */
+function byPointsAfter(row: readonly string[]): string[] {
+  const by = row.filter((id) => id.includes('|by:'));
+  const rest = row.filter((id) => !id.includes('|by:'));
+  if (!by.length) return rest;
+  // An id without '|' is named in a point as the text between '|by:' and the next '|';
+  // the few others are looked for in each point.
+  const named = new Map<string, string[]>();
+  for (const p of by) {
+    const seen = new Set<string>();
+    for (let i = p.indexOf('|by:'); i >= 0; i = p.indexOf('|by:', i + 1)) {
+      const end = p.indexOf('|', i + 4);
+      if (end < 0) break;
+      const id = p.slice(i + 4, end);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      push(named, id, p);
+    }
+  }
+  return rest.flatMap((id) => [id, ...(id.includes('|') ? by.filter((p) => p.includes(`|by:${id}|`)) : (named.get(id) ?? []))]);
 }
 
 /**

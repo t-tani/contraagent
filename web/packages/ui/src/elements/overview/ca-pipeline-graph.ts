@@ -273,7 +273,9 @@ export class CaPipelineGraph extends LitElement {
       this.prevOrder = this.orders.get(path.join('/'));
     }
     const locale = getLocale();
-    const words = structure || changed.has('journal') || changed.has('live') || changed.has('forecast') || locale !== this.locale;
+    // The journal says only why a task did not start: with none, the words stay as they are.
+    const why = changed.has('journal') && this.plan.nodes.some((n) => n.state === 'blocked');
+    const words = structure || why || changed.has('live') || changed.has('forecast') || locale !== this.locale;
     if (words || changed.has('sort')) this.build(words, locale);
   }
 
@@ -470,19 +472,61 @@ export class CaPipelineGraph extends LitElement {
     return this.controls && this.tree.length && w >= OUTLINE_WIDE ? w - OUTLINE_COLUMN : w;
   }
 
-  /** The place keys on the way to the layer shown (the functions of its path). */
+  /** The place keys on the way to the layer shown (the functions of its path), for the layer and the places they were found for. */
+  private current: { segments: string[]; stats: Map<string, PlaceStats>; keys: Set<string> } | null = null;
   private currentKeys(): Set<string> {
+    const c = this.current;
+    if (c && c.segments === this.segments && c.stats === this.flowStats) return c.keys;
     const { path } = splitLayer(this.segments);
     const out = new Set<string>();
     for (const s of this.flowStats.values()) {
       const d = s.layer.length;
       if (d < path.length && startsWith(path, s.layer) && path[d] === s.name) out.add(s.key);
     }
+    this.current = { segments: this.segments, stats: this.flowStats, keys: out };
     return out;
   }
 
+  /** The places the outline unfolds on its own (`expanded`), and what they were found from. */
+  private unfolded: { current: Set<string>; open: Set<string>; selected: string; want: Set<string>; holds: Map<OutlineItem, boolean> } | null = null;
+  private unfoldedKeys(): Set<string> {
+    const current = this.currentKeys();
+    const selected = this.selectedItem();
+    const u = this.unfolded;
+    if (u && u.current === current && u.open === this.shownOpen && u.selected === selected) return u.want;
+    const want = new Set([...current, ...this.shownOpen, selected]);
+    this.unfolded = { current, open: this.shownOpen, selected, want, holds: new Map() };
+    return want;
+  }
+
+  /** The outline's items by id, the first in the tree's order, for the tree they are of. */
+  private items: { tree: OutlineItem[]; byId: Map<string, OutlineItem> } | null = null;
+  private itemById(id: string): OutlineItem | undefined {
+    if (this.items?.tree !== this.tree) {
+      const byId = new Map<string, OutlineItem>();
+      const walk = (xs: readonly OutlineItem[]): void => {
+        for (const it of xs) {
+          if (!byId.has(it.id)) byId.set(it.id, it);
+          walk(it.kids);
+        }
+      };
+      walk(this.tree);
+      this.items = { tree: this.tree, byId };
+    }
+    return this.items.byId.get(id);
+  }
+
   /** The place (or loop item) the selection is, or is in: '' for none. */
+  private selectedOf: { sel: string; graph: LayerGraph; item: string } | null = null;
   private selectedItem(): string {
+    const had = this.selectedOf;
+    if (had && had.sel === this.sel && had.graph === this.graph) return had.item;
+    const item = this.findSelectedItem();
+    this.selectedOf = { sel: this.sel, graph: this.graph, item };
+    return item;
+  }
+
+  private findSelectedItem(): string {
     const sel = this.sel;
     if (!sel) return '';
     if (sel.startsWith(FLOW_BOX)) return sel.slice(FLOW_BOX.length);
@@ -527,9 +571,14 @@ export class CaPipelineGraph extends LitElement {
         const own = el.folds.get(id);
         if (own !== undefined) return own;
         // Unfolded by default: the top items, and those on the way to the layer shown, to what is open and to the selection.
-        const want = new Set([...el.currentKeys(), ...el.shownOpen, el.selectedItem()]);
-        const has = (it: OutlineItem): boolean => want.has(it.id) || it.kids.some(has);
-        const it = findItem(el.tree, id);
+        const want = el.unfoldedKeys();
+        const holds = el.unfolded?.holds ?? new Map<OutlineItem, boolean>();
+        const has = (it: OutlineItem): boolean => {
+          let h = holds.get(it);
+          if (h === undefined) holds.set(it, (h = want.has(it.id) || it.kids.some(has)));
+          return h;
+        };
+        const it = el.itemById(id);
         return !!it && (el.tree.includes(it) || has(it));
       },
       expand(id, on) {
@@ -619,16 +668,6 @@ function lightsOf(plan: Plan, links: TaskLinks, g: LayerGraph): (key: string) =>
     memo.set(key, lit);
     return lit;
   };
-}
-
-/** The outline item `id`, wherever it is in the tree. */
-function findItem(items: readonly OutlineItem[], id: string): OutlineItem | undefined {
-  for (const it of items) {
-    if (it.id === id) return it;
-    const k = findItem(it.kids, id);
-    if (k) return k;
-  }
-  return undefined;
 }
 
 declare global {

@@ -60,6 +60,9 @@ export class CaTaskTable extends LitElement {
   /** The run id: paths in a cause are shown relative to it. */
   @property() run = '';
 
+  /** The rows shown, for the rows, kind and text they were filtered and sorted from. */
+  private shown: { all: readonly TaskRow[]; kind: string; q: string; rows: TaskRow[] } | null = null;
+
   private open(rows: readonly TaskRow[], key: string): void {
     const t = rows.find((r) => r.key === key);
     // A Python task has no transcript, but its detail shows what it was given and what it left.
@@ -69,7 +72,9 @@ export class CaTaskTable extends LitElement {
   override render() {
     const d = this.plan ? deriveRun(this.journal, this.plan) : null;
     const all = d?.rows ?? [];
-    const rows = sortTasks(filterTasks(all, this.kind, this.q));
+    const had = this.shown;
+    const rows = had && had.all === all && had.kind === this.kind && had.q === this.q ? had.rows : sortTasks(filterTasks(all, this.kind, this.q));
+    this.shown = { all, kind: this.kind, q: this.q, rows };
     if (!rows.length)
       return html`<div class="blank"><span class="ic" aria-hidden="true">≡</span>${all.length ? msg('No tasks match the filter') : msg('No tasks')}</div>`;
     const columns = taskColumns({ run: this.run, live: this.live, outcomes: d?.outcomes ?? new Map(), all, rows, journal: this.journal });

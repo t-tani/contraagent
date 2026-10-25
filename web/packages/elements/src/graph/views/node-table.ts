@@ -18,11 +18,34 @@ export function neighbours(
     const x = nodes.get(id);
     return !x ? id : x.cluster ? inCluster(x.label) : x.label;
   };
+  const ix = indexOf(g);
+  const stubs = ix.stubsTo.get(n.id) ?? [];
+  const edges = ix.edgesTo.get(n.id) ?? [];
   const into = (style: EdgeStyle) => [
-    ...g.stubs.filter((s) => s.to === n.id && s.style === style).map((s) => s.label),
-    ...g.edges.filter((e) => e.to === n.id && e.style === style).map((e) => label(e.from)),
+    ...stubs.filter((s) => s.style === style).map((s) => s.label),
+    ...edges.filter((e) => e.style === style).map((e) => label(e.from)),
   ];
-  return { solid: into('solid'), dotted: into('dotted'), dashed: into('dashed'), later: [...new Set(g.edges.filter((e) => e.from === n.id).map((e) => label(e.to)))] };
+  return { solid: into('solid'), dotted: into('dotted'), dashed: into('dashed'), later: [...new Set((ix.edgesFrom.get(n.id) ?? []).map((e) => label(e.to)))] };
+}
+
+type Links = Pick<GraphInput, 'edges' | 'stubs'>;
+type LinkIndex = { stubsTo: Map<string, Links['stubs'][number][]>; edgesTo: Map<string, Links['edges'][number][]>; edgesFrom: Map<string, Links['edges'][number][]> };
+
+/** A graph's stubs and edges by the node they lead to, and its edges by the node they start at, in their order; once per graph. */
+const indexes = new WeakMap<Links, LinkIndex>();
+function indexOf(g: Links): LinkIndex {
+  let ix = indexes.get(g);
+  if (!ix) {
+    const add = <T>(m: Map<string, T[]>, k: string, v: T) => (m.get(k) ?? m.set(k, []).get(k))?.push(v);
+    ix = { stubsTo: new Map(), edgesTo: new Map(), edgesFrom: new Map() };
+    for (const s of g.stubs) add(ix.stubsTo, s.to, s);
+    for (const e of g.edges) {
+      add(ix.edgesTo, e.to, e);
+      add(ix.edgesFrom, e.from, e);
+    }
+    indexes.set(g, ix);
+  }
+  return ix;
 }
 
 /**

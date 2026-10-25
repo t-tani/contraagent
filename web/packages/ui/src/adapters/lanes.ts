@@ -5,6 +5,7 @@ import { isLaunched, isPython, runRelative, type JournalRow, type TaskOutcome } 
 import type { Lane, LaneBar, LaneStyle } from '@contraagent/elements/lanes';
 import { msg, str } from '@lit/localize';
 import { getLocale } from '../core/i18n.js';
+import { clockFormat } from '../words/clock-format.js';
 import { facts, fmtDur, kindUnit } from '../words/format.js';
 import { modelSwitch, notStartedCause, stopLabel } from '../words/index.js';
 
@@ -28,7 +29,8 @@ export interface TimelineLanes {
   omitted: number;
 }
 
-const hhmmss = (t: number) => new Date(t).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+// The same text as `toLocaleTimeString` with these options, from a format made once.
+const hhmmss = (t: number) => clockFormat(getLocale(), false).format(new Date(t));
 
 /**
  * The bars' looks and the legend: who ran it is an identity cue (Python
@@ -67,6 +69,28 @@ function rowLabel(e: JournalRow, end: number, outcomes: ReadonlyMap<string, Task
     .join('\n');
 }
 
+type FinishedBar = { lane: string; bar: LaneBar & { end: number } };
+
+/** The finished bars last made for a journal, and what else they were made from. */
+const made = new WeakMap<readonly JournalRow[], { outcomes: ReadonlyMap<string, TaskOutcome>; run: string; locale: string; bars: FinishedBar[] }>();
+
+/** Each finished row's bar, on its lane: made again only when the journal, the outcomes, the run or the language changed. */
+function finishedBars(journal: readonly JournalRow[], outcomes: ReadonlyMap<string, TaskOutcome>, run: string): readonly FinishedBar[] {
+  const locale = getLocale();
+  const had = made.get(journal);
+  if (had && had.outcomes === outcomes && had.run === run && had.locale === locale) return had.bars;
+  const bars: FinishedBar[] = [];
+  journal.forEach((e, i) => {
+    if (!e.ts) return;
+    const end = Date.parse(e.ts);
+    if (Number.isNaN(end)) return;
+    const style: LaneStyleKey = !isLaunched(e) ? 'idle' : !e.ok ? 'bad' : isPython(e) ? 'py' : 'llm';
+    bars.push({ lane: e.kind || '?', bar: { id: `j${i}`, style, start: end - (e.wall_s || 0) * 1000, end, label: rowLabel(e, end, outcomes, run) } });
+  });
+  made.set(journal, { outcomes, run, locale, bars });
+  return bars;
+}
+
 /**
  * Every finished task as a bar on its kind's lane, in order of first start,
  * and the running ones (`end` null); finished tasks that ended more than six
@@ -78,17 +102,11 @@ export function lanesFromJournal(
   outcomes: ReadonlyMap<string, TaskOutcome>,
   run: string,
 ): TimelineLanes | null {
-  /** Each finished row's bar, on its lane. */
-  const bars: { lane: string; bar: LaneBar & { end: number } }[] = [];
-  journal.forEach((e, i) => {
-    if (!e.ts) return;
-    const end = Date.parse(e.ts);
-    if (Number.isNaN(end)) return;
-    const style: LaneStyleKey = !isLaunched(e) ? 'idle' : !e.ok ? 'bad' : isPython(e) ? 'py' : 'llm';
-    bars.push({ lane: e.kind || '?', bar: { id: `j${i}`, style, start: end - (e.wall_s || 0) * 1000, end, label: rowLabel(e, end, outcomes, run) } });
-  });
+  const bars = finishedBars(journal, outcomes, run);
   if (!bars.length && !live.length) return null;
-  const newest = Math.max(...bars.map((x) => x.bar.end), ...live.map((a) => a.t0));
+  let newest = -Infinity;
+  for (const x of bars) newest = Math.max(newest, x.bar.end);
+  for (const a of live) newest = Math.max(newest, a.t0);
   const vis: { lane: string; bar: LaneBar }[] = bars.filter((x) => x.bar.end >= newest - TIMELINE_WINDOW_MS);
   const omitted = bars.length - vis.length;
   live.forEach((a, i) => vis.push({ lane: a.kind, bar: { id: `live${i}`, style: 'run', start: a.t0, end: null, label: `${a.kind}\n${msg('running')}` } }));
