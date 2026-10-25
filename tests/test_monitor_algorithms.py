@@ -108,6 +108,8 @@ def test_a_log_read_on_is_the_log_read_whole(tmp_path):
         ("x" * 100_000).encode() + b"\xff",
         b"\n".join(json.dumps({"n": i}).encode() for i in range(3000)),
     ],
+    # Short ids: a test's id is an environment variable (PYTEST_CURRENT_TEST), bounded on Windows.
+    ids=["small-json", "long-json", "two-byte", "three-byte", "binary", "binary-at-end", "json-lines"],
 )
 def test_a_file_s_view_from_its_start_is_its_view_from_the_whole_file(tmp_path, content):
     runs = tmp_path / "runs"
