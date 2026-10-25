@@ -28,6 +28,7 @@ import functools
 import json
 import threading
 import time
+from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Iterable, Mapping, MutableMapping
 from concurrent.futures import Future
 from dataclasses import dataclass
@@ -310,6 +311,13 @@ def _shown(file: str, cwd: Path | None) -> str:
     return file
 
 
+#: A log `Monitor._log_rows` keeps: its size when read up to the position, the position, its
+#: first line, each line's row (None for a line that is no row), and the rows.
+_HeldLog = tuple[int, LogPosition, str, list[dict[str, Any] | None], list[dict[str, Any]]]
+#: How many views of runs `Monitor._kept` keeps (a run's plan and outputs are two).
+KEPT_VIEWS = 16
+#: How many logs `Monitor._log_rows` keeps the rows of (a run's journal and plan are two).
+KEPT_LOGS = 8
 #: How many bytes of a transcript `Monitor._stream_lines` reads at a time to count its lines.
 COUNT_BYTES = 1 << 22
 #: How long `Monitor.outputs` gives a value it checked without checking it again (seconds).
@@ -389,8 +397,13 @@ class Monitor:
         self._run_rows: dict[str, tuple[tuple, dict[str, Any] | None]] = {}  # run -> (what its row was made of, the row)
         # The views kept between requests (`_kept`): (view, run) -> (what it was made of, the
         # value), and the lock of each, so one caller makes it at a time.
-        self._views: dict[tuple[str, str], tuple[Any, Any, float]] = {}  # ..., and when it was last checked
+        self._views: OrderedDict[tuple[str, str], tuple[Any, Any, float]] = OrderedDict()  # ..., and when it was last checked
         self._view_locks: dict[tuple[str, str], threading.Lock] = {}
+        self._view_texts: dict[tuple[str, str], tuple[Any, str]] = {}  # (view, run) -> (the value kept, its text)
+        # By (run, log): the log's size when it was read up to `position`, that position, its
+        # first line, each line's row (None for a line that is no row), and the rows (`_log_rows`).
+        self._logs: OrderedDict[tuple[str, str], _HeldLog] = OrderedDict()
+        self._logs_lock = threading.Lock()
         # By (run, transcript): its size when it was last counted, and the position after its
         # last complete line then (`_stream_lines`); its size when a page was last read, and
         # the position after it (`stream_from`).
@@ -543,7 +556,8 @@ class Monitor:
             "cancelled": "cancelled",
         }
         running = _running_keys(self.liveness.snapshot(run)) if live else set()
-        for n in self.plan(run, live={})["nodes"]:
+        # Made here and not kept: the list of runs keeps the counts, not every run's plan.
+        for n in self._plan(run, {})["nodes"]:
             counts["total"] += 1
             state = name.get(n["state"], "waiting")
             if state == "waiting" and n.get("key") in running:
@@ -557,24 +571,58 @@ class Monitor:
     # --- journal -----------------------------------------------------------
 
     def _read_journal(self, run: str) -> list[dict[str, Any]]:
-        return parse_rows(self.source.lines(run, layout.JOURNAL)[0])
+        """The run's journal rows, read on from where the last read ended (`_log_rows`). The
+        list and its rows are shared by every caller, and none changes them."""
+        return self._log_rows(run, layout.JOURNAL)[1]
 
     def journal(self, run: str, since: int = 0) -> tuple[list[dict[str, Any]], int]:
         """Rows after line offset `since`, and the new total."""
         if self.source.size(run, layout.JOURNAL) < 0:
             return [], since
-        lines, total = self.source.lines(run, layout.JOURNAL, since)
-        return parse_rows(lines), total
+        by_line, _ = self._log_rows(run, layout.JOURNAL)
+        return [r for r in by_line[since:] if r is not None], len(by_line)
+
+    def _log_rows(self, run: str, log: str) -> tuple[list[dict[str, Any] | None], list[dict[str, Any]]]:
+        """The rows of append-only `log` of `run`, by line (None for a line that is no row) and
+        as a list, read on from the position the last read ended at: each line of a growing
+        log is read and parsed once. A log shorter than then, or whose first line is another,
+        is another log, read from its start. The `KEPT_LOGS` logs read last are kept."""
+        key = (run, log)
+        size = self.source.size(run, log)
+        with self._logs_lock:
+            held = self._logs.get(key)
+            if size < 0:
+                self._logs.pop(key, None)
+                return [], []
+            if held is not None and size >= held[0]:
+                first = self.source.lines_at(run, log, LogPosition(0, 0), 1, 1)[0]
+                if (first[0] if first else "") != held[2]:
+                    held = None
+            elif held is not None:
+                held = None
+            at, head, by_line, rows = (held[1], held[2], held[3], held[4]) if held is not None else (LogPosition(0, 0), "", [], [])
+            got, after = self.source.lines_at(run, log, at)
+            if got:
+                parsed = [next(iter(parse_rows([line])), None) for line in got]
+                by_line = by_line + parsed
+                rows = rows + [r for r in parsed if r is not None]
+                head = head or got[0] if at.line == 0 else head
+            self._logs[key] = (size, after, head, by_line, rows)
+            self._logs.move_to_end(key)
+            while len(self._logs) > KEPT_LOGS:
+                self._logs.popitem(last=False)
+            return by_line, rows
 
     # --- plan (the pipeline, including work that has not started) ---------
 
     def plan_rows(self, run: str) -> list[dict[str, Any]]:
         """The run's `plan.jsonl`, one row per key: the first, as it was queued."""
-        return self._read_plan(run)
+        return [dict(r) for r in self._read_plan(run)]
 
     def _read_plan(self, run: str) -> list[dict[str, Any]]:
+        """One plan row per key, the first: a list of the caller's own, its rows shared."""
         out, seen = [], set()
-        for row in parse_rows(self.source.lines(run, layout.PLAN)[0]):
+        for row in self._log_rows(run, layout.PLAN)[1]:
             # A key queued again (a retry, a re-dispatch) is the same node.
             if row.get("key") not in seen:
                 seen.add(row.get("key"))
@@ -588,25 +636,55 @@ class Monitor:
         value, which none changes."""
         snap = live if live is not None else self.liveness.snapshot(run)
         sig = (tuple(self.source.stat(run, name) for name in _ROW_RECORDS), frozenset(_running_keys(snap)))
-        return self._kept("plan", run, lambda made: made == sig, lambda: (sig, self._plan(run, snap)))
+        return self._kept("plan", run, lambda made: made == sig, lambda previous: (sig, self._plan(run, snap)))
 
-    def _kept(self, view: str, run: str, current: Callable[[Any], bool], make: Callable[[], tuple[Any, Any]], fresh_s: float = 0.0) -> Any:
+    def _kept(
+        self, view: str, run: str, current: Callable[[Any], bool], make: Callable[[Any], tuple[Any, Any]], fresh_s: float = 0.0
+    ) -> Any:
         """A view of a run kept between requests: the value kept when `current(what it was
-        made of)` says it still is, else the one `make()` gives with what it is made of. One
-        caller makes it at a time; the others wait for it and are given it. A value checked
-        less than `fresh_s` seconds ago is given unchecked: what many clients ask for in the
-        same tick of their feeds is checked once."""
+        made of)` says it still is, else the one `make(what the value kept was made of, or
+        None)` gives with what it is made of. One caller makes it at a time; the others wait
+        for it and are given it. A value checked less than `fresh_s` seconds ago is given
+        unchecked: what many clients ask for in the same tick of their feeds is checked once.
+        The `KEPT_VIEWS` views asked last are kept, and the text written of each
+        (`_kept_text`), so memory does not grow with the runs a monitor has shown."""
+        key = (view, run)
         with self._lock:
-            lock = self._view_locks.setdefault((view, run), threading.Lock())
+            lock = self._view_locks.setdefault(key, threading.Lock())
         with lock:
-            held = self._views.get((view, run))
+            held = self._views.get(key)
             at = time.monotonic()
             if held is not None and (at - held[2] < fresh_s or current(held[0])):
-                self._views[(view, run)] = (held[0], held[1], held[2] if at - held[2] < fresh_s else at)
+                with self._lock:
+                    self._views[key] = (held[0], held[1], held[2] if at - held[2] < fresh_s else at)
+                    self._views.move_to_end(key)
                 return held[1]
-            made, value = make()
-            self._views[(view, run)] = (made, value, time.monotonic())
+            made, value = make(held[0] if held is not None else None)
+            with self._lock:
+                self._views[key] = (made, value, time.monotonic())
+                self._views.move_to_end(key)
+                self._view_texts.pop(key, None)
+                while len(self._views) > KEPT_VIEWS:
+                    gone, _ = self._views.popitem(last=False)
+                    self._view_texts.pop(gone, None)
+                    self._view_locks.pop(gone, None)
             return value
+
+    def _kept_text(self, view: str, run: str, value: Any, write: Callable[[Any], str]) -> str:
+        """`write(value)` for `value`, a view of `run` the monitor keeps (`plan`, `outputs`),
+        written once while it is the one kept: each client's feed sends the same text. Only
+        the text of the value kept now is held, so an older value is not kept alive."""
+        key = (view, run)
+        with self._lock:
+            held = self._view_texts.get(key)
+            if held is not None and held[0] is value:
+                return held[1]
+        text = write(value)
+        with self._lock:
+            kept = self._views.get(key)
+            if kept is not None and kept[1] is value:
+                self._view_texts[key] = (value, text)
+        return text
 
     def _plan(self, run: str, live: dict[str, Any]) -> dict[str, Any]:
         """The pipeline as a graph: every task ever queued, its dependencies and
@@ -622,7 +700,7 @@ class Monitor:
         last: dict[str, dict[str, Any]] = {}
         for e in journal:
             last[e.get("key", "")] = e
-        rows = self._read_plan(run)
+        rows = self._read_plan(run)  # its own list: the journal's tasks are added to it
         known = {r["key"] for r in rows}
         for e in journal:
             if e.get("key") not in known:
@@ -681,27 +759,11 @@ class Monitor:
                     node["rerun"] = str(j["rerun"])
             nodes.append(node)
         by_key = {n["key"]: n for n in nodes}
-        changed = True
-        while changed:  # a pending task behind a failed or blocked one is blocked too
-            changed = False
-            for n in nodes:
-                if n["state"] == "pending" and any(by_key.get(d, {}).get("state") in ("failed", "blocked") for d in n["after"]):
-                    n["state"], changed = "blocked", True
-        depth: dict[str, int] = {}
-
-        def level(key: str, trail: tuple = ()) -> int:
-            if key in depth:
-                return depth[key]
-            after = _earlier(by_key.get(key, {}))
-            deps = [d for d in after if d in by_key and d not in trail]
-            # A dependency not (yet) queued is upstream of this task all the same.
-            floor = 0 if any(d not in by_key for d in after) else -1
-            depth[key] = 1 + max((level(d, trail + (key,)) for d in deps), default=floor)
-            return depth[key]
-
+        _block_behind(nodes)
+        depth = _levels(nodes, by_key)
         cwd = self._cwd(run)
         for n in nodes:
-            n["level"] = level(n["key"])
+            n["level"] = depth[n["key"]]
             n["group"] = self._group_name(n)
             if n.get("flow"):
                 n["flow"] = _shown_flow(n["flow"], cwd)
@@ -893,15 +955,27 @@ class Monitor:
         return n.get("base_kind") or n["kind"]
 
     def _groups(self, nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        place = {id(n): i for i, n in enumerate(nodes)}
+
         def tally(sid: str, label: str, members: list[dict[str, Any]]) -> dict[str, Any]:
             states = ("done", "partial", "failed", "running", "pending", "skipped", "blocked", "cancelled")
             c = {s: sum(1 for n in members if n["state"] == s) for s in states}
             return {"id": sid, "label": label, "total": len(members), **c}
 
         if self.group_defs:
+            by_kind: dict[str, list[dict[str, Any]]] = {}
+            for n in nodes:
+                by_kind.setdefault(n["kind"], []).append(n)
             out = []
             for d in self.group_defs:
-                members = [n for n in nodes if n["kind"] in d.get("kinds", ())]
+                kinds = list(dict.fromkeys(d.get("kinds", ())))
+                members = (
+                    sorted((n for k in kinds for n in by_kind.get(k, ())), key=lambda n: place[id(n)])
+                    if len(kinds) > 1
+                    else by_kind.get(kinds[0], [])
+                    if kinds
+                    else []
+                )
                 out.append(tally(d["id"], d.get("label", d["id"]), members))
             listed = {k for d in self.group_defs for k in d.get("kinds", ())}
             bases: dict[str, list[dict[str, Any]]] = {}
@@ -912,7 +986,7 @@ class Monitor:
         groups: dict[str, list[dict[str, Any]]] = {}
         for n in nodes:
             groups.setdefault(n["group"], []).append(n)
-        order = sorted(groups, key=lambda g: (min(n["level"] for n in groups[g]), nodes.index(groups[g][0])))
+        order = sorted(groups, key=lambda g: (min(n["level"] for n in groups[g]), place[id(groups[g][0])]))
         return [tally(g, g, groups[g]) for g in order]
 
     def procs(self, run: str) -> dict[str, Any]:
@@ -921,7 +995,7 @@ class Monitor:
     def task_detail(self, run: str, key: str) -> dict[str, Any]:
         """Journal rows, live launches and the stream file for one task, by its key."""
         check_name(key, "task key")
-        rows = [e for e in self._read_journal(run) if e.get("key") == key]
+        rows = [dict(e) for e in self._read_journal(run) if e.get("key") == key]  # the callback's own
         snap = self.liveness.snapshot(run)
         launches = [
             {k: c.get(k) for k in ("key", "kind", "unit", "pid", "age_s", "plugin", "model", "role")}
@@ -1063,10 +1137,21 @@ class Monitor:
         def current(made: tuple) -> bool:
             return made[0] == sig and made[1] == self._file_stats(run, made[2])
 
-        def make() -> tuple[Any, Any]:
-            value = self._outputs(run, running)
+        def make(previous: tuple | None) -> tuple[Any, Any]:
+            # A file that did not change keeps its view: only the files that did are read again.
+            kept: dict[str, tuple[Any, dict[str, Any]]] = previous[3] if previous is not None else {}
+            views: dict[str, tuple[Any, dict[str, Any]]] = {}
+
+            def view_of(path: str, rows: bool) -> dict[str, Any]:
+                st = self.source.file_stat(run, path)
+                held = kept.get(f"{rows}:{path}")
+                view = held[1] if held is not None and held[0] == st and st is not None else self._file_view(run, path, rows=rows)
+                views[f"{rows}:{path}"] = (st, view)
+                return view
+
+            value = self._outputs(run, running, view_of)
             paths = tuple(spec["path"] for rec in value["contracts"] for spec in rec.get("outputs", []) + rec.get("inputs", []))
-            return (sig, self._file_stats(run, paths), paths), value
+            return (sig, self._file_stats(run, paths), paths, views), value
 
         # The outputs check thousands of files: checked at most once in a feed's tick.
         return self._kept("outputs", run, current, make, fresh_s=OUTPUTS_FRESH_S)
@@ -1074,7 +1159,7 @@ class Monitor:
     def _file_stats(self, run: str, paths: Iterable[str]) -> tuple:
         return tuple(self.source.file_stat(run, path) for path in paths)
 
-    def _outputs(self, run: str, running: frozenset[str]) -> dict[str, Any]:
+    def _outputs(self, run: str, running: frozenset[str], view_of: Callable[[str, bool], dict[str, Any]] | None = None) -> dict[str, Any]:
         """Every declared `OutputContract` / `InputContract` of the run: its file,
         the model it must satisfy, and where it stands.
 
@@ -1088,17 +1173,26 @@ class Monitor:
         last: dict[str, dict[str, Any]] = {}
         for e in self._read_journal(run):
             last[e.get("key", "")] = e
-        records = [self._contract(run, rec, last, running) for rec in parse_rows(self.source.folder(run, layout.CONTRACTS))]
+        records = [self._contract(run, rec, last, running, view_of) for rec in parse_rows(self.source.folder(run, layout.CONTRACTS))]
         outs = [o for r in records for o in r["outputs"]]
         tally = {s: sum(1 for o in outs if o["status"] == s) for s in ("valid", "invalid", "refused", "pending", "failed", "running")}
         return {"contracts": records, "tally": tally}
 
-    def _contract(self, run: str, rec: dict[str, Any], last: Mapping[str, dict[str, Any]], running: frozenset[str]) -> dict[str, Any]:
+    def _contract(
+        self,
+        run: str,
+        rec: dict[str, Any],
+        last: Mapping[str, dict[str, Any]],
+        running: frozenset[str],
+        view_of: Callable[[str, bool], dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         """A contract record (`contracts/<key>.json`) as `outputs` shows it: each file with
-        its fields, and each output's status from its task's last journal row in `last`."""
+        its fields (`view_of(path, rows)`, else `_file_view`), and each output's status from
+        its task's last journal row in `last`."""
         row = last.get(rec.get("key", ""))
         for spec in rec.get("outputs", []) + rec.get("inputs", []):
-            spec["file"] = self._file_view(run, spec["path"], rows=spec.get("format") == "jsonl")
+            rows = spec.get("format") == "jsonl"
+            spec["file"] = view_of(spec["path"], rows) if view_of is not None else self._file_view(run, spec["path"], rows=rows)
             props = (spec.get("schema") or {}).get("properties", {})
             req = set((spec.get("schema") or {}).get("required", []))
             spec["fields"] = [{"name": n, "type": self._type_of(p), "required": n in req} for n, p in props.items()]
@@ -1138,20 +1232,26 @@ class Monitor:
     def _file_view(self, run: str, path: str, limit: int = 20_000, *, rows: bool = False) -> dict[str, Any]:
         """A file as `FileView` shows it; with `rows`, a JSON Lines file whose content is the
         list of its lines that parse."""
-        got = self.source.file(run, path)
-        if got is None:
-            return {"exists": False}
-        text = got.text
-        out: dict[str, Any] = {"exists": True, "size": got.size, "mtime": got.mtime}
+        if isinstance(self.source, DirectorySource):  # reads a file's start alone: a large file is not held whole
+            got = self.source._file_head(run, path, 4 * limit + 4)
+            if got is None:
+                return {"exists": False}
+            text, size, mtime = got
+        else:
+            whole = self.source.file(run, path)
+            if whole is None:
+                return {"exists": False}
+            text, size, mtime = whole.text, whole.size, whole.mtime
+        out: dict[str, Any] = {"exists": True, "size": size, "mtime": mtime}
         if text is None:
             out["content"] = None
             return out
-        out["truncated"] = len(text) > limit
+        out["truncated"] = len(text) > limit or size > len(text.encode())
         if rows:
             out["content"] = [row for line in text[:limit].splitlines() if (row := _json_line(line)) is not None]
             return out
         try:
-            out["content"] = json.loads(text) if len(text) <= limit else text[:limit]
+            out["content"] = json.loads(text) if not out["truncated"] else text[:limit]
         except ValueError:  # a text output, or JSON that does not parse: the text itself
             out["content"] = text
         return out
@@ -1200,10 +1300,10 @@ class Monitor:
         """
         plan = {n["key"]: n for n in (plan_rows if plan_rows is not None else self._read_plan(run))}
         node = plan.get(key, {})
-        if outputs is not None:
-            by_key = {c.get("key"): c for c in outputs["contracts"]}
-        else:  # the task's own contracts and those of the tasks around it, not the run's
-            around = [key, *lineage_of(node), *(k for k, n in plan.items() if key in lineage_of(n))]
+        by_key = {c.get("key"): c for c in outputs["contracts"]} if outputs is not None else {}
+        lineages = {k: lineage_of(n) for k, n in plan.items()}
+        if outputs is None:  # the task's own contracts and those of the tasks around it, not the run's
+            around = [key, *lineage_of(node), *(k for k, lin in lineages.items() if key in lin)]
             by_key = {c.get("key"): c for c in self._contracts_of(run, around)}
         rec = by_key.get(key) or {}
         upstream = []
@@ -1221,7 +1321,7 @@ class Monitor:
             )
         downstream = []
         for k, n in plan.items():
-            lineage = lineage_of(n).get(key)
+            lineage = lineages[k].get(key)
             if lineage:
                 neighbour = {"key": k, "kind": n.get("kind", ""), "unit": n.get("unit", ""), "executor": n.get("executor", "agent")}
                 downstream.append({**neighbour, "lineage": lineage})
@@ -1236,7 +1336,7 @@ class Monitor:
         }
 
     def _rows(self, run: str, key: str) -> list[dict[str, Any]]:
-        return [e for e in self._read_journal(run) if e.get("key") == key]
+        return [dict(e) for e in self._read_journal(run) if e.get("key") == key]
 
     def _call_params(self, run: str, key: str, fallback: dict[str, Any]) -> dict[str, Any]:
         """What the task was given: the call file's params (every value, a value
@@ -1421,6 +1521,57 @@ def row_extras(rows: list[dict[str, Any]]) -> list[str]:
     for row in rows:
         out.update(dict.fromkeys(k for k in row if k not in known))
     return list(out)
+
+
+def _block_behind(nodes: list[dict[str, Any]]) -> None:
+    """Make `blocked` each pending node that waits (`after`), directly or through other
+    pending ones, for a failed or blocked one: from those, along the edges to the nodes
+    that wait for them, each edge once."""
+    waiting: dict[str, list[dict[str, Any]]] = {}
+    for n in nodes:
+        for d in n["after"]:
+            waiting.setdefault(d, []).append(n)
+    todo = [n["key"] for n in nodes if n["state"] in ("failed", "blocked")]
+    while todo:
+        for n in waiting.get(todo.pop(), ()):
+            if n["state"] == "pending":
+                n["state"] = "blocked"
+                todo.append(n["key"])
+
+
+def _levels(nodes: list[dict[str, Any]], by_key: Mapping[str, dict[str, Any]]) -> dict[str, int]:
+    """Each node's level: one more than the highest level of the nodes it comes after
+    (`_earlier`), counting one that is not queued yet as level -1 (so 0), and -1 with none.
+    A cycle is cut where the walk meets a node it is inside of, as a depth-first walk from
+    each node in order meets it. Iterative, so a chain of any length."""
+    depth: dict[str, int] = {}
+    for start in nodes:
+        if start["key"] in depth:
+            continue
+        on_path: set[str] = set()
+        stack: list[list[Any]] = []  # [key, the dependencies left, the best level of those done]
+        todo = [start["key"]]
+        while todo or stack:
+            if todo:
+                key = todo.pop()
+                after = _earlier(by_key.get(key, {}))
+                deps = [d for d in after if d in by_key and d not in on_path]
+                on_path.add(key)
+                stack.append([key, deps, 0 if any(d not in by_key for d in after) else -1])
+                continue
+            frame = stack[-1]
+            deps = frame[1]
+            while deps and (deps[0] in depth or deps[0] in on_path):
+                d = deps.pop(0)
+                if d in depth:  # met inside the walk (a cycle): as the recursion left it out
+                    frame[2] = max(frame[2], depth[d])
+            if deps:
+                todo.append(deps[0])
+                continue
+            stack.pop()
+            on_path.discard(frame[0])
+            depth[frame[0]] = 1 + frame[2]
+    return depth
 
 
 def _earlier(node: dict[str, Any]) -> list[str]:

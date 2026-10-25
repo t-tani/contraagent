@@ -13,7 +13,9 @@ it. The list of runs reads a run's records again only when one of them changed, 
 finished run costs nothing after its first listing. A run's plan and outputs are made
 once for every client that watches the run, again only when a record, a running task or
 a file an output contract names changed, and a transcript is read on from where its
-last page ended. For each run the monitor shows,
+last page ended. The monitor keeps the views of the runs asked for last, so its memory
+does not grow with the runs it has shown, and of a large output file it holds only the
+start it shows. For each run the monitor shows,
 live, one tab each:
 
 - **Overview**: in the order a reader checks a run: its state, problems with

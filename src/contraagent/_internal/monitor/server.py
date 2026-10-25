@@ -98,7 +98,7 @@ from contraagent._internal.monitor import api, export
 from contraagent._internal.monitor.core import Monitor
 from contraagent._internal.monitor.export import STATIC
 from contraagent._internal.monitor.trends import Period, PeriodError
-from contraagent._internal.monitor.views import VIEWS, View, serialize, serialize_kept
+from contraagent._internal.monitor.views import VIEWS, View, serialize
 from contraagent._internal.runs.names import BadName, is_plain
 
 log = logging.getLogger(__name__)
@@ -220,11 +220,15 @@ async def run_feed(monitor: Monitor, run: str, is_disconnected: Callable[[], Awa
             if body != sigs.get(name):
                 sigs[name] = body
                 yield {"event": f"panel:{name}", "data": body}
-        plan = serialize_kept(VIEWS["plan"].model, await off(monitor.plan, run, procs))  # over the processes just read
+        plan_model, outputs_model = VIEWS["plan"].model, VIEWS["outputs"].model
+        # Each kept view is written once for every client's feed (`Monitor._kept_text`).
+        plan = monitor._kept_text("plan", run, await off(monitor.plan, run, procs), functools.partial(serialize, plan_model))
         if plan != sigs.get("plan"):
             sigs["plan"] = plan
             yield {"event": "plan", "data": plan}
-        outs = serialize_kept(VIEWS["outputs"].model, await off(VIEWS["outputs"].read, monitor, run))
+        outs = monitor._kept_text(
+            "outputs", run, await off(VIEWS["outputs"].read, monitor, run), functools.partial(serialize, outputs_model)
+        )
         if outs != sigs.get("outputs"):
             sigs["outputs"] = outs
             yield {"event": "outputs", "data": outs}
