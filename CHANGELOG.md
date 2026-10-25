@@ -10,6 +10,12 @@ The changes not released yet are the fragments in [`changelog.d/`](changelog.d/)
 
 <!-- towncrier release notes start -->
 
+## [0.9.2] - 2026-10-25
+
+### Fixed
+
+- The monitor's memory no longer grows with the runs it has shown: it keeps the plan and outputs of the runs asked for last (16 views) and the parsed journals and plans of the last 8 logs, where 0.9.1 kept every run's plan and every viewed run's outputs, and up to 64 earlier copies of them, for as long as it ran. It holds only the first 80 kB of a file an output contract names, where it read the whole file to show its first 20,000 characters. A run's journal and plan are parsed only in the lines added since the last read, a file that did not change keeps its view, and one scan of the host's processes a second serves every live run and every client. A plan whose tasks wait for one another in a chain of more than about a thousand no longer fails to show (`RecursionError`).
+- The monitor's page stays responsive over a run of thousands of tasks. The pipeline graph orders the nodes of a layer again only when the structure of the layer changed, not with every new journal row, and it places a layer of 1500 nodes in less than a second, where it took many seconds. While the page reads the history of a run that it opens, it draws the run four times a second, not twenty times; the first part of the history and its end are drawn as soon as before. The lists of checked files, attempts and tasks, the timeline and the outline of the flow count and sort their rows once for each change of the run, not each time the page draws them. What the page shows does not change.
 ## [0.9.1] - 2026-10-25
 
 ### Fixed
