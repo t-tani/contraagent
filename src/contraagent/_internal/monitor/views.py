@@ -8,15 +8,12 @@ Each `View` in `VIEWS` is answered three ways from the same `read` and `model`:
 * the export's `data/runs/<run>/<name>.json` (`export.export`, for the views with `export`).
 
 `serialize` is how each of them is written: checked against its model, the keys the
-core did not emit left out. `serialize_kept` writes a value the monitor keeps between
-requests (`Monitor.plan`, `Monitor.outputs`) once, for every feed that sends it.
+core did not emit left out.
 """
 
 from __future__ import annotations
 
 import functools
-import threading
-from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -89,28 +86,3 @@ def serialize(model: Any, value: Any) -> str:
     `exclude_unset`: a key the core did not emit is not invented (see `api`)."""
     adapter = _adapter(model)
     return adapter.dump_json(adapter.validate_python(value), exclude_unset=True, by_alias=True).decode()
-
-
-#: How many written values `serialize_kept` keeps.
-KEPT_TEXTS = 64
-_texts: OrderedDict[tuple[int, int], tuple[Any, Any, str]] = OrderedDict()
-_texts_lock = threading.Lock()
-
-
-def serialize_kept(model: Any, value: Any) -> str:
-    """`serialize(model, value)`, written once for the same value: a view the monitor
-    keeps between requests is the same object until it is made again, so each client's
-    feed is given the text the first one wrote. The last `KEPT_TEXTS` are kept, with the
-    values themselves, so an id is never another value's."""
-    key = (id(model), id(value))
-    with _texts_lock:
-        held = _texts.get(key)
-        if held is not None and held[0] is model and held[1] is value:
-            _texts.move_to_end(key)
-            return held[2]
-    text = serialize(model, value)
-    with _texts_lock:
-        _texts[key] = (model, value, text)
-        while len(_texts) > KEPT_TEXTS:
-            _texts.popitem(last=False)
-    return text

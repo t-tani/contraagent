@@ -24,6 +24,7 @@ the store. A log's lines are its complete lines (`files.read_lines`).
 from __future__ import annotations
 
 import asyncio
+import codecs
 import json
 import os
 import stat
@@ -173,6 +174,8 @@ class RunSource(Protocol):
 #: A page of a transcript never carries more than this many bytes of lines (at least one
 #: line), whatever its line limit: one line can be megabytes (an image).
 PAGE_BYTES = 4 << 20
+#: The blocks `DirectorySource._file_head` reads the rest of a file in, to check it is text.
+FILE_BLOCK = 1 << 20
 
 
 class Pager:
@@ -412,6 +415,27 @@ class DirectorySource:
         except OSError:
             return None
         return RunFile(data, iso_of(st.st_mtime))
+
+    def _file_head(self, run: str, path: str, max_bytes: int) -> tuple[str | None, int, str] | None:
+        """`file`'s text as far as its first `max_bytes` bytes hold whole characters (None
+        when the whole file is not UTF-8 text), its size and its modification time: what the
+        monitor shows of a file, without holding a large one whole. The rest is read in
+        blocks only to check that it is text. None when the file does not exist."""
+        try:
+            with sharing.open_shared(self._file(run, path)) as f:
+                st = os.fstat(f.fileno())
+                decoder = codecs.getincrementaldecoder("utf-8")()
+                head = f.read(max_bytes)
+                try:
+                    text = decoder.decode(head)
+                    while block := f.read(FILE_BLOCK):
+                        decoder.decode(block)
+                    decoder.decode(b"", final=True)
+                except UnicodeDecodeError:
+                    text = None
+        except OSError:
+            return None
+        return text, st.st_size, iso_of(st.st_mtime)
 
     def file_stat(self, run: str, path: str) -> Stat | None:
         try:

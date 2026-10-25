@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from contraagent import Pipeline, agent_task
 from contraagent._internal.monitor import core, server
-from contraagent._internal.monitor.views import VIEWS, serialize, serialize_kept
+from contraagent._internal.monitor.views import VIEWS, serialize
 from contraagent.monitor import Monitor
 from contraagent.testing import StubAgent
 
@@ -80,15 +80,34 @@ def test_a_task_s_input_and_output_are_those_of_the_run_s_outputs(tmp_path):
         assert monitor.task_io("r", key) == monitor.task_io("r", key, outputs=monitor.outputs("r"))
 
 
-def test_a_kept_value_is_written_once(tmp_path):
+def test_a_kept_value_is_written_once_and_only_the_latest_is_held(tmp_path):
     runs = make_run(tmp_path)
     monitor = Monitor(runs)
     model = VIEWS["plan"].model
+    written: list[int] = []
+
+    def write(value):
+        written.append(1)
+        return serialize(model, value)
+
     plan = monitor.plan("r")
-    text = serialize_kept(model, plan)
-    assert text == serialize(model, plan) and serialize_kept(model, plan) is text
+    text = monitor._kept_text("plan", "r", plan, write)
+    assert text == serialize(model, plan) and monitor._kept_text("plan", "r", plan, write) is text and len(written) == 1
     append_row(runs, "write-c")
-    assert serialize_kept(model, monitor.plan("r")) != text
+    again = monitor.plan("r")
+    assert monitor._kept_text("plan", "r", again, write) != text
+    assert monitor._view_texts[("plan", "r")][0] is again  # the older plan is not held
+
+
+def test_the_views_kept_are_the_ones_asked_last(tmp_path, monkeypatch):
+    runs = make_run(tmp_path)
+    for run in ("s", "t"):
+        (runs / run).symlink_to(runs / "r", target_is_directory=True)
+    monkeypatch.setattr(core, "KEPT_VIEWS", 2)
+    monitor = Monitor(runs)
+    for run in ("r", "s", "t"):
+        monitor.plan(run)
+    assert [key for key in monitor._views] == [("plan", "s"), ("plan", "t")]
 
 
 def test_a_run_panel_is_called_once_a_tick_for_every_feed(tmp_path):
