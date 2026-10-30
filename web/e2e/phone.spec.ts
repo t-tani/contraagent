@@ -38,5 +38,6 @@ test('a phone: the history is as wide as the screen', async ({ page }) => {
   await page.goto('/?run=docs&tab=journal');
   const row = page.locator('ca-journal-table tbody tr').first();
   await expect(row).toBeVisible();
-  expect((await row.boundingBox())!.width).toBeLessThanOrEqual(390);
+  // The table draws its rows again as the run's records arrive: measure a row that is there.
+  await expect.poll(async () => (await row.boundingBox())?.width ?? Infinity).toBeLessThanOrEqual(390);
 });
