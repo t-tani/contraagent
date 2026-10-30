@@ -20,6 +20,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import math
 import random
 import signal
 import sys
@@ -111,7 +112,7 @@ NO_FAILOVER = frozenset({Stop.INVALID_INPUT.value, Stop.CREDENTIAL_MISMATCH.valu
 
 
 #: The stops after which no fresh attempt follows (`RetryingRunner`).
-NOT_RETRIED = frozenset({Stop.REFUSED.value, Stop.INVALID_INPUT.value, Stop.AUTH_FAILED.value, Stop.MAX_TURNS.value, STOP_CANCELLED})
+NOT_RETRIED = frozenset({Stop.REFUSED.value, Stop.INVALID_INPUT.value, Stop.AUTH_FAILED.value, STOP_CANCELLED})
 
 
 def _fails_over(result: TaskResult) -> bool:
@@ -335,8 +336,13 @@ class AgentRunner:
         )
 
     def limits(self, task: Task) -> Limits:
-        """The budget of each launch of `task`: its kind's."""
-        return self.config(task).limits()
+        """The budget of each launch of `task`: its kind's, its `max_turns` grown by
+        `max_turns_growth` for each fresh attempt before this one (`Task.attempt`)."""
+        kc = self.config(task)
+        limits = kc.limits()
+        if kc.max_turns_growth == 1 or not task.attempt:
+            return limits
+        return replace(limits, max_turns=math.ceil(kc.max_turns * kc.max_turns_growth**task.attempt))
 
     def _cwd_of(self, task: Task) -> Path:
         """The task's working directory: its own (`Task.cwd`), else the runner's."""
@@ -771,7 +777,9 @@ class AgentRunner:
         # With declared outputs the launch is resumed until every one holds,
         # or the kind's `max_corrections` are spent (then INVALID_OUTPUT, not ok).
         kc = self.config(task)
-        checked = run_checked(backend, launch, contracts, kc.max_corrections, partial_on=kc.partial_stops)
+        checked = run_checked(
+            backend, launch, contracts, kc.max_corrections, partial_on=kc.partial_stops, max_continuations=kc.max_continuations
+        )
         launch_result = checked.result
         max_corrections = kc.max_corrections if contracts else None
         for i, reading in enumerate(launch_result.quota):  # whose account each quota reading is
@@ -846,8 +854,9 @@ class RetryingRunner:
     backoff, up to the kind's `KindConfig.retries` of them after the first (`retries=2`:
     3 attempts at most); a safeguard refusal is not
     retried (the hop walk already tried every route), nor a task refused for its credential
-    (`auth_failed`: the credential rests for the run), nor one stopped on its turn cap
-    (`max_turns`: the same budget stops it in the same place), nor a result that is not retryable
+    (`auth_failed`: the credential rests for the run), nor one stopped on its turn cap when
+    its kind gives the next attempt no more turns (`max_turns` with `max_turns_growth` 1: the
+    same budget stops it in the same place), nor a result that is not retryable
     (`TaskResult.retryable`: a command the operating system refused to start). This sits beside the
     queue's own `retry_on`, which covers a launch that never ran.
 
@@ -906,7 +915,8 @@ class RetryingRunner:
             # A refusal was already tried on every route; an off-contract input is the same
             # file on the next attempt; a refused credential rests for the run; the same turn
             # cap stops the same work again. None is worth another launch.
-            if last.ok or last.stop in NOT_RETRIED or not last.retryable:
+            same_cap = last.stop == Stop.MAX_TURNS and rc.max_turns_growth == 1
+            if last.ok or last.stop in NOT_RETRIED or same_cap or not last.retryable:
                 break
             if attempt + 1 < attempts:
                 time.sleep(self.backoff(rc.retry_backoff_base, attempt))

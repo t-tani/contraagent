@@ -14,7 +14,12 @@ from typing import Annotated, Any, Literal, Union
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, TypeAdapter, create_model
 
 from contraagent._internal.backends.credentials import AnyCredential
-from contraagent._internal.routing.kind_config import MAX_CORRECTIONS_LIMIT, TASK_TABLE_KEYS
+from contraagent._internal.routing.kind_config import (
+    MAX_CONTINUATIONS_LIMIT,
+    MAX_CORRECTIONS_LIMIT,
+    MAX_TURNS_GROWTH_LIMIT,
+    TASK_TABLE_KEYS,
+)
 from contraagent._internal.routing.preflight import PreflightPolicy
 
 #: A `context_warn_pct`: a whole percent from 1 to 99.
@@ -23,6 +28,13 @@ WarnPct = Annotated[StrictInt, Field(ge=1, le=99)]
 Timeout = Union[Annotated[StrictInt, Field(gt=0)], Annotated[StrictFloat, Field(gt=0, allow_inf_nan=False)]]  # noqa: UP007
 #: A `max_corrections`: the corrections in all, the stop hook's and the resumes.
 Corrections = Annotated[StrictInt, Field(ge=0, le=MAX_CORRECTIONS_LIMIT)]
+#: A `max_continuations`: the continuation rounds of a launch.
+Continuations = Annotated[StrictInt, Field(ge=0, le=MAX_CONTINUATIONS_LIMIT)]
+#: A `max_turns_growth`: what each fresh attempt multiplies `max_turns` by.
+Growth = Union[  # noqa: UP007
+    Annotated[StrictInt, Field(ge=1, le=MAX_TURNS_GROWTH_LIMIT)],
+    Annotated[StrictFloat, Field(ge=1, le=MAX_TURNS_GROWTH_LIMIT, allow_inf_nan=False)],
+]
 
 
 class _Table(BaseModel):
@@ -97,6 +109,8 @@ _TASK_FIELDS: dict[str, Any] = {key: (_budget(want), None) for key, want in TASK
 _TASK_FIELDS["timeout_s"] = (Union[Timeout, None], None)  # noqa: UP007
 _TASK_FIELDS["context_warn_pct"] = (Union[WarnPct, None], None)  # noqa: UP007
 _TASK_FIELDS["max_corrections"] = (Union[Corrections, None], None)  # noqa: UP007
+_TASK_FIELDS["max_continuations"] = (Union[Continuations, None], None)  # noqa: UP007
+_TASK_FIELDS["max_turns_growth"] = (Union[Growth, None], None)  # noqa: UP007
 
 #: `[tasks.<kind>]`, a task table: one kind's routing and budgets.
 TaskTable: type[BaseModel] = create_model(  # pyright: ignore[reportCallIssue]

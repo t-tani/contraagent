@@ -446,11 +446,14 @@ class LaunchResult:
     raw_result: dict[str, Any] = field(default_factory=dict)
     # Output-file contract (`contraagent._internal.contracts.contract`): rounds spent (1 when
     # the first answer was on-contract; None when the launch carried no
-    # contract), and the errors of each round that failed its checks, in
+    # contract and no continuation), and the errors of each round that failed its checks, in
     # order: each was sent back as the next round, and when the launch
     # ended `INVALID_OUTPUT` the last is what still stood.
     rounds: int | None = None
     round_errors: list[list[str]] = field(default_factory=list)
+    #: The continuation rounds among `rounds`: each resumed the session after a round that
+    #: stopped on its turn cap (`run_checked(max_continuations=)`).
+    continuations: int = 0
     #: What each round cost on its own, in order (None for a round that reported no cost):
     #: `cost_usd` is their sum. Empty without a contract.
     round_costs: list[float | None] = field(default_factory=list)
@@ -541,6 +544,7 @@ class LaunchResult:
             "result_head": self.result_text[:200],
             "stderr_tail": self.stderr_tail[-300:],
             "rounds": self.rounds,
+            "continuations": self.continuations,
             "round_errors": [errors[:10] for errors in self.round_errors],
             "round_costs": list(self.round_costs),
             "unwrapped": self.unwrapped,

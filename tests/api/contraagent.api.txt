@@ -716,6 +716,8 @@ def agent_task(
     partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
+    max_continuations: int | None = None,
+    max_turns_growth: float | None = None,
 ) -> AgentTask[ParamsT, OutT]
 @overload
 def agent_task(
@@ -761,6 +763,8 @@ def agent_task(
     partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
+    max_continuations: int | None = None,
+    max_turns_growth: float | None = None,
 ) -> AgentTask[ParamsT, str]
 @overload
 def agent_task(
@@ -806,6 +810,8 @@ def agent_task(
     partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
+    max_continuations: int | None = None,
+    max_turns_growth: float | None = None,
 ) -> Implementations[ParamsT, OutT]
 @overload
 def agent_task(
@@ -851,6 +857,8 @@ def agent_task(
     partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
+    max_continuations: int | None = None,
+    max_turns_growth: float | None = None,
 ) -> Implementations[ParamsT, str]
 def agent_task(
     kind: str,
@@ -895,6 +903,8 @@ def agent_task(
     partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
+    max_continuations: int | None = None,
+    max_turns_growth: float | None = None,
 ) -> AgentTask[Any, Any] | Implementations[Any, Any]
 
 def import_recording(
@@ -1024,6 +1034,8 @@ class KindConfig
         safety_stop_failover: tuple[str, ...] = (),
         keep_failed_changes: bool = False,
         max_corrections: int = DEFAULT_MAX_CORRECTIONS,
+        max_continuations: int = 0,
+        max_turns_growth: float = 1.0,
     ) -> None
     agent: str = 'claude'
     @classmethod
@@ -1039,9 +1051,11 @@ class KindConfig
     def limits(self) -> Limits
     max_budget_usd: float | None = None
     max_concurrent: int | None = None
+    max_continuations: int = 0
     max_corrections: int = DEFAULT_MAX_CORRECTIONS
     max_denials: int | None = None
     max_turns: int = 50
+    max_turns_growth: float = 1.0
     model: str = ''
     model_failover: bool = False
     partial_on: tuple[str, ...] = ()
@@ -1544,6 +1558,7 @@ class LaunchResult
         raw_result: dict[str, Any] = dict(),
         rounds: int | None = None,
         round_errors: list[list[str]] = list(),
+        continuations: int = 0,
         round_costs: list[float | None] = list(),
         unwrapped: bool = False,
         hook_errors: list[list[str]] = list(),
@@ -1563,6 +1578,7 @@ class LaunchResult
     @property context_pct: float | None
     context_warned: bool = False
     context_window: int | None = None
+    continuations: int = 0
     cost_usd: float | None = None
     credential: str = 'ambient'
     duration_api_ms: int | None = None
@@ -3214,6 +3230,7 @@ class JournalRow(RecordModel)
     changes: Changes | None = None
     context_budget: int | None = None
     context_warned: bool = False
+    continuations: int = 0
     cost_usd: float | None = None
     credential: str = ''
     executor: Executor = 'agent'

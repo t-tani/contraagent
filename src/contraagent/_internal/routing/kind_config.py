@@ -70,6 +70,13 @@ class KindConfig:
     #: the same session with the errors, by the stop hook within a round or by a resume
     #: (`run_until_valid(max_corrections=)`).
     max_corrections: int = DEFAULT_MAX_CORRECTIONS
+    #: The continuation rounds of a launch: how many times a round that stopped on its turn
+    #: cap is resumed in the same session with the whole budget again (`run_checked`).
+    max_continuations: int = 0
+    #: What each fresh attempt multiplies `max_turns` by: the n-th fresh attempt has
+    #: `max_turns * max_turns_growth ** n` turns, rounded up (`AgentRunner.limits`). At 1 an
+    #: attempt that ended on `max_turns` gets no fresh attempt (`RetryingRunner`).
+    max_turns_growth: float = 1.0
 
     @property
     def partial_stops(self) -> frozenset[Stop]:
@@ -127,12 +134,21 @@ TASK_TABLE_KEYS: dict[str, type | tuple[type, ...]] = {
     "retries": int,
     "retry_backoff_base": (int, float),
     "max_corrections": int,
+    "max_continuations": int,
+    "max_turns_growth": (int, float),
 }
 
 #: The most corrections a kind may allow (`max_corrections`): each is more work in the
 #: same session, its context growing, and an output still wrong after this many is
 #: not converging.
 MAX_CORRECTIONS_LIMIT = 20
+
+#: The most continuation rounds a kind may allow (`max_continuations`): a launch that
+#: reaches its turn cap this many times over needs another budget, not more rounds.
+MAX_CONTINUATIONS_LIMIT = 10
+
+#: The most a kind's `max_turns` may grow by on each fresh attempt (`max_turns_growth`).
+MAX_TURNS_GROWTH_LIMIT = 10.0
 
 assert set(TASK_TABLE_KEYS) <= {f.name for f in fields(KindConfig)}
 

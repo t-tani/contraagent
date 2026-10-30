@@ -523,6 +523,8 @@ class RoutingPlan:
             line = f"{rc.agent}/{rc.model or '(the agent default model)'} effort={rc.effort}"
             line += f" max_turns={rc.max_turns} timeout_s={rc.timeout_s:g}"
             line += f" max_budget_usd={rc.max_budget_usd:g}" if rc.max_budget_usd is not None else ""
+            line += f" max_continuations={rc.max_continuations}" if rc.max_continuations else ""
+            line += f" max_turns_growth={rc.max_turns_growth:g}" if rc.max_turns_growth != 1 else ""
             line += f" credential={rc.credential}" if rc.credential != "ambient" else ""
             line += f" requires={','.join(rc.requires)}" if rc.requires else ""
             router = self.routers.get(kind)

@@ -697,6 +697,27 @@
           "minimum": 0,
           "type": "integer",
           "title": "Max Corrections"
+        },
+        "max_continuations": {
+          "maximum": 10,
+          "minimum": 0,
+          "type": "integer",
+          "title": "Max Continuations"
+        },
+        "max_turns_growth": {
+          "anyOf": [
+            {
+              "maximum": 10.0,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "maximum": 10.0,
+              "minimum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Max Turns Growth"
         }
       },
       "title": "TaskTable",
