@@ -29,7 +29,14 @@ from typing import Any
 from contraagent._internal.backends.credentials import AMBIENT, CredentialError, parse_credentials
 from contraagent._internal.backends.launch import TIMEOUT_RANGE, is_timeout
 from contraagent._internal.errors import ContraagentError, did_you_mean
-from contraagent._internal.routing.kind_config import MAX_CORRECTIONS_LIMIT, PARTIAL_STOPS, SAFETY_STOP_FAILOVER, TASK_TABLE_KEYS
+from contraagent._internal.routing.kind_config import (
+    MAX_CONTINUATIONS_LIMIT,
+    MAX_CORRECTIONS_LIMIT,
+    MAX_TURNS_GROWTH_LIMIT,
+    PARTIAL_STOPS,
+    SAFETY_STOP_FAILOVER,
+    TASK_TABLE_KEYS,
+)
 
 #: A tool, or a tool with a pattern of what it is given, as Claude Code writes them: `WebFetch`,
 #: `Bash(git push:*)` (`[tasks.<kind>].disallowed_tools`).
@@ -87,6 +94,20 @@ CORRECTIONS_RANGE = (
 def _is_corrections(value: object) -> bool:
     """A `max_corrections`: an int from 0 to `MAX_CORRECTIONS_LIMIT`."""
     return isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= MAX_CORRECTIONS_LIMIT
+
+
+CONTINUATIONS_RANGE = f"is not a whole number from 0 to {MAX_CONTINUATIONS_LIMIT} (contraagent docs routing, Budgets)"
+GROWTH_RANGE = f"is not a number from 1 to {MAX_TURNS_GROWTH_LIMIT:g} (contraagent docs routing, Budgets)"
+
+
+def _is_continuations(value: object) -> bool:
+    """A `max_continuations`: an int from 0 to `MAX_CONTINUATIONS_LIMIT`."""
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= MAX_CONTINUATIONS_LIMIT
+
+
+def _is_growth(value: object) -> bool:
+    """A `max_turns_growth`: a number from 1 to `MAX_TURNS_GROWTH_LIMIT`."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and 1 <= value <= MAX_TURNS_GROWTH_LIMIT
 
 
 def _is_warn_pct(value: object) -> bool:
@@ -314,6 +335,10 @@ class PipelineConfig:
             _problem(errors, f"{self.source}: [tasks.{kind}].context_warn_pct = {table.pop('context_warn_pct')!r} {WARN_PCT_RANGE}")
         if "max_corrections" in table and not _is_corrections(table["max_corrections"]):
             _problem(errors, f"{self.source}: [tasks.{kind}].max_corrections = {table.pop('max_corrections')!r} {CORRECTIONS_RANGE}")
+        if "max_continuations" in table and not _is_continuations(table["max_continuations"]):
+            _problem(errors, f"{self.source}: [tasks.{kind}].max_continuations = {table.pop('max_continuations')!r} {CONTINUATIONS_RANGE}")
+        if "max_turns_growth" in table and not _is_growth(table["max_turns_growth"]):
+            _problem(errors, f"{self.source}: [tasks.{kind}].max_turns_growth = {table.pop('max_turns_growth')!r} {GROWTH_RANGE}")
         denied = entry.get("disallowed_tools")
         if denied is not None:
             ok = isinstance(denied, list)

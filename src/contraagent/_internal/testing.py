@@ -140,7 +140,7 @@ class StubLaunch:
     role: str | None
     #: 1-based count of this task's replies in this run: correction rounds, retries, hops and replies within a launch all count.
     n: int
-    #: True for a correction round: the same session, sent the failed checks.
+    #: True for a resumed round: a correction round, sent the failed checks, or a continuation round.
     resumed: bool
     #: The launch's prompt, or for a reply within the launch what the stop hook said.
     prompt: str

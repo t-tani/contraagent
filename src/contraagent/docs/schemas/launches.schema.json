@@ -570,6 +570,11 @@
       ],
       "title": "Rounds"
     },
+    "continuations": {
+      "default": 0,
+      "title": "Continuations",
+      "type": "integer"
+    },
     "round_errors": {
       "items": {
         "items": {

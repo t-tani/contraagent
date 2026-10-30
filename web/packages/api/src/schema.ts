@@ -1549,6 +1549,11 @@ export type components = {
             reason?: string;
             /** Rounds */
             rounds?: number | null;
+            /**
+             * Continuations
+             * @default 0
+             */
+            continuations?: number;
             /** Round Errors */
             round_errors?: string[][];
             /** Max Corrections */

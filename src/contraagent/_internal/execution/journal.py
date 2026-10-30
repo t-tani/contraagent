@@ -71,6 +71,7 @@ class Journal:
             signal=signal_of(exit_code),
             reason=result.reason,
             rounds=result.rounds,
+            continuations=o.continuations if o is not None else 0,
             round_errors=[list(errors[:5]) for errors in result.round_errors],
             max_corrections=result.max_corrections,
             hook_errors=[list(errors[:5]) for errors in o.hook_errors] if o is not None else [],
