@@ -423,7 +423,7 @@ def test_a_stop_hook_sends_a_command_check_back_within_the_turn(tmp_path, plugin
     rep = pipeline(tmp_path, agent, overrides=Overrides(agent=coding_agent)).run(lambda: write_doc("u"))
     assert rep.ok and rep.results["write_doc-u"].launch_result.rounds == 1  # fixed before the turn ended
     first, second = agent.launches
-    assert not first.in_turn and second.in_turn and not second.resumed
+    assert not first.in_round and second.in_round and not second.resumed
     assert "[heading] no heading" in second.prompt  # what the plugin's rendered Stop hook said
     assert "JSON output" not in second.prompt  # a text output is not told about JSON
     row = json.loads((rep.run_dir / "journal.jsonl").read_text().splitlines()[0])
@@ -468,7 +468,7 @@ def test_each_round_is_told_the_corrections_it_has_left(tmp_path, plugin_dir, co
     agent = StubAgent({"summarize": writes_nothing()})
     rep = pipeline(tmp_path, agent, overrides=Overrides(agent=coding_agent)).run(lambda: summarize("u", Doc(path="x")))
     result = rep.results["summarize-u"].launch_result
-    rounds = [launch for launch in agent.launches if not launch.in_turn]
+    rounds = [launch for launch in agent.launches if not launch.in_round]
     assert [launch.launch.env[envvars.CORRECTIONS_LEFT] for launch in rounds] == ["3", "1"]
     assert [launch.resumed for launch in rounds] == [False, True]
     assert result.stop is Stop.INVALID_OUTPUT and result.rounds == 2 and len(result.hook_errors) == 2

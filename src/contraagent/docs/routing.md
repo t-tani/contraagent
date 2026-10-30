@@ -44,9 +44,38 @@ seconds above 0, so every launch has a deadline. `max_budget_usd` caps
 a launch's cost as the coding agent reports it: Claude Code enforces it itself;
 on omp, opencode and pi contraagent sums the cost the agent reports for each API
 call and ends the launch (`budget`) once it passes the cap; Codex reports no
-cost, so the cap does not hold there. On Codex `max_turns` counts tool calls, and
-omp and pi do not enforce it. [Coding agents](agents.md) has each agent's budgets
-in one table. Every key: the reference at the end.
+cost, so the cap does not hold there. [Coding agents](agents.md) has each agent's
+budgets in one table. Every key: the reference at the end.
+
+`max_turns` caps a launch's turns. A turn is one response of the launch's model,
+one API call, with every tool call that the response asks for, whether the tool
+calls run in parallel or one after another. A call that a subagent makes is not a
+turn of the launch. Every coding agent counts turns in this way. Claude Code and
+opencode stop before the turn past the cap. On omp and pi, contraagent stops the
+launch when that turn begins; on Codex, when that turn ends, because Codex does not
+report the start of a turn. `LaunchResult.num_turns` is the count, and the reason
+of a launch that stopped on `max_turns` gives it with the cap.
+
+A launch that stopped on `max_turns` moves its task to the next hop of the failover
+chain, which starts a session of its own with the whole budget. Once the chain is
+spent, the task gets no fresh attempt by default, because the same budget would stop
+the same work in the same place. A kind whose tasks must finish can give them more
+turns in two ways, in a task table or `agent_task(...)`:
+
+- `max_continuations` (0 to 10, default 0) resumes the session of a launch that
+  stopped on `max_turns`, with the whole budget again, before the task moves to the
+  next hop. Each such round is a continuation round. The agent keeps what it has
+  done and read, so this suits work that only needs more turns. A continuation is
+  no correction: it does not count against `max_corrections`. On Codex a tool call
+  of the turn past the cap may have run before the launch stops, so the agent may
+  run it again in the continuation round.
+- `max_turns_growth` (1 to 10, default 1) multiplies `max_turns` for each fresh
+  attempt: the n-th fresh attempt has `max_turns * max_turns_growth ** n` turns,
+  rounded up, within the kind's `retries`. Each attempt starts a fresh session, so
+  this suits work that went wrong in a way that a new start can avoid.
+
+The journal row records the continuation rounds (`continuations`) among its
+`rounds`, and each hop the `max_turns` it ran under.
 
 `context_budget` caps a launch's peak context: the whole input (fresh input,
 cache read and cache write) of its largest API call. Claude Code and opencode

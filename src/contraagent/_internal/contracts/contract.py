@@ -1,15 +1,15 @@
 """File contracts: what a task must leave behind (or read), checked where it is produced.
 
 A task asks the agent to write its result to a file. Exit status says
-nothing about that file: an agent can end its turn cleanly having written
+nothing about that file: an agent can stop cleanly having written
 no file, a truncated one, prose wrapped around the JSON, or a document
 with a field renamed — and the stage that reads it next fails far from
 the cause. So the file is checked where it is produced, against its
 schema, a pydantic class (or, for a text output, for its existence), and then by any
 validators (`contraagent._internal.contracts.validators`: a Python check, a linter), and an
-off-contract file goes back to the same session with the errors as the
-next turn. The agent still has the
-whole task in its context, so a correction costs one short turn, not a
+off-contract file goes back to the same session with the errors as its
+next message. The agent still has the
+whole task in its context, so a correction costs one short round, not a
 rerun.
 
     contract = OutputContract(Path("out/findings.json"), Findings)
@@ -59,8 +59,14 @@ from contraagent._internal.runs.files import write_document
 
 _logger = logging.getLogger(__name__)
 
+#: What a continuation round says to the session: its round stopped on the turn cap.
+CONTINUATION_PROMPT = (
+    "You reached the turn limit of the last round before the task was done. Go on with the "
+    "same task from where you stopped: your work so far is in place."
+)
+
 #: Correction rounds after the first launch, a kind's `max_corrections` when neither its
-#: declaration nor the config gives one. Each one is a full agent turn, and an
+#: declaration nor the config gives one. Each one is a whole round of the agent, and an
 #: LLM that misreads the schema three times in a row is not converging.
 DEFAULT_MAX_CORRECTIONS = 3
 
@@ -464,7 +470,7 @@ def check_all(contracts: Sequence[OutputContract], cwd: Path, before: Mapping[Pa
 
 
 def correction_prompt(contracts: Sequence[OutputContract], checks: Sequence[Check]) -> str:
-    """The next turn: what is wrong, and the schema of each file that does not meet it.
+    """The next message of the session: what is wrong, and the schema of each file that does not meet it.
     An output taken from the final message (`from_message`) is asked for again as the reply."""
     failing = [c for c, chk in zip(contracts, checks, strict=True) if not chk.ok and c.schema is not None and not chk.schema_ok]
     only_json = " A JSON output must contain only the JSON document, with no prose or code fences around it." if failing else ""
@@ -655,6 +661,7 @@ def run_checked(
     max_corrections: int = DEFAULT_MAX_CORRECTIONS,
     *,
     partial_on: Collection[Stop] = (),
+    max_continuations: int = 0,
 ) -> CheckedLaunch:
     """`run_until_valid`, with the agent runner's verdicts beside the result.
 
@@ -663,8 +670,12 @@ def run_checked(
     line of a rows file is cut off (`rows.drop_unfinished`); when every output
     passes, the result keeps its stop, `partial` is set, and its files stay as
     they are. It is not resumed either way.
+    `max_continuations`: how many times a round that stopped on its turn cap (`max_turns`)
+    is resumed with `CONTINUATION_PROMPT` and the whole budget again, a continuation round
+    (`agent_task(max_continuations=)`), before it is checked; a launch with no contract
+    is resumed so too. A session that cannot be resumed ends on `max_turns`.
     """
-    if not contracts:
+    if not contracts and not max_continuations:
         return CheckedLaunch(backend.run(launch))
     resumable = backend.resumable(launch)
     # Whatever was kept only for resuming goes with the run: a session dir
@@ -674,7 +685,7 @@ def run_checked(
     checked: CheckedLaunch | None = None
     before = {c.resolve(launch.cwd): c.before(launch.cwd) for c in contracts}
     try:
-        checked = _loop(backend, resumable, contracts, max_corrections, before, frozenset(partial_on))
+        checked = _loop(backend, resumable, contracts, max_corrections, before, frozenset(partial_on), max_continuations)
         if not (checked.result.ok or checked.partial):
             for path, was in before.items():
                 was.restore(path)
@@ -694,15 +705,18 @@ def _loop(
     max_corrections: int,
     before: Mapping[Path, Before],
     partial_on: frozenset[Stop] = frozenset(),
+    max_continuations: int = 0,
 ) -> CheckedLaunch:
     total: LaunchResult | None = None
     rounds = 0
+    corrected = 0  # the correction rounds so far
+    continued = 0  # the continuation rounds so far
     found: list[list[str]] = []  # each failed round's errors
     costs: list[float | None] = []  # each round's own cost
     session_total = bool(getattr(backend, "cost_is_session_total", False))
     while True:
         rounds += 1
-        used = rounds - 1 + (len(total.hook_errors) if total is not None else 0)
+        used = corrected + (len(total.hook_errors) if total is not None else 0)
         left = str(max(max_corrections - used, 0))
         launch = dataclasses.replace(launch, env={**launch.env, envvars.CORRECTIONS_LEFT: left})
         ran = backend.run(launch)
@@ -713,6 +727,15 @@ def _loop(
         costs.append(round(own, 6) if own is not None else None)
         total = fold_spend(total, ran, resumed=rounds > 1, session_total=session_total)
         total.round_costs = list(costs)
+        total.rounds = rounds
+        total.continuations = continued
+        if total.stop is Stop.MAX_TURNS and continued < max_continuations:
+            nxt = backend.resumed(launch, total, CONTINUATION_PROMPT)
+            if nxt is not None:
+                continued += 1
+                _logger.info(f"[continuation] {launch.label}: round {rounds} stopped on max_turns; {continued} of {max_continuations}")
+                launch = nxt
+                continue
         if total.stop is Stop.COMPLETED:
             total.unwrapped = _write_messages(contracts, launch.cwd, total.result_text)
         stopped = total.stop in partial_on
@@ -727,7 +750,6 @@ def _loop(
                     chk.ok, chk.errors = False, ["the final message is empty"]
         errors = [e for chk in checks for e in chk.errors]
         found += [errors] if errors else []
-        total.rounds = rounds
         total.round_errors = list(found)
         if not errors:
             if total.hollow and any(c.from_message for c in contracts):
@@ -738,7 +760,7 @@ def _loop(
             return CheckedLaunch(total, partial=stopped)
         if total.stop is not Stop.COMPLETED:
             return CheckedLaunch(total)
-        used = rounds - 1 + len(total.hook_errors)  # the corrections made: the resumes and the stop hook's objections
+        used = corrected + len(total.hook_errors)  # the corrections made: the resumes and the stop hook's objections
         nxt = backend.resumed(launch, total, correction_prompt(contracts, checks)) if used < max_corrections else None
         if nxt is not None:
             more = f" (+{len(errors) - 1} more)" if len(errors) > 1 else ""
@@ -747,6 +769,7 @@ def _loop(
             total.stop = Stop.INVALID_OUTPUT
             total.ok = False
             return CheckedLaunch(total)
+        corrected += 1
         launch = nxt
 
 

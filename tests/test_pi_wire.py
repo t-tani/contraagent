@@ -44,9 +44,23 @@ def test_a_recorded_launch_reads_whole_and_counts_each_call_once(version):
     assert result.stop == Stop.COMPLETED and result.ok and result.result_text == "done"
     assert result.tool_uses == {"read": 1, "bash": 1}
     assert len(result.usage.calls) == 3 and sum(c.output for c in result.usage.calls) > 0 and result.cost_usd and result.cost_usd > 0
-    assert result.session_id
+    assert result.session_id and result.num_turns == 3
     assert result.unread_events == {}, "pi sends events this reader does not know"
     assert json.loads(result.raw_result["tool_args"]["bash"][0])["command"] == "echo hi"
+
+
+@pytest.mark.parametrize("version", VERSIONS)
+def test_max_turns_ends_a_launch_as_the_turn_past_it_begins(version):
+    """pi has no turn cap: contraagent counts its turns, as on omp."""
+    from contraagent._internal.backends.wire import LimitsWatch
+    from contraagent.backends import PiBackend
+    from contraagent.config import Limits
+
+    reader = PiTraceReader()
+    watch = LimitsWatch(Limits(max_turns=2), PiBackend.watched_limits, reader)
+    lines = iter((FIXTURES / version / "json.jsonl").read_bytes().splitlines())
+    stop = next(s for line in lines if (s := reader.feed_line(line) or watch()) is not None)
+    assert stop == Stop.MAX_TURNS and (reader.turns, reader.turn_open) == (2, True)
 
 
 @pytest.mark.parametrize("version", VERSIONS)

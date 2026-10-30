@@ -308,6 +308,10 @@ class TraceReader(EventFold):
         self.saw_any = True
         if typ == "session":
             self.session_id = str(ev.get("id") or "")
+        elif typ == "turn_start":
+            self.begin_turn()
+        elif typ == "turn_end":
+            self.end_turn()
         elif typ == "message_update":
             self._update(ev.get("assistantMessageEvent") or {})
         elif typ == "tool_execution_end":

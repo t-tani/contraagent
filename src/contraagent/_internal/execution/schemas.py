@@ -91,15 +91,18 @@ class JournalRow(RecordModel):
     exit_code: int | None = None
     signal: int | None = None
     reason: str = ""
-    #: Rounds the output contract took (1: on-contract the first time); None without one.
+    #: The rounds of the session: the first, its correction rounds and its continuation rounds
+    #: (1: on-contract the first time); None with no output contract and no continuation.
     rounds: int | None = None
+    #: The continuation rounds among `rounds`: each went on after a round stopped on `max_turns`.
+    continuations: int = 0
     #: The errors of each round that failed its output checks, in order, cut at 5 each:
     #: each was sent back as the next round; after `invalid_output`, the last is what still stood.
     round_errors: list[list[str]] = Field(default_factory=list)
     #: The corrections its kind allowed, the stop hook's and the resumes in all (`max_corrections`); None
     #: without an output contract, or in a run format before it was recorded.
     max_corrections: int | None = None
-    #: What the plugin's stop hook sent back within a launch, before the agent ended its turn,
+    #: What the plugin's stop hook sent back within a launch, before the agent stopped,
     #: one list per objection, cut at 5 each: each is a correction, and none took a correction round.
     hook_errors: list[list[str]] = Field(default_factory=list)
     #: Tokens of every API call of the attempt (its rounds and hops); None for a Python task or a launch that reported none.
@@ -232,6 +235,7 @@ class LaunchRow(RecordModel):
     result_head: str = Field(description="the final message, cut at 200 characters")
     stderr_tail: str = Field(description="the end of standard error, 300 characters")
     rounds: int | None
+    continuations: int = 0
     round_errors: list[list[str]]
     round_costs: list[float | None]
     unwrapped: bool

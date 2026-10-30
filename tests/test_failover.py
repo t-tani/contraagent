@@ -303,6 +303,25 @@ def test_a_credential_mismatch_or_a_signal_does_not_fail_over(tmp_path):
         assert not res.ok and [m for m, _ in agent.seen] == ["m1"]
 
 
+def test_a_launch_the_runner_stopped_fails_over_and_says_which_budget_it_reached(tmp_path):
+    """A launch stopped on a budget ends on a signal of the runner's own: it is no run
+    stopping, so the task fails over, and its reason names the budget, not the signal."""
+
+    class Capped(Agent):
+        def run(self, launch):
+            result = super().run(launch)
+            if result.stop == Stop.MAX_TURNS:
+                result.exit_code, result.killed, result.num_turns = -15, True, 4
+            return result
+
+    agent = Capped("claude", lambda m: Stop.MAX_TURNS if m == "m1" else Stop.COMPLETED)
+    res = build(tmp_path, {"claude": agent}, {"k": chain(("claude", "m1"), ("claude", "m2"))}).run(Task("k", key="t1"))
+    assert res.ok and [m for m, _ in agent.seen] == ["m1", "m2"]
+    assert "max_turns on hop 1/2 claude/m1 (4 turns, max_turns 3); failing over" in res.reason and "SIGTERM" not in res.reason
+    first = res.hops[0]
+    assert (first.stop, first.num_turns, first.max_turns, first.timeout_s) == ("max_turns", 4, 3, 10)
+
+
 def test_a_credential_override_is_every_hops_credential(tmp_path):
     cfg = PipelineConfig(
         {

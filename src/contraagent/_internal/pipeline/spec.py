@@ -469,6 +469,8 @@ def agent_task(
     partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
+    max_continuations: int | None = None,
+    max_turns_growth: float | None = None,
 ) -> AgentTask[ParamsT, OutT]: ...
 
 
@@ -516,6 +518,8 @@ def agent_task(
     partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
+    max_continuations: int | None = None,
+    max_turns_growth: float | None = None,
 ) -> AgentTask[ParamsT, str]: ...
 
 
@@ -563,6 +567,8 @@ def agent_task(
     partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
+    max_continuations: int | None = None,
+    max_turns_growth: float | None = None,
 ) -> Implementations[ParamsT, OutT]: ...
 
 
@@ -610,6 +616,8 @@ def agent_task(
     partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
+    max_continuations: int | None = None,
+    max_turns_growth: float | None = None,
 ) -> Implementations[ParamsT, str]: ...
 
 
@@ -656,6 +664,8 @@ def agent_task(
     partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
+    max_continuations: int | None = None,
+    max_turns_growth: float | None = None,
 ) -> AgentTask[Any, Any] | Implementations[Any, Any]:
     """Declare an agent task.
 
@@ -777,8 +787,9 @@ def agent_task(
     which starts it again; the last hop's result stands. A launch that failed fails over anyway.
     `disallowed_tools`: tools its launches may not use, in Claude Code's names and patterns
     (`["WebFetch", "Bash(git push:*)"]`).
-    `max_turns`: turns per launch. `timeout_s`: seconds per launch, above 0. `max_budget_usd`: cost per
-    launch, as the coding agent reports it. `stall_s`: stop a launch whose transcript is silent
+    `max_turns`: turns per launch, a turn being one response of the model (`contraagent docs
+    routing`). `timeout_s`: seconds per launch, above 0. `max_budget_usd`: cost per launch, as
+    the coding agent reports it. `stall_s`: stop a launch whose transcript is silent
     this many seconds. `context_budget`: stop a launch once one call's input passes this many
     tokens. `context_warn_pct`: warn once a launch's peak context passes this percent of
     `context_budget` (1 to 99); the launch goes on. `max_denials`: stop a launch after this
@@ -800,6 +811,12 @@ def agent_task(
     that fails its checks goes back to the same session with the errors, by the plugin's
     stop hook within a round or by a resume, before the task ends `invalid_output`; 0
     sends none back.
+    `max_continuations`: 0 to 10 (default 0): how many times a round of a launch that stopped on
+    its `max_turns` goes on in the same session, with the whole budget again, before the
+    launch ends on `max_turns` and moves to the next hop.
+    `max_turns_growth`: 1 to 10 (default 1): what each fresh attempt multiplies `max_turns` by
+    (the n-th has `max_turns * max_turns_growth ** n`, rounded up). At 1 a task whose attempt
+    ended on `max_turns` gets no fresh attempt, as the same budget would stop it again.
     """
     # The task table keys, as given (`TASK_KEYS`: a test holds them equal to these parameters).
     given = locals()

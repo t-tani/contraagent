@@ -92,7 +92,8 @@ def is_timeout(value: object) -> bool:
 class Limits:
     """The budget of one launch: the turn, time, cost and stall caps that stop it.
 
-    `timeout_s` / `max_turns` / `max_budget_usd` go to the CLI. `timeout_s` is a
+    `max_turns` caps the launch's turns, a turn being one response of its model
+    (`backends.wire`). `timeout_s` / `max_turns` / `max_budget_usd` go to the CLI. `timeout_s` is a
     finite number of seconds above 0: every launch has a deadline.
     `context_budget` (per-call input ceiling: resident + accumulated reads)
     and `stall_s` are enforced by the wrapper watching the stream.
@@ -127,6 +128,29 @@ class Limits:
                 raise ValueError(f"context_warn_pct = {self.context_warn_pct!r} is not a whole percent from 1 to 99")
             if not self.context_budget:
                 raise ValueError("context_warn_pct needs a context_budget: it is a percent of it")
+
+    def reached(self, result: LaunchResult) -> str:
+        """What a launch that stopped on one of these caps spent of it, with the cap, for its
+        reason (`81 turns, max_turns 80`); '' for another stop. Over folded rounds, each of
+        which had the whole budget, it says how many."""
+        stop, n = result.stop, result.rounds or 1
+        rounds = f" in {n} rounds" if n > 1 else ""
+        if stop is Stop.MAX_TURNS and self.max_turns is not None:
+            spent = f"{result.num_turns} turns{rounds}, " if result.num_turns is not None else ""
+            return f"{spent}max_turns {self.max_turns}"
+        if stop is Stop.TIMEOUT:
+            return f"{result.wall_s:.0f}s{rounds}, timeout_s {self.timeout_s:g}"
+        if stop is Stop.STALLED and self.stall_s is not None:
+            return f"no transcript line for stall_s {self.stall_s:g}"
+        if stop is Stop.BUDGET and self.max_budget_usd is not None:
+            spent = f"{result.cost_usd:.4g} USD{rounds}, " if result.cost_usd is not None else ""
+            return f"{spent}max_budget_usd {self.max_budget_usd:g}"
+        if stop is Stop.CONTEXT and self.context_budget is not None:
+            peak = result.peak_context
+            return (f"peak context {peak}, " if peak is not None else "") + f"context_budget {self.context_budget}"
+        if stop is Stop.DENIED and self.max_denials is not None:
+            return f"{len(result.permission_denials)} permission denials, max_denials {self.max_denials}"
+        return ""
 
     def context_warned(self, peak_context: int | None) -> bool:
         """Whether a launch with this `peak_context` passed `context_warn_pct`% of
@@ -374,6 +398,9 @@ class LaunchResult:
     started_at: str = ""
     wall_s: float = 0.0
     exit_code: int | None = None
+    #: True when contraagent stopped the process, for `stop` (a budget, a refused
+    #: credential): a signal in `exit_code` is then its own, not one from outside the run.
+    killed: bool = False
     cli_version: str = ""
     argv: list[str] = field(default_factory=list)
     model: str = ""
@@ -419,11 +446,14 @@ class LaunchResult:
     raw_result: dict[str, Any] = field(default_factory=dict)
     # Output-file contract (`contraagent._internal.contracts.contract`): rounds spent (1 when
     # the first answer was on-contract; None when the launch carried no
-    # contract), and the errors of each round that failed its checks, in
+    # contract and no continuation), and the errors of each round that failed its checks, in
     # order: each was sent back as the next round, and when the launch
     # ended `INVALID_OUTPUT` the last is what still stood.
     rounds: int | None = None
     round_errors: list[list[str]] = field(default_factory=list)
+    #: The continuation rounds among `rounds`: each resumed the session after a round that
+    #: stopped on its turn cap (`run_checked(max_continuations=)`).
+    continuations: int = 0
     #: What each round cost on its own, in order (None for a round that reported no cost):
     #: `cost_usd` is their sum. Empty without a contract.
     round_costs: list[float | None] = field(default_factory=list)
@@ -431,7 +461,7 @@ class LaunchResult:
     #: (`OutputContract.unwrap`); the whole message is kept beside the output file.
     unwrapped: bool = False
     #: What the plugin's stop hook sent back within the launch, before the agent
-    #: ended its turn: one list of errors per time it objected, each a correction.
+    #: stopped: one list of errors per time it objected, each a correction.
     hook_errors: list[list[str]] = field(default_factory=list)
     #: The `Limits.context_budget` the launch ran under, and whether its peak context passed
     #: `Limits.context_warn_pct`% of it (`Limits.context_warned`; over folded rounds and
@@ -514,6 +544,7 @@ class LaunchResult:
             "result_head": self.result_text[:200],
             "stderr_tail": self.stderr_tail[-300:],
             "rounds": self.rounds,
+            "continuations": self.continuations,
             "round_errors": [errors[:10] for errors in self.round_errors],
             "round_costs": list(self.round_costs),
             "unwrapped": self.unwrapped,

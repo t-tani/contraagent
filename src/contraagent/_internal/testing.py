@@ -138,18 +138,18 @@ class StubLaunch:
     #: The launch's LLM (the route's model on a failover hop).
     model: str
     role: str | None
-    #: 1-based count of this task's replies in this run: correction rounds, retries, hops and replies in a turn all count.
+    #: 1-based count of this task's replies in this run: correction rounds, retries, hops and replies within a launch all count.
     n: int
-    #: True for a correction round: the same session, sent the failed checks.
+    #: True for a resumed round: a correction round, sent the failed checks, or a continuation round.
     resumed: bool
-    #: The launch's prompt, or for a reply within the turn what the stop hook said.
+    #: The launch's prompt, or for a reply within the launch what the stop hook said.
     prompt: str
     call: CallFile = field(repr=False)
     #: The `Launch` itself: its budget (`limits`), `env`, `plugin_dirs`, credential, working
     #: directory (`cwd`) and MCP servers file (`mcp_config`, there while the launch runs).
     launch: Launch = field(repr=False)
-    #: True for a reply within the launch, after a stop hook sent the output back.
-    in_turn: bool = False
+    #: True for a reply within the round, after a stop hook sent the output back.
+    in_round: bool = False
 
 
 @dataclass(frozen=True)
@@ -269,7 +269,7 @@ class StubAgent(Backend):
         call = CallFile.read(call_path)
         self.mark_launch(launch)
         self._tool(launch, f"{call.key}-read", "Read", str(call_path), json.dumps(call.params, ensure_ascii=False)[:2000])
-        record = self._record(launch, call, prompt=launch.prompt, in_turn=False)
+        record = self._record(launch, call, prompt=launch.prompt, in_round=False)
         message: list[str] = []  # the final message, for an output taken from it
         reply = self._play(launch, call, record, message)
         fixed = self._fixed_example(record) and reply.stop is Stop.COMPLETED and call.output is not None
@@ -280,14 +280,13 @@ class StubAgent(Backend):
             try:
                 said = self._stop_hooks(launch, active=bool(objections), deadline=started + launch.limits.timeout_s)
             except _PastTimeout:
-                reason = f"stub: past timeout_s ({launch.limits.timeout_s:g}s) while a Stop hook ran"
-                reply = dataclasses.replace(reply, stop=Stop.TIMEOUT, reason=reason)
+                reply = dataclasses.replace(reply, stop=Stop.TIMEOUT, reason="stub: a Stop hook was running")
                 break
             if said is None or len(objections) >= left:  # a hook that ignores both is held to the budget
                 break
             objections.append(feedback_errors(said))
             self._text(launch, f"stop hook: {said}")
-            reply = self._play(launch, call, self._record(launch, call, prompt=said, in_turn=True), message)
+            reply = self._play(launch, call, self._record(launch, call, prompt=said, in_round=True), message)
         self._text(launch, message[-1] if message else f"stub: {_describe(reply)}")
         result = self._result(launch, started, reply)
         result.hook_errors = objections
@@ -298,7 +297,7 @@ class StubAgent(Backend):
                 self._example_sessions.add(result.session_id)
         return result
 
-    def _record(self, launch: Launch, call: CallFile, *, prompt: str, in_turn: bool) -> StubLaunch:
+    def _record(self, launch: Launch, call: CallFile, *, prompt: str, in_round: bool) -> StubLaunch:
         with self._lock:
             n = self._counts[call.run, call.key] = self._counts.get((call.run, call.key), 0) + 1
             record = StubLaunch(
@@ -310,11 +309,11 @@ class StubAgent(Backend):
                 model=launch.model,
                 role=launch.role,
                 n=n,
-                resumed=bool(launch.resume) and not in_turn,
+                resumed=bool(launch.resume) and not in_round,
                 prompt=prompt,
                 call=call,
                 launch=launch,
-                in_turn=in_turn,
+                in_round=in_round,
             )
             self.launches.append(record)
         return record
@@ -333,7 +332,7 @@ class StubAgent(Backend):
                     return writes_nothing()  # the example of a task with no output
                 return fails(reason=f"stub: {call.key} declares no output, but its reply writes one")
             if reply.output is _EXAMPLE:
-                if record.resumed or record.in_turn:
+                if record.resumed or record.in_round:
                     # The same value again cannot pass: the checks that refused it are not the schema's.
                     return fails(reason=f"stub: the example of {call.key} fails its checks; script a reply for it")
                 schema = call.output.json_schema
@@ -357,12 +356,12 @@ class StubAgent(Backend):
 
     def _stop_hooks_file(self) -> str | None:
         """The rendered hooks file whose Stop hooks the coding agent this stub plays runs,
-        continuing its turn when one objects (`Backend.stop_hooks_file`); None when it does not."""
+        going on with the launch when one objects (`Backend.stop_hooks_file`); None when it does not."""
         cls = backend_class(self.name)
         return cls.stop_hooks_file if cls is not None else None
 
     def _continues_on_stop_hook(self) -> bool:
-        """Whether the coding agent this stub plays continues its turn when a stop hook objects."""
+        """Whether the coding agent this stub plays goes on with the launch when a stop hook objects."""
         return self._stop_hooks_file() is not None
 
     def _stop_hooks(self, launch: Launch, *, active: bool, deadline: float) -> str | None:

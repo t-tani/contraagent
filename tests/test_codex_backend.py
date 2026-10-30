@@ -42,36 +42,38 @@ if mode == "auth":
 if mode == "quota":
     out({"type": "turn.failed", "error": {"message": "You've hit your usage limit. Try again in 3 hours."}})
     sys.exit(1)
+home = pathlib.Path(os.environ.get("CODEX_HOME") or pathlib.Path.home() / ".codex")
+d = home / "sessions" / "2026" / "10" / "15"
+def rollout(*lines):
+    # Written as codex writes it: each call's `token_count` once the call has ended.
+    if mode == "no-rollout":
+        return
+    d.mkdir(parents=True, exist_ok=True)
+    with open(d / f"rollout-2026-10-15T00-17-56-{thread}.jsonl", "a") as f:
+        for line in lines:
+            f.write(json.dumps(line) + "\n")
+def tc(i, c, w, o, limits=None):
+    return {"type": "event_msg", "payload": {"type": "token_count", "info": {"last_token_usage": {
+        "input_tokens": i, "cached_input_tokens": c, "cache_write_input_tokens": w, "output_tokens": o},
+        "model_context_window": 258400},
+        "rate_limits": limits or {"primary": None, "secondary": None}}}
+# Each response's `token_usage_record` as it ends; its call's `token_count` after its tools ran.
+turn = {"type": "token_usage_record", "payload": {"thread_id": thread}}
+rollout({"type": "session_meta", "payload": {"id": thread, "cli_version": "0.162.1"}},
+        {"type": "turn_context", "payload": {"model": "gpt-5.6-luna"}}, turn)
 out({"type": "item.started", "item": {"id": "item_1", "type": "command_execution", "command": "bash -lc 'cat a.txt'",
      "aggregated_output": "", "exit_code": None, "status": "in_progress"}})
 out({"type": "item.completed", "item": {"id": "item_1", "type": "command_execution", "command": "bash -lc 'cat a.txt'",
      "aggregated_output": "hi\n", "exit_code": 0, "status": "completed"}})
+windows = {"primary": {"used_percent": 42.0, "window_minutes": 300, "resets_at": 1791991076},
+           "secondary": {"used_percent": 7.5, "window_minutes": 10080, "resets_at": 1792500000}}
+rollout(tc(8511, 0, 8509, 192), turn, tc(8729, 8509, 218, 5, windows))
 out({"type": "item.completed", "item": {"id": "item_2", "type": "web_search", "query": "python release"}})
 out({"type": "item.completed", "item": {"id": "item_3", "type": "agent_message", "text": os.environ.get("FAKE_TEXT", "DONE")}})
 # The thread's totals so far: FAKE_TURNS launches of the same two calls.
 n = int(os.environ.get("FAKE_TURNS", "1"))
 out({"type": "turn.completed", "usage": {"input_tokens": 17240 * n, "cached_input_tokens": 8509 * n,
      "cache_write_input_tokens": 8727 * n, "output_tokens": 197 * n}})
-if mode == "no-rollout":
-    sys.exit(0)
-home = pathlib.Path(os.environ.get("CODEX_HOME") or pathlib.Path.home() / ".codex")
-d = home / "sessions" / "2026" / "10" / "15"
-d.mkdir(parents=True, exist_ok=True)
-def tc(i, c, w, o, limits=None):
-    return {"type": "event_msg", "payload": {"type": "token_count", "info": {"last_token_usage": {
-        "input_tokens": i, "cached_input_tokens": c, "cache_write_input_tokens": w, "output_tokens": o},
-        "model_context_window": 258400},
-        "rate_limits": limits or {"primary": None, "secondary": None}}}
-lines = [
-    {"type": "session_meta", "payload": {"id": thread, "cli_version": "0.162.1"}},
-    {"type": "turn_context", "payload": {"model": "gpt-5.6-luna"}},
-    tc(8511, 0, 8509, 192),
-    tc(8729, 8509, 218, 5, {"primary": {"used_percent": 42.0, "window_minutes": 300, "resets_at": 1791991076},
-                            "secondary": {"used_percent": 7.5, "window_minutes": 10080, "resets_at": 1792500000}}),
-]
-with open(d / f"rollout-2026-10-15T00-17-56-{thread}.jsonl", "a") as f:
-    for line in lines:
-        f.write(json.dumps(line) + "\n")
 """
 
 
@@ -292,9 +294,15 @@ def test_a_failed_turn_is_read_by_the_shapes_codex_prints(message, stop):
     assert reader.stop(exit_code=1, killed=None) is stop
 
 
-def test_a_tool_call_past_max_turns_ends_the_launch(fake):
+def test_a_turn_past_max_turns_ends_the_launch_as_it_ends(fake):
+    """The rollout file is read while codex writes it: its second turn is past a cap of one."""
     _, r, _ = fake(limits=Limits(timeout_s=30, max_turns=1))
-    assert r.stop is Stop.MAX_TURNS and not r.ok
+    assert r.stop is Stop.MAX_TURNS and not r.ok and r.killed and r.num_turns == 2
+
+
+def test_a_launch_counts_its_turns_in_the_rollout(fake):
+    _, r, _ = fake(limits=Limits(timeout_s=30, max_turns=2))
+    assert r.ok and r.num_turns == 2 and not r.killed
 
 
 def test_a_launch_writes_temporary_files_in_its_own_directory_not_in_tmp(fake, tmp_path, monkeypatch):

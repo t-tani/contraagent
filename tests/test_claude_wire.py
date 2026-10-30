@@ -91,18 +91,17 @@ def test_an_event_whose_reading_fails_is_skipped_and_counted(version):
     assert result.stop == Stop.COMPLETED and result.tool_uses == {"Read": 1, "Bash": 1} and result.cost_usd
 
 
+@pytest.mark.parametrize("version", VERSIONS)
+def test_a_turn_is_one_response_whatever_its_tool_calls_and_a_subagent_s_are_none(version):
+    """The recording's first response asks for two tools, each block its own event."""
+    evs = events(version)
+    assert read(evs).num_turns == 2
+    usage = {"input_tokens": 1, "output_tokens": 1}
+    sub = {"type": "assistant", "parent_tool_use_id": "toolu_1", "message": {"id": "sub", "content": [], "usage": usage}}
+    assert read([*evs[:-1], sub, evs[-1]]).num_turns == 2
+
+
 def test_a_boolean_is_not_an_integer():
-    result = read(
-        [
-            {
-                "type": "result",
-                "subtype": "success",
-                "is_error": False,
-                "num_turns": True,
-                "session_id": "s",
-                "total_cost_usd": 0,
-                "usage": {},
-            }
-        ]
-    )
-    assert result.unread_events == {"result.num_turns": 1}
+    usage = {"input_tokens": True, "output_tokens": 1}
+    result = read([{"type": "assistant", "message": {"id": "m", "content": [], "usage": usage}}])
+    assert result.unread_events == {"assistant.message.usage.input_tokens": 1}

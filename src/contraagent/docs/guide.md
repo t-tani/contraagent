@@ -142,7 +142,7 @@ for another port).
   hook that continues the session, so on opencode and pi the runner's check and a
   correction round alone hold the output to its contract; Codex runs no light
   launch and enforces no `max_budget_usd`; only Claude Code and opencode enforce
-  `context_budget`; pi does not enforce `max_turns`.
+  `context_budget`.
 - A credential rests on a quota only where its coding agent reports quota
   readings, or contraagent reads them: Claude Code, omp, Codex with a ChatGPT
   login, and opencode and pi for an `opencode-go` model, through the OpenCode Go

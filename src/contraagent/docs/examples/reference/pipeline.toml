@@ -58,6 +58,8 @@ max_denials = 5                     # stop a launch after this many permission d
 # What a launch stopped for its time wrote is a partial result when it passes its checks.
 partial_on = ["timeout", "stalled"]  # stops after which the output is kept; outranks agent_task(..., partial_on=)
 max_corrections = 2                 # 0 to 20 (default 3): how many times in all an output that fails its checks goes back to the session with the errors, by the stop hook or a resume
+max_continuations = 1               # 0 to 10 (default 0): how many times a launch stopped on max_turns goes on in the same session, with the whole budget again
+max_turns_growth = 2.0              # 1 to 10 (default 1): what each fresh attempt multiplies max_turns by; at 1, max_turns gets no fresh attempt
 # Scheduling and retries.
 max_concurrent = 2                  # tasks of this kind at once (the run's own cap still applies)
 retries = 2                         # fresh-session attempts after the first, each after one that made no progress

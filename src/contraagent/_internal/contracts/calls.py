@@ -12,7 +12,7 @@ skills, hooks); what changes per task is data. The runner writes that data to
 
 The same file is what the plugin's Stop hook reads (`contraagent call validate`,
 found through `CONTRAAGENT_CALL`), so the agent checks its output against the
-same schema and the same command validators the runner checks after the turn.
+same schema and the same command validators the runner checks after the launch.
 """
 
 from __future__ import annotations
