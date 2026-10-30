@@ -27,7 +27,9 @@ const viewLabel = (): Record<TaskView, string> => ({
 });
 
 /**
- * One task: who ran it, every finished attempt, and four views of it: the
+ * One task: a short header (its name, how it ended, a line of facts); the rest
+ * about it (who ran it, every finished attempt), beside the views on a wide view
+ * and under the facts line, while open, on a narrow one; and four views of it: the
  * transcript (live), its input (params, upstream outputs, declared inputs, the
  * prompt), its output (files against their contracts, the result, who uses it)
  * and its definition. Sends `ca-navigate` with `view` or `round`, and
@@ -65,6 +67,8 @@ export class CaTaskView extends LitElement {
   @state() private launches: (LaunchEvent | null)[] = [];
   @state() private shownRound = -1;
   @state() private rounds: RoundInfo[] = [];
+  /** The rest about the task is shown under its header (a narrow view; a wide one shows it beside the views). */
+  @state() private more = false;
   /** What happened to every task of the run (`deriveRun` of `journal` and `plan`), by key. */
   private outcomes: ReadonlyMap<string, TaskOutcome> = new Map();
 
@@ -110,8 +114,8 @@ export class CaTaskView extends LitElement {
       replayMarks: this.replayMarks,
     };
     const view = this.shownView(d);
-    return html`${taskHeader(c, key, (q, nth) => this.revealSearch(q, nth))} ${this.renderViews(d, view)}
-      ${d.stream
+    return html`<div class="tv">${taskHeader(c, key, (q, nth) => this.revealSearch(q, nth), this.more, () => (this.more = !this.more))} ${this.renderViews(d, view)}
+      <div class="body">${d.stream
         ? html`<ca-transcript .run=${this.run} .stream=${d.stream} base-url=${this.baseUrl} .client=${this.client} .live=${c.live} .shownWho=${taskWho(c)}
             .rows=${d.rows} .round=${this.round} mode=${view === 'transcript' ? 'full' : view === 'input' ? 'tabs' : 'none'}
             @ca-rounds=${(e: CustomEvent<RoundsChangedDetail>) => {
@@ -122,7 +126,7 @@ export class CaTaskView extends LitElement {
         : view === 'transcript'
           ? noTranscript(c)
           : nothing}
-      ${view !== 'transcript' ? html`<div class="pane">${this.renderPane(c, view)}</div>` : nothing}`;
+      ${view !== 'transcript' ? html`<div class="pane">${this.renderPane(c, view)}</div>` : nothing}</div></div>`;
   }
 
   private renderViews(d: TaskDetail, view: TaskView) {

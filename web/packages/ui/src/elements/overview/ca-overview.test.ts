@@ -46,17 +46,18 @@ afterEach(() => document.body.replaceChildren());
 
 describe('ca-overview', () => {
   it('puts the run, its problems and its outputs in one band, before the pipeline', async () => {
-    const root = await overview({ journal: [row('a', true)] });
+    const root = await overview({ journal: [row('a', false)] });
     expect(statusCards(root)).toEqual(['Run', 'Problems', 'Outputs']);
     expect(headings(root).indexOf('Problems')).toBeLessThan(headings(root).indexOf('Pipeline'));
     expect(headings(root).at(-1)).toBe('Timeline');
   });
 
-  it('says there is no problem in one line, its mark beside the word and hidden from screen readers', async () => {
+  it('with nothing wrong, says so in the run card: no problems and the outputs, in a line each, and no card of their own', async () => {
     const root = await overview({ journal: [row('a', true)] });
-    const problems = root.querySelector('.problems')!;
-    expect(problems.querySelector('.blank')).toBeNull();
-    const ok = problems.querySelector('.ok')!;
+    expect(statusCards(root)).toEqual(['Run']);
+    const lines = root.querySelector('.clean-lines')!;
+    expect(lines.querySelector('.blank')).toBeNull();
+    const ok = lines.querySelector('.ok')!;
     expect(ok.textContent?.trim()).toBe('✓No problems'); // the mark and the word, apart by the line's gap
     expect(ok.querySelector('[aria-hidden="true"]')?.textContent).toBe('✓');
   });
@@ -98,9 +99,15 @@ describe('ca-overview', () => {
     const root = await overview({ journal: [row('a', true)] });
     const went: unknown[] = [];
     root.host.addEventListener('ca-navigate', (e) => went.push((e as CustomEvent).detail));
-    root.querySelector<HTMLAnchorElement>('.outputs h3 a.hl')!.click();
+    root.querySelector<HTMLAnchorElement>('.clean-out a.hl')!.click();
     expect(went).toEqual([{ tab: 'outputs' }]);
-    expect(root.querySelector('.outputs h3 .r')).toBeNull();
+    document.body.replaceChildren();
+    const failed = await overview({ journal: [row('a', false)] });
+    const to: unknown[] = [];
+    failed.host.addEventListener('ca-navigate', (e) => to.push((e as CustomEvent).detail));
+    failed.querySelector<HTMLAnchorElement>('.outputs h3 a.hl')!.click();
+    expect(to).toEqual([{ tab: 'outputs' }]);
+    expect(failed.querySelector('.outputs h3 .r')).toBeNull();
   });
 
   it('shows no running tasks for a run that is over: its state says so', async () => {

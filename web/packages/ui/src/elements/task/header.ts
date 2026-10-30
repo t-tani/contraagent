@@ -1,5 +1,5 @@
-// The top of `ca-task-view`: the task's name and status, who ran it, what it
-// spent, and a chip per finished attempt.
+// The top of `ca-task-view`: the task's name, how it ended and a line of facts;
+// then the rest about it (who ran it, what it spent, a chip per finished attempt).
 import { deferredIn, isLaunched, runReadings, runRelative, spendOf, tryQuota, type JournalRow, type Spend } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
 import { html, nothing, type TemplateResult } from 'lit';
@@ -101,10 +101,6 @@ function streamModel(c: Pick<TaskContext, 'launches'>): string {
   return '';
 }
 
-/**
- * The header of task `key`. `onSearch(query, nth)` is called when the reader
- * picks one of its web searches (the nth with that query).
- */
 /** Who ran the task, as its header names it: the running session's agent, model and role, else the latest attempt's. */
 export function taskWho(c: Pick<TaskContext, 'detail' | 'launches'>): Who {
   const { rows, launches } = c.detail;
@@ -118,7 +114,19 @@ export function taskWho(c: Pick<TaskContext, 'detail' | 'launches'>): Who {
   };
 }
 
-export function taskHeader(c: TaskContext, key: string, onSearch: (query: string, nth: number) => void): TemplateResult {
+/** The one-word states a verdict can be: said on the facts line rather than on a line of their own. */
+const plainVerdicts = (c: TaskContext): Set<string> =>
+  new Set([msg('Running'), msg('Waiting'), msg('Skipped'), msg('Not started'), msg('Partly done'), msg('Done'), outcomeLabel(stateOf(c))]);
+
+/**
+ * The header of task `key`: its name; how it ended, when that takes more than a word;
+ * and one line of facts (the state, the coding agent, the model, the cost, the time).
+ * Under them, `.tm-more`: everything else about the task. A narrow view shows it while
+ * `open`, the facts line being its button (`toggle`); a wide one beside the views.
+ * `onSearch(query, nth)` is called when the reader picks one of its web searches (the
+ * nth with that query).
+ */
+export function taskHeader(c: TaskContext, key: string, onSearch: (query: string, nth: number) => void, open: boolean, toggle: () => void): TemplateResult {
   const d = c.detail;
   const live = c.live;
   const { rows, launches } = d;
@@ -132,65 +140,75 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
   const unknownUsage = usageUnknownWords(usageUnknown(tries));
   const extras = Object.entries(d).filter(([k]) => !SHOWN_KEYS.has(k));
   const [verdictText, tone] = verdict(c);
+  const plain = plainVerdicts(c).has(verdictText);
   const kindName = py ? msg('Python task') : msg('Agent task');
   const node = c.plan?.nodes.find((n) => n.key === d.key);
+  const spend = spendOf(rows);
+  const wall = tries.reduce((t, r) => t + (r.wall_s || 0), 0);
+  const line = facts(plain ? verdictText : '', session ? who.agent : '', session ? who.model : '', spend ? usd(spend.cost) : '', tries.length ? fmtDur(wall) : '');
   return html`<div class="taskmeta">
-      <div class="tm-head">
-        ${executorIcon(py, kindName, `tm-av ${py ? 'py' : ''}`)}
-        <div style="min-width:0">
-          <div class="tm-name" title=${key}>${first ? kindUnit(first) : node ? kindUnit(node) : key.replace(/^python:/, '')} ${live ? pill({ text: msg('running'), tone: 'running' }) : nothing}</div>
-          <div class="verdict" data-tone=${toneAttr(tone)}>${verdictText}</div>
-          ${node?.claims?.length
-            ? html`<div class="meta" title=${locksTip()}>
-                ${locksLabel()} ${node.claims.map((text) => pill({ text }))}
-              </div>`
-            : nothing}
-          ${node?.priority ? html`<div class="meta" title=${priorityTip()}>${priorityText(node.priority)}</div>` : nothing}
-          ${node?.cwd ? html`<div class="meta" title=${workingDirectoryTip()}>${workingDirectoryText(node.cwd)}</div>` : nothing}
-          ${rerunMeta(rows, node?.rerun)}
-          ${stoppedFlowCalls(c)}
-          ${session
-            ? html`<div class="whos">
-                ${tagChips([...whoTags(who), ...identityTags(tries)])}
-                ${otherModels.length
-                  ? html`<span class="meta">${otherModels.length === 1
-                      ? msg(str`Earlier attempts used model ${otherModels[0] ?? ''}`)
-                      : msg(str`Earlier attempts used models ${listText(otherModels)}`)}</span>`
-                  : nothing}
-              </div>`
-            : nothing}
-          ${launches.length
-            ? html`<div class="meta">${launches.length === 1 ? msg('1 agent session running') : msg(str`${launches.length} agent sessions running`)}</div>`
-            : nothing}
-          ${spendLine(spendOf(rows), tries)}
-          ${quotaLine(c, tries)}
+      <div class="tm-top ${open ? 'open' : ''}">
+        <div class="tm-line" title=${key}>
+          ${executorIcon(py, kindName, `tm-av ${py ? 'py' : ''}`)}<span class="tm-name">${first ? kindUnit(first) : node ? kindUnit(node) : key.replace(/^python:/, '')}</span>
+          ${live ? pill({ text: msg('running'), tone: 'running' }) : nothing}
         </div>
+        ${plain ? nothing : html`<div class="verdict" data-tone=${toneAttr(tone)} title=${verdictText}>${verdictText}</div>`}
+        <button type="button" class="tm-facts tm-toggle" aria-expanded=${open ? 'true' : 'false'} aria-controls="tm-more" @click=${toggle}>
+          ${line}<span class="chev" aria-hidden="true">▾</span>
+        </button>
+        <div class="tm-facts tm-static">${line}</div>
       </div>
-      ${tries.length
-        ? html`<div class="runchips">${attemptNames(tries).map((name, i) => runChip(c, tries[i] as JournalRow, name, session, d.row_extras ?? []))}</div>`
-        : nothing}
-      ${customLine(tries, d.row_extras ?? [])}
-      ${searchFold(tries, onSearch)}
-      ${changesFold(tries)}
-      ${safetyFold(tries)}
-      ${unreadEvents(tries)
-        ? html`<div class="meta unread" title=${msg('Events this contraagent version could not read (unread_events)')}>
-            <span aria-hidden="true">⚠</span> ${msg(str`Unrecognized events: ${unreadEvents(tries)}`)}
-          </div>`
-        : nothing}
-      ${unknownUsage
-        ? html`<div class="meta unread" title=${unknownUsage.tip}><span aria-hidden="true">⚠</span> ${unknownUsage.label}</div>`
-        : nothing}
-      ${d.task_detail_error ? html`<div class="meta v-bad">${msg(str`The task_detail callback failed: ${d.task_detail_error ?? ''}`)}</div>` : nothing}
-      ${launches.map(
-        (lc) => html`<details class="launch">
-          <summary>${facts(msg(str`Process ${lc.pid ?? '—'}`), lc.key || '')}</summary>
-          <div class="meta">${facts(msg(str`Plugin ${lc.plugin || msg('none', { id: 'none', desc: 'An empty value' })}`), msg(str`Model ${lc.model || '—'}`), msg(str`Role ${lc.role || msg('none', { id: 'none', desc: 'An empty value' })}`))}</div>
-        </details>`,
-      )}
-      ${extras.map(
-        ([k, v]) => html`<details class="io-fold"><summary>${k}</summary><cae-json-tree .value=${v}></cae-json-tree></details>`,
-      )}
+      <div class="tm-more ${open ? 'open' : ''}" id="tm-more">
+        ${node?.claims?.length
+          ? html`<div class="meta" title=${locksTip()}>
+              ${locksLabel()} ${node.claims.map((text) => pill({ text }))}
+            </div>`
+          : nothing}
+        ${node?.priority ? html`<div class="meta" title=${priorityTip()}>${priorityText(node.priority)}</div>` : nothing}
+        ${node?.cwd ? html`<div class="meta" title=${workingDirectoryTip()}>${workingDirectoryText(node.cwd)}</div>` : nothing}
+        ${rerunMeta(rows, node?.rerun)}
+        ${stoppedFlowCalls(c)}
+        ${session
+          ? html`<div class="whos">
+              ${tagChips([...whoTags(who), ...identityTags(tries)])}
+              ${otherModels.length
+                ? html`<span class="meta">${otherModels.length === 1
+                    ? msg(str`Earlier attempts used model ${otherModels[0] ?? ''}`)
+                    : msg(str`Earlier attempts used models ${listText(otherModels)}`)}</span>`
+                : nothing}
+            </div>`
+          : nothing}
+        ${launches.length
+          ? html`<div class="meta">${launches.length === 1 ? msg('1 agent session running') : msg(str`${launches.length} agent sessions running`)}</div>`
+          : nothing}
+        ${spendLine(spend, tries)}
+        ${quotaLine(c, tries)}
+        ${tries.length
+          ? html`<div class="runchips">${attemptNames(tries).map((name, i) => runChip(c, tries[i] as JournalRow, name, session, d.row_extras ?? []))}</div>`
+          : nothing}
+        ${customLine(tries, d.row_extras ?? [])}
+        ${searchFold(tries, onSearch)}
+        ${changesFold(tries)}
+        ${safetyFold(tries)}
+        ${unreadEvents(tries)
+          ? html`<div class="meta unread" title=${msg('Events this contraagent version could not read (unread_events)')}>
+              <span aria-hidden="true">⚠</span> ${msg(str`Unrecognized events: ${unreadEvents(tries)}`)}
+            </div>`
+          : nothing}
+        ${unknownUsage
+          ? html`<div class="meta unread" title=${unknownUsage.tip}><span aria-hidden="true">⚠</span> ${unknownUsage.label}</div>`
+          : nothing}
+        ${d.task_detail_error ? html`<div class="meta v-bad">${msg(str`The task_detail callback failed: ${d.task_detail_error ?? ''}`)}</div>` : nothing}
+        ${launches.map(
+          (lc) => html`<details class="launch">
+            <summary>${facts(msg(str`Process ${lc.pid ?? '—'}`), lc.key || '')}</summary>
+            <div class="meta">${facts(msg(str`Plugin ${lc.plugin || msg('none', { id: 'none', desc: 'An empty value' })}`), msg(str`Model ${lc.model || '—'}`), msg(str`Role ${lc.role || msg('none', { id: 'none', desc: 'An empty value' })}`))}</div>
+          </details>`,
+        )}
+        ${extras.map(
+          ([k, v]) => html`<details class="io-fold"><summary>${k}</summary><cae-json-tree .value=${v}></cae-json-tree></details>`,
+        )}
+      </div>
     </div>`;
 }
 
@@ -266,7 +284,7 @@ function customLine(tries: JournalRow[], extras: readonly string[]) {
 }
 
 /**
- * The task's spend over all its attempts: cost, then tokens, then the largest peak
+ * The task's spend over all its attempts (its cost is on the facts line): tokens, then the largest peak
  * context of its attempts (with its share of the context limit, and its state when
  * an attempt passed the warning threshold). Nothing when none was reported.
  */
@@ -275,9 +293,8 @@ function spendLine(s: Spend | null, tries: JournalRow[]) {
   const peak = peakTry(tries);
   const warned = tries.find((r) => r.context_warned);
   return html`<div class="spend">
-    <b title=${msg('Reported by the coding agent')}>${usd(s.cost)}</b>
-    <span class="detail">${msg(str`Tokens: ${tokenCount(s.input)} input, ${tokenCount(s.output)} output, ${tokenCount(s.cache_read)} cache read, ${tokenCount(s.cache_creation)} cache write`)}</span>
-    <span class="detail">${s.calls === 1 ? msg('1 API call') : msg(str`${s.calls} API calls`)}</span>
+    <span>${msg(str`Tokens: ${tokenCount(s.input)} input, ${tokenCount(s.output)} output, ${tokenCount(s.cache_read)} cache read, ${tokenCount(s.cache_creation)} cache write`)}</span>
+    <span>${s.calls === 1 ? msg('1 API call') : msg(str`${s.calls} API calls`)}</span>
     ${peak ? html`<span title=${peakContextTip()}>${peakContextLine(peak)}</span>` : nothing}
     ${warned ? html`<span class="tone-text" data-tone="attention" title=${contextWarnedTip()}>${contextWarnedText(warned)}</span>` : nothing}
   </div>`;

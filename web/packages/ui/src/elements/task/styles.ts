@@ -2,27 +2,61 @@
 import { css } from 'lit';
 
 export const taskViewStyles = css`
-  /* At least as tall as its box: the header keeps its height and the shown view at least half the box (cqb), so a tall header makes the box scroll. */
+  /* The views come first: a short header, the view tabs, then the view, which takes the rest of the height. The rest
+     about the task (.tm-more) opens under the header on a narrow view and stands beside the views on a wide one. The view
+     is at least half as tall as the box around (cqb: the monitor's view), so what is open above it makes the box scroll. */
   :host { display: flex; flex-direction: column; flex: 1 0 auto; min-height: 0; position: relative; container-type: inline-size; }
-  ca-transcript[mode='full'], .pane, .notrans { flex: 1 0 0; min-height: 50cqb; }
-  /* a phone, upright or on its side (both sizes are the box's, the nearest container of both): the shown view and the view tabs above it take the whole box once the header is scrolled past */
-  @container (max-width: 600px) or (max-height: 600px) {
-    ca-transcript[mode='full'], .pane, .notrans { min-height: calc(100cqb - 44px); }
+  .tv { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr); }
+  .taskmeta { display: contents; }
+  .tm-top { grid-row: 1; }
+  .tm-more { grid-row: 2; }
+  .tviews { grid-row: 3; }
+  .body { grid-row: 4; }
+  .body { display: flex; flex-direction: column; min-height: 50cqb; }
+  .body > ca-transcript[mode='full'], .body > .pane, .body > .notrans { flex: 1 1 0; min-height: 0; }
+  /* a phone on its side (the height is the monitor's view's): the view takes the whole box once the header is scrolled past */
+  @container (max-height: 420px) {
+    .body { min-height: calc(100cqb - 44px); }
   }
-  .taskmeta { flex: none; background: linear-gradient(180deg, var(--panel2), var(--panel)); border: 1px solid var(--line);
-    border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; color: var(--text-2); }
-  .tm-head { display: flex; gap: 12px; align-items: center; }
-  .tm-av { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; font-size: 16px; flex: none;
+
+  .tm-top { padding: 0 2px 6px; color: var(--text-2); min-width: 0; }
+  .tm-line { font-size: 15px; font-weight: 600; color: var(--text); display: flex; gap: 8px; align-items: center; min-width: 0; }
+  .tm-name { min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+  .tm-av { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; font-size: 11px; flex: none;
     background: var(--agent-bg); color: var(--agent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--agent) 35%, transparent); }
   .tm-av.py { background: var(--raise); color: var(--text-muted); box-shadow: none; }
-  .tm-name { font-size: 15px; font-weight: 600; color: var(--text); display: flex; gap: 8px; align-items: center; }
-  .verdict { font-size: 12.5px; color: var(--text); margin-top: 2px; }
+  .verdict { font-size: 12.5px; color: var(--text); margin-top: 3px; overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+  .tm-facts { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .tm-toggle { background: none; border: 0; padding: 2px 0; cursor: pointer; font: inherit; font-size: 12px; text-align: start; }
+  .tm-toggle:hover { color: var(--text); }
+  .tm-toggle .chev { color: var(--text-muted); font-size: 10px; transition: transform 0.2s var(--ease); }
+  .tm-toggle[aria-expanded='true'] .chev { transform: rotate(180deg); }
+  .tm-static { display: none; }
+  /* the rest, open on a narrow view: a box under the header no taller than half the monitor's view, which scrolls */
+  .tm-more { display: none; background: linear-gradient(180deg, var(--panel2), var(--panel)); border: 1px solid var(--line);
+    border-radius: 12px; padding: 4px 12px 10px; margin: 0 0 8px; color: var(--text-2); max-height: 50cqb; overflow: auto; }
+  .tm-more.open { display: block; }
+  .tm-more > :first-child { margin-top: 6px; }
+  .tm-more .pill { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  /* open, the verdict shows whole */
+  .tm-top.open .verdict, .tm-top.open .tm-name { display: block; }
+  /* a wide view: the rest stands beside the views, as tall as they are, and scrolls on its own */
+  @container (min-width: 1100px) {
+    .tv { grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto auto minmax(0, 1fr); column-gap: 16px; }
+    .tm-top { grid-area: 1 / 1; }
+    .tm-top.open .verdict { display: -webkit-box; }
+    .tviews { grid-area: 2 / 1; }
+    .body { grid-area: 3 / 1; }
+    .tm-more { display: block; grid-area: 1 / 2 / -1 / 3; contain: size; max-height: none; margin: 0; }
+    .tm-toggle { display: none; }
+    .tm-static { display: flex; }
+  }
   .verdict[data-tone='failed'], .verdict[data-tone='attention'] { color: var(--tone); }
   .verdict[data-tone='muted'] { color: var(--text-muted); }
   .whos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
   .runchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .spend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-  .spend b { color: var(--text); font-weight: 600; }
   .spend.quota { flex-direction: column; gap: 0; }
   .usage-wrap { overflow-x: auto; margin: 4px 0 12px; }
   /* sized to its content (a full-width table spreads a few numbers far apart); the wrap scrolls when it is wider */
@@ -50,11 +84,9 @@ export const taskViewStyles = css`
   .qlink:hover { text-decoration: underline; }
 
   .tviews { flex: none; display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 8px; border-bottom: 1px solid var(--line); }
-  /* a phone: the view tabs stay on one line, and scroll sideways when they do not fit; the header keeps the task, how it ended, who ran it and the cost */
+  /* a phone: the view tabs stay on one line, and scroll sideways when they do not fit */
   @container (max-width: 480px) {
-    .tm-av, .spend > .detail, .spend.quota { display: none; }
-    .tm-name { font-size: 14px; overflow-wrap: anywhere; }
-    .tm-head .whos .tag-l { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .tm-line { font-size: 14px; }
     .tviews { gap: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
     .tview { padding: 6px 10px; flex: none; white-space: nowrap; }
   }

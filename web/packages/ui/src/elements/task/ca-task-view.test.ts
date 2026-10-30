@@ -342,7 +342,7 @@ describe('ca-task-view', () => {
     await el.updateComplete;
     expect(text(root(el).querySelector('.taskmeta'))).toBe('gone-x Loading…');
     await vi.waitFor(() => expect(text(root(el).querySelector('.tm-name'))).toBe('gone-x'));
-    expect(text(root(el).querySelector('.verdict'))).toBe('Waiting');
+    expect(text(root(el).querySelector('.tm-static'))).toBe('Waiting');
     el.remove();
   });
 
