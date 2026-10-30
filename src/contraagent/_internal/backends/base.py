@@ -314,6 +314,7 @@ class Backend(abc.ABC):
             failed.retryable = not isinstance(exc, SpawnRefused)
             return failed
         result = fold.result(launch, self.name, exit_code=exit_code, killed=killed)
+        result.killed = killed is not None
         result.argv = argv
         result.credential = launch.credential.label
         result.started_at = started_at
@@ -520,7 +521,7 @@ class Backend(abc.ABC):
         """`launch`, adjusted so the session it starts can be resumed.
 
         Called before the first launch of a run that may need a second
-        turn. Default: an omp-style per-launch `session_dir` — omp prints
+        round. Default: an omp-style per-launch `session_dir` — omp prints
         no session id in text mode, so the directory is the only handle,
         and a fresh one per launch keeps `--continue` from picking up a
         concurrent task's session.
@@ -530,10 +531,10 @@ class Backend(abc.ABC):
         return dataclasses.replace(launch, session_dir=temp_dir(f"{self.name}-session-"))
 
     def resumed(self, launch: Launch, prior: LaunchResult, prompt: str) -> Launch | None:
-        """The launch that sends `prompt` as the next turn of `prior`'s session.
+        """The launch that sends `prompt` as the next message of `prior`'s session.
 
         None when the session cannot be found again. The task context
-        (preamble, attached files) was delivered on the first turn and is
+        (preamble, attached files) was delivered in the first round and is
         already in the transcript, so it is not sent twice.
         """
         if launch.session_dir is None and not prior.session_id:

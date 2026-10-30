@@ -4,7 +4,7 @@ A validator is any callable `(path, value) -> errors`: `path` is the output
 file, `value` the parsed and schema-checked content (the model instance for a
 JSON output, the text for a text output), and the result an iterable of
 error strings (empty or None means the file passes). The errors go back to the
-agent exactly like schema errors: as the next turn of the same session.
+agent exactly like schema errors: as the next message of the same session.
 
     def has_points(path, summary: Summary):
         if not summary.points:
@@ -34,7 +34,7 @@ needs it:
 
 `CommandValidator` runs an external linter. Unlike a Python function it can be written
 into a task's call file, so the in-session Stop hook runs it too: the agent
-hears about it before it ends its turn, and the runner checks again after.
+hears about it before it stops, and the runner checks again after.
 `{call}` in its arguments is the call file, so a script can read the params.
 It is given no `before`: a command reads the file as it is.
 """

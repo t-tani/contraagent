@@ -173,19 +173,21 @@ def test_a_stop_hook_s_objection_is_read_from_the_continued_session(version):
 
 
 @pytest.mark.parametrize("version", VERSIONS)
-def test_max_turns_ends_a_launch_past_its_tool_calls(version):
-    """omp has no turn cap: contraagent counts the tool calls as they arrive, as for Codex."""
+def test_max_turns_ends_a_launch_as_the_turn_past_it_begins(version):
+    """omp has no turn cap: contraagent counts its turns, and the second `turn_start` is past
+    a cap of one, however many tool calls the first turn made in parallel."""
     from contraagent._internal.backends.wire import LimitsWatch
     from contraagent.backends import OmpBackend
     from contraagent.config import Limits
 
     assert "max_turns" in OmpBackend.watched_limits
     reader = TraceReader()
-    watch = LimitsWatch(Limits(max_turns=2), OmpBackend.watched_limits, reader)
+    watch = LimitsWatch(Limits(max_turns=1), OmpBackend.watched_limits, reader)
     stop = None
     for line in (FIXTURES / version / "json.jsonl").read_bytes().splitlines():
         stop = reader.feed_line(line) or watch()
         if stop is not None:
             break
-    assert stop == Stop.MAX_TURNS and sum(reader.tool_uses.values()) == 3
-    assert reader.result(LAUNCH, "omp", exit_code=None, killed=Stop.MAX_TURNS).stop == Stop.MAX_TURNS
+    assert stop == Stop.MAX_TURNS and sum(reader.tool_uses.values()) == 3 and reader.turns == 1
+    result = reader.result(LAUNCH, "omp", exit_code=None, killed=Stop.MAX_TURNS)
+    assert result.stop == Stop.MAX_TURNS and result.num_turns == 1

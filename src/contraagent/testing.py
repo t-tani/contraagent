@@ -51,12 +51,12 @@ script; a callable reply is given a `StubTask`. The kinds in `execute` (names or
 A preflight's probe (`Pipeline(preflight=)`) completes on every route the stub plays; a
 route the stub's `catalogue()` does not list is dropped as it is for a coding agent.
 
-Under a name whose coding agent continues its turn when a stop hook objects
+Under a name whose coding agent goes on with the launch when a stop hook objects
 (Claude Code, Codex, omp: `Backend.stop_hooks_file`), the stub does what that agent
 does: once it has written its output it runs the Stop hooks of the launch's
 plugins (their rendered `hooks/hooks.json`, `codex/hooks.json` or `omp/hooks.json`,
 with the agent's working directory and environment), and when one exits 2 it is sent
-the hook's message and replies again in the same launch (`StubLaunch.in_turn`). After
+the hook's message and replies again in the same launch (`StubLaunch.in_round`). After
 the first objection it sends the hooks `stop_hook_active` true, and it stops once the
 objections reach the corrections the round has left (`CONTRAAGENT_CORRECTIONS_LEFT`),
 even for a hook that reads neither. The

@@ -180,6 +180,11 @@ class Hop(RecordModel):
     credential: str = ""
     stop: str = ""
     wall_s: float = 0.0
+    #: The turns the hop's launch made (its rounds' summed); None when its reader could not count them.
+    num_turns: int | None = None
+    #: The budget the hop's launch ran under, each round of it: its turn cap and its deadline.
+    max_turns: int | None = None
+    timeout_s: float | None = None
     #: What the coding agent reported this hop cost, in USD; None when it reports none.
     cost_usd: float | None = None
     #: This hop's tokens (its rounds, and pool members tried on it, summed); None when it

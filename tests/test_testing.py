@@ -118,5 +118,5 @@ def test_a_stop_hook_past_the_launchs_timeout_ends_it_as_a_timeout(tmp_path, plu
     agent = StubAgent({"review": "text"})
     report = run(tmp_path, agent, lambda: review("a"))
     assert report.results["review-a"].stop == "timeout"
-    assert report.results["review-a"].reason == "stub: past timeout_s (1s) while a Stop hook ran"
+    assert report.results["review-a"].reason.endswith(", timeout_s 1: stub: a Stop hook was running")
     assert len(agent.launches) == 1

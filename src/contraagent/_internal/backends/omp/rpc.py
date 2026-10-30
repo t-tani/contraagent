@@ -44,7 +44,7 @@ from contraagent._internal.backends.wire import EventFold, LimitsWatch, positive
 from contraagent._internal.platform.commands import commands
 from contraagent._internal.platform.groups import KILL_AFTER_S, REAP_S, groups
 
-#: The id of the post-turn `get_state` request (`OmpRpcBackend._harvest_state`).
+#: The id of the `get_state` request after the prompt's run (`OmpRpcBackend._harvest_state`).
 STATE_REQUEST = "harvest-state"
 
 #: Frames of the RPC protocol itself, around the agent events: read here or ignored,
@@ -70,7 +70,7 @@ class RpcReader(TraceReader):
         #: The id of the launch's `prompt` request.
         self.prompt_id = prompt_id
         self.chunks: dict[str, dict] = {}
-        #: The turn is over.
+        #: The prompt's run is over (`agent_end`).
         self.done = False
         #: The `get_state` response arrived.
         self.state_seen = False
@@ -82,7 +82,7 @@ class RpcReader(TraceReader):
             self._chunk(ev)
         elif typ not in RPC_FRAMES:
             super().feed(ev)
-            # A nested turn's end (a subagent's) says isTerminal false: the prompt goes on.
+            # A subagent's `agent_end` says isTerminal false: the prompt goes on.
             if typ == "agent_end" and ev.get("isTerminal") is not False:
                 self.done = True
         elif typ == "response":
@@ -132,7 +132,7 @@ class RpcReader(TraceReader):
 
     def apply_state(self, data: dict) -> None:
         """The session id and the model's context window (`model.contextWindow`) from a
-        post-turn `get_state` (tokens and cost come from each assistant `message_end`)."""
+        `get_state` after the prompt's run (tokens and cost come from each assistant `message_end`)."""
         if data.get("sessionId"):
             self.session_id = str(data["sessionId"])
         model = data.get("model")
@@ -296,7 +296,7 @@ class OmpRpcBackend(OmpBackend):
         self, proc: subprocess.Popen, frames: queue.Queue, launch: Launch, fold: RpcReader, watch: LimitsWatch, deadline: float
     ) -> tuple[Stop | None, str]:
         """The handshake, the prompt and its frames, until `deadline`. The kill reason and
-        why, if one; None when the turn ended or its task was cancelled (`stopped_by`)."""
+        why, if one; None when the prompt's run ended or its task was cancelled (`stopped_by`)."""
         try:
             ready = self._next(frames, deadline, ("ready",))
         except TimeoutError:
@@ -339,7 +339,7 @@ class OmpRpcBackend(OmpBackend):
                 return stop
 
     def _harvest_state(self, proc: subprocess.Popen, frames: queue.Queue, fold: RpcReader, deadline: float) -> None:
-        """get_state after the turn: the session id and the model's context window. stdin
+        """get_state after the prompt's run: the session id and the model's context window. stdin
         closes right after the request: omp answers every command it took, then exits at
         that EOF (its RPC docs), so its response or the end of stdout comes. Frames before
         the response (late events, a chunked response) go to the reader. The launch's

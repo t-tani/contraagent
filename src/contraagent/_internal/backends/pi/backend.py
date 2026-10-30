@@ -176,8 +176,9 @@ class PiBackend(OpencodeKeyAccount, Backend):
     light_launch = True
     wire: ModuleType | None = pi_wire
     signals: Signals = pi_wire.SIGNALS
-    # pi's CLI has no cost cap: the cost of each API call, as its `message_end` reports it, summed.
-    watched_limits: frozenset[str] = frozenset({"max_budget_usd"})
+    # pi's CLI has no cost cap and no turn cap: the cost of each API call, as its
+    # `message_end` reports it, summed, and its `turn_start` events counted.
+    watched_limits: frozenset[str] = frozenset({"max_budget_usd", "max_turns"})
 
     @classmethod
     def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None:

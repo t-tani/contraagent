@@ -89,7 +89,7 @@ def test_a_recorded_launch_takes_each_call_from_the_rollout(version, tmp_path):
     r = read(events(version, "json"), rollout=read_rollout(first_rollout(version, tmp_path)))
     assert r.stop is Stop.COMPLETED and r.ok and r.result_text == "done"
     assert r.tool_uses == {"command_execution": 2} and r.unread_events == {}, "codex sends events this reader does not know"
-    assert r.usage_unknown == "" and len(r.usage.calls) == 3
+    assert r.usage_unknown == "" and len(r.usage.calls) == 3 and r.num_turns == 3
     assert totals(r) == turn_totals(turn_usage(version, "json")), "the calls add up to the printed totals"
     assert r.context_window and r.quota and r.cli_version == version and r.init_model == LAUNCH.model
 

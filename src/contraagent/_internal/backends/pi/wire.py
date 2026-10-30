@@ -100,7 +100,7 @@ class PiTraceReader(TraceReader):
         """The last assistant message decides. A refusal it reports comes first: a quota
         (429, or its words under any status) is `rate_limited`, 401/403 `auth_failed`, any
         other `api_error`; pi exits 0 after one, so the exit says nothing. A message that
-        ends the turn (`stop`) completes the launch, with or without text: a model that
+        ends the answer (`stop`) completes the launch, with or without text: a model that
         has written its output file may end on an empty message."""
         e = super().ending(exit_code=exit_code, killed=killed)
         e.failed = bool(self.api_error) and not e.text

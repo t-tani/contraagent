@@ -13,7 +13,8 @@ The events carry no per-call token counts, no model name and no account
 usage. The rollout file codex writes for a persisted session
 (`$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*-<thread id>.jsonl`) does: one
 `event_msg` `token_count` per API call (`last_token_usage`, the model's
-`model_context_window`, `rate_limits`), a `turn_context` with the model, and what a Stop
+`model_context_window`, `rate_limits`), one `token_usage_record` per response of the
+model (a turn), a `turn_context` with the model, and what a Stop
 hook sent back (a user message `<hook_prompt hook_run_id="...">text</hook_prompt>`, the
 text XML-escaped). `read_rollout` takes those. The rollout is codex's own file, in no
 documented form: the launch's calls from it are checked against the totals of
@@ -106,8 +107,8 @@ def tool_name(item: dict) -> str:
 
 class EventReader(EventFold):
     """One `--json` event at a time: the thread id, the final message, tool use, retries,
-    the end. The rollout file (`rollout`, read after the launch) adds per-call tokens,
-    the model, its context window and the plan's usage.
+    the end. The rollout file (`rollout`) adds per-call tokens, the turns, the model, its
+    context window and the plan's usage.
 
     `earlier` is the thread's `turn.completed` usage before this launch: {} for a new
     thread, the last launch's for a resumed one, None when that is not known (a thread
@@ -132,7 +133,9 @@ class EventReader(EventFold):
         self.errors: list[str] = []  # item `error`s and `error` events past their retries
         self.api_retries = 0
         self.retry_errors: dict[str, int] = {}
-        #: The session's rollout file, read after the launch (`CodexBackend.exchange`).
+        #: The session's rollout file, read while the launch runs (`tail`, `refresh`) and
+        #: once more after it (`CodexBackend.exchange`).
+        self.tail: RolloutTail | None = None
         self.rollout: Rollout | None = None
 
     @property
@@ -143,6 +146,12 @@ class EventReader(EventFold):
     def result_text(self) -> str:
         """The agent's last message: its answer."""
         return self.messages[-1] if self.messages else ""
+
+    def refresh(self) -> None:
+        """The turns so far, from the rollout file: the events mark none."""
+        rollout = self.tail.read(self.thread_id) if self.tail is not None and self.thread_id else None
+        if rollout is not None:
+            self.turns = rollout.turns
 
     def feed(self, ev: dict) -> Stop | None:
         self.saw_any = True
@@ -225,6 +234,7 @@ class EventReader(EventFold):
             hook_errors=list(rollout.hook_errors) if rollout is not None else [],
             raw_result={"usage": self.turn_usage} if self.turn_usage else {},
             usage_unknown=unknown,
+            num_turns=rollout.turns if rollout is not None and rollout.known else None,
         )
 
     def own_usage(self) -> dict | None:
@@ -276,6 +286,9 @@ class Rollout:
     context window, account usage."""
 
     calls: list[CallUsage] = field(default_factory=list)
+    #: The turns: one `token_usage_record` per response of the model, written as the
+    #: response ends, before its tool calls run (its call's `token_count` comes after them).
+    turns: int = 0
     #: True when a line of the file is one this reader knows (`session_meta`, `turn_context`,
     #: a `token_count`): the file is in the form it reads, and `calls` are all it holds.
     known: bool = False
@@ -286,6 +299,39 @@ class Rollout:
     quota: list[QuotaReading] = field(default_factory=list)
     #: What the plugin's Stop hook sent back within the launch: one list of errors per objection.
     hook_errors: list[list[str]] = field(default_factory=list)
+
+    def read_line(self, line: str) -> None:
+        """One line of the file: a line this reader does not know adds nothing."""
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            return
+        payload = ev.get("payload") if isinstance(ev, dict) else None
+        if not isinstance(payload, dict):
+            return
+        typ = ev.get("type")
+        if typ == "session_meta":
+            self.known = True
+            self.cli_version = str(payload.get("cli_version") or "")
+        elif typ == "response_item" and (said := hook_prompt(payload)) is not None:
+            self.hook_errors.append(feedback_errors(said))
+        elif typ == "token_usage_record":
+            self.turns += 1
+        elif typ == "turn_context":
+            self.known = True
+            self.model = str(payload.get("model") or self.model)
+        elif typ == "event_msg" and payload.get("type") == "token_count":
+            self.known = True
+            info = payload.get("info") or {}
+            last = info.get("last_token_usage")
+            if isinstance(last, dict):
+                self.calls.append(call_usage(last, self.model))
+            window = positive_int(info.get("model_context_window"))
+            if window is not None:
+                self.context_window = window
+            reading = quota_reading(payload.get("rate_limits") or {})
+            if reading is not None:
+                self.quota.append(reading)
 
 
 def hook_prompt(payload: dict) -> str | None:
@@ -363,7 +409,7 @@ def find_rollout(codex_home: Path, thread_id: str) -> Path | None:
 
 def read_rollout(path: Path, start: int = 0) -> Rollout:
     """Per-call tokens, the model, its context window and the plan's usage from one rollout file, from byte
-    `start` on: a resumed session appends to the file its earlier turns are in."""
+    `start` on: a resumed session appends to the file its earlier launches are in."""
     out = Rollout()
     try:
         with open(path, "rb") as f:
@@ -372,35 +418,43 @@ def read_rollout(path: Path, start: int = 0) -> Rollout:
     except OSError:
         return out
     for line in lines:
-        try:
-            ev = json.loads(line)
-        except ValueError:
-            continue
-        payload = ev.get("payload") if isinstance(ev, dict) else None
-        if not isinstance(payload, dict):
-            continue
-        typ = ev.get("type")
-        if typ == "session_meta":
-            out.known = True
-            out.cli_version = str(payload.get("cli_version") or "")
-        elif typ == "response_item" and (said := hook_prompt(payload)) is not None:
-            out.hook_errors.append(feedback_errors(said))
-        elif typ == "turn_context":
-            out.known = True
-            out.model = str(payload.get("model") or out.model)
-        elif typ == "event_msg" and payload.get("type") == "token_count":
-            out.known = True
-            info = payload.get("info") or {}
-            last = info.get("last_token_usage")
-            if isinstance(last, dict):
-                out.calls.append(call_usage(last, out.model))
-            window = positive_int(info.get("model_context_window"))
-            if window is not None:
-                out.context_window = window
-            reading = quota_reading(payload.get("rate_limits") or {})
-            if reading is not None:
-                out.quota.append(reading)
+        out.read_line(line)
     return out
+
+
+@dataclass
+class RolloutTail:
+    """A launch's rollout file, read while codex writes it, for the turns so far
+    (`EventReader.refresh`). `earlier` is the file of the thread a launch resumes, read from
+    byte `start` on (`read_rollout`); a new thread's file is found once its id is known."""
+
+    codex_home: Path
+    earlier: Path | None = None
+    start: int = 0
+    #: The file, once found, and the bytes of it already read.
+    path: Path | None = None
+    offset: int = 0
+    rollout: Rollout = field(default_factory=Rollout)
+
+    def read(self, thread_id: str, *, ended: bool = False) -> Rollout | None:
+        """The rollout so far; None while its file is not found. Only whole lines are read
+        while the launch runs (`ended` False): codex may be writing the last one."""
+        if self.path is None:
+            self.path = find_rollout(self.codex_home, thread_id)
+            if self.path is None:
+                return None
+            self.offset = self.start if self.path == self.earlier else 0
+        try:
+            with open(self.path, "rb") as f:
+                f.seek(self.offset)
+                data = f.read()
+        except OSError:
+            return self.rollout
+        whole = len(data) if ended else data.rfind(b"\n") + 1
+        for line in data[:whole].decode("utf-8", "replace").splitlines():
+            self.rollout.read_line(line)
+        self.offset += whole
+        return self.rollout
 
 
 def normalize_event(e: dict) -> dict | list[dict]:

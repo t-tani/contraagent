@@ -32,7 +32,7 @@ from typing import Any
 
 from contraagent._internal.backends.base import Backend
 from contraagent._internal.backends.credentials import AMBIENT, Credential, Pool
-from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
+from contraagent._internal.backends.launch import Launch, LaunchResult, Limits, Stop
 from contraagent._internal.backends.process import signal_of, stop_requested, stopped_by
 from contraagent._internal.contracts.contract import check_input, fold_spend, record_contracts, run_checked
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope, enriched
@@ -110,18 +110,27 @@ def telemetry_line(task: Task, run_id: str, role: str | None) -> str:
 NO_FAILOVER = frozenset({Stop.INVALID_INPUT.value, Stop.CREDENTIAL_MISMATCH.value})
 
 
+#: The stops after which no fresh attempt follows (`RetryingRunner`).
+NOT_RETRIED = frozenset({Stop.REFUSED.value, Stop.INVALID_INPUT.value, Stop.AUTH_FAILED.value, Stop.MAX_TURNS.value, STOP_CANCELLED})
+
+
 def _fails_over(result: TaskResult) -> bool:
     """A failed launch moves its task to the next hop, unless another hop cannot fix it
-    (`NO_FAILOVER`) or a signal ended it (the run is stopping)."""
+    (`NO_FAILOVER`) or a signal from outside ended it (the run is stopping)."""
     if result.ok or result.stop in NO_FAILOVER:
         return False
-    o = result.launch_result
-    return not (o is not None and signal_of(o.exit_code) is not None)
+    return not _signalled(result.launch_result)
 
 
-def _hop(label: str, result: TaskResult) -> Hop:
-    """One launch on one route: where it ran, how it ended (its launch's stop: `timeout` for
-    a partial result too) and what it spent. Taken before the hops
+def _signalled(o: LaunchResult | None) -> int | None:
+    """The signal that ended a launch from outside the runner (teardown, an interrupted
+    run), or None: a launch the runner stopped itself (`LaunchResult.killed`) has none."""
+    return signal_of(o.exit_code) if o is not None and not o.killed else None
+
+
+def _hop(label: str, result: TaskResult, limits: Limits) -> Hop:
+    """One launch on one route under `limits`: where it ran, how it ended (its launch's stop:
+    `timeout` for a partial result too), its budget and what it spent. Taken before the hops
     after it fold their spend into the attempt's, so each hop holds its own (its rounds,
     and pool members tried on it, included)."""
     o = result.launch_result
@@ -135,6 +144,9 @@ def _hop(label: str, result: TaskResult) -> Hop:
         credential=o.credential if o else "",
         stop=o.stop.value if o is not None else result.stop,
         wall_s=round(result.wall_s, 1),  # this hop, pool members tried on it included
+        num_turns=o.num_turns if o else None,
+        max_turns=limits.max_turns,
+        timeout_s=limits.timeout_s,
         cost_usd=o.cost_usd if o else None,
         usage=hop_usage,
         other_models=dict(o.other_models) if o is not None else {},
@@ -310,7 +322,7 @@ class AgentRunner:
             tools=tools,
             system_prompt=self.adapter.system_prompt(task),
             exclude_dynamic_sections=rc.exclude_dynamic_sections,
-            limits=rc.limits(),
+            limits=self.limits(task),
             credential=credential,
             env=env,
             cwd=self._cwd_of(task),
@@ -321,6 +333,10 @@ class AgentRunner:
             plugin_dirs=plugin_dirs,
             stream_path=self.run_dir / layout.stream(task.key) if self.keep_transcripts else None,
         )
+
+    def limits(self, task: Task) -> Limits:
+        """The budget of each launch of `task`: its kind's."""
+        return self.config(task).limits()
 
     def _cwd_of(self, task: Task) -> Path:
         """The task's working directory: its own (`Task.cwd`), else the runner's."""
@@ -546,7 +562,7 @@ class AgentRunner:
             o = result.launch_result
             if o is not None:
                 label = Route(o.agent, o.model, o.credential).label(1, 1)
-                result = replace(result, route=label, hops=(_hop(label, result),))
+                result = replace(result, route=label, hops=(_hop(label, result, self.limits(task)),))
             return result
         return self._run_with_failover(task, router)
 
@@ -593,7 +609,7 @@ class AgentRunner:
                 _logger.info(f"[route] {task.key}: starting on {label}; {router.label_of(router.routes[0])} rests after a 429")
             started = router.now()
             result = self._run_once(task, route)
-            trail.append(_hop(label, result))
+            trail.append(_hop(label, result, self.limits(task)))
             stopped = self._safety_failover(task, result)  # before the fold: this hop's own
             refused = result.stop == Stop.AUTH_FAILED and ran is not None
             # Tokens and cost of the hops before this one belong to the attempt too.
@@ -775,6 +791,9 @@ class AgentRunner:
         launch_result.context_budget = launch.limits.context_budget
         launch_result.context_warned = launch_result.context_warned or launch.limits.context_warned(launch_result.peak_context)
         reason = (launch_result.stderr_tail or "")[-200:].strip()
+        reached = launch.limits.reached(launch_result)
+        if reached:
+            reason = f"{reached}: {reason}" if reason else reached
         if launch_result.stop == Stop.INVALID_OUTPUT and launch_result.round_errors:
             reason = "; ".join(launch_result.round_errors[-1])[:240]
         if launch_result.stop == Stop.REFUSED and launch_result.result_text:
@@ -783,7 +802,7 @@ class AgentRunner:
             reason = launch_result.result_text.strip()[:240]
         # A signal-terminated process (exit code 128+N) is almost always
         # external (teardown, an interrupted run), not the task's own logic.
-        sig = signal_of(launch_result.exit_code)
+        sig = _signalled(launch_result)
         if sig is not None and not checked.partial:
             note = f"terminated by {signal.Signals(sig).name}"
             reason = f"{note}: {reason}" if reason else note
@@ -827,7 +846,8 @@ class RetryingRunner:
     backoff, up to the kind's `KindConfig.retries` of them after the first (`retries=2`:
     3 attempts at most); a safeguard refusal is not
     retried (the hop walk already tried every route), nor a task refused for its credential
-    (`auth_failed`: the credential rests for the run), nor a result that is not retryable
+    (`auth_failed`: the credential rests for the run), nor one stopped on its turn cap
+    (`max_turns`: the same budget stops it in the same place), nor a result that is not retryable
     (`TaskResult.retryable`: a command the operating system refused to start). This sits beside the
     queue's own `retry_on`, which covers a launch that never ran.
 
@@ -884,9 +904,9 @@ class RetryingRunner:
                     # completed task.
                     _logger.warning("[error] %s: on_attempt raised; the attempt's result stands", task.key, exc_info=True)
             # A refusal was already tried on every route; an off-contract input is the same
-            # file on the next attempt; a refused credential rests for the run. None is worth
-            # another launch.
-            if last.ok or last.stop in (Stop.REFUSED, Stop.INVALID_INPUT, Stop.AUTH_FAILED, STOP_CANCELLED) or not last.retryable:
+            # file on the next attempt; a refused credential rests for the run; the same turn
+            # cap stops the same work again. None is worth another launch.
+            if last.ok or last.stop in NOT_RETRIED or not last.retryable:
                 break
             if attempt + 1 < attempts:
                 time.sleep(self.backoff(rc.retry_backoff_base, attempt))

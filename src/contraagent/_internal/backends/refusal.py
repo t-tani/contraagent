@@ -140,7 +140,7 @@ class Ending:
     aborted: bool = False
     #: The agent stopped on its own cap (`max_turns`, `budget`).
     capped: Stop | None = None
-    #: The agent says the turn ended normally.
+    #: The agent says the launch ended normally.
     completed: bool = False
 
 
