@@ -48,7 +48,8 @@ export const monitorStyles = css`
   .api-error { flex: none; margin: 0; padding: 8px 18px; color: var(--status-failed); font: 12px var(--mono); overflow-wrap: anywhere; }
   .api-error:empty { padding: 0; }
   main { border-top: 1px solid var(--line); flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 18px 48px; }
-  main.stream { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 16px; }
+  /* the task view fills the view; a header taller than the room left for the transcript scrolls away above it (cqb: this box's height) */
+  main.stream { display: flex; flex-direction: column; overflow: hidden auto; padding-bottom: 16px; container-type: size; }
   /* too narrow for one line: the controls go under the name and the run button */
   @container ca-monitor (max-width: 1000px) {
     header { flex-wrap: wrap; row-gap: 8px; }

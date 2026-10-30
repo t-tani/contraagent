@@ -50,6 +50,15 @@ const CELLS = [
     .sub .q { color: var(--text-2); font-family: var(--mono); white-space: nowrap; }
     .jstop .sub { font-weight: 400; }
     .cost { font-variant-numeric: tabular-nums; color: var(--text-2); }
+    /* a phone: when it ended, the task in two lines at most and how it ended; the reason under them, across the row; the row says what each is without the column names */
+    @container (max-width: 560px) {
+      tr { min-width: 0; grid-template-columns: 58px minmax(0, 1fr) auto; padding: 7px 8px; }
+      [data-col='agent'], [data-col='tokens'], [data-col='cost'], [data-col='time'], [data-col^='x:'] { display: none; }
+      thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+      tbody [data-col='task'] { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+      tbody [data-col='reason'] { grid-column: 1 / -1; }
+      tbody [data-col='reason']:has(> .jwhy > .jdim:only-child) { display: none; }
+    }
   `,
 ];
 

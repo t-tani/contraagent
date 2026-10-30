@@ -25,7 +25,7 @@ export class CaSpendBreakdown extends LitElement {
     base,
     legendStyles,
     css`
-      :host { display: block; }
+      :host { display: block; container-type: inline-size; }
       /* the bar's track is bounded, so its figures stay beside it on a wide card */
       .kinds { display: grid; grid-template-columns: minmax(70px, max-content) minmax(0, 420px) max-content max-content; justify-content: start; gap: 8px 14px; align-items: center; }
       .kind { font-family: var(--mono); font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -41,6 +41,11 @@ export class CaSpendBreakdown extends LitElement {
       h4 { margin: 16px 0 6px; font-size: 12px; color: var(--text-2); font-weight: 600; }
       .top { display: grid; grid-template-columns: minmax(0, max-content) 64px 64px max-content; column-gap: 20px; row-gap: 4px; align-items: baseline; }
       .top a { font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      /* a phone: a task's name takes the row, its figures go under it */
+      @container (max-width: 420px) {
+        .top { grid-template-columns: 1fr max-content max-content; column-gap: 14px; }
+        .top a { grid-column: 1 / -1; white-space: normal; overflow-wrap: anywhere; margin-top: 4px; }
+      }
     `,
   ];
 

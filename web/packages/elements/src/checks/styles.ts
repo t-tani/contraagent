@@ -14,7 +14,7 @@ export const verdictStyles = css`
 
 /** Sized to its content, so a verdict sits next to the value it judges; a long value wraps. */
 export const checkTableStyles = css`
-  :host { display: block; max-width: 100%; }
+  :host { display: block; max-width: 100%; container-type: inline-size; }
   table { width: auto; max-width: 100%; border-collapse: collapse; }
   th { text-align: left; font-size: 11.5px; color: var(--text-muted);
     font-weight: 600; padding: 4px 20px 4px 0; border-bottom: 1px solid var(--line); }
@@ -26,6 +26,17 @@ export const checkTableStyles = css`
   td:first-child { font-weight: 600; overflow-wrap: anywhere; }
   td:last-child { white-space: nowrap; }
   i { font-style: normal; color: var(--text-muted); font-size: 11px; margin-left: 4px; }
+  /* a phone: one field a block, its name and verdict on the first line, what is expected and the value under them */
+  @container (max-width: 440px) {
+    table, tbody { display: block; }
+    thead { display: none; }
+    tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; row-gap: 2px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+    tbody tr:last-child { border-bottom: 0; }
+    td { padding: 0; border: 0; }
+    td:nth-child(1) { grid-area: 1 / 1; }
+    td:nth-child(2), td:nth-child(3) { grid-column: 1 / -1; }
+    td:nth-child(4) { grid-area: 1 / 2; }
+  }
   .js { color: var(--code-string); }
   .jn { color: var(--code-number); }
 `;

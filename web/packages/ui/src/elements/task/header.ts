@@ -276,8 +276,8 @@ function spendLine(s: Spend | null, tries: JournalRow[]) {
   const warned = tries.find((r) => r.context_warned);
   return html`<div class="spend">
     <b title=${msg('Reported by the coding agent')}>${usd(s.cost)}</b>
-    <span>${msg(str`Tokens: ${tokenCount(s.input)} input, ${tokenCount(s.output)} output, ${tokenCount(s.cache_read)} cache read, ${tokenCount(s.cache_creation)} cache write`)}</span>
-    <span>${s.calls === 1 ? msg('1 API call') : msg(str`${s.calls} API calls`)}</span>
+    <span class="detail">${msg(str`Tokens: ${tokenCount(s.input)} input, ${tokenCount(s.output)} output, ${tokenCount(s.cache_read)} cache read, ${tokenCount(s.cache_creation)} cache write`)}</span>
+    <span class="detail">${s.calls === 1 ? msg('1 API call') : msg(str`${s.calls} API calls`)}</span>
     ${peak ? html`<span title=${peakContextTip()}>${peakContextLine(peak)}</span>` : nothing}
     ${warned ? html`<span class="tone-text" data-tone="attention" title=${contextWarnedTip()}>${contextWarnedText(warned)}</span>` : nothing}
   </div>`;

@@ -94,7 +94,7 @@ export function toolCard(h: CardHost, c: ToolCard): TemplateResult {
       e.preventDefault();
       (e.currentTarget as HTMLElement).click();
     }}>
-      <span class="tn">${c.name || s.tool}</span><span class="tp">${c.summary}</span><span class="ti"
+      <span class="tn">${c.name || s.tool}</span><span class="tp">${c.summary}</span><span class="ti ${n ? '' : 'intent'}"
         >${n ? s.results(n) : c.intent}</span
       >${status}
     </div>
