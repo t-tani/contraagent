@@ -32,6 +32,15 @@ const CELLS = [
       tr { grid-template-columns: minmax(0, 1fr) 128px 90px; }
       [data-col='attempts'], [data-col='tokens'], [data-col='cost'], [data-col='ended'] { display: none; }
     }
+    /* a phone: the task takes two lines rather than be cut, and the time keeps its number without the bar; the row says what each is without the column names, and the locks stay in the task's header */
+    @container (max-width: 480px) {
+      tr { grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 12px; padding: 6px 8px; }
+      thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+      .grow .also { display: none; }
+      .wall .jdur { display: none; }
+      .grow { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+      .grow .jdim { margin-left: 4px; }
+    }
   `,
 ];
 

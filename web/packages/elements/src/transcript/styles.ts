@@ -1,7 +1,7 @@
 import { css } from 'lit';
 
 export const transcriptStyles = css`
-  :host { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; position: relative; }
+  :host { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; position: relative; container-type: inline-size; }
   :host([mode='none']) { display: none; }
   :host([mode='tabs']) { flex: none; }
   :host([mode='tabs']) .scroller, :host([mode='tabs']) .newpill { display: none; }
@@ -105,6 +105,22 @@ export const transcriptStyles = css`
   .dots i:nth-child(2) { animation-delay: 0.15s; }
   .dots i:nth-child(3) { animation-delay: 0.3s; }
   .scroller:not(.bulk) .msg, .scroller:not(.bulk) .toolcard { animation: enter 0.35s var(--ease) both; }
+
+  /* a phone: the cards start under the avatars, not after them, a tool's argument gets a line of its own, and what the agent meant by a call shows when its card is open */
+  @container (max-width: 520px) {
+    .msg { gap: 7px; padding: 3px 6px; }
+    .toolcard, .typing { margin-left: 6px; margin-right: 6px; }
+    .sysline { padding-left: 8px; padding-right: 6px; }
+    .verdict { margin-left: 6px; margin-right: 6px; }
+    .inv-head { margin-left: 6px; margin-right: 6px; }
+    .th { flex-wrap: wrap; row-gap: 2px; }
+    .ti { flex: 1 1 0; max-width: none; text-align: end; }
+    .ti.intent { visibility: hidden; }
+    .st-run, .st-ok, .st-err, .st-int { margin-left: auto; }
+    .th[aria-expanded='true'] .ti.intent { visibility: visible; order: 2; flex-basis: 100%; max-width: none; text-align: start; white-space: normal; }
+    .tp { order: 1; flex: 1 1 100%; white-space: normal; overflow-wrap: anywhere;
+      display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+  }
 
   .newpill { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 5; cursor: pointer; padding: 6px 14px;
     border-radius: 999px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--panel) 92%, transparent); color: var(--accent);

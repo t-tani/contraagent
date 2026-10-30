@@ -134,7 +134,7 @@ export class CaTaskView extends LitElement {
         Object.keys(io.params).length,
       output: io.outputs.length,
     };
-    return html`<div class="tviews" role="tablist">
+    return html`<div class="tviews" role="tablist" data-scroll="x">
       ${TASK_VIEWS.filter((id) => !(py && id === 'transcript')).map((id) => {
         const label = viewLabel()[id];
         return html`<button type="button" role="tab" aria-selected=${id === view} class="tview ${id === view ? 'sel' : ''}"

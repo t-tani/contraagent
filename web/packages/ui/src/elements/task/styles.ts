@@ -2,7 +2,13 @@
 import { css } from 'lit';
 
 export const taskViewStyles = css`
-  :host { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; position: relative; container-type: inline-size; }
+  /* At least as tall as its box: the header keeps its height and the shown view at least half the box (cqb), so a tall header makes the box scroll. */
+  :host { display: flex; flex-direction: column; flex: 1 0 auto; min-height: 0; position: relative; container-type: inline-size; }
+  ca-transcript[mode='full'], .pane, .notrans { flex: 1 0 0; min-height: 50cqb; }
+  /* a phone, upright or on its side (both sizes are the box's, the nearest container of both): the shown view and the view tabs above it take the whole box once the header is scrolled past */
+  @container (max-width: 600px) or (max-height: 600px) {
+    ca-transcript[mode='full'], .pane, .notrans { min-height: calc(100cqb - 44px); }
+  }
   .taskmeta { flex: none; background: linear-gradient(180deg, var(--panel2), var(--panel)); border: 1px solid var(--line);
     border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; color: var(--text-2); }
   .tm-head { display: flex; gap: 12px; align-items: center; }
@@ -44,9 +50,13 @@ export const taskViewStyles = css`
   .qlink:hover { text-decoration: underline; }
 
   .tviews { flex: none; display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 8px; border-bottom: 1px solid var(--line); }
+  /* a phone: the view tabs stay on one line, and scroll sideways when they do not fit; the header keeps the task, how it ended, who ran it and the cost */
   @container (max-width: 480px) {
-    .tviews { gap: 0; }
-    .tview { padding: 6px 10px; }
+    .tm-av, .spend > .detail, .spend.quota { display: none; }
+    .tm-name { font-size: 14px; overflow-wrap: anywhere; }
+    .tm-head .whos .tag-l { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .tviews { gap: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+    .tview { padding: 6px 10px; flex: none; white-space: nowrap; }
   }
   .tview { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--text-muted); padding: 6px 14px; cursor: pointer; }
   .tview:hover { color: var(--text-2); }
@@ -54,7 +64,7 @@ export const taskViewStyles = css`
   .tview .badge { margin-left: 6px; font-size: 10px; padding: 0 6px; border-radius: 999px; background: var(--raise); color: var(--text-2); }
 
   /* A positioned box: what is placed in it (a screen reader's text) scrolls with it, not past the view's end. */
-  .pane { flex: 1 1 auto; min-height: 0; overflow: auto; position: relative; }
+  .pane { overflow: auto; position: relative; }
   .upstream { margin-bottom: 12px; }
   .up-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 2px 0 6px; }
   .down { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
@@ -62,7 +72,7 @@ export const taskViewStyles = css`
   .lineage { font-size: 11px; color: var(--text-2); border: 1.5px solid var(--line2); border-radius: 999px; padding: 0 7px; white-space: nowrap; }
   .lineage[data-lineage='after'] { border-style: dotted; }
   .lineage[data-lineage='created_from'] { border-style: dashed; }
-  .notrans { flex: 1 1 auto; border: 1px solid var(--line); border-radius: 14px; }
+  .notrans { border: 1px solid var(--line); border-radius: 14px; }
   details.upstream > summary { cursor: pointer; list-style: none; }
   details.upstream > summary::-webkit-details-marker { display: none; }
   .params td { vertical-align: top; }
