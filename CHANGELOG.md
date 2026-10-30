@@ -10,6 +10,23 @@ The changes not released yet are the fragments in [`changelog.d/`](changelog.d/)
 
 <!-- towncrier release notes start -->
 
+## [0.10.0] - 2026-10-31
+
+### Added
+
+- A kind whose tasks must finish can give a task that reaches its `max_turns` more turns, in a task table or `agent_task(...)`. `max_continuations` (0 to 10, default 0) resumes the session of a launch that stopped on `max_turns` with the whole budget again, a continuation round, before the task moves to the next hop; it does not count against `max_corrections`. `max_turns_growth` (1 to 10, default 1) multiplies `max_turns` for each fresh attempt, and with it above 1 an attempt that ended on `max_turns` gets a fresh attempt again. The journal row records the continuation rounds (`continuations`), and `launches.jsonl` too.
+
+### Changed
+
+- A task whose attempt ended on `max_turns` gets no fresh attempt: the same budget stops the same work in the same place.
+- `StubLaunch.in_turn` → `StubLaunch.in_round`: a reply within a round, after a stop hook sent the output back. A turn is one response of the model.
+- `LimitsWatch.turns` → `LimitsWatch.max_turns`: the turn cap it holds the launch to. `LaunchResult` has two new fields, `killed` and `continuations`, among the others, so the fields after each of them take another place among the positional arguments; give them by keyword.
+- A turn is now one response of the launch's model for every coding agent: one API call, with every tool call it asks for, in parallel or not, and a subagent's calls are none of the launch's turns. Claude Code and opencode counted turns so already; on omp and Codex `max_turns` counted tool calls, so a model that calls several tools at once reached the cap much earlier, and pi did not enforce `max_turns` at all. Contraagent now counts omp's and pi's turns (`turn_start`) and stops the turn past the cap as it begins, and counts Codex's turns in its rollout file while the launch runs, stopping the launch when the turn past the cap ends. `LaunchResult.num_turns` is this count for every coding agent, where it was Claude Code's own count of its messages and empty for the others. A kind whose `max_turns` was raised for omp or Codex may lower it again.
+
+### Fixed
+
+- A launch that contraagent stopped on a budget (`timeout`, `stalled`, `max_turns`, `budget`, `context_budget`, `denied`) or on a refused credential now fails over to the next hop for its stop. Its signal was read as one from outside the run, as if the run were stopping, so the attempt ended there, and the next attempt ran on the first hop again. Its reason now names the budget and what the launch spent of it (`81 turns, max_turns 80`, `601s, timeout_s 600`) instead of `terminated by SIGTERM`, and `LaunchResult.killed` says that contraagent stopped it. Each hop of the journal (`Hop`) records its turns (`num_turns`) and the `max_turns` and `timeout_s` it ran under.
+- The monitor reads on a phone. On a narrow or short screen, the task detail's header scrolls away above the transcript, which then fills the view; before, the header took the whole height and the transcript had almost none. On a phone, the transcript's tool cards start under the avatars and give a tool's argument a line of its own, and what the agent meant by a call shows when its card is open. The task detail's header keeps the task, how it ended, who ran it and the cost; the tokens, API calls and subscription usage stay in the wider view. The tasks and the history fit the screen: a task's name takes two lines rather than be cut, a history row puts its reason under the task, and neither list repeats its column names. An output's fields stack one under another, and the most expensive tasks of the overview put their figures under their names.
 ## [0.9.2] - 2026-10-25
 
 ### Fixed

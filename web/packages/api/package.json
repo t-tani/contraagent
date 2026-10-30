@@ -1,6 +1,6 @@
 {
   "name": "@contraagent/api",
-  "version": "0.9.2",
+  "version": "0.10.0",
   "description": "Typed client for the contraagent monitor API: generated types, REST client, live feeds and the run state they fold into",
   "license": "MIT",
   "keywords": [
