@@ -129,7 +129,6 @@ The coding agents' CLIs do not enforce the same things. The table in
 - `disallowed_tools`: Claude Code, opencode and omp deny tools and some patterns, pi
   whole tools only; Codex cannot, so a route on it is refused before anything launches,
   as is a route whose agent cannot deny a pattern the task names.
-- `max_turns`: pi does not enforce it, and on omp and Codex it counts tool calls.
 - On omp, `disallowed_tools` is enforced by an extension of contraagent's own inside
   the agent's process, which sees each tool call before it runs. omp has no
   permission checks of its own (`--approval-mode yolo`), so the extension is the only

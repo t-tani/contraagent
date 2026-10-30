@@ -44,9 +44,17 @@ seconds above 0, so every launch has a deadline. `max_budget_usd` caps
 a launch's cost as the coding agent reports it: Claude Code enforces it itself;
 on omp, opencode and pi contraagent sums the cost the agent reports for each API
 call and ends the launch (`budget`) once it passes the cap; Codex reports no
-cost, so the cap does not hold there. On Codex `max_turns` counts tool calls, and
-omp and pi do not enforce it. [Coding agents](agents.md) has each agent's budgets
-in one table. Every key: the reference at the end.
+cost, so the cap does not hold there. [Coding agents](agents.md) has each agent's
+budgets in one table. Every key: the reference at the end.
+
+`max_turns` caps a launch's turns. A turn is one response of the launch's model,
+one API call, with every tool call that the response asks for, whether the tool
+calls run in parallel or one after another. A call that a subagent makes is not a
+turn of the launch. Every coding agent counts turns in this way. Claude Code and
+opencode stop before the turn past the cap. On omp and pi, contraagent stops the
+launch when that turn begins; on Codex, when that turn ends, because Codex does not
+report the start of a turn. `LaunchResult.num_turns` is the count, and the reason
+of a launch that stopped on `max_turns` gives it with the cap.
 
 `context_budget` caps a launch's peak context: the whole input (fresh input,
 cache read and cache write) of its largest API call. Claude Code and opencode

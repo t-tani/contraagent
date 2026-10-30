@@ -5,7 +5,7 @@ opencode's own log on stderr (`refusal_in_log`).
 `opencode run --format json` prints one event per line, each with the session id
 (`sessionID`) and one part of the session (`part`): `step_start` and `step_finish`
 around each API call (the call's tokens and cost on `step_finish`, and why the call
-ended: `reason`, `stop` when it ended the turn), `text` once a
+ended: `reason`, `stop` when the model ended its answer), `text` once a
 piece of the answer is complete, `reasoning` (with `--thinking`), `tool_use` once a
 tool call has ended (its input and output together), and `error` when the session
 ends on an error. A provider refusal that opencode retries (a 429) prints nothing
@@ -100,7 +100,7 @@ class EventReader(EventFold):
 
     The answer is the text of the last assistant message: opencode prints the
     text of every step, and a step before a tool call says what it is about to do.
-    A last step that ends the turn (`step_finish` with reason `stop`) completes the
+    A last step that ends the answer (`step_finish` with reason `stop`) completes the
     launch, with or without text: a model that has written its output file may end on
     an empty message.
     """
@@ -129,6 +129,7 @@ class EventReader(EventFold):
         part = _part(ev)
         if typ == "step_start":
             self._finish_reason = ""
+            self.begin_turn()
         elif typ == "text":
             message = str(part.get("messageID") or "")
             self._texts.setdefault(message, []).append(str(part.get("text") or ""))
@@ -141,6 +142,7 @@ class EventReader(EventFold):
                 self.note_web_query((args if isinstance(args, dict) else {}).get("query"))
         elif typ == "step_finish":
             self._finish_reason = str(part.get("reason") or "")
+            self.end_turn()
             found = call_usage(ev, self.model)
             if found is not None:
                 self.add_call(*found)
@@ -170,7 +172,7 @@ class EventReader(EventFold):
 
     def ending(self, *, exit_code: int | None, killed: Stop | None) -> Ending:
         """An error event decides (its status, its words, its name: a refused credential, an
-        abort); without one, a last step that ended the turn, then the exit and the answer."""
+        abort); without one, a last step that ended the answer, then the exit and the answer."""
         names = {str(e.get("name") or "") for e in self.errors}
         return Ending(
             killed=killed,

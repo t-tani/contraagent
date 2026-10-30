@@ -165,11 +165,14 @@ class Hop(RecordModel)
     agent: str = ''
     cost_usd: float | None = None
     credential: str = ''
+    max_turns: int | None = None
     model: str = ''
     model_config: ConfigDict = ConfigDict(extra='allow', frozen=True)
+    num_turns: int | None = None
     other_models: dict[str, OtherModel] = Field(default_factory=dict)
     route: str = ''
     stop: str = ''
+    timeout_s: float | None = None
     usage: TokenUsage | None = None
     wall_s: float = 0.0
 
@@ -1072,6 +1075,7 @@ class Limits
     max_budget_usd: float | None = None
     max_denials: int | None = None
     max_turns: int | None = None
+    def reached(self, result: LaunchResult) -> str
     stall_s: float | None = None
     timeout_s: float = 600.0
 
@@ -1380,10 +1384,12 @@ class EventFold
     def __init__(self) -> None
     def add_call(self, call: CallUsage, cost: float | None = None) -> None
     agent: str = ''
+    def begin_turn(self) -> None
     calls: list[CallUsage]
     def check_fields(self, event: str, ev: dict[str, Any]) -> None
     context_window: int | None
     cost: float | None
+    def end_turn(self) -> None
     def ending(self, *, exit_code: int | None, killed: Stop | None) -> Ending
     def feed(self, ev: dict[str, Any]) -> Stop | None
     def feed_line(self, raw: bytes | str) -> Stop | None
@@ -1401,6 +1407,7 @@ class EventFold
     def note_web_query(self, query: object) -> None
     def read(self, data: bytes) -> Self
     read_fields: Mapping[str, Mapping[str, JsonType]] = {}
+    def refresh(self) -> None
     def result(
         self,
         launch: Launch,
@@ -1415,6 +1422,8 @@ class EventFold
     def stop(self, *, exit_code: int | None, killed: Stop | None) -> Stop
     tool_args: dict[str, list[str]]
     tool_uses: Counter[str]
+    turn_open: bool
+    turns: int
     def unknown(self, typ: str) -> bool
     unread: Counter[str]
     def usage(self) -> Usage
@@ -1504,6 +1513,7 @@ class LaunchResult
         started_at: str = '',
         wall_s: float = 0.0,
         exit_code: int | None = None,
+        killed: bool = False,
         cli_version: str = '',
         argv: list[str] = list(),
         model: str = '',
@@ -1562,6 +1572,7 @@ class LaunchResult
     init_errors: list[dict[str, Any]] = field(default_factory=list)
     init_model: str = ''
     init_tools: int = 0
+    killed: bool = False
     label: str
     model: str = ''
     num_turns: int | None = None
@@ -1599,7 +1610,7 @@ class LimitsWatch
     budget: float | None
     context: int | None
     fold
-    turns: int | None
+    max_turns: int | None
 
 class ModelChains(Protocol)
     def describe(self, model: str) -> str
@@ -1723,7 +1734,7 @@ class PiBackend(OpencodeKeyAccount, Backend)
     @classmethod
     def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None
     def usage_reading(self, launch: Launch) -> QuotaReading | None
-    watched_limits: frozenset[str] = frozenset({'max_budget_usd'})
+    watched_limits: frozenset[str] = frozenset({'max_budget_usd', 'max_turns'})
     wire: ModuleType | None = pi_wire
 
 @dataclass(frozen=True)
@@ -1859,6 +1870,7 @@ class AgentRunner
         backend: Backend | None = None,
         credential: Credential | None = None,
     ) -> Launch
+    def limits(self, task: Task) -> Limits
     model
     model_failover
     pools: dict[str, CredentialPool]
@@ -3864,10 +3876,10 @@ class StubLaunch
         prompt: str,
         call: CallFile,
         launch: Launch,
-        in_turn: bool = False,
+        in_round: bool = False,
     ) -> None
     call: CallFile = field(repr=False)
-    in_turn: bool = False
+    in_round: bool = False
     key: str
     kind: str
     launch: Launch = field(repr=False)

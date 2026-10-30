@@ -72,7 +72,7 @@ READ_FIELDS: dict[str, dict[str, JsonType]] = {
         **{"message.usage.input_tokens": "integer", "message.usage.output_tokens": "integer"},
     },
     "result": {
-        **{"subtype": "string", "is_error": "boolean", "num_turns": "integer", "session_id": "string"},
+        **{"subtype": "string", "is_error": "boolean", "session_id": "string"},
         **{"total_cost_usd": "number", "usage": "object"},
     },
 }
@@ -277,12 +277,15 @@ class StreamReader(EventFold):
         elif typ == "rate_limit_event":
             self.quota.append(_reading_from_event(ev))
         elif typ == "assistant":
-            self._assistant(ev.get("message") or {})
+            self._assistant(ev.get("message") or {}, subagent=bool(ev.get("parent_tool_use_id")))
         elif typ == "result":
             self.final = ev
         return None
 
-    def _assistant(self, msg: dict) -> None:
+    def _assistant(self, msg: dict, *, subagent: bool) -> None:
+        """One assistant event: a block of a response, each block of one response its own
+        event with the response's id. A response of a subagent (`parent_tool_use_id`) is no
+        turn of the launch."""
         for b in msg.get("content") or []:
             if isinstance(b, dict) and b.get("type") == "tool_use":
                 # Claude Code's tool arguments are kept in its own result, not sampled here.
@@ -295,6 +298,8 @@ class StreamReader(EventFold):
         u = msg.get("usage")
         if u and mid and mid not in self._seen_msg:
             self._seen_msg.add(mid)
+            if not subagent:
+                self.end_turn()
             self.add_call(
                 CallUsage(
                     model=str(msg.get("model") or ""),
@@ -381,7 +386,7 @@ class StreamReader(EventFold):
         stop = self.stop(exit_code=exit_code, killed=killed)
         text = str(res.get("result") or "")
         # Hollow: one turn or none, no tool used, and the answer is tool calls written as text.
-        hollow = (res.get("num_turns") or 0) <= 1 and not self.tool_uses and written_calls(text)
+        hollow = self.turns <= 1 and not self.tool_uses and written_calls(text)
         usage = self.usage()
         usage.output_total = int((res.get("usage") or {}).get("output_tokens") or 0)
         own = self.init_model or launch.model
@@ -394,7 +399,6 @@ class StreamReader(EventFold):
             cli_version=self.cli_version,
             api_key_source=self.api_key_source,
             session_id=str(res.get("session_id") or self.session_id or ""),
-            num_turns=res.get("num_turns"),
             duration_api_ms=res.get("duration_api_ms"),
             result_text=text,
             structured_output=res.get("structured_output"),

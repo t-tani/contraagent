@@ -155,7 +155,7 @@ model and the validators. An output can also be rows, a JSON Lines file that the
 agent adds to as it works, checked line by line. When a check fails, the errors go to the same agent
 session, and the agent corrects the file in a correction round, up to a set number
 of rounds. A `CommandValidator` also runs in the agent's own stop hook, so the agent
-fixes the file before its turn ends. The flow receives the file as a typed object
+fixes the file before it stops. The flow receives the file as a typed object
 only after it passes.
 
 The runner manages the launches around this. After a rate limit or a failed launch,

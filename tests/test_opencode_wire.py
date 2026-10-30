@@ -56,7 +56,7 @@ def test_a_recorded_launch_reads_whole(version):
     assert result.result_text.strip(".").lower() == "done"  # the last message only, not what came before a tool call
     assert result.tool_uses == {"read": 1, "bash": 1}
     assert len(result.usage.calls) == 3 and sum(c.output for c in result.usage.calls) > 0 and result.cost_usd is not None
-    assert result.session_id.startswith("ses_")
+    assert result.session_id.startswith("ses_") and result.num_turns == 3
     assert result.unread_events == {}, "opencode sends events this reader does not know"
     assert json.loads(result.raw_result["tool_args"]["bash"][0])["command"] == "echo hi"
 

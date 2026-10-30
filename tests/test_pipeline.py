@@ -179,6 +179,15 @@ def test_retry_then_exhausted(tmp_path):
     assert [row["attempt"] for row in run.rows()] == [0, 1]
 
 
+def test_a_launch_stopped_on_its_turn_cap_gets_no_fresh_attempt(tmp_path):
+    """The same budget would stop the same work in the same place."""
+    backend = StubBackend(lambda launch, n: Stop.MAX_TURNS)
+    _, runner, _ = build(tmp_path, backend)
+    runner.configs["read"] = runner.configs["read"].with_(retries=2, retry_backoff_base=0.0)
+    res = RetryingRunner(runner).run(Task("read", key="r", unit="u"))
+    assert res.stop == "max_turns" and len(backend.launches) == 1
+
+
 def test_an_on_attempt_that_raises_is_logged_and_the_result_stands(tmp_path, caplog):
     backend = StubBackend(lambda launch, n: Stop.COMPLETED)
     _, runner, _ = build(tmp_path, backend)

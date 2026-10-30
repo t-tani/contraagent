@@ -6,7 +6,16 @@ while the launch runs (`Backend.run`), or every line of a finished output at onc
 (`EventFold.read`), it folds the events into the facts of a `LaunchResult` (`result`).
 The base keeps what every wire reports alike: whether anything was seen, the session id,
 each tool call (a bounded sample of its arguments), web searches, the tokens and cost of
-each API call, the context window, and the events it could not read (`unread_events`).
+each API call, the turns, the context window, and the events it could not read
+(`unread_events`).
+
+A turn is one response of the launch's model in its agent loop: one API call, the tool
+calls it asks for included, whether they run in parallel or one after another; a call a
+subagent makes is not one. Every reader counts turns so (`begin_turn`, `end_turn`), and
+`max_turns` caps them for every coding agent alike: one that enforces it itself (Claude
+Code's `--max-turns`, opencode's `steps`) stops before the turn past it, and `LimitsWatch`
+ends the launch of another one as that turn begins (as it ends, on a wire that marks no
+turn's start).
 
 An unread event is counted under a key that says what was not read: `<type>`, a type the
 reader does not know; `<event>.<field>`, a field the reader reads (`read_fields`) that the
@@ -132,6 +141,9 @@ class EventFold:
         self.tool_args: dict[str, list[str]] = {}
         self.web_queries: list[str] = []
         self.calls: list[CallUsage] = []
+        #: The turns the launch's model has given so far, and whether one has begun and not ended.
+        self.turns: int = 0
+        self.turn_open: bool = False
         self.cost: float | None = None
         self.unread: Counter[str] = Counter()
         #: The model's context window, when the wire reports one.
@@ -196,6 +208,20 @@ class EventFold:
     def note_web_query(self, query: object) -> None:
         note_web_query(self.web_queries, query)
 
+    def begin_turn(self) -> None:
+        """A turn begins: the agent asks its model for the next response. A wire with no
+        such event counts each turn at its end only."""
+        self.turn_open = True
+
+    def end_turn(self) -> None:
+        """A turn ended: the model gave its response."""
+        self.turns += 1
+        self.turn_open = False
+
+    def refresh(self) -> None:
+        """Read what the coding agent writes beside its wire so far (`LimitsWatch` calls it
+        before it checks). Default: nothing; codex counts its turns in its rollout file."""
+
     def add_call(self, call: CallUsage, cost: float | None = None) -> None:
         """One API call's tokens, and its cost (USD) when the wire reports one."""
         self.calls.append(call)
@@ -236,6 +262,7 @@ class EventFold:
             exit_code=exit_code,
             model=launch.model,
             session_id=self.session_id,
+            num_turns=self.turns,
             tool_uses=dict(self.tool_uses),
             web_queries=list(self.web_queries),
             usage=self.usage(),
@@ -255,25 +282,27 @@ class EventFold:
 class LimitsWatch:
     """Ends a launch on the budgets its coding agent cannot enforce itself, from what its
     reader (`fold`) has read so far: `context_budget` (one call's whole input past it),
-    `max_budget_usd` (the cost so far past it), `max_turns` (more tool calls than it).
-    `watched` names the `Limits` fields this agent leaves to the wrapper."""
+    `max_budget_usd` (the cost so far past it), `max_turns` (a turn past it begun, or
+    given by a wire that marks no turn's start). `watched` names the `Limits` fields this
+    agent leaves to the wrapper."""
 
     def __init__(self, limits: Limits, watched: frozenset[str], fold: EventFold):
         self.fold = fold
         self.context: int | None = limits.context_budget if "context_budget" in watched else None
         self.budget: float | None = limits.max_budget_usd if "max_budget_usd" in watched else None
-        self.turns: int | None = limits.max_turns if "max_turns" in watched else None
+        self.max_turns: int | None = limits.max_turns if "max_turns" in watched else None
         self._seen = 0  # calls already checked against the context budget
 
     def __call__(self) -> Stop | None:
         f = self.fold
+        f.refresh()
         if self.context is not None:
             new, self._seen = f.calls[self._seen :], len(f.calls)
             if any(c.context > self.context for c in new):
                 return Stop.CONTEXT
         if self.budget is not None and (f.cost or 0.0) > self.budget:
             return Stop.BUDGET
-        if self.turns is not None and sum(f.tool_uses.values()) > self.turns:
+        if self.max_turns is not None and f.turns + f.turn_open > self.max_turns:
             return Stop.MAX_TURNS
         return None
 

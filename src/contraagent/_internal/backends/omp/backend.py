@@ -267,8 +267,9 @@ class OmpBackend(Backend):
 
     A plugin's extension (`omp/index.ts`, `-e` from its `package.json`) runs its tool
     hooks and, at omp's `session_stop`, the stop hooks of `omp/hooks.json`: one that exits
-    2 continues the session with what it said (`stop_hooks_file`). `Limits.max_turns` and
-    `Limits.max_budget_usd` are counted from the event stream (`watched_limits`).
+    2 continues the session with what it said (`stop_hooks_file`). `Limits.max_turns` (its
+    turns, `turn_start` to `turn_end`) and `Limits.max_budget_usd` are counted from the
+    event stream (`watched_limits`).
 
     `Limits.disallowed_tools` loads contraagent's own extension (`-e .../omp/deny.ts`),
     with its rules as JSON in `CONTRAAGENT_OMP_DENY`. It takes a tool denied whole out of
@@ -324,8 +325,8 @@ class OmpBackend(Backend):
     # A line of text mode's stream is its plain-text narration.
     plaintext_stream = True
     # omp's CLI has no cost cap and no turn cap: the cost of each API call, as its
-    # `message_end` reports it, summed, and its tool calls counted (trace mode; text mode
-    # reports neither).
+    # `message_end` reports it, summed, and its `turn_start` events counted (trace mode;
+    # text mode reports neither).
     watched_limits: frozenset[str] = frozenset({"max_budget_usd", "max_turns"})
     # The plugin's Stop hooks, in Claude Code's format, which the plugin's extension
     # (`omp/index.ts`) runs at omp's `session_stop`: one that exits 2 continues the session.
@@ -567,7 +568,7 @@ class OmpBackend(Backend):
 
     def _as_launched(self, launch: Launch) -> Launch:
         """The preamble at the head of the prompt (`preamble_in_prompt`): on omp's command
-        line it would be a message of its own, which omp sends as a turn before the prompt's."""
+        line it would be a message of its own, which omp sends before the prompt's."""
         return preamble_in_prompt(super()._as_launched(launch))
 
     def argv(self, launch: Launch) -> list[str]:

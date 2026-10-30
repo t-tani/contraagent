@@ -1334,6 +1334,12 @@ export type components = {
              * @default 0
              */
             wall_s?: number;
+            /** Num Turns */
+            num_turns?: number | null;
+            /** Max Turns */
+            max_turns?: number | null;
+            /** Timeout S */
+            timeout_s?: number | null;
             /** Cost Usd */
             cost_usd?: number | null;
             usage?: components["schemas"]["TokenUsage"] | null;

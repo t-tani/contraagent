@@ -99,7 +99,7 @@ class JournalRow(RecordModel):
     #: The corrections its kind allowed, the stop hook's and the resumes in all (`max_corrections`); None
     #: without an output contract, or in a run format before it was recorded.
     max_corrections: int | None = None
-    #: What the plugin's stop hook sent back within a launch, before the agent ended its turn,
+    #: What the plugin's stop hook sent back within a launch, before the agent stopped,
     #: one list per objection, cut at 5 each: each is a correction, and none took a correction round.
     hook_errors: list[list[str]] = Field(default_factory=list)
     #: Tokens of every API call of the attempt (its rounds and hops); None for a Python task or a launch that reported none.

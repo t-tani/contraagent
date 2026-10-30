@@ -2,8 +2,8 @@
 
 One launch is one `codex exec` (or `codex exec resume <thread id>`) in the
 launch's cwd, with its JSONL events read as they arrive (`wire.EventReader`)
-and the session's rollout file read after it ends (`wire.read_rollout`) for
-what the events do not carry: per-call tokens, the model, the plan's usage. When it
+and the session's rollout file read while it runs and after it ends (`wire.RolloutTail`)
+for what the events do not carry: per-call tokens, the turns, the model, the plan's usage. When it
 cannot be read, the launch's tokens are the totals its `turn.completed` event printed, and
 `LaunchResult.usage_unknown` says so.
 
@@ -23,7 +23,9 @@ scratch directory), `json_schema` becomes `--output-schema` (a file too), and a 
 of the prompt (`prepare`), which goes over stdin past `STDIN_THRESHOLD` (`via_stdin`), so no
 text of the task makes the command line longer than the operating system takes.
 
-`Limits.max_turns` counts tool calls and ends the launch past it.
+`Limits.max_turns` counts the turns in the rollout file while the launch runs (its
+`token_usage_record` lines), and ends the launch when a turn past it ends, before the
+tool calls of that turn have run or as they start: the events mark no turn's start.
 Codex's `workspace-write` sandbox makes the launch's cwd writable and, by default, `/tmp`
 and `$TMPDIR` too, and its Linux sandbox leaves empty `.git`, `.agents` and `.codex` paths
 behind in a writable root (`codex-rs/linux-sandbox/src/bwrap.rs`). So `/tmp` and `$TMPDIR`
@@ -36,7 +38,7 @@ the agent can write its output files there. The sandbox reads every directory, s
 input roots (`Launch.input_roots`) need no flag.
 
 `max_budget_usd` and `context_budget` are not enforced: codex reports no
-cost, and per-call tokens only in the rollout file, after the launch.
+cost, and a call's tokens only in the rollout file, once the call has ended.
 """
 
 from __future__ import annotations
@@ -52,7 +54,7 @@ from contraagent._internal.backends import plugin_files
 from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend, ResumeById, safe_label, temp_root
 from contraagent._internal.backends.codex import wire as codex_wire
 from contraagent._internal.backends.codex.hooks import HOOKS_FILE, hooks_config
-from contraagent._internal.backends.codex.wire import EventReader, find_rollout, read_rollout
+from contraagent._internal.backends.codex.wire import EventReader, RolloutTail, find_rollout
 from contraagent._internal.backends.credentials import (
     Ambient,
     ApiKey,
@@ -173,8 +175,9 @@ class CodexBackend(ResumeById, Backend):
     needs_inline_role_file = True
     wire: ModuleType | None = codex_wire
     signals: Signals = codex_wire.SIGNALS
-    # `max_turns` counts tool calls; codex reports no cost, and per-call tokens only in the
-    # rollout file, after the launch, so the cost and context budgets are not enforced.
+    # `max_turns` counts the rollout file's turns as codex writes them; codex reports no
+    # cost, and a call's tokens only once the call has ended, so the cost and context
+    # budgets are not enforced.
     watched_limits: frozenset[str] = frozenset({"max_turns"})
 
     def __init__(self, binary: str = "codex", base_env: dict[str, str] | None = None):
@@ -389,15 +392,16 @@ class CodexBackend(ResumeById, Backend):
     def exchange(
         self, launch: Launch, argv: list[str], env: dict[str, str], fold: EventFold, watch: LimitsWatch
     ) -> tuple[bytes, str, int | None, Stop | None]:
-        """The events read live (a refused credential and `max_turns` end the launch), then the
-        session's rollout file for what they do not carry; a launch that keeps no session
-        leaves no rollout behind. A resumed thread's rollout is read from where it ended. The
-        launch's temporary directory (`launch_tmp`) lives only as long as its process."""
+        """The events and the session's rollout file read live (a refused credential and
+        `max_turns` end the launch), then the rest of the rollout file, for what the events do
+        not carry; a launch that keeps no session leaves no rollout behind. A resumed thread's
+        rollout is read from where it ended. The launch's temporary directory (`launch_tmp`)
+        lives only as long as its process."""
         assert isinstance(fold, EventReader)
         fold.earlier = self._thread_usage.get(launch.resume) if launch.resume else {}
         home = Path(env.get("CODEX_HOME") or Path.home() / ".codex")
         earlier = find_rollout(home, launch.resume) if launch.resume else None
-        start = earlier.stat().st_size if earlier is not None else 0
+        fold.tail = RolloutTail(home, earlier, earlier.stat().st_size if earlier is not None else 0)
         tmp = self.launch_tmp(launch)
         tmp.mkdir(mode=0o700, exist_ok=True)
         try:
@@ -406,9 +410,7 @@ class CodexBackend(ResumeById, Backend):
             shutil.rmtree(tmp, ignore_errors=True)
         if fold.thread_id and fold.turn_usage:
             self._thread_usage[fold.thread_id] = fold.turn_usage
-        found = find_rollout(home, fold.thread_id)
-        if found is not None:
-            fold.rollout = read_rollout(found, start if found == earlier else 0)
-            if not launch.persist_session:
-                found.unlink(missing_ok=True)
+        fold.rollout = fold.tail.read(fold.thread_id, ended=True)
+        if fold.tail.path is not None and not launch.persist_session:
+            fold.tail.path.unlink(missing_ok=True)
         return out

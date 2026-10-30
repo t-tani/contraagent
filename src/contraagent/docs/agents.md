@@ -32,7 +32,7 @@ budget and ends the launch itself.
 | Stop hook continues the session (`stop_hooks_file`) | yes: `hooks/hooks.json` | yes: `omp/hooks.json`, run by `omp/index.ts` at omp's `session_stop` | no | no | yes: `codex/hooks.json` |
 | Hooks rendered from `hooks.toml` | `hooks/hooks.json` | `omp/index.ts` and `omp/hooks.json` | `opencode/index.js` | `pi/index.ts` | `codex/hooks.json`, with no `read`, `grep` or `glob` hook |
 | Light launch (`light_launch`) | yes | yes | yes | yes | no |
-| `max_turns` enforced | yes, by the agent (`--max-turns`) | yes, by contraagent: it counts tool calls | yes, by the agent (`steps`) | no | yes, by contraagent: it counts tool calls |
+| `max_turns` enforced | yes, by the agent (`--max-turns`) | yes, by contraagent: it counts `turn_start`, and stops the turn past the cap as it begins | yes, by the agent (`steps`) | yes, by contraagent, as on omp | yes, by contraagent: it counts the turns of the rollout file (`token_usage_record`), and stops the turn past the cap as it ends |
 | `max_budget_usd` enforced | yes, by the agent (`--max-budget-usd`) | yes, by contraagent | yes, by contraagent | yes, by contraagent | no: it reports no cost |
 | `context_budget` enforced | yes, by contraagent | no | yes, by contraagent | no | no |
 | `disallowed_tools` taken | yes: whole tools and patterns | yes, by an extension of contraagent's own: whole tools, and patterns of a command (`Bash`), a path read or written (`Read`, `Write`, `Edit`, `MultiEdit`), a domain (`WebFetch(domain:...)`) or a skill (`Skill`); a pattern of another tool is refused | yes: whole tools, and patterns of a command, a path, a domain or a skill | yes: whole tools only | no: the route is refused |

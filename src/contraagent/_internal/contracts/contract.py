@@ -1,15 +1,15 @@
 """File contracts: what a task must leave behind (or read), checked where it is produced.
 
 A task asks the agent to write its result to a file. Exit status says
-nothing about that file: an agent can end its turn cleanly having written
+nothing about that file: an agent can stop cleanly having written
 no file, a truncated one, prose wrapped around the JSON, or a document
 with a field renamed — and the stage that reads it next fails far from
 the cause. So the file is checked where it is produced, against its
 schema, a pydantic class (or, for a text output, for its existence), and then by any
 validators (`contraagent._internal.contracts.validators`: a Python check, a linter), and an
-off-contract file goes back to the same session with the errors as the
-next turn. The agent still has the
-whole task in its context, so a correction costs one short turn, not a
+off-contract file goes back to the same session with the errors as its
+next message. The agent still has the
+whole task in its context, so a correction costs one short round, not a
 rerun.
 
     contract = OutputContract(Path("out/findings.json"), Findings)
@@ -60,7 +60,7 @@ from contraagent._internal.runs.files import write_document
 _logger = logging.getLogger(__name__)
 
 #: Correction rounds after the first launch, a kind's `max_corrections` when neither its
-#: declaration nor the config gives one. Each one is a full agent turn, and an
+#: declaration nor the config gives one. Each one is a whole round of the agent, and an
 #: LLM that misreads the schema three times in a row is not converging.
 DEFAULT_MAX_CORRECTIONS = 3
 
@@ -464,7 +464,7 @@ def check_all(contracts: Sequence[OutputContract], cwd: Path, before: Mapping[Pa
 
 
 def correction_prompt(contracts: Sequence[OutputContract], checks: Sequence[Check]) -> str:
-    """The next turn: what is wrong, and the schema of each file that does not meet it.
+    """The next message of the session: what is wrong, and the schema of each file that does not meet it.
     An output taken from the final message (`from_message`) is asked for again as the reply."""
     failing = [c for c, chk in zip(contracts, checks, strict=True) if not chk.ok and c.schema is not None and not chk.schema_ok]
     only_json = " A JSON output must contain only the JSON document, with no prose or code fences around it." if failing else ""
