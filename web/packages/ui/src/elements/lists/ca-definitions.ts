@@ -35,8 +35,14 @@ export class CaDefinitions extends LitElement {
         display: flex; flex-direction: column; gap: 2px; }
       .defitem:hover { border-color: var(--line2); }
       .defitem.sel { border-color: var(--accent); background: var(--accent-bg); }
+      /* narrow: one column, and the definition opens under its kind (each kind's order is twice its place, the
+         definition's one more than its kind's); none is open until one is picked, and a second tap closes it */
       @container (max-width: 720px) {
-        .defs { grid-template-columns: minmax(0, 1fr); }
+        .defs { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+        .deflist { display: contents; }
+        .defs:not(.picked) > .panel { display: none; }
+        .defs:not(.picked) .defitem.sel { border-color: var(--line); background: var(--panel); }
+        .defs > .panel { margin-bottom: 8px; }
       }
     `,
   ];
@@ -125,13 +131,16 @@ export class CaDefinitions extends LitElement {
       const a = ts.reduce((x, t) => x + t.tries.length, 0);
       return factList(n === 1 ? msg('1 task') : msg(str`${n} tasks`), a === 1 ? msg('1 attempt') : msg(str`${a} attempts`));
     };
-    return html`<div class="defs">
+    const kinds = [...defs.map((d) => d.kind), ...pyKinds];
+    // On a narrow view (the width of the container query below) a definition shows once its kind is picked, and a tap on that kind closes it.
+    const pick = (k: string) => emit(this, 'ca-navigate', { def: k === this.selected && this.clientWidth <= 720 ? null : k });
+    return html`<div class="defs ${this.selected !== null ? 'picked' : ''}">
       <div class="deflist">
         ${repeat(
           defs,
           (d) => d.kind,
-          (d) => html`<button type="button" class="defitem ${d.kind === selKind ? 'sel' : ''}" aria-current=${d.kind === selKind ? 'true' : nothing}
-            @click=${() => emit(this, 'ca-navigate', { def: d.kind })}>
+          (d) => html`<button type="button" class="defitem ${d.kind === selKind ? 'sel' : ''}" aria-current=${d.kind === selKind ? 'true' : nothing} style="order:${2 * kinds.indexOf(d.kind)}"
+            @click=${() => pick(d.kind)}>
             <b class="jmono">${d.kind}</b>
             <span class="meta words">${factLine([
               ...(d.base_kind ? [implementationOfText(d.base_kind)] : []),
@@ -143,14 +152,14 @@ export class CaDefinitions extends LitElement {
         ${repeat(
           pyKinds,
           (k) => k,
-          (k) => html`<button type="button" class="defitem ${k === selKind ? 'sel' : ''}" aria-current=${k === selKind ? 'true' : nothing}
-            @click=${() => emit(this, 'ca-navigate', { def: k })}>
+          (k) => html`<button type="button" class="defitem ${k === selKind ? 'sel' : ''}" aria-current=${k === selKind ? 'true' : nothing} style="order:${2 * kinds.indexOf(k)}"
+            @click=${() => pick(k)}>
             <b class="jmono">${k}</b>
             <span class="meta words">${factLine(['Python', ...counts(k)])}</span>
           </button>`,
         )}
       </div>
-      <section class="panel">
+      <section class="panel" style="order:${2 * kinds.indexOf(selKind) + 1}">
         ${sel
           ? html`<h3 title=${msg('As recorded when its first task started (definitions/<kind>.json)')}>
                 ${sel.kind}<span class="r">${sel.executor === 'python' ? msg('Python task') : sel.plugin ? msg(str`Plugin ${sel.name || ''}`) : msg('Defined in Python code')}</span>

@@ -166,6 +166,17 @@ export class CaOverview extends LitElement {
       /* the tasks done after retrying: a group of their own under a rule, after the problems */
       .recovered { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); }
       .more { font-size: 12px; margin: 6px 10px 0; }
+      /* nothing went wrong: one card, the run's, with a line for the problems and one for the outputs */
+      .band.status.clean { grid-template-areas: 'stack' 'running'; grid-template-columns: minmax(0, 1fr); }
+      .clean-lines { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 24px; }
+      .clean-out { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+      .clean-out .ct-row { margin: 0; }
+      /* a phone: the cards closer together and tighter inside, so the state of the run, its problems and its outputs share the first screen */
+      @container (max-width: 480px) {
+        .ov, .band.status, .stack { gap: 8px; }
+        .panel { padding: 10px 12px; }
+        .panel > h3 { margin-bottom: 6px; }
+      }
     `,
   ];
 
@@ -197,21 +208,30 @@ export class CaOverview extends LitElement {
     const busy = live ? liveActivities(s.procs).length : 0;
     /** The run's limit (`run.json` `max_workers`); null when the run did not record one. */
     const max = s.procs?.max_workers || null;
+    // Nothing went wrong: the run's card says so in a line each, and the problems and the outputs take no card of their own.
+    const clean = !this.hasProblems() && !this.badOutputs().length;
     // A run's own views: a trends panel is computed over a period, not for this run (the Trends page).
     const panels = this.info.panels.filter(isRunPanel);
     // Running tasks need the width of their cards; while none runs, one line under the run's state.
     // A run that is over runs nothing: its state says so.
     const running = live && busy > 0;
     return html`<div class="ov">
-      <div class="band status">
+      <div class="band status ${clean ? 'clean' : ''}">
         <div class="stack">
           <section class="panel enter">
             <h3>${msg('Run')}</h3>
             <ca-run-driver .procs=${s.procs} .summary=${this.summary} .plan=${s.plan} .host=${this.host}></ca-run-driver>
+            ${clean
+              ? html`<div class="clean-lines">
+                  ${this.problems()}
+                  <div class="clean-out"><a class="hl" href="#" title=${msg('Checked files (OutputContract, InputContract)')}
+                    @click=${(e: Event) => this.nav(e, () => this.go('outputs'))}>${msg('Outputs')}</a>${this.outputs()}</div>
+                </div>`
+              : nothing}
           </section>
           ${live && !running ? this.runningCard(live, busy, max) : nothing}
         </div>
-        <section class="panel enter problems">
+        ${clean ? nothing : html`<section class="panel enter problems">
           <h3>${msg('Problems')}
             <span class="r"><a class="lnk" href="#" @click=${(e: Event) => this.nav(e, () => emit(this, 'ca-navigate', { tab: 'journal', stop: 'bad' }))}>${msg('Failed attempts in history')}</a></span></h3>
           ${this.problems()}
@@ -219,7 +239,7 @@ export class CaOverview extends LitElement {
         <section class="panel enter outputs">
           <h3 title=${msg('Checked files (OutputContract, InputContract)')}><a class="hl" href="#" @click=${(e: Event) => this.nav(e, () => this.go('outputs'))}>${msg('Outputs')}</a></h3>
           ${this.outputs()}
-        </section>
+        </section>`}
         ${running ? html`<div class="row">${this.runningCard(live, busy, max)}</div>` : nothing}
       </div>
       <section class="panel enter">
@@ -290,6 +310,19 @@ export class CaOverview extends LitElement {
     </section>`;
   }
 
+  /** The checked files that are invalid or failed. */
+  private badOutputs(): [ContractRecord, ContractSpec][] {
+    return this.state.outputs.contracts
+      .flatMap((c) => (c.outputs ?? []).map((o): [ContractRecord, ContractSpec] => [c, o]))
+      .filter(([, o]) => o.status === 'invalid' || o.status === 'failed');
+  }
+
+  /** Whether a task failed, did not start, is partly done or was done only after retrying. */
+  private hasProblems(): boolean {
+    const { failed, notStarted, partial, recovered } = deriveRun(this.state.journal, this.state.plan).problems;
+    return failed.length + notStarted.length + partial.length + recovered.length > 0;
+  }
+
   // ---- contracts: the files tasks must leave behind (OutputContract) and read (InputContract) ----
   private outputs() {
     const { contracts, tally } = this.state.outputs;
@@ -297,9 +330,7 @@ export class CaOverview extends LitElement {
       return html`<div class="meta">${msg('No output files')}</div>`;
     }
     // Only what went wrong with a file; tasks that never started are the problems section's.
-    const bad = contracts
-      .flatMap((c) => (c.outputs ?? []).map((o): [ContractRecord, ContractSpec] => [c, o]))
-      .filter(([, o]) => o.status === 'invalid' || o.status === 'failed');
+    const bad = this.badOutputs();
     const shown = bad.slice(0, OUTPUTS_SHOWN);
     // The rows shown sit under the chip of their status; the other statuses are a row of chips after them.
     const groups = CT_ORDER.filter((k) => tally[k] && shown.some(([, o]) => o.status === k));

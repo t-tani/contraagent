@@ -158,7 +158,9 @@ describe('ca-task-view', () => {
     const el = await view({ client, taskKey: 'review-a' });
     expect(asked).toEqual(['review-a']);
     expect(text(root(el).querySelector('.tm-name'))).toBe('review · a');
-    expect(text(root(el).querySelector('.verdict'))).toBe('Done on attempt 2 | 1 failed attempt | first failure: tool crashed');
+    // The state on the facts line, the cause on a line of its own.
+    expect(text(root(el).querySelector('.tm-state'))).toBe('Done on attempt 2');
+    expect(text(root(el).querySelector('.verdict'))).toBe('First failure: tool crashed');
     expect([...root(el).querySelectorAll('.runchip')].map((c) => c.className.replace(/\s+/g, ' ').trim())).toEqual(['runchip bad', 'runchip ok']);
     el.remove();
   });
@@ -180,7 +182,8 @@ describe('ca-task-view', () => {
     };
     const { client } = fakeClient({ 'scan-a': stopped });
     const el = await view({ client, taskKey: 'scan-a' });
-    expect(text(root(el).querySelector('.verdict'))).toBe('Partly done: timed out');
+    expect(text(root(el).querySelector('.tm-state'))).toBe('Partly done');
+    expect(text(root(el).querySelector('.verdict'))).toBe('timed out');
     el.view = 'output';
     await vi.waitFor(() => expect(text(root(el).querySelector('.pane'))).toContain('JSON Lines, one object of schema Finding per line'));
     const pane = text(root(el).querySelector('.pane'));
@@ -342,7 +345,7 @@ describe('ca-task-view', () => {
     await el.updateComplete;
     expect(text(root(el).querySelector('.taskmeta'))).toBe('gone-x Loading…');
     await vi.waitFor(() => expect(text(root(el).querySelector('.tm-name'))).toBe('gone-x'));
-    expect(text(root(el).querySelector('.verdict'))).toBe('Waiting');
+    expect(text(root(el).querySelector('.tm-static'))).toBe('Waiting');
     el.remove();
   });
 

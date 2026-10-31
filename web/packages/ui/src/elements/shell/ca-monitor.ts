@@ -317,7 +317,9 @@ export class CaMonitor extends LitElement {
     if (viewRoute.page !== 'trends') this.store.closeTrends();
     else if (!sameTrends) void this.store.loadTrends(trendsQuery(viewRoute));
     this.pickDefaultRun();
-    if (cause !== 'replace') this.pendingScroll = cause;
+    // A new place starts at the top; another selection in the same one (a definition, a view of the same task, the graph's) keeps the position.
+    const samePlace = !!before && before.page === viewRoute.page && before.run === viewRoute.run && before.tab === viewRoute.tab && before.key === viewRoute.key;
+    if (cause !== 'replace' && !(cause === 'push' && samePlace)) this.pendingScroll = cause;
   }
 
   /**
@@ -408,6 +410,12 @@ export class CaMonitor extends LitElement {
   }
 
   /** The header's language switch: switch now, and remember it for the next visit. */
+  /** A phone's language control: one button, named in the language it switches to (the next one, of two or more). */
+  private otherLocale() {
+    const next = allLocales[(allLocales.indexOf(getLocale()) + 1) % allLocales.length] as Locale;
+    return html`<button type="button" class="lang-next" lang=${next} title=${msg('Language')} @click=${() => this.pickLocale(next)}>${LOCALE_NAMES[next]}</button>`;
+  }
+
   private pickLocale(locale: Locale): void {
     this.locale = locale;
     void chooseLocale(locale);
@@ -437,7 +445,8 @@ export class CaMonitor extends LitElement {
           ${this.locales
             ? html`<cae-segmented class="langs" label=${msg('Language')} .value=${getLocale()}
                 .options=${allLocales.map((l) => ({ value: l, label: LOCALE_NAMES[l], lang: l }))}
-                @cae-change=${(e: CustomEvent<{ value: string }>) => isLocale(e.detail.value) && this.pickLocale(e.detail.value)}></cae-segmented>`
+                @cae-change=${(e: CustomEvent<{ value: string }>) => isLocale(e.detail.value) && this.pickLocale(e.detail.value)}></cae-segmented>
+              ${this.otherLocale()}`
             : nothing}
           ${snap.info.export
             ? pill({ text: exportedLabel(snap.info.export), tone: 'muted', title: exportTip(snap.info.export) })

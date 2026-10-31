@@ -66,8 +66,21 @@ export const monitorStyles = css`
     .bar { padding: 8px 12px; }
     .bar input { flex: 1 1 10em; min-width: 0; }
   }
-  @container ca-monitor (max-width: 420px) {
-    .brand { max-width: 40cqi; }
-    .runbtn { padding: 6px 10px; gap: 8px; }
+  .lang-next { display: none; background: none; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font: inherit; font-size: 11px;
+    color: var(--text-2); cursor: pointer; white-space: nowrap; }
+  .lang-next:hover { color: var(--text); border-color: var(--line2); }
+  /* a phone: one line, the run button taking what the mark, the theme, the language and the connection leave; the running
+     tasks, when there are any, on a line under it; no clock (the phone shows the time) */
+  @container ca-monitor (max-width: 480px) {
+    header { padding: 8px 12px; }
+    .brand { flex: none; }
+    .brand span { display: none; }
+    /* the run button keeps room for its run's name; on a narrower box still, the controls go to a second line */
+    .runbtn { padding: 6px 10px; gap: 8px; min-width: min(140px, 100%); }
+    .hdr-right { display: contents; }
+    .clock, .langs { display: none; }
+    .lang-next { display: inline-block; }
+    .nowline { order: 1; flex: 1 1 100%; }
+    .nowline:empty { display: none; }
   }
 `;
