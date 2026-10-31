@@ -25,9 +25,14 @@ export const taskViewStyles = css`
   .tm-av { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; font-size: 11px; flex: none;
     background: var(--agent-bg); color: var(--agent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--agent) 35%, transparent); }
   .tm-av.py { background: var(--raise); color: var(--text-muted); box-shadow: none; }
-  .verdict { font-size: 12.5px; color: var(--text); margin-top: 3px; overflow-wrap: anywhere;
-    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
-  .tm-facts { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  /* the cause behind the state: one line, whole in its tooltip and when the rest is open */
+  .verdict { font-size: 12px; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tm-top.open .verdict { white-space: normal; overflow-wrap: anywhere; }
+  .tm-facts { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums;
+    white-space: nowrap; }
+  .tm-state { font-weight: 600; color: var(--text); }
+  .tm-state[data-tone='failed'], .tm-state[data-tone='attention'] { color: var(--tone); }
+  .tm-state[data-tone='muted'] { color: var(--text-muted); }
   .tm-toggle { background: none; border: 0; padding: 2px 0; cursor: pointer; font: inherit; font-size: 12px; text-align: start; }
   .tm-toggle:hover { color: var(--text); }
   .tm-toggle .chev { color: var(--text-muted); font-size: 10px; transition: transform 0.2s var(--ease); }
@@ -39,18 +44,18 @@ export const taskViewStyles = css`
   .tm-more.open { display: block; }
   .tm-more > :first-child { margin-top: 6px; }
   .tm-more .pill { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
-  /* open, the verdict shows whole */
-  .tm-top.open .verdict, .tm-top.open .tm-name { display: block; }
+  /* open, the name shows whole */
+  .tm-top.open .tm-name { display: block; }
   /* a wide view: the rest stands beside the views, as tall as they are, and scrolls on its own */
   @container (min-width: 1100px) {
     .tv { grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto auto minmax(0, 1fr); column-gap: 16px; }
     .tm-top { grid-area: 1 / 1; }
-    .tm-top.open .verdict { display: -webkit-box; }
     .tviews { grid-area: 2 / 1; }
     .body { grid-area: 3 / 1; }
     .tm-more { display: block; grid-area: 1 / 2 / -1 / 3; contain: size; max-height: none; margin: 0; }
     .tm-toggle { display: none; }
     .tm-static { display: flex; }
+    .verdict { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
   }
   .verdict[data-tone='failed'], .verdict[data-tone='attention'] { color: var(--tone); }
   .verdict[data-tone='muted'] { color: var(--text-muted); }

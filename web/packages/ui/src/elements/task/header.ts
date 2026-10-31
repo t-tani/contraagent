@@ -31,64 +31,59 @@ const mark = (r: JournalRow) =>
     ? html`<span aria-hidden="true">◌</span><span class="sr">${outcomeLabel('partial')}</span>`
     : html`<span aria-hidden="true">${r.ok ? '✓' : '✕'}</span><span class="sr">${r.ok ? msg('passed') : msg('failed')}</span>`;
 
-/** One line under the title: what happened to the task, in words, and its tone (`failed`, `attention`, `muted`, or none). */
-function verdict(c: TaskContext): [text: string, tone: Tone] {
+/**
+ * What happened to the task: a short state (`head`), the cause or the first error behind it (`why`, '' when
+ * there is none) and its tone (`failed`, `attention`, `muted`, or none). The header shows the state on its facts
+ * line and the cause on a line of its own, so a long cause does not push the facts apart.
+ */
+function verdict(c: TaskContext): { head: string; why: string; tone: Tone } {
   const rows = c.detail.rows;
   const tries = rows.filter(isLaunched);
   const last = rows[rows.length - 1];
   const state = stateOf(c);
   switch (state) {
     case 'running':
-      return [msg('Running'), 'neutral'];
+      return { head: msg('Running'), why: '', tone: 'neutral' };
     case 'waiting': {
       const node = c.plan?.nodes.find((n) => n.key === c.detail.key);
       const why = node?.deferred ? deferredText(node.deferred_cause, node.deferred, deferredIn(c.plan, node.deferred_cause)) : '';
-      return why ? [msg(str`Not run: ${why}`), 'attention'] : [msg('Waiting'), 'muted'];
+      return why ? { head: msg('Not run'), why, tone: 'attention' } : { head: msg('Waiting'), why: '', tone: 'muted' };
     }
     case 'skipped':
-      return [msg('Skipped'), 'muted'];
-    case 'not_started': {
-      const cause = notStartedWhy(c);
-      return [cause ? msg(str`Not started: ${cause}`) : msg('Not started'), 'attention'];
-    }
+      return { head: msg('Skipped'), why: '', tone: 'muted' };
+    case 'not_started':
+      return { head: msg('Not started'), why: notStartedWhy(c), tone: 'attention' };
     case 'partial': {
       // An agent task's partial reason is the stop its launch ended on (`partial_on`): said in words.
       const why = last?.reason && isStop(last.reason) ? stopLabel(last.reason) : runRelative(last?.reason, c.run);
-      return [why ? msg(str`Partly done: ${why}`) : msg('Partly done'), 'attention'];
+      return { head: msg('Partly done'), why, tone: 'attention' };
     }
     case 'failed': {
       const why = runRelative(last?.reason, c.run) || stopLabel(last?.stop);
-      return [tries.length > 1 ? msg(str`Failed on all ${tries.length} attempts: ${why}`) : msg(str`Failed: ${why}`), 'failed'];
+      return { head: tries.length > 1 ? msg(str`Failed on all ${tries.length} attempts`) : msg('Failed', { id: 'verdict-failed', desc: 'A task that failed' }), why, tone: 'failed' };
     }
     default:
       break;
   }
-  if (!last) return [outcomeLabel(state), 'neutral'];
+  if (!last) return { head: outcomeLabel(state), why: '', tone: 'neutral' };
   const fails = tries.filter((r) => !r.ok);
   if (fails.length) {
     const why = runRelative(fails[0]?.reason, c.run) || stopLabel(fails[0]?.stop);
-    return [
-      fails.length === 1
-        ? msg(str`Done on attempt ${tries.length} | 1 failed attempt | first failure: ${why}`)
-        : msg(str`Done on attempt ${tries.length} | ${fails.length} failed attempts | first failure: ${why}`),
-      'neutral',
-    ];
+    return { head: msg(str`Done on attempt ${tries.length}`), why: msg(str`First failure: ${why}`), tone: 'neutral' };
   }
   const corrections = correctionCount(last);
   if (corrections > 0) {
     const errors = [...(last.hook_errors ?? []).flat(), ...(last.round_errors ?? []).flat(), ...c.rounds.flatMap((r) => r.rejectedWith)];
     const first = errors[0] ? checkMessage(runRelative(errors[0], c.run)) : '';
-    if (!first) return [corrections === 1 ? msg('Done after 1 correction') : msg(str`Done after ${corrections} corrections`), 'neutral'];
-    return [
-      corrections === 1
-        ? msg(str`Done after 1 correction | first failed check: ${first}`)
-        : msg(str`Done after ${corrections} corrections | first failed check: ${first}`),
-      'neutral',
-    ];
+    return {
+      head: corrections === 1 ? msg('Done after 1 correction') : msg(str`Done after ${corrections} corrections`),
+      why: first ? msg(str`First failed check: ${first}`) : '',
+      tone: 'neutral',
+    };
   }
   const sw = modelSwitch(last.hops, null, last.skipped_hops);
-  if (sw) return [msg(str`Done after a model switch: ${sw}`), 'neutral'];
-  return [msg('Done'), 'neutral'];
+  if (sw) return { head: msg('Done after a model switch'), why: sw, tone: 'neutral' };
+  return { head: msg('Done'), why: '', tone: 'neutral' };
 }
 
 /** The model of the latest round, as its launch named it (`--model`). */
@@ -114,15 +109,11 @@ export function taskWho(c: Pick<TaskContext, 'detail' | 'launches'>): Who {
   };
 }
 
-/** The one-word states a verdict can be: said on the facts line rather than on a line of their own. */
-const plainVerdicts = (c: TaskContext): Set<string> =>
-  new Set([msg('Running'), msg('Waiting'), msg('Skipped'), msg('Not started'), msg('Partly done'), msg('Done'), outcomeLabel(stateOf(c))]);
-
 /**
- * The header of task `key`: its name; how it ended, when that takes more than a word;
- * and one line of facts (the state, the coding agent, the model, the cost, the time).
- * Under them, `.tm-more`: everything else about the task. A narrow view shows it while
- * `open`, the facts line being its button (`toggle`); a wide one beside the views.
+ * The header of task `key`: its name; one line of facts (its state, its cost, its time);
+ * and the cause behind the state, when there is one. Under them, `.tm-more`: everything else
+ * about the task, who ran it among it. A narrow view shows it while `open`, the facts line
+ * being its button (`toggle`); a wide one shows it beside the views.
  * `onSearch(query, nth)` is called when the reader picks one of its web searches (the
  * nth with that query).
  */
@@ -139,24 +130,24 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
   const tries = rows.filter(isLaunched);
   const unknownUsage = usageUnknownWords(usageUnknown(tries));
   const extras = Object.entries(d).filter(([k]) => !SHOWN_KEYS.has(k));
-  const [verdictText, tone] = verdict(c);
-  const plain = plainVerdicts(c).has(verdictText);
+  const { head, why, tone } = verdict(c);
   const kindName = py ? msg('Python task') : msg('Agent task');
   const node = c.plan?.nodes.find((n) => n.key === d.key);
   const spend = spendOf(rows);
   const wall = tries.reduce((t, r) => t + (r.wall_s || 0), 0);
-  const line = facts(plain ? verdictText : '', session ? who.agent : '', session ? who.model : '', spend ? usd(spend.cost) : '', tries.length ? fmtDur(wall) : '');
+  const rest = facts(spend ? usd(spend.cost) : '', tries.length ? fmtDur(wall) : '');
+  const line = html`<span class="tm-state" data-tone=${toneAttr(tone)}>${head}</span>${rest ? ` | ${rest}` : ''}`;
   return html`<div class="taskmeta">
       <div class="tm-top ${open ? 'open' : ''}">
         <div class="tm-line" title=${key}>
           ${executorIcon(py, kindName, `tm-av ${py ? 'py' : ''}`)}<span class="tm-name">${first ? kindUnit(first) : node ? kindUnit(node) : key.replace(/^python:/, '')}</span>
           ${live ? pill({ text: msg('running'), tone: 'running' }) : nothing}
         </div>
-        ${plain ? nothing : html`<div class="verdict" data-tone=${toneAttr(tone)} title=${verdictText}>${verdictText}</div>`}
         <button type="button" class="tm-facts tm-toggle" aria-expanded=${open ? 'true' : 'false'} aria-controls="tm-more" @click=${toggle}>
           ${line}<span class="chev" aria-hidden="true">▾</span>
         </button>
         <div class="tm-facts tm-static">${line}</div>
+        ${why ? html`<div class="verdict" data-tone=${toneAttr(tone)} title=${why}>${why}</div>` : nothing}
       </div>
       <div class="tm-more ${open ? 'open' : ''}" id="tm-more">
         ${node?.claims?.length

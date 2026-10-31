@@ -1062,14 +1062,6 @@
   <source>Skipped</source>
   <target>スキップ</target>
 </trans-unit>
-<trans-unit id="s23ba00b0f333e17e">
-  <source>Failed on all <x id="0" equiv-text="${tries.length}"/> attempts: <x id="1" equiv-text="${why}"/></source>
-  <target><x id="0" equiv-text="${tries.length}"/> 回の試行がすべて失敗: <x id="1" equiv-text="${why}"/></target>
-</trans-unit>
-<trans-unit id="s9a44f95f7acf28e0">
-  <source>Failed: <x id="0" equiv-text="${why}"/></source>
-  <target>失敗: <x id="0" equiv-text="${why}"/></target>
-</trans-unit>
 <trans-unit id="sfadf0e9dfc4b3030">
   <source>Done after 1 correction</source>
   <target>修正依頼 1 回で完了</target>
@@ -1077,10 +1069,6 @@
 <trans-unit id="s97c3c9984ad4bbbc">
   <source>Done after <x id="0" equiv-text="${corrections}"/> corrections</source>
   <target>修正依頼 <x id="0" equiv-text="${corrections}"/> 回で完了</target>
-</trans-unit>
-<trans-unit id="s87b0c0d87ec9c3a1">
-  <source>Done after a model switch: <x id="0" equiv-text="${sw}"/></source>
-  <target>モデル切り替え後に完了: <x id="0" equiv-text="${sw}"/></target>
 </trans-unit>
 <trans-unit id="s0379fc73608ab971">
   <source>Done</source>
@@ -2100,10 +2088,6 @@
   <source>Usage rule</source>
   <target>利用率のルール</target>
 </trans-unit>
-<trans-unit id="se0edc9b6c4e14371">
-  <source>Not run: <x id="0" equiv-text="${why}"/></source>
-  <target>実行されず: <x id="0" equiv-text="${why}"/></target>
-</trans-unit>
 <trans-unit id="s529efbcb1a0cf166">
   <source>limit <x id="0" equiv-text="${capPct(cap)}"/></source>
   <target>上限 <x id="0" equiv-text="${pct(cap)}"/></target>
@@ -2664,10 +2648,6 @@
   <source>attempts replayed</source>
   <target>リプレイした試行</target>
 </trans-unit>
-<trans-unit id="sd951292b03e4bc8b">
-  <source>Partly done: <x id="0" equiv-text="${why}"/></source>
-  <target>一部のみ完了: <x id="0" equiv-text="${why}"/></target>
-</trans-unit>
 <trans-unit id="s9f246e834b1d2865">
   <source>Partly done</source>
   <target>一部のみ完了</target>
@@ -2813,22 +2793,6 @@
 <trans-unit id="s2c8189544e3ea679">
   <source>Retry</source>
   <target>リトライ</target>
-</trans-unit>
-<trans-unit id="sdf14d39488c16f16">
-  <source>Done on attempt <x id="0" equiv-text="${tries.length}"/> | 1 failed attempt | first failure: <x id="1" equiv-text="${why}"/></source>
-  <target><x id="0" equiv-text="${tries.length}"/> 回目で完了 | 失敗 1 回 | 最初の失敗: <x id="1" equiv-text="${why}"/></target>
-</trans-unit>
-<trans-unit id="s9bd11c2c49c08916">
-  <source>Done on attempt <x id="0" equiv-text="${tries.length}"/> | <x id="1" equiv-text="${fails.length}"/> failed attempts | first failure: <x id="2" equiv-text="${why}"/></source>
-  <target><x id="0" equiv-text="${tries.length}"/> 回目で完了 | 失敗 <x id="1" equiv-text="${fails.length}"/> 回 | 最初の失敗: <x id="2" equiv-text="${why}"/></target>
-</trans-unit>
-<trans-unit id="s8fcb513335511341">
-  <source>Done after 1 correction | first failed check: <x id="0" equiv-text="${first}"/></source>
-  <target>修正依頼 1 回で完了 | 最初の検証エラー: <x id="0" equiv-text="${first}"/></target>
-</trans-unit>
-<trans-unit id="s4e7c49654e9033f5">
-  <source>Done after <x id="0" equiv-text="${corrections}"/> corrections | first failed check: <x id="1" equiv-text="${first}"/></source>
-  <target>修正依頼 <x id="0" equiv-text="${corrections}"/> 回で完了 | 最初の検証エラー: <x id="1" equiv-text="${first}"/></target>
 </trans-unit>
 <trans-unit id="s8d3d06c785c3c433">
   <source>Account or API key the coding agent used (credential)</source>
@@ -3382,6 +3346,31 @@
 <trans-unit id="sb8878a0ec9a8c292">
   <source>Events this contraagent version could not read (unread_events)</source>
   <target>このバージョンの contraagent が読めなかったイベント（unread_events）</target>
+</trans-unit>
+<trans-unit id="sec6789a38bac56ee">
+  <source>Failed on all <x id="0" equiv-text="${tries.length}"/> attempts</source>
+  <target><x id="0" equiv-text="${tries.length}"/> 回の試行がすべて失敗</target>
+</trans-unit>
+<trans-unit id="s1b36c18e76ff35d1">
+  <source>Done on attempt <x id="0" equiv-text="${tries.length}"/></source>
+  <target><x id="0" equiv-text="${tries.length}"/> 回目で完了</target>
+</trans-unit>
+<trans-unit id="s293fdc5b26f6a12d">
+  <source>First failure: <x id="0" equiv-text="${why}"/></source>
+  <target>最初の失敗: <x id="0" equiv-text="${why}"/></target>
+</trans-unit>
+<trans-unit id="s5c523ca29a31127a">
+  <source>First failed check: <x id="0" equiv-text="${first}"/></source>
+  <target>最初の検証エラー: <x id="0" equiv-text="${first}"/></target>
+</trans-unit>
+<trans-unit id="s1be67f9f8eed1f67">
+  <source>Done after a model switch</source>
+  <target>モデル切り替え後に完了</target>
+</trans-unit>
+<trans-unit id="verdict-failed">
+  <source>Failed</source>
+  <note from="lit-localize">A task that failed</note>
+  <target>失敗</target>
 </trans-unit>
 </body>
 </file>

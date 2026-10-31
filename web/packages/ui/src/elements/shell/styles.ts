@@ -75,7 +75,8 @@ export const monitorStyles = css`
     header { padding: 8px 12px; }
     .brand { flex: none; }
     .brand span { display: none; }
-    .runbtn { padding: 6px 10px; gap: 8px; }
+    /* the run button keeps room for its run's name; on a narrower box still, the controls go to a second line */
+    .runbtn { padding: 6px 10px; gap: 8px; min-width: min(140px, 100%); }
     .hdr-right { display: contents; }
     .clock, .langs { display: none; }
     .lang-next { display: inline-block; }

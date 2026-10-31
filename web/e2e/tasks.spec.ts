@@ -80,7 +80,8 @@ test('a task given earlier outputs names, by each param, the earlier task it cam
 test('a partly done task: its reason in its header, its own status in the tasks list and the problems', async ({ page }) => {
   await page.goto('/?run=docs&tab=stream&key=python:score-epsilon&view=output');
   const view = page.locator('ca-task-view');
-  await expect(view.locator('div.verdict')).toHaveText('Partly done: the word counter is unavailable: words left at 0');
+  await expect(view.locator('.tm-toggle .tm-state')).toHaveText('Partly done');
+  await expect(view.locator('div.verdict')).toHaveText('the word counter is unavailable: words left at 0');
   await expect(view.locator('div.verdict')).toHaveAttribute('data-tone', 'attention');
   await expect(view.locator('.runchip.part')).toContainText('partly done');
   await page.goto('/?run=docs&tab=overview');
