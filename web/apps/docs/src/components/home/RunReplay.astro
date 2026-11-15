@@ -355,8 +355,8 @@ const TABS = [
     .rr-graph .rr-head-tag { margin-left: 0; }
 
     .rr-kpis .rr-body { padding: 6px 12px 10px; }
-    .rr-kpis ca-kpis::part(tiles) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
-    .rr-kpis ca-kpis::part(tile) { padding: 5px 8px 6px; border-radius: 9px; }
+    .rr-kpis ca-kpis { --cae-stat-tiles-gap: 20px; }
+    .rr-kpis ca-kpis::part(tiles) { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 10px; }
     .rr-kpis ca-kpis::part(value) { font-size: 17px; margin-top: 1px; }
     .rr-kpis ca-kpis::part(sub), .rr-kpis ca-kpis::part(action) { display: none; }
 
@@ -371,7 +371,7 @@ const TABS = [
       .rr-kpis .rr-head { flex: none; flex-direction: column; align-items: flex-start; gap: 2px; width: 6.5rem; padding: 0 0 0 14px; }
       .rr-kpis .rr-head-tag { margin-left: 0; }
       .rr-kpis .rr-body { flex: 1; min-width: 0; padding: 8px 14px 8px 4px; }
-      .rr-kpis ca-kpis::part(tiles) { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+      .rr-kpis ca-kpis::part(tiles) { grid-template-columns: repeat(5, minmax(0, 1fr)); row-gap: 8px; }
       .rr-kpis ca-kpis::part(value) { font-size: 20px; }
     }
   }
@@ -500,8 +500,8 @@ const TABS = [
     }
     .rr-tabbed .rr-kpis .rr-body:focus-visible { outline: var(--ca-focus-width) solid var(--ca-focus); outline-offset: -2px; }
     .rr-tabbed .rr-kpis ca-kpis { width: max-content; }
-    .rr-tabbed .rr-kpis ca-kpis::part(tiles) { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 6.75rem; gap: 6px; }
-    .rr-tabbed .rr-kpis ca-kpis::part(tile) { padding: 5px 9px 6px; border-radius: 9px; }
+    .rr-tabbed .rr-kpis ca-kpis { --cae-stat-tiles-gap: 18px; }
+    .rr-tabbed .rr-kpis ca-kpis::part(tiles) { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 6.25rem; }
     .rr-tabbed .rr-kpis ca-kpis::part(label) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .rr-tabbed .rr-kpis ca-kpis::part(value) { font-size: 18px; margin-top: 1px; }
     .rr-tabbed .rr-kpis ca-kpis::part(sub), .rr-tabbed .rr-kpis ca-kpis::part(action) { display: none; }

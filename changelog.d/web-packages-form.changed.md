@@ -6,6 +6,6 @@
 - `--ca-line-field` is new: the edge of a text field, at 3:1 against the surfaces.
 - `<cae-segmented>` is a track with the chosen option raised on it; `--cae-segmented-divider` is removed.
 - `<cae-layered-graph>` draws on its host's surface; `--cae-graph-frame` sets a surface of its own.
-- `<cae-stat-tiles>` draws figures with a line between two of a row, without a box per tile.
+- `<cae-stat-tiles>` draws figures with a line between two of a row, without a box per tile. The line stands in the middle of `--cae-stat-tiles-gap` (32px by default, 12px before): set the space with that property, not with `gap` on the `tiles` part.
 - `TranscriptTag.bare` shows a tag's value without its label, which a screen reader still reads.
 - `<ca-theme-switch>` → `<ca-settings>`, which also holds the language (`ca-choose-locale`, new) and the keys; `<ca-clock>` is removed.

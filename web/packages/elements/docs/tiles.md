@@ -38,5 +38,7 @@ what it opens.
 
 `columns` sets the tiles per row in a wide element (5); a narrower one has 4
 below 1100px of its width, 2 below 660px and 1 below 240px. `--cae-stat-tiles-gap` sets the space between
-the tiles. The parts are `tiles`, `tile` (with `data-id` and `data-tone`),
+two tiles of a row (32px), in whose middle the line between them stands; the rows are that far apart
+too, 20px at most. Change the space with this property, not with `gap` on the `tiles` part: the line
+follows the property. The parts are `tiles`, `tile` (with `data-id` and `data-tone`),
 `label`, `value`, `sub` and `action` (the link over a tile).
