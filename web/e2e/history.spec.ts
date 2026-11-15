@@ -45,12 +45,12 @@ test('a filter refines the place: it is in the URL but adds no history entry', a
 
   await page.locator('ca-journal-table .jchip', { hasText: /^done/ }).click();
   await expect.poll(() => params(page).stop).toBe('completed'); // the URL keeps the stop value; the chip says it in words
-  await page.locator('ca-monitor .bar input').fill('beta');
+  await page.locator('ca-monitor .filter input').fill('beta');
   await expect.poll(() => params(page).q).toBe('beta');
   expect(await page.evaluate(() => history.length)).toBe(depth);
 
   await page.reload();
-  await expect(page.locator('ca-monitor .bar input')).toHaveValue('beta');
+  await expect(page.locator('ca-monitor .filter input')).toHaveValue('beta');
   await expect(page.locator('ca-journal-table .jchip.on')).toHaveText(/done/);
 });
 
@@ -176,12 +176,16 @@ test('the language switch: Japanese in place, kept across a reload, back to Engl
   // The graph legend's "done", a word xliff/ja.xlf translates.
   const legend = page.locator('ca-pipeline-graph .legend');
   await expect(legend).toContainText('done');
-  await page.locator('ca-monitor .langs button[lang=ja]').click();
+  // The language is one of the settings behind the header's button.
+  const settings = page.locator('ca-settings');
+  await settings.locator('.trig').click();
+  await settings.locator('.langs button[lang=ja]').click();
   await expect(legend).toContainText('完了');
   await expect(page.locator('html')).toHaveAttribute('lang', 'ja');
   await page.reload();
   await expect(legend).toContainText('完了');
-  await page.locator('ca-monitor .langs button[lang=en]').click();
+  await settings.locator('.trig').click();
+  await settings.locator('.langs button[lang=en]').click();
   await expect(legend).toContainText('done');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 });

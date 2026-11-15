@@ -142,7 +142,7 @@ export function fileConditions(o: ContractSpec, role: 'input' | 'output'): Templ
 
 /** A chip that names a checked file's status (`statusChip`), or a neutral label in its shape. */
 export const contractChipStyles = css`
-  .ct-chip { display: inline-block; padding: 1px 10px; border-radius: var(--radius-pill); font-size: 11.5px; background: var(--raise); color: var(--text-2); white-space: nowrap; }
+  .ct-chip { display: inline-block; padding: 1px 10px; border-radius: var(--radius-pill); font-size: var(--font-size-xs); background: var(--raise); color: var(--text-2); white-space: nowrap; }
   .ct-chip b { margin-left: 4px; }
   /* a checked file's status: tinted by its tone, passed quiet with its ✓ in an outline */
   .ct-chip[data-tone] { background: var(--tone-bg); color: var(--tone); }
@@ -155,18 +155,18 @@ export const contractStyles = css`
   .ct-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ct-lead { margin: 2px 0 8px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; }
   /* a name's column as wide as its longest name, up to half the width; a long name or value wraps */
-  .conds { display: grid; grid-template-columns: fit-content(50%) minmax(0, 1fr); gap: 2px 14px; margin: 2px 0 10px; font-size: 12px; }
+  .conds { display: grid; grid-template-columns: fit-content(50%) minmax(0, 1fr); gap: 2px 14px; margin: 2px 0 10px; font-size: var(--font-size-xs); }
   .conds dt { color: var(--text-muted); overflow-wrap: anywhere; }
   .conds dd { margin: 0; color: var(--text-2); min-width: 0; overflow-wrap: anywhere; }
   .note { margin-top: 6px; }
   .ct-raw { margin-top: 8px; }
-  .ct-raw > summary { cursor: pointer; color: var(--text-muted); font-size: 12px; }
+  .ct-raw > summary { cursor: pointer; color: var(--text-muted); font-size: var(--font-size-xs); }
   .ct-err { color: var(--status-failed); white-space: pre-wrap; }
   .ct-fields { border-collapse: collapse; width: 100%; }
-  .ct-fields td { padding: 2px 10px 2px 0; border: 0; font-size: 12px; }
+  .ct-fields td { padding: 2px 10px 2px 0; border: 0; font-size: var(--font-size-xs); }
   .ct-in { display: flex; align-items: center; gap: 10px; padding: 5px 4px; border-top: 1px solid var(--line); }
-  h4 { margin: 8px 0 6px; font-size: 12px; color: var(--text-2); font-weight: 600; }
-  .io-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; background: var(--raise); }
+  h4 { margin: 8px 0 6px; font-size: var(--font-size-xs); color: var(--text-2); font-weight: 600; }
+  .io-card { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 10px 14px; margin-bottom: 10px; background: var(--raise); }
   .io-hd { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
   .io-from { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: -2px 0 8px; }
   .io-hd .ct-path { flex: 1; }

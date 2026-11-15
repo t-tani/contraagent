@@ -44,13 +44,13 @@ export class CaToasts extends LitElement {
     base,
     css`
       :host { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 60; pointer-events: none; }
-      .toast { pointer-events: auto; min-width: 240px; max-width: 380px; padding: 10px 14px; border-radius: 11px;
-        background: var(--panel2); border: 1px solid var(--line2); box-shadow: 0 18px 40px color-mix(in srgb, var(--shadow) 60%, transparent);
+      .toast { pointer-events: auto; min-width: 240px; max-width: 380px; padding: 10px 14px; border-radius: var(--radius-lg);
+        background: var(--panel2); border: 1px solid var(--line2); box-shadow: 0 12px 32px color-mix(in srgb, var(--shadow) 50%, transparent);
         display: flex; gap: 10px; align-items: flex-start; animation: toast-in 0.35s var(--ease) both; }
       .toast.out { animation: toast-out 0.35s var(--ease) both; }
-      .ti { font-size: 16px; line-height: 1.2; }
-      b { display: block; font-size: 12.5px; }
-      span.sub { font-size: 11.5px; color: var(--text-muted); }
+      .ti { font-size: var(--font-size-lg); line-height: 1.2; }
+      b { display: block; font-size: var(--font-size-sm); }
+      span.sub { font-size: var(--font-size-xs); color: var(--text-muted); }
       .ti { color: var(--text-muted); }
       .toast[data-tone] .ti { color: var(--tone); }
       .toast[data-tone='failed'], .toast[data-tone='attention'] { border-color: color-mix(in srgb, var(--tone) 50%, var(--line2)); }

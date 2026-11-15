@@ -58,17 +58,17 @@ export class CaContracts extends LitElement {
       details.ct > summary::-webkit-details-marker { display: none; }
       details.ct > summary::before { content: '▸'; color: var(--text-muted); width: 10px; transition: transform 0.15s; }
       details.ct[open] > summary::before { transform: rotate(90deg); }
-      details.ct > summary:hover { background: var(--raise); border-radius: 8px; }
+      details.ct > summary:hover { background: var(--raise); border-radius: var(--radius-md); }
       .k-ic { margin-right: 0; }
       .ct-f { margin-left: auto; white-space: nowrap; }
       .ct-body { padding: 4px 10px 14px 24px; }
       @container (max-width: 480px) {
         .ct-body { padding: 4px 0 14px 12px; }
       }
-      .ct-links { margin-top: 10px; font-size: 12px; }
+      .ct-links { margin-top: 10px; font-size: var(--font-size-xs); }
       .lead { margin: -4px 0 10px; }
       .one { display: flex; align-items: center; gap: 10px; padding: 7px 4px 7px 24px; border-top: 1px solid var(--line); flex-wrap: wrap; }
-      .why { color: var(--text-2); font-size: 12px; }
+      .why { color: var(--text-2); font-size: var(--font-size-xs); }
     `,
   ];
 
@@ -107,7 +107,7 @@ export class CaContracts extends LitElement {
     const chips = ctChips(this.outputs);
     return html`<div class="g12">
       <section class="panel c12">
-        <h3 title=${msg('Files each task must write (OutputContract)')}>${msg('Outputs')}</h3>
+        <h3 class=${ins.length ? '' : 'sr'} title=${msg('Files each task must write (OutputContract)')}>${msg('Outputs')}</h3>
         ${chips.length ? html`<div class="ct-row">${chips}</div>` : nothing}
         ${repeat(others, ([c, o]) => `out|${c.key}|${o.path}`, ([c, o]) => this.outRow(c, o))}
         ${passed.length

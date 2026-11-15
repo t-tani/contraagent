@@ -39,8 +39,8 @@ export abstract class ChartElement extends LitElement {
       .head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 8px; min-height: 22px; }
       .head .legend { flex: 1; min-width: 0; }
       .head .legend span { color: var(--text-2); }
-      .switch { margin-left: auto; flex: none; background: none; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px;
-        font: inherit; font-size: var(--font-size-sm); color: var(--text-muted); cursor: pointer; }
+      .switch { margin-left: auto; flex: none; background: none; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 2px 10px;
+        font: inherit; font-size: var(--font-size-xs); color: var(--text-muted); cursor: pointer; }
       .switch:hover, .switch:focus-visible { color: var(--text); border-color: var(--line2); }
       .plot { position: relative; outline-offset: 2px; }
       .plot:focus-visible { border-radius: var(--radius-sm); }
@@ -51,7 +51,7 @@ export abstract class ChartElement extends LitElement {
       .hit { fill: transparent; }
       .band { fill: var(--text); opacity: 0.05; }
       .tip { position: absolute; z-index: 2; pointer-events: none; padding: 6px 9px; border-radius: var(--radius-sm); background: var(--raise);
-        border: 1px solid var(--line2); box-shadow: 0 4px 14px var(--shadow); color: var(--text); font-size: var(--font-size-sm);
+        border: 1px solid var(--line2); box-shadow: 0 4px 14px var(--shadow); color: var(--text); font-size: var(--font-size-xs);
         white-space: nowrap; line-height: 1.45; }
       .tip b { font-weight: 600; }
       .tip .row { display: flex; align-items: center; gap: 6px; }
@@ -59,8 +59,8 @@ export abstract class ChartElement extends LitElement {
       .tip .row .v { margin-left: auto; padding-left: 12px; font-variant-numeric: tabular-nums; }
       .scale { display: inline-flex; gap: 1px; margin-right: 6px; vertical-align: -1px; }
       .legend .scale i { width: 12px; height: 10px; margin: 0; border-radius: 2px; }
-      .empty { padding: 18px 0; color: var(--text-muted); font-size: var(--font-size-sm); }
-      table { border-collapse: collapse; font-size: var(--font-size-sm); font-variant-numeric: tabular-nums; }
+      .empty { padding: 18px 0; color: var(--text-muted); font-size: var(--font-size-xs); }
+      table { border-collapse: collapse; font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; }
       .tbl { overflow-x: auto; max-width: 100%; }
       th, td { padding: 4px 12px 4px 0; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
       th { color: var(--text-muted); font-weight: 500; }

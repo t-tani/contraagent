@@ -23,17 +23,18 @@ describe('type and radius scale', () => {
     ]);
   });
 
-  it('gives every step a default in pixels', () => {
+  it('gives every step a default: a size in rem (it follows the font size a reader set), a corner in pixels', () => {
     for (const t of steps) {
-      expect(t.derive, t.prop).toMatch(/^\d+px$/);
+      expect(t.derive, t.prop).toMatch(t.prop.includes('-font-size-') ? /^\d+(\.\d+)?rem$/ : /^\d+px$/);
       expect(tokenStyles.cssText, t.prop).toContain(`--${t.name}: var(${t.prop}, ${t.derive});`);
     }
   });
 
-  it('grows step by step', () => {
+  it('grows step by step, from 12px of text at the default font size', () => {
     for (const kind of ['font-size', 'radius']) {
-      const px = steps.filter((t) => t.prop.includes(`-${kind}-`)).map((t) => parseInt(t.derive!, 10));
-      expect(px, kind).toEqual([...px].sort((a, b) => a - b));
+      const sizes = steps.filter((t) => t.prop.includes(`-${kind}-`)).map((t) => parseFloat(t.derive!));
+      expect(sizes, kind).toEqual([...sizes].sort((a, b) => a - b));
     }
+    expect(parseFloat(steps[0]!.derive!) * 16).toBe(12);
   });
 });

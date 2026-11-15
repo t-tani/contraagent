@@ -23,9 +23,9 @@ const CELLS = [
   css`
     caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     /* a narrow screen scrolls the table sideways rather than cutting every cell */
-    tr { column-gap: 12px; padding: 6px 12px; border-bottom: 1px solid var(--line); font-size: 12px; min-width: 560px; }
+    tr { column-gap: 12px; padding: 6px 12px; border-bottom: 1px solid var(--line); font-size: var(--font-size-xs); min-width: 560px; }
     th, td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    thead tr { color: var(--text-muted); font-size: 11px; }
+    thead tr { color: var(--text-muted); font-size: var(--font-size-xs); }
     tbody [data-align='end'] { font-variant-numeric: tabular-nums; }
     tbody tr[data-tone='failed'], tbody tr[data-tone='attention'] { box-shadow: inset 2px 0 0 var(--tone); }
     td a, th a { color: var(--accent); text-decoration: none; }
@@ -53,7 +53,7 @@ export class CaPanelBody extends LitElement {
     css`
       :host { display: block; }
       /* a note reads as text beside the figures; a tone puts a rule beside it, the words say why */
-      .note { font-size: var(--font-size-sm); color: var(--text-2); line-height: 1.55; max-width: 78ch; }
+      .note { font-size: var(--font-size-xs); color: var(--text-2); line-height: 1.55; max-width: 78ch; }
       .note > :first-child { margin-top: 0; }
       .note > :last-child { margin-bottom: 0; }
       .note[data-tone] { padding-left: 10px; border-left: 3px solid var(--line2); }
@@ -62,8 +62,8 @@ export class CaPanelBody extends LitElement {
       .note[data-tone='done'] { border-left-color: var(--status-done); }
       .note[data-tone='running'] { border-left-color: var(--status-running); }
       .block + .block { margin-top: 18px; }
-      h4 { margin: 0 0 8px; font-size: var(--font-size-sm); font-weight: 600; color: var(--text-2); }
-      details > summary { cursor: pointer; margin-bottom: 8px; font-size: var(--font-size-sm); font-weight: 600; color: var(--text-2); }
+      h4 { margin: 0 0 8px; font-size: var(--font-size-xs); font-weight: 600; color: var(--text-2); }
+      details > summary { cursor: pointer; margin-bottom: 8px; font-size: var(--font-size-xs); font-weight: 600; color: var(--text-2); }
       details:not([open]) > summary { margin-bottom: 0; }
       .block[data-anchor] { scroll-margin-top: 12px; }
       .block[data-anchor]:focus { outline: none; }

@@ -59,6 +59,9 @@ const DEFAULT_INFO: Info = { title: 'contraagent', panels: [], api_version: '' }
 /** A client given in the options may throw something else: it counts as no response from `url`. */
 const asApiError = (e: unknown, url: string): ApiError => (e instanceof ApiError ? e : new ApiError(url, 'network'));
 
+/** Whether nobody sees the page (a tab in the background): no browser, no page, so never hidden. */
+const pageHidden = (): boolean => typeof document !== 'undefined' && document.hidden;
+
 export class MonitorStore {
   readonly client: MonitorClient;
   private snap: MonitorSnapshot = {
@@ -143,7 +146,10 @@ export class MonitorStore {
     if (this.stopped || this.opts.runsEveryMs <= 0 || this.pollTimer) return;
     this.pollTimer = setTimeout(() => {
       this.pollTimer = null;
-      void this.refresh().finally(() => this.schedule());
+      // Nobody sees a hidden page: this turn asks for nothing, and the first turn after it shows again does.
+      // The feed stays open, so no row is missed. Asked at each turn, with no listener on the host's document.
+      if (pageHidden()) this.schedule();
+      else void this.refresh().finally(() => this.schedule());
     }, this.opts.runsEveryMs);
   }
 

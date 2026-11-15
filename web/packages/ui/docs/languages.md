@@ -29,7 +29,7 @@ chosen; `<ca-monitor>` draws its first view after it is loaded.
 
 Lit Localize can be configured only once per page. On a page whose own code
 configured it first, `configureLocales()` returns `false`: the elements stay
-in English and `<ca-monitor>` shows no language switch.
+in English and the settings of `<ca-monitor>` offer no language.
 
 What is translated is the monitor's own wording: labels, headings, tooltips and
 causes, and the words for a run's codes (a stop such as `completed` shows as

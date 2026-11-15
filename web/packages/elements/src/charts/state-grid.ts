@@ -113,7 +113,7 @@ export class CaeStateGrid extends ChartElement {
       /* a cell that ended well keeps its mark, quietly: the exceptions are what the eye finds */
       .mark.quiet { font-weight: 400; fill: var(--text-muted); }
       .legend .key { display: inline-grid; place-items: center; width: 14px; height: 14px; margin-right: 6px; border-radius: 3px;
-        font-size: 9.5px; font-weight: 700; color: var(--text); vertical-align: -2px; }
+        font-size: var(--font-size-xs); font-weight: 700; color: var(--text); vertical-align: -2px; }
     `,
   ];
 

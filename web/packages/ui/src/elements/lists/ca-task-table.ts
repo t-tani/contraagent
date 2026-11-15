@@ -16,26 +16,29 @@ const CELLS = [
   executorIconStyles,
   css`
     caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-    /* the numbers sit tight together, right-aligned; the status comes last and takes the spare width, so no gap opens inside the row */
-    tr { column-gap: 20px; padding: 6px 12px; }
-    tbody tr { border-bottom: 0; border-radius: 8px; transition: background 0.15s; }
+    /* a task's status stands beside its name and takes the spare width; the numbers sit tight together at the end, right-aligned */
+    tr { column-gap: 20px; padding: 7px 12px; align-items: baseline; }
+    tbody tr { border-bottom: 0; border-radius: var(--radius-md); transition: background 0.15s; }
     thead tr { align-items: end; white-space: nowrap; padding: 4px 12px 8px; margin-bottom: 4px; }
-    tbody [data-col='ended'] { font-size: var(--font-size-sm); }
     .wall { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
     .wall .jdur { width: 56px; margin: 0; flex: none; }
     .grow { display: flex; align-items: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .grow .jdim { margin-left: 8px; }
-    .pass { margin-left: 8px; font-size: 11px; color: var(--text-muted); }
-    .cause { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; white-space: normal; overflow-wrap: anywhere; }
+    .pass { margin-left: 8px; font-size: var(--font-size-xs); color: var(--text-muted); font-family: var(--sans); }
+    .cause { display: block; font-size: var(--font-size-xs); color: var(--text-muted); margin-top: 2px; white-space: normal; overflow-wrap: anywhere; }
     /* a narrow table (its container is <cae-data-table>): the task, its status and its time */
     @container (max-width: 760px) {
-      tr { grid-template-columns: minmax(0, 1fr) 128px 90px; }
+      tr { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 90px; }
       [data-col='attempts'], [data-col='tokens'], [data-col='cost'], [data-col='ended'] { display: none; }
     }
-    /* a phone: the task takes two lines rather than be cut, and the time keeps its number without the bar; the row says what each is without the column names, and the locks stay in the task's header */
+    /* a phone: the same three tracks in every row, so the times and the statuses line up; a status with a cause takes a line
+       of its own under the task, which takes two lines rather than be cut; the row says what each is without the column names */
     @container (max-width: 480px) {
-      tr { grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 12px; padding: 6px 8px; }
+      tr { grid-template-columns: minmax(0, 1fr) 8em 3.5em; column-gap: 10px; padding: 7px 8px; }
+      [data-col='status'] .pill { white-space: normal; }
       thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+      tbody tr:has(.cause) [data-col='status'] { grid-column: 1 / -1; grid-row: 2; }
+      tbody tr:has(.cause) [data-col='time'] { grid-column: 3; }
       .grow .also { display: none; }
       .wall .jdur { display: none; }
       .grow { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }

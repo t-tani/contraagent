@@ -97,7 +97,7 @@ export class CaeTree extends LitElement {
   static override styles = [
     base,
     css`
-      :host { display: block; font-size: var(--font-size-md); }
+      :host { display: block; font-size: var(--font-size-xs); }
       .tree { margin: 0; padding: 2px 0; }
       .row { display: flex; align-items: center; gap: 4px; min-height: 24px; padding: 0 8px 0 calc((var(--level) - 1) * 14px + 4px);
         border-radius: var(--radius-sm); cursor: pointer; white-space: nowrap; color: var(--text-2); }
@@ -110,10 +110,10 @@ export class CaeTree extends LitElement {
       .twist:hover { color: var(--text); }
       .icon { flex: none; width: 16px; height: 16px; color: var(--text-muted); }
       .name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-      .badge { flex: none; margin-left: 6px; font-size: 11px; padding: 0 6px; border-radius: var(--radius-pill); background: var(--raise); color: var(--text-2); }
+      .badge { flex: none; margin-left: 6px; font-size: var(--font-size-xs); padding: 0 6px; border-radius: var(--radius-pill); background: var(--raise); color: var(--text-2); }
       .badge[data-tone] { background: var(--tone-bg); color: var(--tone); }
       .badge[data-tone='done'] { background: none; color: var(--text-2); }
-      .empty { color: var(--text-muted); font-size: var(--font-size-sm); padding: 4px 8px; }
+      .empty { color: var(--text-muted); font-size: var(--font-size-xs); padding: 4px 8px; }
       @media (prefers-reduced-motion: reduce) { .twist svg { transition: none; } }
     `,
   ];

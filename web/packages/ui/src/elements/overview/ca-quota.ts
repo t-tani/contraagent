@@ -29,8 +29,8 @@ export class CaQuota extends LitElement {
       :host { display: block; container-type: inline-size; }
       /* the bar keeps a width of its own, and ends near its figures on a wide card */
       .rows { display: grid; grid-template-columns: max-content minmax(70px, 420px) max-content max-content; justify-content: start; gap: 10px 14px; align-items: center; }
-      .name { font-size: 12px; color: var(--text-2); white-space: nowrap; }
-      .bar { position: relative; height: 12px; border-radius: 4px; background: var(--track); overflow: hidden; }
+      .name { font-size: var(--font-size-xs); color: var(--text-2); white-space: nowrap; }
+      .bar { position: relative; height: 12px; border-radius: var(--radius-sm); background: var(--track); overflow: hidden; }
       .bar i { position: absolute; top: 0; bottom: 0; }
       /* usage measures, it does not judge: neutral, attention from 80% (the number says it too) */
       .bar .before { left: 0; background: var(--meter); opacity: 0.45; }
@@ -39,10 +39,10 @@ export class CaQuota extends LitElement {
       /* the cap: a line across the bar where the account is paused */
       .bar .cap { width: 2px; margin-left: -1px; background: var(--text); opacity: 0.7; }
       .val.hot b, .val.full b { color: var(--status-attention); }
-      .val { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .val { font-family: var(--mono); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
       .val b { color: var(--text); }
       .val .lim { color: var(--text-muted); }
-      .reset { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
+      .reset { font-size: var(--font-size-xs); color: var(--text-muted); white-space: nowrap; }
       /* a narrow card: the reset time goes under its bar */
       @container (max-width: 460px) {
         .rows { grid-template-columns: max-content minmax(70px, 1fr) max-content; row-gap: 2px; }
@@ -51,12 +51,12 @@ export class CaQuota extends LitElement {
       .status { margin-top: 8px; }
       .acct { padding: 10px 0; border-top: 1px solid var(--line); }
       .acct:first-child { border-top: 0; padding-top: 0; }
-      .acct-h { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; font-size: 12px; }
-      .acct-h i { font-style: normal; color: var(--text-muted); font-size: 11px; }
+      .acct-h { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; font-size: var(--font-size-xs); }
+      .acct-h i { font-style: normal; color: var(--text-muted); font-size: var(--font-size-xs); }
       .acct-h b { font-family: var(--mono); color: var(--text); font-weight: 600; }
-      .rests { margin: 8px 0 0; padding: 0; list-style: none; font-size: 11.5px; color: var(--text-2); }
+      .rests { margin: 8px 0 0; padding: 0; list-style: none; font-size: var(--font-size-xs); color: var(--text-2); }
       .rests li { padding: 2px 0; }
-      .rule { margin-bottom: 10px; font-size: 12px; color: var(--text-2); }
+      .rule { margin-bottom: 10px; font-size: var(--font-size-xs); color: var(--text-2); }
       .rule code { font-family: var(--mono); color: var(--text); }
     `,
   ];

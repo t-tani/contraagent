@@ -8,7 +8,8 @@
 // rules below), so that element, everything inside it (the page's own CSS too)
 // and every element's shadow root read the same properties. A `--ca-*` property
 // set on that element or inside it wins over the theme. With neither, an element
-// shows the contraagent theme (the fallbacks in `tokenStyles`, styles/tokens.ts).
+// shows contraagent Light or contraagent Dark, as the page's `color-scheme` says
+// (the fallbacks in `tokenStyles`, styles/tokens.ts).
 import { TOKENS } from './tokens-list.js';
 
 /**
@@ -25,11 +26,11 @@ export type ThemeName = (typeof THEME_NAMES)[number];
 /** A reader's choice: a theme, or `system` (contraagent Dark or contraagent Light, as the system's colour scheme). */
 export type ThemeChoice = ThemeName | 'system';
 /** The choices in the monitor's control, in order. */
-export const THEME_CHOICES: readonly ThemeChoice[] = ['contraagent-dark', 'contraagent-light', 'system', 'github-dark', 'github-light', 'one-dark', 'nord', 'high-contrast'];
+export const THEME_CHOICES: readonly ThemeChoice[] = ['system', 'contraagent-dark', 'contraagent-light', 'github-dark', 'github-light', 'one-dark', 'nord', 'high-contrast'];
 /** The themes after the first divider of the control: palettes of code editors. */
 export const EDITOR_THEMES: readonly ThemeName[] = ['github-dark', 'github-light', 'one-dark', 'nord', 'high-contrast'];
-/** The theme for a reader who has not chosen. */
-export const DEFAULT_THEME: ThemeName = 'contraagent-dark';
+/** The choice of a reader who has not chosen: the system's colour scheme. */
+export const DEFAULT_CHOICE: ThemeChoice = 'system';
 /** What `system` shows, by the system's colour scheme. */
 export const SYSTEM_THEMES = { dark: 'contraagent-dark', light: 'contraagent-light' } as const satisfies Record<string, ThemeName>;
 
@@ -51,6 +52,9 @@ export interface Theme {
   tokens: Record<ThemeToken, string>;
 }
 
+// The two contraagent themes: the surfaces and the text are one neutral hue (264 in
+// OKLCH, a little chroma) in even steps of lightness, so a colour on them is a
+// status, the accent or an identity and nothing else.
 // Where a value differs from its source palette, the comment says so and why
 // (the contrast rules: text 4.5:1 on every surface and tint, 7:1 in high contrast).
 // The series colours are one categorical palette in a fixed order (blue, orange,
@@ -64,20 +68,20 @@ export const THEMES: Record<ThemeName, Theme> = {
     label: 'contraagent Dark',
     scheme: 'dark',
     tokens: {
-      backdrop: 'radial-gradient(1100px 520px at 8% -12%, #10203a 0%, transparent 62%), radial-gradient(900px 480px at 108% 4%, #1b1238 0%, transparent 58%), #060a11',
-      bg: '#060a11',
-      card: '#0f1724',
-      panel: '#0f1724',
-      panel2: '#142034',
-      raise: '#1a2740',
-      well: '#0a111c',
-      track: '#1b273b',
-      line: '#1d2940',
-      line2: '#2b3c58',
-      shadow: '#060a11',
-      text: '#e7edf5',
-      'text-2': '#bcc7d6',
-      'text-muted': '#909db2',
+      backdrop: '#0a0c11',
+      bg: '#0a0c11',
+      card: '#13161c',
+      panel: '#13161c',
+      panel2: '#171b22',
+      raise: '#1e222a',
+      well: '#06080c',
+      track: '#262b36',
+      line: '#23272f',
+      line2: '#3d4451',
+      shadow: '#000000',
+      text: '#ebedf1',
+      'text-2': '#b8bec8',
+      'text-muted': '#979fad',
       accent: '#7aa2ff',
       focus: '#7aa2ff',
       'focus-width': '2px',
@@ -116,20 +120,20 @@ export const THEMES: Record<ThemeName, Theme> = {
     label: 'contraagent Light',
     scheme: 'light',
     tokens: {
-      backdrop: 'radial-gradient(1100px 520px at 8% -12%, #dde7fb 0%, transparent 62%), radial-gradient(900px 480px at 108% 4%, #ebe3fa 0%, transparent 58%), #eef2f8',
-      bg: '#eef2f8',
+      backdrop: '#f4f6f8',
+      bg: '#f4f6f8',
       card: '#ffffff',
       panel: '#ffffff',
-      panel2: '#f7f9fc',
-      raise: '#e6ecf5',
-      well: '#f3f6fa',
-      track: '#e1e7f0',
-      line: '#d6dde8',
-      line2: '#b6c2d3',
+      panel2: '#f9fafc',
+      raise: '#eceef2',
+      well: '#f1f2f5',
+      track: '#e1e4e9',
+      line: '#e0e3e8',
+      line2: '#b9bec7',
       shadow: '#0f172438',
-      text: '#0f1724',
-      'text-2': '#34415a',
-      'text-muted': '#556279',
+      text: '#151922',
+      'text-2': '#424854',
+      'text-muted': '#5d6370',
       accent: '#2f58d4',
       focus: '#2f58d4',
       'focus-width': '2px',

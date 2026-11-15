@@ -1,7 +1,7 @@
 // The overview's pipeline graph over the demo's two generator flows: `docs` (a
 // review loop per unit) and `analyse` (three layers of flow calls, a loop inside a
 // loop).
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const graph = (page: Page) => page.locator('ca-pipeline-graph');
 const crumbs = (page: Page) => graph(page).locator('.crumbs');
@@ -506,12 +506,17 @@ test.describe('functions drawn open: the whole flow in one drawing', () => {
 test.describe('the overview’s cards', () => {
   const card = (page: Page, cls: string) => page.locator(`ca-overview .band.status .${cls}`);
 
-  test('the run, its problems and its outputs share one row of one height on a wide screen', async ({ page }) => {
+  test('the state of the run heads the page; its problems and its outputs share one row of one height on a wide screen', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await open(page, 'docs');
+    // The state of the run: the largest words of the page, over the cards.
+    const state = page.locator('ca-run-driver .drv-t');
+    const size = (l: Locator) => l.evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
+    expect(await size(state)).toBeGreaterThan(await size(card(page, 'problems').locator('h3')));
+    expect((await card(page, 'stack').boundingBox())!.y).toBeLessThan((await card(page, 'problems').boundingBox())!.y);
     // Measured once the cards have entered: they slide in, and mid-way their tops differ.
     const row = async () => {
-      const boxes = await Promise.all(['stack', 'problems', 'outputs'].map((c) => card(page, c).boundingBox()));
+      const boxes = await Promise.all(['problems', 'outputs'].map((c) => card(page, c).boundingBox()));
       const tops = boxes.map((b) => Math.round(b!.y));
       const heights = boxes.map((b) => Math.round(b!.height));
       return { tops: new Set(tops).size, spread: Math.max(...heights) - Math.min(...heights) };

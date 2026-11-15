@@ -102,24 +102,24 @@ describe('ca-monitor', () => {
     const el = await monitor();
     const key = (key: string) => root(el).querySelector('nav .tab')!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, composed: true }));
     const filter = async (q: string) => {
-      const input = root(el).querySelector<HTMLInputElement>('.bar input')!;
+      const input = root(el).querySelector<HTMLInputElement>('.filter input')!;
       input.value = q;
       input.dispatchEvent(new Event('input'));
       await el.updateComplete;
     };
     key('2');
     await el.updateComplete;
-    expect(text(root(el).querySelector('nav .tab.sel'))).toMatch(/^≡ ?Tasks/);
+    expect(text(root(el).querySelector('nav .tab.sel'))).toMatch(/^Tasks/);
     // The tab's badge counts them all: no count in the bar without a filter.
-    expect(text(root(el).querySelector('.bar .meta'))).toBe('');
+    expect(text(root(el).querySelector('.filter .meta'))).toBe('');
     await filter('c-1');
-    expect(text(root(el).querySelector('.bar .meta'))).toBe('1 of 3 tasks');
+    expect(text(root(el).querySelector('.filter .meta'))).toBe('1 of 3 tasks');
     await filter('');
     key('3');
     await el.updateComplete;
-    expect(text(root(el).querySelector('.bar .meta'))).toBe('');
+    expect(text(root(el).querySelector('.filter .meta'))).toBe('');
     await filter('d-1');
-    expect(text(root(el).querySelector('.bar .meta'))).toBe('0 of 3 attempts | 1 not started');
+    expect(text(root(el).querySelector('.filter .meta'))).toBe('0 of 3 attempts | 1 not started');
     await filter('');
     el.remove();
   });
@@ -152,12 +152,12 @@ describe('ca-monitor', () => {
       el.remove();
     });
 
-    it('takes no keys with shortcuts="off", and its tab bar shows no key hint', async () => {
+    it('takes no keys with shortcuts="off", and its settings list no key', async () => {
       const el = await monitor({ shortcuts: 'off' });
       root(el).querySelector('nav .tab')!.dispatchEvent(new KeyboardEvent('keydown', { key: '2', bubbles: true, composed: true }));
       await el.updateComplete;
       expect(text(root(el).querySelector('nav .tab.sel'))).toMatch(/Overview/);
-      expect(root(el).querySelector('.tabhint')).toBeNull();
+      expect(root(el).querySelector('ca-settings')!.keys).toEqual([]);
       el.remove();
     });
 
@@ -176,10 +176,12 @@ describe('ca-monitor', () => {
   describe('as the page (history="url")', () => {
     it('sets the title and takes the number keys pressed anywhere in the page', async () => {
       const el = await monitor({ history: 'url' });
-      expect(document.title).toBe('Pipeline monitor');
+      // The place first (the tab, the run), then the monitor's name.
+      expect(document.title).toMatch(/^Overview \| \S+ \| Pipeline monitor$/);
       document.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }));
       await el.updateComplete;
       expect(text(root(el).querySelector('nav .tab.sel'))).toMatch(/Tasks/);
+      expect(document.title).toMatch(/^Tasks \| \S+ \| Pipeline monitor$/);
       el.remove();
     });
   });
@@ -191,17 +193,17 @@ describe('ca-monitor', () => {
     const tabs = [...list.querySelectorAll<HTMLElement>('[role="tab"]')];
     expect(tabs.map((t) => t.getAttribute('aria-selected'))).toEqual(tabs.map((_, i) => String(i === 0)));
     expect(tabs.map((t) => t.tabIndex)).toEqual(tabs.map((_, i) => (i === 0 ? 0 : -1)));
-    const main = root(el).querySelector('main')!;
-    expect(main.getAttribute('role')).toBe('tabpanel');
-    expect(main.getAttribute('aria-labelledby')).toBe(tabs[0]!.id);
-    expect(tabs[0]!.getAttribute('aria-controls')).toBe(main.id);
+    // The view is the selected tab's panel, inside the page's main part.
+    const panel = root(el).querySelector('main > [role="tabpanel"]')!;
+    expect(panel.getAttribute('aria-labelledby')).toBe(tabs[0]!.id);
+    expect(tabs[0]!.getAttribute('aria-controls')).toBe(panel.id);
     // ArrowLeft from the first tab wraps to the last (the custom view).
     tabs[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, composed: true }));
     expect(tabs.at(-1)!.tabIndex).toBe(0);
     tabs.at(-1)!.click();
     await el.updateComplete;
     expect(tabs.at(-1)!.getAttribute('aria-selected')).toBe('true');
-    expect(main.getAttribute('aria-labelledby')).toBe(tabs.at(-1)!.id);
+    expect(root(el).querySelector('main > [role="tabpanel"]')!.getAttribute('aria-labelledby')).toBe(tabs.at(-1)!.id);
     el.remove();
   });
 
@@ -271,7 +273,7 @@ describe('ca-monitor', () => {
       el.history = 'url';
       el.locale = 'ja';
       // The Japanese module loads when first chosen.
-      await vi.waitFor(() => expect(document.title).toBe('Pipeline モニター'), { timeout: 3000 });
+      await vi.waitFor(() => expect(document.title).toMatch(/Pipeline モニター$/), { timeout: 3000 });
       expect(el.lang).toBe('ja');
       el.remove();
     });

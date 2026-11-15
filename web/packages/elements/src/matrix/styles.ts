@@ -13,17 +13,17 @@ export const matrixStyles = css`
     animation: view-in 0.1s var(--ease) both; }
   @keyframes view-in { from { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .mxblock { animation: none; } }
-  .mxbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-bottom: 8px; font-size: 12px; color: var(--text-2);
+  .mxbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-bottom: 8px; font-size: var(--font-size-xs); color: var(--text-2);
     width: 0; min-width: 100%; box-sizing: border-box; }
   .mxbar .cap { color: var(--text); font-weight: 600; }
   .mxbar .sum { flex: 1 0 100%; min-width: 0; }
   .mxbar .f { white-space: nowrap; }
   .sep { color: var(--text-muted); }
-  .mxbar label { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--text-muted); font-size: 11.5px; white-space: nowrap; }
-  .mxbar select { font: inherit; font-size: 11.5px; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; }
+  .mxbar label { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--text-muted); font-size: var(--font-size-xs); white-space: nowrap; }
+  .mxbar select { font: inherit; font-size: var(--font-size-xs); color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 2px 6px; }
   .mxbar select:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 1px; }
-  .mx { overflow: auto; max-width: 100%; max-height: max(${FRAME_MIN}px, ${unsafeCSS(FRAME_SHARE * 100)}vh); border-radius: 6px; border: 1px solid var(--line); }
-  table.matrix { border-collapse: separate; border-spacing: 0; font-size: 11px; width: 100%; min-width: max-content; }
+  .mx { overflow: auto; max-width: 100%; max-height: max(${FRAME_MIN}px, ${unsafeCSS(FRAME_SHARE * 100)}vh); border-radius: var(--radius-md); border: 1px solid var(--line); }
+  table.matrix { border-collapse: separate; border-spacing: 0; font-size: var(--font-size-xs); width: 100%; min-width: max-content; }
   .matrix th, .matrix td { padding: 0 6px; height: ${ROW_H}px; border-bottom: 1px solid var(--line); white-space: nowrap; }
   .matrix thead th { position: sticky; z-index: 2; background: var(--panel2); color: var(--text-muted); font-weight: 500; text-align: center; height: 22px; }
   .matrix thead th.nh { font-family: var(--mono); color: var(--text-2); font-weight: 600; max-width: 110px; overflow: hidden; text-overflow: ellipsis; }

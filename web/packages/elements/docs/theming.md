@@ -11,7 +11,11 @@ break it and its CSS cannot leak into your page. What reaches it are the
    the element that carries `data-ca-theme` or on an element inside it. A theme
    of your own is a set of them.
 
-With neither, an element shows contraagent Dark.
+With neither, an element shows contraagent Light or contraagent Dark, as the
+`color-scheme` of your page says: light on a page that declares none, dark
+under `color-scheme: dark`, and the reader's system setting under
+`color-scheme: light dark`. So an element reads on your page before you choose
+a theme for it.
 
 ![The CI pipeline's page in the contraagent Dark theme](images/theming-dark.webp)
 
@@ -19,7 +23,7 @@ With neither, an element shows contraagent Dark.
 
 | `data-ca-theme` | Name | Source |
 |---|---|---|
-| `contraagent-dark` | contraagent Dark (the default) | this package |
+| `contraagent-dark` | contraagent Dark | this package |
 | `contraagent-light` | contraagent Light | this package: the hues of contraagent Dark, set for a light page |
 | `github-dark` | GitHub Dark | [GitHub Primer primitives](https://github.com/primer/primitives), dark (MIT, GitHub Inc.) |
 | `github-light` | GitHub Light | Primer primitives, light (MIT, GitHub Inc.) |
@@ -102,7 +106,7 @@ A colour means one thing, on every screen and in every theme:
 
 | Properties | Meaning |
 |---|---|
-| `--ca-backdrop`, `--ca-bg`, `--ca-card`, `--ca-panel`, `--ca-panel2`, `--ca-raise`, `--ca-well`, `--ca-track`, `--ca-line`, `--ca-line2`, `--ca-shadow` | the page, surfaces, borders and shadows |
+| `--ca-backdrop`, `--ca-bg`, `--ca-card`, `--ca-panel`, `--ca-panel2`, `--ca-raise`, `--ca-well`, `--ca-track`, `--ca-line`, `--ca-line2`, `--ca-line-field`, `--ca-shadow` | the page, surfaces, lines and shadows; `--ca-line-field` is the edge of a text field, by default the muted text mixed into the card so that it reads at 3:1 |
 | `--ca-text`, `--ca-text-secondary`, `--ca-text-muted` | text, from the main text to labels and units |
 | `--ca-accent`, `--ca-accent-bg` | what can be clicked or is selected |
 | `--ca-focus`, `--ca-focus-width` | the focus ring |
@@ -133,6 +137,18 @@ and `src/themes/data.ts` (`THEMES`).
 The type and radius scale is the same in every theme: no theme sets it, and
 each step has a default. A `--ca-*` property on an ancestor changes a step for
 every element under it.
+
+The sizes are in `rem`: 12, 13, 14, 16, 20 and 28 pixels at the browser's
+default font size. They follow the font size a reader set in the browser, and
+the text scale of the operating system on a page that opts in with
+`<meta name="text-scale" content="scale">`. A page whose root font size is not
+the browser's default (`html { font-size: 62.5% }`) sets the six properties to
+the sizes it wants.
+
+A reader who asks the system for more contrast (`prefers-contrast: more`) gets
+stronger lines and no muted text in every theme. In forced colours (Windows
+High Contrast) a status mark, a bar and a selected item are redrawn with the
+system's colours and with lines, so each keeps its shape.
 
 ::code{file="../src/themes/tokens-list.ts" from="{ name: 'font-size-xs'" to="];"}
 

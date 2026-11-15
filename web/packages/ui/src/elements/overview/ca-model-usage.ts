@@ -34,9 +34,9 @@ export class CaModelUsage extends LitElement {
       .head { display: flex; justify-content: flex-end; margin-bottom: 10px; overflow-x: auto; }
       .head cae-segmented { flex: none; }
       /* scrolls sideways on a narrow card: a keyboard reaches it */
-      .wrap { overflow-x: auto; margin-top: 14px; border-radius: 6px; }
+      .wrap { overflow-x: auto; margin-top: 14px; border-radius: var(--radius-md); }
       /* The columns as wide as their contents, so a model's figures sit near its name. */
-      table { border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+      table { border-collapse: collapse; font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; }
       th { font-weight: 500; color: var(--text-muted); text-align: right; padding: 0 0 6px 28px; white-space: nowrap; border-bottom: 1px solid var(--line); }
       th:first-child { text-align: left; padding-left: 0; }
       th.on { color: var(--text); font-weight: 600; }
@@ -48,7 +48,7 @@ export class CaModelUsage extends LitElement {
       .model { display: grid; grid-template-columns: 10px max-content; column-gap: 8px; align-items: baseline; }
       .model i { width: 10px; height: 10px; border-radius: 3px; align-self: center; }
       .model b { font-family: var(--mono); font-weight: 500; color: var(--text); }
-      .model small { grid-column: 2; font-size: 11px; color: var(--text-muted); }
+      .model small { grid-column: 2; font-size: var(--font-size-xs); color: var(--text-muted); }
     `,
   ];
 

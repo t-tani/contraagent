@@ -26,7 +26,7 @@ export class CaServices extends LitElement {
     css`
       :host { display: block; }
       ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
-      li { display: grid; grid-template-columns: max-content 1fr; column-gap: 10px; row-gap: 2px; align-items: baseline; font-size: 12px; }
+      li { display: grid; grid-template-columns: max-content 1fr; column-gap: 10px; row-gap: 2px; align-items: baseline; font-size: var(--font-size-xs); }
       .name { font-family: var(--mono); color: var(--text); overflow-wrap: anywhere; }
       .addr { font-family: var(--mono); color: var(--text-2); overflow-wrap: anywhere; }
       .facts { grid-column: 2; color: var(--text-2); overflow-wrap: anywhere; }

@@ -6,4 +6,8 @@ export const meterStyles = css`
   .jdur { position: relative; display: block; height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; margin-top: 2px; }
   .jdur i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--meter); }
   .jdur i.bad { background: var(--status-failed); }
+  @media (forced-colors: active) {
+    .jdur { border: 1px solid CanvasText; }
+    .jdur i { forced-color-adjust: none; background: CanvasText; }
+  }
 `;

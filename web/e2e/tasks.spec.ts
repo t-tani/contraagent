@@ -12,11 +12,11 @@ test('the tasks tab counts and lists as many tasks as the header', async ({ page
   await expect(page.getByRole('tab', { name: /Tasks/ }).locator('.badge')).toHaveText(String(total));
   // The badge counts every task; the bar counts only while a filter is on: the rows shown of all.
   await expect(page.locator('ca-task-table tbody tr')).toHaveCount(total);
-  await expect(page.locator('.bar .meta')).toHaveText('');
-  await page.locator('ca-monitor .bar input').fill('zeta');
+  await expect(page.locator('.filter .meta')).toHaveText('');
+  await page.locator('ca-monitor .filter input').fill('zeta');
   await expect(page.locator('ca-task-table tbody tr')).toHaveCount(1);
-  await expect(page.locator('.bar .meta')).toHaveText(`1 of ${total} tasks`);
-  await page.locator('ca-monitor .bar input').fill('');
+  await expect(page.locator('.filter .meta')).toHaveText(`1 of ${total} tasks`);
+  await page.locator('ca-monitor .filter input').fill('');
   await expect(page.locator('ca-task-table tbody tr')).toHaveCount(total);
   // Both passes of review · gamma, each its own row.
   const passes = page.locator('ca-task-table tbody tr', { hasText: 'gamma' }).filter({ hasText: 'review' }).locator('.pass');
@@ -45,7 +45,7 @@ for (const [tab, list] of [['tasks', 'ca-task-table'], ['journal', 'ca-journal-t
     await feedReady(page);
     const rows = page.locator(`${list} tbody tr`);
     await expect(rows.first()).toBeVisible();
-    await page.locator('ca-monitor .bar input').focus();
+    await page.locator('ca-monitor .filter input').focus();
     let at = await focused(page);
     for (let i = 0; i < 30 && at !== 'TR'; i++) {
       await page.keyboard.press('Tab');

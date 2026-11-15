@@ -23,21 +23,23 @@ The single-key shortcuts are 1 to 9 (the tabs), `r` (the run switcher) and `/`
 (the filter). In every scope they never take a key typed into a text field
 (`input`, `select`, `textarea`, an editable element), a key pressed with Ctrl,
 Alt or Meta, or a key a listener of the host already handled with
-`preventDefault()`. `shortcuts="off"` turns them off, and the tab bar then
-shows no key hint; `shortcuts="page"` gives an embedded monitor the whole page.
+`preventDefault()`. The settings behind the header's button list the keys that
+work. `shortcuts="off"` turns them off, and the settings then list none;
+`shortcuts="page"` gives an embedded monitor the whole page.
 
-While the run switcher or the theme menu is open, a click elsewhere in the page
-closes it (for the theme menu, a press of the pointer). The monitor listens on the
-document for that event only while one of them is open, and neither stops nor
-prevents it.
+While the run switcher is open, a click elsewhere in the page closes it. The
+monitor listens on the document for that event only while the switcher is open,
+and neither stops nor prevents it. The settings open as a popover, over the
+page and outside the monitor's box when they need the room; the browser closes
+them on a press outside them or on Escape.
 
 Two monitors on one page each keep their own view route, scroll positions, open
 sections and shortcuts. They share what is one per page:
 
 - the language: Lit Localize has one locale per page, so `locale` on one
-  monitor, or its language switch, changes the other's too;
+  monitor, or the language in its settings, changes the other's too;
 - the reader's choices of language and theme, remembered in `localStorage`
-  (`contraagent:locale`, `contraagent:theme`), as the monitor's switches do;
+  (`contraagent:locale`, `contraagent:theme`), as the monitor's settings do;
 - the themes' rules, added once to the document's adopted style sheets; they
   match only `[data-ca-theme]`, so the host's own elements are not restyled;
 - Lit Localize's `lit-localize-status` event on `window`, which every element

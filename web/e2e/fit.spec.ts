@@ -22,7 +22,7 @@ const PLACES = [
 async function openMonitor(page: Page, url: string) {
   await page.goto(url);
   await expect(page.locator('ca-monitor header .runbtn')).toBeVisible();
-  await expect(page.locator('ca-monitor main#main > *').first()).toBeVisible();
+  await expect(page.locator('ca-monitor main > .view > *, ca-monitor main > :not(.view)').first()).toBeVisible();
   if (new URL(url, 'http://x').searchParams.has('run')) await feedReady(page);
   await page.waitForLoadState('networkidle');
   await settle(page);

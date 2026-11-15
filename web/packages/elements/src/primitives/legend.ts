@@ -44,7 +44,7 @@ export function legend(items: readonly LegendItem[], o: LegendOptions = {}): Tem
 }
 
 export const legendStyles = css`
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: var(--font-size-sm); color: var(--text-muted); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: var(--font-size-xs); color: var(--text-muted); }
   .legend > span { white-space: nowrap; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
   .legend i[data-tone] { background: var(--tone); }

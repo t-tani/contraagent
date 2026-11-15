@@ -65,6 +65,47 @@ Beyond the imports:
 - No module changes the page at import: the page or `ca-monitor` sets up the
   languages (`configureLocales()`) and the themes (`adoptThemes()`).
 
+## Browsers
+
+The monitor and the elements are written for the browsers of now: Chrome, Edge,
+Firefox and Safari in their current versions.
+
+- A feature that is Baseline Widely available is used as it is.
+- A feature that is Baseline Newly available is used when the page still reads and
+  works without it: behind `@supports` or a test of the property, with the plain
+  form as the other branch (a tab's line is its border, and slides only where
+  anchor positioning exists).
+- A feature of limited availability only adds to what already works (a text scale
+  from the operating system, a finer line break in Japanese).
+- No polyfill is loaded. A fallback is a few lines of the page's own.
+
+`unit` tests run in happy-dom, which has no popover, no anchor positioning and no
+container queries: what depends on them is tested in `e2e/`.
+
+## Form
+
+A screen gives its room to what the reader came for, and its layout says what a
+value is. A label, a heading or a chip's prefix that repeats what the place or the
+value already says is not shown; it stays for a screen reader (`.sr`). A state with
+nothing to report takes a line, not a card.
+
+- Sizes come from the scale (`--font-size-xs` to `--font-size-2xl`, in rem;
+  `--radius-sm`, `--radius-md`, `--radius-lg`). A glyph drawn in a box of a fixed
+  size is the only text sized in px.
+- A shape has one role. A pill is a status or a count. A value is a tag
+  (`--radius-sm`). A button, a field and a row have `--radius-md`. A panel and
+  what opens over the page have `--radius-lg`.
+- A panel is one flat surface with a line around it: no gradient, no shadow, no
+  box inside it but a discrete thing (a graph's node). Only what opens over the
+  page has a shadow.
+- A colour is a status, the accent or an identity. A state's words are in the
+  text's colour and its mark carries the status.
+- What is drawn with a fill, a shadow or a gradient alone is gone in forced
+  colours: a status and a selection get a line or a system colour there
+  (`@media (forced-colors: active)`), and no layout uses a transparent border.
+- A key handler of a text field returns while an input method composes text
+  (`isComposing`, and key code 229).
+
 ## Text the UI shows
 
 Every visible string is wrapped in `msg()` (`@lit/localize`) and every element class

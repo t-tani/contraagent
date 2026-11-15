@@ -4,7 +4,7 @@ import { css } from 'lit';
 
 /** A verdict: ✓ and its word quiet, ✕ and its word in the failed tone, a warning in the attention tone. */
 export const verdictStyles = css`
-  .verdict { font-size: 12px; }
+  .verdict { font-size: var(--font-size-xs); }
   .verdict[data-verdict='pass'] { color: var(--text-2); }
   .verdict[data-verdict='pass'] > [aria-hidden] { color: var(--status-done); font-weight: 700; }
   .verdict[data-verdict='fail'] { color: var(--status-failed); font-weight: 600; }
@@ -16,16 +16,16 @@ export const verdictStyles = css`
 export const checkTableStyles = css`
   :host { display: block; max-width: 100%; container-type: inline-size; }
   table { width: auto; max-width: 100%; border-collapse: collapse; }
-  th { text-align: left; font-size: 11.5px; color: var(--text-muted);
+  th { text-align: left; font-size: var(--font-size-xs); color: var(--text-muted);
     font-weight: 600; padding: 4px 20px 4px 0; border-bottom: 1px solid var(--line); }
-  td { padding: 5px 20px 5px 0; border: 0; border-bottom: 1px solid var(--line); vertical-align: baseline; font-size: 12.5px; }
+  td { padding: 5px 20px 5px 0; border: 0; border-bottom: 1px solid var(--line); vertical-align: baseline; font-size: var(--font-size-sm); }
   th:last-child, td:last-child { padding-right: 0; }
   td.value { overflow-wrap: anywhere; }
   tbody tr:last-child td { border-bottom: 0; }
   /* a name stays on one line while the table has the room, and breaks where it must */
   td:first-child { font-weight: 600; overflow-wrap: anywhere; }
   td:last-child { white-space: nowrap; }
-  i { font-style: normal; color: var(--text-muted); font-size: 11px; margin-left: 4px; }
+  i { font-style: normal; color: var(--text-muted); font-size: var(--font-size-xs); margin-left: 4px; }
   /* a phone: one field a block, its name and verdict on the first line, what is expected and the value under them */
   @container (max-width: 440px) {
     table, tbody { display: block; }

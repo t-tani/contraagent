@@ -61,9 +61,9 @@ test('a key pressed inside one monitor works there only', async ({ page }) => {
   await expect(selected(page, '#a')).toContainText('Tasks');
   await expect(selected(page, '#b')).toContainText('Overview');
   await page.keyboard.press('/');
-  await expect(page.locator('#a .bar input')).toBeFocused();
+  await expect(page.locator('#a .filter input')).toBeFocused();
   await page.keyboard.type('summ');
-  await expect(page.locator('#a .bar input')).toHaveValue('summ');
+  await expect(page.locator('#a .filter input')).toHaveValue('summ');
   await expect(selected(page, '#a')).toContainText('Tasks');
 });
 

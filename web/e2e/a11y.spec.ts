@@ -142,3 +142,57 @@ for (const tab of ['overview', 'tasks', 'journal', 'outputs', 'definitions', 'pr
     expect(serious).toEqual([]);
   });
 }
+
+/** The serious and critical violations axe finds on the page as it is. */
+async function serious(page: Page): Promise<string[]> {
+  const { violations } = await new AxeBuilder({ page }).analyze();
+  return violations
+    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+    .map((v) => `${v.id} (${v.impact}): ${v.nodes.map((n) => n.target.join(' > ')).join(', ')}`);
+}
+
+for (const tab of ['overview', 'tasks', 'stream']) {
+  test(`axe finds no serious or critical violation in the light theme: ${tab}`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
+    await page.goto(`/?run=docs&tab=${tab}`);
+    await expect(page.locator('ca-monitor')).toHaveAttribute('data-ca-theme', 'contraagent-light');
+    await feedReady(page);
+    await page.waitForLoadState('networkidle');
+    expect(await serious(page)).toEqual([]);
+  });
+}
+
+test('axe finds no serious or critical violation with the settings open', async ({ page }) => {
+  await page.goto('/?run=docs&tab=overview');
+  await feedReady(page);
+  await page.locator('ca-settings .trig').click();
+  await expect(page.locator('ca-settings').getByRole('dialog')).toBeVisible();
+  expect(await serious(page)).toEqual([]);
+});
+
+test('the page has one main landmark, and its title names the tab and the run', async ({ page }) => {
+  await page.goto('/?run=docs&tab=tasks');
+  await feedReady(page);
+  await expect(page.getByRole('main')).toHaveCount(1);
+  await expect(page).toHaveTitle(/^Tasks \| docs \| .+ monitor$/);
+});
+
+test.describe('forced colours', () => {
+  test.use({ forcedColors: 'active' });
+
+  test('a status mark, the selected tab and a chosen option keep their shape', async ({ page }) => {
+    await page.goto('/?run=docs&tab=overview');
+    await feedReady(page);
+    const style = (sel: string, prop: string) => page.locator(sel).first().evaluate((e, p) => getComputedStyle(e).getPropertyValue(p), prop);
+    // A mark of the graph: a fill of its own, where the page's fills are taken away.
+    await expect(page.locator('ca-pipeline-graph .mark').first()).toBeVisible();
+    expect(await style('ca-pipeline-graph .mark', 'background-color')).not.toBe('rgba(0, 0, 0, 0)');
+    // The selected tab alone has a line under it.
+    expect(await style('ca-monitor nav .tab.sel', 'border-bottom-width')).toBe('2px');
+    expect(await style('ca-monitor nav .tab:not(.sel)', 'border-bottom-width')).toBe('0px');
+    // The run's state in the header: a dot that is drawn.
+    expect(await style('ca-monitor header .dot', 'background-color')).not.toBe('rgba(0, 0, 0, 0)');
+    // A chosen option of a segmented control has a line around it.
+    expect(await style("cae-segmented button[aria-checked='true']", 'outline-style')).toBe('solid');
+  });
+});

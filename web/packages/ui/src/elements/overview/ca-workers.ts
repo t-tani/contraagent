@@ -26,7 +26,7 @@ export class CaWorkers extends LitElement {
       .wks { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: 10px; }
       @container (max-width: 860px) { .wks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
       @container (max-width: 360px) { .wks { grid-template-columns: minmax(0, 1fr); } }
-      .wk { border-radius: 11px; padding: 10px 12px; border: 1px solid var(--line); background: color-mix(in srgb, var(--text) 2.5%, transparent); min-width: 0;
+      .wk { border-radius: var(--radius-lg); padding: 10px 12px; border: 1px solid var(--line); background: color-mix(in srgb, var(--text) 2.5%, transparent); min-width: 0;
         position: relative; overflow: hidden; display: block; width: 100%; color: inherit; text-align: start; }
       .wk > .meta { display: block; }
       .wk.py, .wk.llm { border-color: var(--line2); }
@@ -35,10 +35,10 @@ export class CaWorkers extends LitElement {
       .wk.idle { opacity: 0.45; border-style: dashed; }
       .wk-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
       .wk-top b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .wk-ic { width: 24px; height: 24px; border-radius: 7px; flex: none; display: grid; place-items: center; background: var(--raise); font-size: 12px; }
+      .wk-ic { width: 24px; height: 24px; border-radius: var(--radius-md); flex: none; display: grid; place-items: center; background: var(--raise); font-size: 12px; }
       .wk.llm .wk-ic { color: var(--agent); }
       .wk.py .wk-ic { color: var(--text-muted); }
-      .wk-el { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--status-running); }
+      .wk-el { margin-left: auto; font-family: var(--mono); font-size: var(--font-size-xs); color: var(--status-running); }
       .wk-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; overflow: hidden; }
       .wk-bar i { position: absolute; top: 0; bottom: 0; left: -30%; width: 30%; background: linear-gradient(90deg, transparent, var(--status-running), transparent);
         animation: scan 1.8s linear infinite; }

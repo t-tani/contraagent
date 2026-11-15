@@ -1,5 +1,5 @@
 // The tasks list's columns (`ca-task-table`): a row per task of the run
-// (`TaskRow`), its attempts, time, tokens, cost and status.
+// (`TaskRow`): its status beside its name, then its attempts, time, tokens and cost.
 import { addRow, emptySpend, isPython, runRelative, type JournalRow, type Spend, type TaskOutcome, type TaskRow } from '@contraagent/api';
 import type { DataColumn } from '@contraagent/elements/data-table';
 import { pill } from '@contraagent/elements/primitives';
@@ -46,6 +46,9 @@ export function taskColumns(ctx: TaskColumnsContext): DataColumn<TaskRow>[] {
   for (const r of ctx.journal) addRow(spend.get(r.key) ?? spend.set(r.key, emptySpend()).get(r.key)!, r);
   // A task that has not run (refused, skipped, waiting) has no attempts and no time.
   const ran = (t: TaskRow) => t.tries.length > 0;
+  const ended = (t: TaskRow) => t.tries[t.tries.length - 1]?.ts;
+  // The day is said where the rows ended on more than one: a run of one day shows the times alone (its day is in the overview).
+  const days = new Set(ctx.rows.filter(ran).map((t) => new Date(ended(t) ?? '').toDateString())).size;
   // Tokens and cost: 'none' for a task that never ran, '—' for one that reported none (a Python task).
   const spent = (t: TaskRow, show: (s: Spend) => unknown) => {
     if (!ran(t)) return html`<span class="jdim">${none()}</span>`;
@@ -57,7 +60,7 @@ export function taskColumns(ctx: TaskColumnsContext): DataColumn<TaskRow>[] {
       id: 'task',
       header: msg('Task'),
       tip: msg('Kind · unit'),
-      width: 'minmax(220px, 0.6fr)',
+      width: 'minmax(220px, 1fr)',
       rowHeader: true,
       text: (t) => t.key,
       cell: (t) => {
@@ -69,6 +72,18 @@ export function taskColumns(ctx: TaskColumnsContext): DataColumn<TaskRow>[] {
           ${t.claims?.length ? html`<span class="jdim also" title=${locksNames(t.claims)}>${locksShort(t.claims)}</span>` : nothing}
           ${t.priority ? html`<span class="jdim also" title=${priorityTip()}>${priorityText(t.priority)}</span>` : nothing}
         </span>`;
+      },
+    },
+    {
+      id: 'status',
+      header: msg('Status', { id: 'status', desc: 'The status of a task: done, failed, not started' }),
+      width: 'minmax(200px, 1.5fr)',
+      cell: (t) => {
+        const why = cause(t, ctx);
+        const tip = t.outcome === 'waiting' && t.deferred ? deferredTip(t.deferredCause) || t.deferred : '';
+        return html`${pill({ text: taskStatusLabel(t.outcome, ctx.live && !t.deferred), tone: outcomeTone(t.outcome), mark: outcomeMark(t.outcome), title: t.last_stop })}${why
+          ? html`<span class="cause" title=${tip || nothing}>${why}</span>`
+          : nothing}`;
       },
     },
     { id: 'attempts', header: msg('Attempts'), tip: msg('Attempts that ran'), align: 'end', width: '64px', cell: (t) => t.tries.length },
@@ -99,22 +114,11 @@ export function taskColumns(ctx: TaskColumnsContext): DataColumn<TaskRow>[] {
     { id: 'cost', header: msg('Cost'), tip: msg('Reported by the coding agent'), align: 'end', width: '72px', cell: (t) => spent(t, (s) => usd(s.cost)) },
     {
       id: 'ended',
-      header: msg('Last attempt ended'),
+      header: msg('Ended'),
+      tip: msg('Last attempt ended'),
       align: 'end',
-      width: '128px',
-      cell: (t) => html`<span class="meta">${ran(t) ? localTime(t.tries[t.tries.length - 1]?.ts, true) : none()}</span>`,
-    },
-    {
-      id: 'status',
-      header: msg('Status', { id: 'status', desc: 'The status of a task: done, failed, not started' }),
-      width: 'minmax(240px, 1fr)',
-      cell: (t) => {
-        const why = cause(t, ctx);
-        const tip = t.outcome === 'waiting' && t.deferred ? deferredTip(t.deferredCause) || t.deferred : '';
-        return html`${pill({ text: taskStatusLabel(t.outcome, ctx.live && !t.deferred), tone: outcomeTone(t.outcome), mark: outcomeMark(t.outcome), title: t.last_stop })}${why
-          ? html`<span class="cause" title=${tip || nothing}>${why}</span>`
-          : nothing}`;
-      },
+      width: days > 1 ? '128px' : '72px',
+      cell: (t) => html`<span class="meta">${ran(t) ? localTime(ended(t), days > 1) : none()}</span>`,
     },
   ];
 }

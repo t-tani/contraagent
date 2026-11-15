@@ -62,7 +62,8 @@ export function firstLine(s: string | null | undefined): string {
   const t = (s || '').trim();
   if (!t) return '';
   const l = (t.split('\n')[0] || '').trim();
-  return l.length > 100 ? `${l.slice(0, 100)}…` : l;
+  // Where it is shown cuts it to its width (and keeps a path's file name); the limit here only bounds a line of megabytes.
+  return l.length > 2000 ? `${l.slice(0, 2000)}…` : l;
 }
 
 /** A token count, compact: `950`, `1.2k`, `34k`, `1.3M`. */

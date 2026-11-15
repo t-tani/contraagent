@@ -29,7 +29,7 @@ export const statusStyles = css`
    * A status as a pill, always with its word. A problem is tinted and marked (✕ failed, ◌ not started);
    * done is quiet (a ✓ and the word): it is the usual case, and the problems are what stand out.
    */
-  .pill { border-radius: var(--radius-pill); padding: 1px 10px; font-size: var(--font-size-sm); font-weight: 500; background: var(--raise); color: var(--text-2); white-space: nowrap; }
+  .pill { border-radius: var(--radius-pill); padding: 1px 10px; font-size: var(--font-size-xs); font-weight: 500; background: var(--raise); color: var(--text-2); white-space: nowrap; }
   .pill[data-tone] { background: var(--tone-bg); color: var(--tone); }
   .pill[data-tone='done'] { background: none; padding-left: 2px; color: var(--text-2); }
 
@@ -47,6 +47,11 @@ export const statusStyles = css`
   .dot[data-tone='running'] { animation: breathe 1.8s ease-in-out infinite; }
   .dot[data-tone='attention'] { border-radius: 1px; transform: rotate(45deg) scale(0.86); }
   .dot[data-tone='failed'] { border-radius: 1.5px; }
+  @media (forced-colors: active) {
+    .dot { forced-color-adjust: none; background: CanvasText; }
+    .dot:not([data-tone]) { background: Canvas; border: 1.5px solid CanvasText; }
+    .pill[data-tone] { border: 1px solid CanvasText; }
+  }
   .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--status-running-bg);
     border-top-color: var(--status-running); animation: turn 0.9s linear infinite; flex: none; display: inline-block; }
 `;

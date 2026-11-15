@@ -1,10 +1,17 @@
 // One shared once-a-second tick for every element that shows a running clock.
+// A tick draws nothing while the page is hidden; the first one after it shows
+// again does. It asks the page at each tick and listens for nothing: an element
+// on a host's page adds no listener to its document.
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 
 const hosts = new Set<ReactiveControllerHost>();
 let timer: ReturnType<typeof setInterval> | null = null;
 
+/** Whether nobody sees the page (a tab in the background, a window minimized): nothing is drawn for it. */
+export const pageHidden = (): boolean => typeof document !== 'undefined' && document.hidden;
+
 function tick(): void {
+  if (pageHidden()) return;
   for (const h of hosts) h.requestUpdate();
 }
 

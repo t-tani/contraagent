@@ -5,6 +5,7 @@ import { customElement, property, query, state } from 'lit/decorators.js';
 import { emit, type RoundInfo, type RoundsChangedDetail } from '../../core/events.js';
 import { TASK_VIEWS, type TaskView } from '../../core/view-route.js';
 import { TaskDetailController } from '../../controllers/task-detail.js';
+import { RovingFocusController } from '@contraagent/elements/primitives';
 import { base } from '@contraagent/elements/styles';
 import { executorIconStyles } from '../../words/executor.js';
 import { contractStyles } from '../shared/contract-parts.js';
@@ -115,7 +116,7 @@ export class CaTaskView extends LitElement {
     };
     const view = this.shownView(d);
     return html`<div class="tv">${taskHeader(c, key, (q, nth) => this.revealSearch(q, nth), this.more, () => (this.more = !this.more))} ${this.renderViews(d, view)}
-      <div class="body">${d.stream
+      <div class="body" id="tv-body" role="tabpanel" aria-labelledby=${`tv-${view}`}>${d.stream
         ? html`<ca-transcript .run=${this.run} .stream=${d.stream} base-url=${this.baseUrl} .client=${this.client} .live=${c.live} .shownWho=${taskWho(c)}
             .rows=${d.rows} .round=${this.round} mode=${view === 'transcript' ? 'full' : view === 'input' ? 'tabs' : 'none'}
             @ca-rounds=${(e: CustomEvent<RoundsChangedDetail>) => {
@@ -129,6 +130,13 @@ export class CaTaskView extends LitElement {
       ${view !== 'transcript' ? html`<div class="pane">${this.renderPane(c, view)}</div>` : nothing}</div></div>`;
   }
 
+  /** One tab stop for the views' tab list. */
+  private readonly viewFocus = new RovingFocusController(this, {
+    items: () => [...this.renderRoot.querySelectorAll<HTMLElement>('.tviews [role="tab"]')],
+    layout: 'horizontal',
+    wrap: true,
+  });
+
   private renderViews(d: TaskDetail, view: TaskView) {
     const io = d.io;
     const py = isPy(d) && !d.stream;
@@ -138,10 +146,13 @@ export class CaTaskView extends LitElement {
         Object.keys(io.params).length,
       output: io.outputs.length,
     };
-    return html`<div class="tviews" role="tablist" data-scroll="x">
-      ${TASK_VIEWS.filter((id) => !(py && id === 'transcript')).map((id) => {
+    const shown = TASK_VIEWS.filter((id) => !(py && id === 'transcript'));
+    // Tab comes into the list on the selected view; the arrow keys, Home and End move between the views.
+    this.viewFocus.current = Math.max(0, shown.indexOf(view));
+    return html`<div class="tviews" role="tablist" aria-label=${msg('Task detail')} data-scroll="x">
+      ${shown.map((id) => {
         const label = viewLabel()[id];
-        return html`<button type="button" role="tab" aria-selected=${id === view} class="tview ${id === view ? 'sel' : ''}"
+        return html`<button type="button" role="tab" id=${`tv-${id}`} aria-selected=${id === view ? 'true' : 'false'} aria-controls="tv-body" class="tview ${id === view ? 'sel' : ''}"
           @click=${() => emit(this, 'ca-navigate', { view: id })}>
           ${label}${n[id] ? html`<span class="badge">${n[id]}</span>` : nothing}
         </button>`;
