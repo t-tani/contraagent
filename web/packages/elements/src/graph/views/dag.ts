@@ -243,6 +243,7 @@ function mark(h: GraphHost, g: MarkGroup, s: Slot, i: number, tabStop: boolean, 
 function onKey(h: GraphHost, e: KeyboardEvent, g: MarkGroup): void {
   const target = e.target as HTMLElement;
   if (!target.classList.contains('mark') && !target.classList.contains('taskchip')) return;
+  if (e.altKey) return;
   if (e.shiftKey && e.key.startsWith('Arrow')) return toEdge(h, e, g);
   const { slots } = g;
   if (e.key === 'Enter') {

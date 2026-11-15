@@ -1,6 +1,7 @@
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
+import { pageHidden } from '../core/clock.js';
 import { withDefaults } from '../core/strings.js';
 import { legend, legendStyles, type LegendItem } from '../primitives/legend.js';
 import { base } from '../styles/index.js';
@@ -67,7 +68,8 @@ export class CaeLanes extends LitElement {
   }
 
   private tick(on: boolean): void {
-    if (on && !this.timer) this.timer = setInterval(() => this.requestUpdate(), 1000);
+    // The bars of what runs grow each second, while somebody can see them.
+    if (on && !this.timer) this.timer = setInterval(() => !pageHidden() && this.requestUpdate(), 1000);
     if (!on && this.timer) {
       clearInterval(this.timer);
       this.timer = null;

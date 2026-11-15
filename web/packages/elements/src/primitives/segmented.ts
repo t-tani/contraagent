@@ -19,8 +19,7 @@ export interface SegmentedOption {
  * arrow keys, Home and End, choose. The group is one tab stop.
  *
  * Its look: `--cae-segmented-radius`, `--cae-segmented-height`,
- * `--cae-segmented-padding`, `--cae-segmented-font-size`,
- * `--cae-segmented-divider` (the line between options) and
+ * `--cae-segmented-padding`, `--cae-segmented-font-size` and
  * `--cae-segmented-hover` (an option's text under the pointer), or the parts.
  *
  * @tagname cae-segmented
@@ -34,15 +33,19 @@ export class CaeSegmented extends LitElement {
     base,
     css`
       :host { display: inline-flex; vertical-align: middle; }
-      .group { display: inline-flex; border: 1px solid var(--line); border-radius: var(--cae-segmented-radius, 6px); overflow: hidden; }
-      button { min-width: 22px; height: var(--cae-segmented-height, 20px); line-height: var(--cae-segmented-height, 20px); padding: var(--cae-segmented-padding, 0 10px);
-        margin: 0; border: 0; border-radius: 0; background: none; font-size: var(--cae-segmented-font-size, 11.5px); text-align: center;
-        color: var(--text-muted); cursor: pointer; }
-      button + button { border-left: var(--cae-segmented-divider, 1px solid var(--line)); }
+      .group { display: inline-flex; gap: 2px; padding: 2px; background: var(--track); border-radius: var(--cae-segmented-radius, var(--radius-md)); }
+      button { min-width: 24px; height: var(--cae-segmented-height, 22px); line-height: var(--cae-segmented-height, 22px); padding: var(--cae-segmented-padding, 0 10px);
+        margin: 0; border: 0; border-radius: calc(var(--cae-segmented-radius, var(--radius-md)) - 2px); background: none; font-size: var(--cae-segmented-font-size, var(--font-size-xs)); text-align: center;
+        color: var(--text-2); cursor: pointer; transition: color 0.15s, background 0.15s; }
       button:hover { color: var(--cae-segmented-hover, var(--text)); }
-      button[aria-checked='true'] { background: var(--raise); color: var(--text); cursor: default; }
+      button[aria-checked='true'] { background: var(--panel); color: var(--text); font-weight: 600; cursor: default; box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow) 30%, transparent); }
       button:disabled { opacity: 0.5; cursor: default; }
       button:focus-visible { outline-offset: -2px; }
+      /* forced colours: no fill and no shadow, so the chosen option has a line around it */
+      @media (forced-colors: active) {
+        .group { border: 1px solid CanvasText; }
+        button[aria-checked='true'] { outline: 2px solid Highlight; outline-offset: -2px; }
+      }
     `,
   ];
 

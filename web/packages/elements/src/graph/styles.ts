@@ -11,8 +11,9 @@ export const graphStyles = css`
   .main { flex: auto; min-height: 0; }
 
   /* One frame for every view: the drawing, the node table and a mark matrix. */
-  .frame { flex: auto; position: relative; overflow: hidden; border-radius: 8px; background: var(--well); box-sizing: border-box; }
-  .gframe { cursor: grab; touch-action: none; }
+  .frame { flex: auto; position: relative; overflow: hidden; border-radius: var(--radius-md); background: var(--cae-graph-frame, transparent); box-sizing: border-box; }
+  /* one finger moves the drawing; two fingers still zoom the page (a reader who needs it larger) */
+  .gframe { cursor: grab; touch-action: pinch-zoom; }
   .gframe.drag { cursor: grabbing; }
   .stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
   .gframe.down { touch-action: pan-y pinch-zoom; }
@@ -22,7 +23,7 @@ export const graphStyles = css`
   @media (prefers-reduced-motion: reduce) { .view { animation: none; } }
   .tools { display: flex; align-items: center; gap: 4px; justify-self: end; }
   .tools button { all: unset; cursor: pointer; min-width: 22px; height: 22px; padding: 0 7px; box-sizing: border-box; text-align: center;
-    font-size: 11.5px; line-height: 22px; color: var(--text-2); border-radius: 6px; border: 1px solid var(--line); }
+    font-size: var(--font-size-xs); line-height: 22px; color: var(--text-2); border-radius: var(--radius-md); border: 1px solid var(--line); }
   .tools button:hover:not(:disabled) { color: var(--text); border-color: var(--line2); }
   .tools button:focus-visible, .loopchip:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 1px; }
   .tools button:disabled { cursor: default; opacity: 0.4; }
@@ -45,11 +46,11 @@ export const graphStyles = css`
   .tip-ic { display: inline-flex; line-height: 0; }
   .in-ic { color: var(--text-muted); }
 
-  .stub { z-index: 1; font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); padding: 3px 9px;
-    border-radius: 999px; border: 1px solid var(--line); background: var(--card); white-space: nowrap; }
+  .stub { z-index: 1; font-family: var(--mono); font-size: var(--font-size-xs); color: var(--text-muted); padding: 3px 9px;
+    border-radius: var(--radius-md); border: 1px solid var(--line); background: var(--card); white-space: nowrap; }
 
-  .cluster { z-index: 1; box-sizing: border-box; border-radius: 14px; border: 1px solid var(--line2); background: color-mix(in srgb, var(--text-muted) 5%, transparent); }
-  .cluster .cluster { background: color-mix(in srgb, var(--text-muted) 6%, transparent); }
+  .cluster { z-index: 1; box-sizing: border-box; border-radius: var(--radius-lg); border: 1px dashed var(--line2); background: color-mix(in srgb, var(--text-muted) 4%, transparent); }
+  .cluster .cluster { background: color-mix(in srgb, var(--text-muted) 5%, transparent); }
   .cluster > .in { position: absolute; inset: 0; pointer-events: none; }
   .cluster > .in > * { pointer-events: auto; }
   /* Room on the right for the mark of an inner view: the cluster is as wide as its label. */
@@ -58,11 +59,11 @@ export const graphStyles = css`
   .cluster > .hd .line { display: flex; align-items: center; gap: 8px; }
   .cluster > .hd .name { display: inline-flex; align-items: center; gap: 5px; }
   .cluster.sel { outline: var(--focus-width) solid var(--accent); outline-offset: 2px; }
-  .cluster > .hd .spread { font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .cluster > .hd .spread { font-size: var(--font-size-xs); color: var(--text-2); font-variant-numeric: tabular-nums; }
 
   .node { z-index: 1; width: max-content; min-width: 120px; box-sizing: border-box;
     display: flex; flex-direction: column; gap: 7px; padding: 8px 10px 9px;
-    border-radius: 10px; border: 1px solid var(--line); background: var(--card); transition: border-color 0.3s, box-shadow 0.3s;
+    border-radius: var(--radius-md); border: 1px solid var(--line2); background: var(--raise); transition: border-color 0.3s, box-shadow 0.3s;
     cursor: pointer; box-shadow: var(--ex, 0 0 0 0 transparent); }
   /* An accent: a thin line along the node's left side, an identity, not a status. */
   .node.accent { --ex: inset 3px 0 0 -1px color-mix(in srgb, var(--agent) 60%, transparent); }
@@ -75,12 +76,12 @@ export const graphStyles = css`
   /* a cluster's toggle: its hit area reaches 2px past its glyph, inside the cue's own box */
   .cluster > .cue { position: absolute; top: 9px; right: 10px; padding: 2px; margin: -2px; }
   /* The open and close control: the inner view's mark, turned into a button. */
-  .tog { all: unset; cursor: pointer; display: inline-flex; line-height: 0; padding: 2px; margin: -2px; border-radius: 4px; color: var(--text-2); }
+  .tog { all: unset; cursor: pointer; display: inline-flex; line-height: 0; padding: 2px; margin: -2px; border-radius: var(--radius-sm); color: var(--text-2); }
   .tog:hover { color: var(--text); background: var(--raise); }
   .tog:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 1px; }
   /* A cluster named by a path: its later parts are links to their own inner views. */
-  .cluster > .hd .psep { color: var(--text-muted); font-size: 11px; }
-  .cluster > .hd .part { all: unset; cursor: pointer; font-family: var(--mono); font-weight: 600; font-size: 12.5px; color: var(--text-2);
+  .cluster > .hd .psep { color: var(--text-muted); font-size: var(--font-size-xs); }
+  .cluster > .hd .part { all: unset; cursor: pointer; font-family: var(--mono); font-weight: 600; font-size: var(--font-size-sm); color: var(--text-2);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
   .cluster > .hd .part:hover { color: var(--text); text-decoration: underline; }
   .cluster > .hd .part:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 2px; border-radius: 3px; }
@@ -92,13 +93,13 @@ export const graphStyles = css`
   .node[data-look='failed'] { border-color: color-mix(in srgb, var(--status-failed) 55%, transparent); }
   .node:focus-within { border-color: var(--text-2); }
   .hd { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .name { all: unset; cursor: pointer; font-family: var(--mono); font-weight: 600; font-size: 12.5px; color: var(--text);
+  .name { all: unset; cursor: pointer; font-family: var(--mono); font-weight: 600; font-size: var(--font-size-sm); color: var(--text);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
   .name:hover { text-decoration: underline; }
   .name:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 2px; border-radius: 3px; }
-  .count { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .count { font-size: var(--font-size-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
   /* The notes wrap at the node's width, which its header and marks set: they never widen it. */
-  .ex { display: flex; flex-wrap: wrap; gap: 0 10px; font-size: 11px; line-height: 1.5; contain: inline-size; }
+  .ex { display: flex; flex-wrap: wrap; gap: 0 10px; font-size: var(--font-size-xs); line-height: 1.5; contain: inline-size; }
   :is(.ex, .st) .err { color: var(--status-failed); }
   :is(.ex, .st) .warn { color: var(--status-attention); }
   :is(.ex, .st) .live { color: var(--status-running); }
@@ -107,8 +108,8 @@ export const graphStyles = css`
   .marks { display: grid; grid-template-columns: repeat(var(--cols), var(--m)); gap: var(--g); }
   .slot { width: var(--m); height: var(--m); }
   /* Items expected and not here yet: a dotted outline, apart from the marks of what is here. */
-  .expected { display: inline-block; align-self: flex-start; width: max-content; margin-top: 6px; padding: 0 7px; border: 1.5px dotted var(--line2); border-radius: 999px;
-    font-size: 11px; line-height: 18px; color: var(--text-muted); }
+  .expected { display: inline-block; align-self: flex-start; width: max-content; margin-top: 6px; padding: 0 7px; border: 1.5px dotted var(--line2); border-radius: var(--radius-pill);
+    font-size: var(--font-size-xs); line-height: 18px; color: var(--text-muted); }
   .taskchip.sel { outline: var(--focus-width) solid var(--accent); outline-offset: 1px; }
   .hl .mark:not(.on) { opacity: 0.16; }
   .hl .mark.on { transform: scale(1.2); }
@@ -127,7 +128,7 @@ export const graphStyles = css`
   .sbar i[data-tone='muted'] { opacity: 0.5; }
   .sbar i[data-shape='hatched'] { background: repeating-linear-gradient(135deg, var(--tone-bg) 0 2px, color-mix(in srgb, var(--tone) 60%, transparent) 2px 3px); }
   .sbar i[data-shape='half'] { background: linear-gradient(0deg, var(--tone) 50%, var(--tone-bg) 50%); }
-  .fails { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: 220px; font-size: 11px; color: var(--text-muted); }
+  .fails { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: 220px; font-size: var(--font-size-xs); color: var(--text-muted); }
   .fails .taskchip { color: var(--status-failed); border-color: color-mix(in srgb, var(--status-failed) 45%, transparent); }
   .fails .taskchip:focus-visible { outline: var(--focus-width) solid var(--text); outline-offset: 1px; }
   .hl .fails .taskchip:not(.on) { opacity: 0.4; }
@@ -137,7 +138,7 @@ export const graphStyles = css`
 
   /* The legend on the left, the tools at the right end of the first line, in every view. */
   .foot { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 6px 14px; margin-top: 6px; }
-  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11px; color: var(--text-muted); }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--font-size-xs); color: var(--text-muted); }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .legend .mark { --m: 12px; cursor: default; animation: none; }
   .legend .mark:hover { transform: none; outline: none; }
@@ -153,8 +154,8 @@ export const graphStyles = css`
 
   /* The selection's card: beside the item, joined to it by a pointer, in the accent of the item's outline. */
   .insp { position: absolute; left: 0; top: 0; z-index: 6; width: 272px; max-width: calc(100% - 16px); box-sizing: border-box;
-    display: flex; flex-direction: column; gap: 9px; padding: 10px 12px 12px; border-radius: 10px;
-    border: 1px solid var(--accent); background: var(--card); font-size: 12px; overflow: visible;
+    display: flex; flex-direction: column; gap: 9px; padding: 10px 12px 12px; border-radius: var(--radius-lg);
+    border: 1px solid var(--accent); background: var(--card); font-size: var(--font-size-xs); overflow: visible;
     box-shadow: 0 12px 32px color-mix(in srgb, var(--shadow) 55%, transparent); visibility: hidden;
     animation: insp-in 0.12s var(--ease) both; }
   .insp.placed { visibility: visible; }
@@ -170,7 +171,7 @@ export const graphStyles = css`
   .insp.sheet .ptr { display: none; }
   @keyframes insp-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
   /* The key hints keep their room: the focus moves nothing. */
-  .keys { grid-column: 1 / -1; font-size: 11px; color: var(--text-muted); visibility: hidden; }
+  .keys { grid-column: 1 / -1; font-size: var(--font-size-xs); color: var(--text-muted); visibility: hidden; }
   .keys span { white-space: nowrap; }
   :host(:focus-within) .keys { visibility: visible; }
   /* Narrow: the tools on a line of their own above the legend, and a key hint may break. */
@@ -190,11 +191,11 @@ export const graphStyles = css`
       radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, var(--text-muted) 30%, transparent), transparent) center bottom / 100% 12px no-repeat scroll,
       var(--well); }
   /* As wide as the frame; on a narrow screen it keeps room for its relations and scrolls across inside the frame. */
-  table.list { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+  table.list { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; }
   .list th, .list td { text-align: left; vertical-align: middle; padding: 6px 10px; border-bottom: 1px solid var(--line); }
   .list .fit { width: 1%; white-space: nowrap; }
   /* A header is as wide as its words, and stays at the top of the frame. */
-  .list thead th { position: sticky; top: 0; z-index: 2; background: var(--well); color: var(--text-muted); font-weight: 500; font-size: 11px;
+  .list thead th { position: sticky; top: 0; z-index: 2; background: var(--well); color: var(--text-muted); font-weight: 500; font-size: var(--font-size-xs);
     white-space: nowrap; padding-top: 10px; }
   .list tbody th { font-weight: 600; }
   .list td { color: var(--text-2); }

@@ -13,6 +13,8 @@ export interface CodeStrings {
   copy: string;
   /** What the copy button says for a moment after the text was copied. */
   copied: string;
+  /** What it says for a moment when the browser did not copy the text. */
+  notCopied: string;
   /** The switch between long lines wrapped and scrolled sideways. */
   wrap: string;
   /** What a text with no characters shows. */
@@ -24,6 +26,7 @@ export interface CodeStrings {
 export const DEFAULT_CODE_STRINGS: Readonly<CodeStrings> = {
   copy: 'Copy',
   copied: 'Copied',
+  notCopied: 'Not copied',
   wrap: 'Wrap lines',
   empty: 'No text',
   cut: (shown, total) => `First ${shown.toLocaleString('en')} of ${total.toLocaleString('en')} lines`,
@@ -91,13 +94,13 @@ export class CaeCode extends LitElement {
     prose,
     css`
       :host { display: block; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--well); overflow: hidden; }
-      .head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 4px 6px 4px 10px; border-bottom: 1px solid var(--line); font-size: var(--font-size-sm); color: var(--text-2); }
+      .head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 4px 6px 4px 10px; border-bottom: 1px solid var(--line); font-size: var(--font-size-xs); color: var(--text-2); }
       .path { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
       .lang { color: var(--text-muted); }
       .tools { margin-left: auto; display: flex; gap: 4px; flex: none; }
-      .tools button { font-size: var(--font-size-sm); color: var(--text-2); border: 1px solid var(--line2); border-radius: var(--radius-pill); padding: 0 9px; cursor: pointer; background: none; }
+      .tools button { font-size: var(--font-size-xs); color: var(--text-2); border: 1px solid var(--line2); border-radius: var(--radius-md); padding: 0 9px; cursor: pointer; background: none; }
       .tools button[aria-pressed='true'] { background: var(--raise); color: var(--text); }
-      .scroll { overflow: auto; max-height: var(--cae-code-max-height, 70vh); font-family: var(--mono); font-size: var(--font-size-md); line-height: 1.5; }
+      .scroll { overflow: auto; max-height: var(--cae-code-max-height, 70vh); font-family: var(--mono); font-size: var(--font-size-xs); line-height: 1.5; }
       .lines { display: block; min-width: max-content; padding: 4px 0; }
       .wrap .lines { min-width: 0; }
       .ln { display: flex; }
@@ -110,7 +113,7 @@ export class CaeCode extends LitElement {
       .ln[data-mark] { background: color-mix(in srgb, var(--accent) 6%, transparent); }
       .hl-doc { opacity: 1; }
       .ln[data-mark]::before { border-left-color: var(--accent); color: var(--text); background: color-mix(in srgb, var(--accent) 14%, var(--well)); }
-      .cut, .empty { padding: 4px 10px; font-size: var(--font-size-sm); color: var(--text-muted); border-top: 1px solid var(--line); }
+      .cut, .empty { padding: 4px 10px; font-size: var(--font-size-xs); color: var(--text-muted); border-top: 1px solid var(--line); }
       .empty { border-top: 0; }
     `,
   ];
@@ -137,12 +140,29 @@ export class CaeCode extends LitElement {
   @property({ attribute: false }) strings: Partial<CodeStrings> = {};
 
   @state() private wrapped = false;
-  @state() private copied = false;
+  /** The last copy: done, refused by the browser, or none shown now. */
+  @state() private copied: 'done' | 'refused' | null = null;
   private copiedTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** The lines as markup, and how many of the text they are: made again only when what they are made from changes. */
+  private drawn: { rows: string; lines: number; total: number; cut: boolean } = { rows: '', lines: 0, total: 0, cut: false };
 
   override willUpdate(changed: PropertyValues<this>): void {
     if (changed.has('wrap')) this.wrapped = this.wrap;
-    if (changed.has('code')) this.copied = false;
+    if (changed.has('code')) this.copied = null;
+    // Colouring a long text takes long: the switch for long lines and the copy button draw the same lines again.
+    if (['code', 'language', 'start', 'highlight', 'maxLines', 'maxCharacters'].some((k) => changed.has(k as keyof CaeCode))) {
+      const { shown, lines, total, cut } = shownText(this.code, this.maxLines, this.maxCharacters);
+      // `start` is a number by its type; a page that sets a string must not write markup with it.
+      const first = Number(this.start) || 0;
+      const rows = tokenLines(tokenize(shown, languageOf(this.language)))
+        .map((line, i) => {
+          const n = first + i;
+          return `<div class="ln" data-n="${n}"${isMarked(this.highlight, n) ? ' data-mark=""' : ''}><span class="t">${tokensHtml(line)}</span></div>`;
+        })
+        .join('');
+      this.drawn = { rows, lines, total, cut };
+    }
   }
 
   override disconnectedCallback(): void {
@@ -151,35 +171,32 @@ export class CaeCode extends LitElement {
   }
 
   private async copy(): Promise<void> {
+    let copied: 'done' | 'refused' = 'done';
     try {
+      // No clipboard on a page that is not served over https (or from this machine): the read of `clipboard` throws.
       await navigator.clipboard.writeText(this.code);
     } catch {
-      return;
+      copied = 'refused';
     }
-    this.copied = true;
+    this.copied = copied;
     clearTimeout(this.copiedTimer);
-    this.copiedTimer = setTimeout(() => (this.copied = false), 1500);
+    this.copiedTimer = setTimeout(() => (this.copied = null), copied === 'done' ? 1500 : 4000);
   }
 
   override render() {
     const s = withDefaults(DEFAULT_CODE_STRINGS, this.strings);
+    const said = this.copied === 'done' ? s.copied : this.copied === 'refused' ? s.notCopied : null;
     const lang = languageOf(this.language);
-    const { shown, lines, total, cut } = shownText(this.code, this.maxLines, this.maxCharacters);
+    const { rows, lines, total, cut } = this.drawn;
     const last = this.start + Math.max(lines, 1) - 1;
-    const rows = tokenLines(tokenize(shown, lang))
-      .map((line, i) => {
-        const n = this.start + i;
-        return `<div class="ln" data-n="${n}"${isMarked(this.highlight, n) ? ' data-mark=""' : ''}><span class="t">${tokensHtml(line)}</span></div>`;
-      })
-      .join('');
     return html`<div class="head" part="header">
         ${this.path ? html`<span class="path" title=${this.path}>${this.path}</span>` : nothing}
         ${lang ? html`<span class="lang">${lang}</span>` : nothing}
         <span class="tools">
           <button type="button" aria-pressed=${this.wrapped ? 'true' : 'false'} @click=${() => (this.wrapped = !this.wrapped)}>${s.wrap}</button>
-          <button type="button" ?disabled=${!this.code} @click=${() => void this.copy()}>${this.copied ? s.copied : s.copy}</button>
+          <button type="button" ?disabled=${!this.code} @click=${() => void this.copy()}>${said ?? s.copy}</button>
         </span>
-        <span class="sr" role="status">${this.copied ? s.copied : ''}</span>
+        <span class="sr" role="status">${said ?? ''}</span>
       </div>
       ${this.code
         ? html`<div class="scroll ${this.wrapped ? 'wrap' : ''}" part="code" data-scroll=${this.wrapped ? 'y' : 'x'} tabindex="0" role=${this.label || this.path ? 'region' : nothing}

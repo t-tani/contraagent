@@ -83,17 +83,17 @@ export const shareBarStyles = css`
   .share-seg { position: relative; flex: 0 1 0; min-width: 3px; height: 100%; border-radius: 1px; cursor: default; outline-offset: 2px; }
   .share-seg[data-edge='start'] { border-radius: 4px 1px 1px 4px; }
   .share-seg[data-edge='end'] { border-radius: 1px 4px 4px 1px; }
-  .share-seg:only-child { border-radius: 4px; }
+  .share-seg:only-child { border-radius: var(--radius-sm); }
   /* A hit area taller than the bar. */
   .share-seg::before { content: ''; position: absolute; inset: -6px 0; }
   .share-seg:hover, .share-seg:focus-visible { box-shadow: 0 0 0 2px var(--card); }
   .share-tip { display: none; position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 2;
     padding: 4px 8px; border-radius: var(--radius-sm); background: var(--raise); border: 1px solid var(--line2); box-shadow: 0 4px 14px var(--shadow);
-    color: var(--text); font-size: var(--font-size-sm); white-space: nowrap; pointer-events: none; }
+    color: var(--text); font-size: var(--font-size-xs); white-space: nowrap; pointer-events: none; }
   .share-seg[data-edge='start'] .share-tip, .share-seg:only-child .share-tip { left: 0; transform: none; }
   .share-seg[data-edge='end'] .share-tip { left: auto; right: 0; transform: none; }
   .share-seg:hover .share-tip, .share-seg:focus-visible .share-tip { display: block; }
   .share-names span { flex: 0 1 0; min-width: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    font-size: var(--font-size-sm); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    font-size: var(--font-size-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }
   .share-names b { font-weight: 600; color: var(--text-2); }
 `;

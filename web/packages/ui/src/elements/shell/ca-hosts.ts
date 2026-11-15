@@ -24,9 +24,9 @@ export class CaHosts extends LitElement {
     css`
       :host { display: block; container-type: inline-size; }
       .g12 { align-content: start; }
-      table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+      table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
       th, td { text-align: start; padding: 8px 10px; border-top: 1px solid var(--line); vertical-align: baseline; }
-      thead th { border-top: 0; font-size: 11.5px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+      thead th { border-top: 0; font-size: var(--font-size-xs); font-weight: 600; color: var(--text-muted); white-space: nowrap; }
       tbody th { font-family: var(--mono); font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
       .num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
       td.runs { color: var(--text-2); }
@@ -36,7 +36,7 @@ export class CaHosts extends LitElement {
         tr { display: block; padding: 8px 0; border-top: 1px solid var(--line); }
         tbody tr:first-child { border-top: 0; }
         th, td { display: flex; gap: 12px; padding: 2px 0; border: 0; white-space: normal; }
-        td::before { content: attr(data-label); flex: 0 0 9em; color: var(--text-muted); font-family: var(--sans); font-size: 11.5px; }
+        td::before { content: attr(data-label); flex: 0 0 9em; color: var(--text-muted); font-family: var(--sans); font-size: var(--font-size-xs); }
       }
     `,
   ];

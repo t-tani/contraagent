@@ -48,12 +48,12 @@ export class CaTrends extends LitElement {
     css`
       :host { display: block; }
       .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 14px; }
-      .controls label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
-      input, select { background: var(--well); border: 1px solid var(--line); color: var(--text); border-radius: 8px; font: inherit; font-size: 12px; padding: 4px 8px; }
+      .controls label { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-size-xs); color: var(--text-muted); }
+      input, select { background: var(--well); border: 1px solid var(--line); color: var(--text); border-radius: var(--radius-md); font: inherit; font-size: var(--font-size-xs); padding: 4px 8px; }
       input:focus-visible, select:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 1px; }
-      .period { font-size: 12px; color: var(--text-2); }
-      .loading { font-size: 12px; color: var(--text-muted); }
-      .err { font-size: 12px; color: var(--status-failed); }
+      .period { font-size: var(--font-size-xs); color: var(--text-2); }
+      .loading { font-size: var(--font-size-xs); color: var(--text-muted); }
+      .err { font-size: var(--font-size-xs); color: var(--status-failed); }
       /* wide sections span the page; the narrow ones pair up and fill each other's gaps */
       .wide { margin-bottom: 14px; }
       .pairs { columns: 2 440px; column-gap: 14px; margin-bottom: 14px; }

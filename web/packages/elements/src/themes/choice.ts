@@ -1,14 +1,14 @@
 // The reader's choice of a theme: which theme it shows, and remembering it in
 // this browser.
-import { DEFAULT_THEME, SYSTEM_THEMES, THEME_CHOICES, THEME_NAMES, type ThemeChoice, type ThemeName } from './data.js';
+import { DEFAULT_CHOICE, SYSTEM_THEMES, THEME_CHOICES, THEME_NAMES, type ThemeChoice, type ThemeName } from './data.js';
 
 export const isThemeName = (x: unknown): x is ThemeName => (THEME_NAMES as readonly unknown[]).includes(x);
 export const isThemeChoice = (x: unknown): x is ThemeChoice => (THEME_CHOICES as readonly unknown[]).includes(x);
 
-/** The theme a choice shows: `system` by the system's colour scheme; anything else not a theme, the default. */
+/** The theme a choice shows: a theme is itself; `system`, and anything that is not a theme, the one the system's colour scheme asks for. */
 export function resolveTheme(choice: unknown, prefersLight: boolean): ThemeName {
-  if (choice === 'system') return prefersLight ? SYSTEM_THEMES.light : SYSTEM_THEMES.dark;
-  return isThemeName(choice) ? choice : DEFAULT_THEME;
+  if (isThemeName(choice)) return choice;
+  return prefersLight ? SYSTEM_THEMES.light : SYSTEM_THEMES.dark;
 }
 
 /** Where the reader's choice is kept (this browser only). */
@@ -23,7 +23,7 @@ const storage = (): Store | undefined => {
   }
 };
 
-/** The reader's choice from an earlier visit, else the default theme. */
+/** The reader's choice from an earlier visit, else `system`. */
 export function preferredTheme(store: Store | undefined = storage()): ThemeChoice {
   try {
     const saved = store?.getItem(THEME_STORE_KEY);
@@ -31,7 +31,7 @@ export function preferredTheme(store: Store | undefined = storage()): ThemeChoic
   } catch {
     /* storage blocked: the default */
   }
-  return DEFAULT_THEME;
+  return DEFAULT_CHOICE;
 }
 
 /** Remember the reader's choice for the next visit. */

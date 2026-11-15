@@ -16,6 +16,14 @@ import { base } from '@contraagent/elements/styles';
 
 const took = (r: RunSummary) => elapsedS(r);
 
+/**
+ * A key pressed while an input method composes text (Japanese, Chinese, Korean): it
+ * belongs to the input method, which uses Enter to confirm, Escape to cancel and the
+ * arrow keys to choose. Safari reports the confirming Enter after the composition
+ * ended, with the key code 229.
+ */
+const composing = (e: KeyboardEvent): boolean => e.isComposing || e.keyCode === 229;
+
 /** The id of the option at `i` in the visible list. */
 const optionId = (i: number) => `run-${i}`;
 
@@ -46,32 +54,36 @@ export class CaRunPicker extends LitElement {
   static override styles = [
     base,
     css`
-      :host { position: absolute; top: 50px; width: min(580px, calc(100cqi - 24px)); max-height: min(72vh, 660px);
-        display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line2); border-radius: 14px;
-        box-shadow: 0 24px 70px color-mix(in srgb, var(--shadow) 70%, transparent); opacity: 0; transform: translateY(-6px) scale(0.985);
+      :host { position: absolute; top: 46px; width: min(580px, calc(100cqi - 24px)); max-height: min(72dvh, 660px);
+        display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line2); border-radius: var(--radius-lg);
+        box-shadow: 0 16px 40px color-mix(in srgb, var(--shadow) 55%, transparent); opacity: 0; transform: translateY(-4px);
         pointer-events: none; z-index: 40; visibility: hidden; container-type: inline-size;
         transition: opacity 0.16s var(--ease), transform 0.16s var(--ease), visibility 0s linear 0.16s; }
       /* Visible (and focusable) at once when it opens; hidden only after it has faded out. */
       :host([open]) { opacity: 1; transform: none; pointer-events: auto; visibility: visible; transition-delay: 0s; }
-      .search { padding: 10px; border-bottom: 1px solid var(--line); }
-      input, select { background: var(--well); border: 1px solid var(--line); color: var(--text); border-radius: 9px; font: inherit; outline: none; }
-      input { width: 100%; padding: 8px 11px; }
-      input:focus, select:focus { border-color: var(--accent); }
-      .list { overflow: auto; padding: 6px; }
-      .group { font-size: 11.5px; font-weight: 600; color: var(--text-muted); padding: 10px 9px 4px; }
+      .search { padding: 8px; border-bottom: 1px solid var(--line); }
+      input, select { background: var(--well); border: 1px solid var(--line-field); color: var(--text); border-radius: var(--radius-md); font: inherit; }
+      input { width: 100%; height: 34px; padding: 0 10px; }
+      :is(input, select):focus-visible { outline-offset: -1px; }
+      .list { overflow: auto; padding: 6px; overscroll-behavior: contain; }
+      @media (pointer: coarse) { input, select { height: 40px; font-size: max(1rem, var(--font-size-sm)); } }
+      .group { font-size: var(--font-size-xs); font-weight: 600; color: var(--text-muted); padding: 10px 9px 4px; }
       .group .n { font-weight: 400; margin-left: 4px; }
-      .keys { margin-top: 6px; display: flex; gap: 4px; align-items: center; }
       .item { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 3px 10px; align-items: center;
-        padding: 7px 9px; border-radius: 9px; cursor: pointer; }
+        padding: 7px 9px; border-radius: var(--radius-md); cursor: pointer; }
       .item:hover, .item.kb { background: var(--raise); }
-      .item.cur { box-shadow: inset 2px 0 0 var(--accent); background: var(--accent-bg); }
+      .item.cur { background: var(--accent-bg); }
+      @media (forced-colors: active) {
+        .item.kb { outline: 2px solid Highlight; outline-offset: -2px; }
+        .item.cur { border-inline-start: 3px solid Highlight; }
+      }
       .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .when { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+      .when { font-size: var(--font-size-xs); color: var(--text-muted); white-space: nowrap; }
       /* A narrow picker (the host is a container): what a page shows goes under its name. */
       @container (max-width: 480px) {
         .when.page { grid-column: 2 / 4; white-space: normal; }
       }
-      .sub { grid-column: 2 / 4; display: flex; gap: 7px; flex-wrap: wrap; font-size: 11px; color: var(--text-muted); }
+      .sub { grid-column: 2 / 4; display: flex; gap: 7px; flex-wrap: wrap; font-size: var(--font-size-xs); color: var(--text-muted); }
       /* a hub: the host filter beside the search field, a header per host, the hosts page as the first option */
       .row { display: flex; gap: 8px; }
       select { max-width: 40%; padding: 0 8px; }
@@ -103,7 +115,6 @@ export class CaRunPicker extends LitElement {
   override connectedCallback(): void {
     super.connectedCallback();
     this.setAttribute('role', 'dialog');
-    this.setAttribute('aria-modal', 'true');
   }
 
   protected override willUpdate(): void {
@@ -161,6 +172,7 @@ export class CaRunPicker extends LitElement {
 
   /** The dialog's keys: Escape closes; Tab stays in the dialog, between the search field and (on a hub) the host filter. */
   private onDialogKey(e: KeyboardEvent): void {
+    if (composing(e)) return;
     if (e.key === 'Escape') this.close();
     else if (e.key === 'Tab') {
       e.preventDefault();
@@ -170,6 +182,7 @@ export class CaRunPicker extends LitElement {
 
   /** The search field's keys: the arrow keys move through the options, Enter picks one. */
   private onKey(e: KeyboardEvent, opts: Option[]): void {
+    if (composing(e)) return;
     if (e.key === 'ArrowDown') this.kb = Math.min(opts.length - 1, this.kb + 1);
     else if (e.key === 'ArrowUp') this.kb = Math.max(0, this.kb - 1);
     else if (e.key === 'Enter') {
@@ -190,14 +203,13 @@ export class CaRunPicker extends LitElement {
     const pages: Exclude<Page, ''>[] = this.q.trim() ? [] : this.hub ? ['trends', 'hosts'] : ['trends'];
     const opts: Option[] = [...pages, ...rows];
     const active = opts[this.kb] !== undefined ? optionId(this.kb) : nothing;
-    const search = html`<input placeholder=${msg('Search runs')} aria-label=${msg('Search runs')} autocomplete="off" .value=${this.q}
+    const search = html`<input type="search" placeholder=${msg('Search runs')} aria-label=${msg('Search runs')} autocomplete="off" autocapitalize="off" spellcheck="false" .value=${this.q}
       role="combobox" aria-expanded=${opts.length ? 'true' : 'false'} aria-controls="runs" aria-autocomplete="list" aria-activedescendant=${active}
       @input=${(e: Event) => { this.q = (e.target as HTMLInputElement).value; this.kb = 0; }}
       @keydown=${(e: KeyboardEvent) => this.onKey(e, opts)} />`;
     let i = 0;
     return html`<div class="search" @keydown=${(e: KeyboardEvent) => this.onDialogKey(e)}>
         ${this.hub ? html`<div class="row">${search}${this.hostFilter()}</div>` : search}
-        <div class="keys meta" aria-hidden="true"><span class="kbd">↑</span><span class="kbd">↓</span> <span class="kbd">Enter</span> <span class="kbd">Esc</span></div>
       </div>
       <div class="list" @mousedown=${(e: MouseEvent) => e.preventDefault()}>
         ${opts.length

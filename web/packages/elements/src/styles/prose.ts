@@ -3,7 +3,7 @@ import { css } from 'lit';
 
 /** Rendered markdown, highlighted code and JSON trees: transcripts, plugin files, panels. */
 export const prose = css`
-  .jtree { font-family: var(--mono); font-size: var(--font-size-md); overflow: auto; }
+  .jtree { font-family: var(--mono); font-size: var(--font-size-xs); overflow: auto; }
   .jt { margin-left: 16px; }
   details.jt > summary { cursor: pointer; list-style: revert; }
   .jk { color: var(--code-name); }
@@ -24,19 +24,19 @@ export const prose = css`
   .md-q { border-left: 3px solid var(--line2); padding-left: 10px; color: var(--text-2); margin: 0.2em 0; }
   .md-hr { border: 0; border-top: 1px solid var(--line); margin: 0.7em 0; }
   .md-t { border-collapse: collapse; margin: 0.4em 0; }
-  .md-t th, .md-t td { border: 1px solid var(--line); padding: 3px 9px; text-align: left; font-size: 12.5px; }
+  .md-t th, .md-t td { border: 1px solid var(--line); padding: 3px 9px; text-align: left; font-size: var(--font-size-sm); }
   .md-t th { background: var(--raise); }
   .md-doc { padding: 10px 14px; background: var(--well); border: 1px solid var(--line); border-radius: var(--radius-md); max-height: 460px; overflow: auto; line-height: 1.55; }
   .md-doc code, .tx code { background: var(--raise); border-radius: var(--radius-sm); padding: 0 4px; font-size: 0.92em; }
-  .md-doc pre { background: var(--well); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; white-space: pre-wrap; }
+  .md-doc pre { background: var(--well); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 10px; white-space: pre-wrap; }
   .md-doc pre code, .tx pre code { background: none; padding: 0; border-radius: 0; font-size: inherit; }
   .md-front { margin-bottom: 10px; border-collapse: collapse; }
-  .md-front td { padding: 2px 14px 2px 0; font-size: 12.5px; border: 0; vertical-align: top; }
+  .md-front td { padding: 2px 14px 2px 0; font-size: var(--font-size-sm); border: 0; vertical-align: top; }
   .md-front td:first-child { color: var(--text-muted); }
-  .md-tele { color: var(--text-muted); font-size: 11.5px; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .df-text { background: var(--well); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 10px 12px; font-size: var(--font-size-md);
+  .md-tele { color: var(--text-muted); font-size: var(--font-size-xs); margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .df-text { background: var(--well); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 10px 12px; font-size: var(--font-size-xs);
     white-space: pre-wrap; max-height: 420px; overflow: auto; margin: 0; }
-  .df-tog { margin-left: auto; font-size: var(--font-size-sm); color: var(--accent); border: 1px solid var(--line2); border-radius: var(--radius-pill);
+  .df-tog { margin-left: auto; font-size: var(--font-size-xs); color: var(--accent); border: 1px solid var(--line2); border-radius: var(--radius-md);
     padding: 0 9px; cursor: pointer; background: none; }
   .df-tog:hover { background: var(--accent-bg); }
   /* a template placeholder in a prompt */

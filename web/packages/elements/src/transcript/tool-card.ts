@@ -75,6 +75,19 @@ function cardBody(h: CardHost, c: ToolCard) {
         : codeBlock(h, out, `${c.id}:out`)}`;
 }
 
+/**
+ * A call's one line. A path gives up its directories when the line is short and
+ * keeps its file name, which is what tells one call from the next; any other
+ * text is cut at its end. The text is one string either way: a selection copies it whole.
+ */
+function summaryLine(summary: string): TemplateResult {
+  const cut = summary.lastIndexOf('/');
+  const path = cut > 0 && cut < summary.length - 1 && !/\s/.test(summary);
+  return path
+    ? html`<span class="tp path" title=${summary}><span class="tp-a">${summary.slice(0, cut)}</span><span class="tp-z">${summary.slice(cut)}</span></span>`
+    : html`<span class="tp">${summary}</span>`;
+}
+
 export function toolCard(h: CardHost, c: ToolCard): TemplateResult {
   const { s } = h;
   const open = h.isOpen(c.id);
@@ -94,7 +107,7 @@ export function toolCard(h: CardHost, c: ToolCard): TemplateResult {
       e.preventDefault();
       (e.currentTarget as HTMLElement).click();
     }}>
-      <span class="tn">${c.name || s.tool}</span><span class="tp">${c.summary}</span><span class="ti ${n ? '' : 'intent'}"
+      <span class="tn">${c.name || s.tool}</span>${summaryLine(c.summary)}<span class="ti ${n ? '' : 'intent'}"
         >${n ? s.results(n) : c.intent}</span
       >${status}
     </div>

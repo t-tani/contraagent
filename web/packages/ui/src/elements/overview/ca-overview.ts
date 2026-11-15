@@ -108,16 +108,17 @@ export class CaOverview extends LitElement {
          what is wide by nature (the running tasks' cards, the pipeline graph, the
          totals' tiles, the timeline) runs the whole width. */
       :host { display: block; container-type: inline-size; }
-      .ov { display: flex; flex-direction: column; gap: 14px; }
+      .ov { display: flex; flex-direction: column; gap: 16px; }
       /* the cards of a row share its height: no card ends above its neighbours */
-      .band.status { display: grid; gap: 14px; align-items: stretch; }
-      .stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-      .stack > .panel:first-child { flex: 1; }
+      .band.status { display: grid; gap: 16px; align-items: stretch; }
+      .stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+      /* the state of the run heads the page: no card around it */
+      .stack > .panel:first-child { flex: 1; background: none; border: 0; padding: 4px 0; }
       /* the breakdowns pair up, two to a row of one height; one alone (the last of an odd
          count, or the only one) takes the whole row */
-      .band.parts { display: grid; gap: 14px; align-items: stretch;
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, max(440px, calc((100% - 14px) / 2))), 1fr)); }
-      @container (min-width: 894px) {
+      .band.parts { display: grid; gap: 16px; align-items: stretch;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, max(440px, calc((100% - 16px) / 2))), 1fr)); }
+      @container (min-width: 896px) {
         .band.parts > .panel:last-child:nth-child(odd) { grid-column: 1 / -1; }
       }
       .stack { grid-area: stack; }
@@ -125,11 +126,9 @@ export class CaOverview extends LitElement {
       .outputs { grid-area: outputs; }
       .row { grid-area: running; }
       .band.status { grid-template-areas: 'stack' 'problems' 'outputs' 'running'; }
+      /* the state of the run over its problems and its outputs, which share a row */
       @container (min-width: 760px) {
-        .band.status { grid-template-columns: minmax(240px, 1fr) minmax(0, 1.4fr); grid-template-areas: 'stack problems' 'outputs outputs' 'running running'; }
-      }
-      @container (min-width: 1100px) {
-        .band.status { grid-template-columns: minmax(240px, 1fr) minmax(0, 1.3fr) minmax(0, 1.3fr); grid-template-areas: 'stack problems outputs' 'running running running'; }
+        .band.status { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); grid-template-areas: 'stack stack' 'problems outputs' 'running running'; }
       }
       .ok { display: flex; align-items: baseline; gap: 6px; color: var(--text-2); }
       .ok span[aria-hidden] { color: var(--status-done); }
@@ -144,15 +143,15 @@ export class CaOverview extends LitElement {
       h3 a.hl:hover { color: var(--accent); text-decoration: underline; }
       .ct-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
       .pcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 12px; }
-      .pcard { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; align-items: start; padding: 12px 14px; border-radius: 10px;
+      .pcard { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; align-items: start; padding: 12px 14px; border-radius: var(--radius-lg);
         background: var(--raise); border: 1px solid var(--line); cursor: pointer; transition: border-color 0.15s, transform 0.15s;
         text-align: left; color: inherit; font: inherit; width: 100%; min-width: 0; }
       .pcard > div { min-width: 0; }
       .pcard .meta { overflow-wrap: anywhere; }
       .pcard:hover { border-color: var(--accent); transform: translateY(-1px); }
-      .pc-ic { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; background: var(--well); color: var(--text-2); font-size: 16px; }
-      .pc-peek { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .pc-go { grid-column: 2; color: var(--accent); font-size: 12px; opacity: 0.8; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .pc-ic { width: 34px; height: 34px; display: grid; place-items: center; border-radius: var(--radius-md); background: var(--well); color: var(--text-2); font-size: var(--font-size-lg); }
+      .pc-peek { font-family: var(--mono); font-size: var(--font-size-xs); color: var(--text-2); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .pc-go { grid-column: 2; color: var(--accent); font-size: var(--font-size-xs); opacity: 0.8; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .pcard:hover .pc-go { opacity: 1; }
       .cur-units { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px 14px; }
       .cu { display: grid; grid-template-columns: 90px 1fr 70px auto; gap: 8px; align-items: center; }
@@ -161,20 +160,20 @@ export class CaOverview extends LitElement {
       /* one line each, the whole text in its tooltip: a long reason does not make the card taller */
       .fl > div.meta { grid-column: 1 / 4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .ofl > .meta { white-space: nowrap; }
-      .stopped { grid-column: 1 / 4; color: var(--text-muted); font-size: 11px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-      .fl.muted { opacity: 0.7; }
+      .stopped { grid-column: 1 / 4; color: var(--text-muted); font-size: var(--font-size-xs); display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+      .fl.muted .jstop, .fl.muted .fl-name { color: var(--text-2); font-weight: 500; }
       /* the tasks done after retrying: a group of their own under a rule, after the problems */
       .recovered { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); }
-      .more { font-size: 12px; margin: 6px 10px 0; }
+      .more { font-size: var(--font-size-xs); margin: 6px 10px 0; }
       /* nothing went wrong: one card, the run's, with a line for the problems and one for the outputs */
       .band.status.clean { grid-template-areas: 'stack' 'running'; grid-template-columns: minmax(0, 1fr); }
-      .clean-lines { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 24px; }
+      .clean-lines { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 24px; }
       .clean-out { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
       .clean-out .ct-row { margin: 0; }
       /* a phone: the cards closer together and tighter inside, so the state of the run, its problems and its outputs share the first screen */
       @container (max-width: 480px) {
-        .ov, .band.status, .stack { gap: 8px; }
-        .panel { padding: 10px 12px; }
+        .ov, .band.status, .stack { gap: 10px; }
+        .panel { padding: 12px; }
         .panel > h3 { margin-bottom: 6px; }
       }
     `,
@@ -219,7 +218,7 @@ export class CaOverview extends LitElement {
       <div class="band status ${clean ? 'clean' : ''}">
         <div class="stack">
           <section class="panel enter">
-            <h3>${msg('Run')}</h3>
+            <h3 class="sr">${msg('Run')}</h3>
             <ca-run-driver .procs=${s.procs} .summary=${this.summary} .plan=${s.plan} .host=${this.host}></ca-run-driver>
             ${clean
               ? html`<div class="clean-lines">

@@ -17,7 +17,7 @@ export const PACKAGES = {
 export type PackageKey = keyof typeof PACKAGES;
 
 /** Elements that only another element renders: no entry of their own. */
-const INTERNAL = new Set(['ca-clock']);
+const INTERNAL = new Set(['ca-settings']);
 
 /** A package's elements with a tag, by tag. */
 export function elementsOf(pkg: PackageKey): Decl[] {

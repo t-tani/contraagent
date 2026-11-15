@@ -28,19 +28,19 @@ export class CaSpendBreakdown extends LitElement {
       :host { display: block; container-type: inline-size; }
       /* the bar's track is bounded, so its figures stay beside it on a wide card */
       .kinds { display: grid; grid-template-columns: minmax(70px, max-content) minmax(0, 420px) max-content max-content; justify-content: start; gap: 8px 14px; align-items: center; }
-      .kind { font-family: var(--mono); font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .bar { display: flex; height: 12px; border-radius: 4px; overflow: hidden; background: var(--track); }
+      .kind { font-family: var(--mono); font-size: var(--font-size-xs); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .bar { display: flex; height: 12px; border-radius: var(--radius-sm); overflow: hidden; background: var(--track); }
       .bar i { display: block; height: 100%; }
-      .num { font-variant-numeric: tabular-nums; text-align: right; font-size: 12px; white-space: nowrap; }
+      .num { font-variant-numeric: tabular-nums; text-align: right; font-size: var(--font-size-xs); white-space: nowrap; }
       .share { color: var(--text-muted); min-width: 3.5em; }
       .seg-input { background: var(--tok-input); }
       .seg-cache_read { background: var(--tok-cache-read); }
       .seg-cache_creation { background: var(--tok-cache-write); }
       .seg-output { background: var(--tok-output); }
       .legend { margin-top: 10px; }
-      h4 { margin: 16px 0 6px; font-size: 12px; color: var(--text-2); font-weight: 600; }
+      h4 { margin: 16px 0 6px; font-size: var(--font-size-xs); color: var(--text-2); font-weight: 600; }
       .top { display: grid; grid-template-columns: minmax(0, max-content) 64px 64px max-content; column-gap: 20px; row-gap: 4px; align-items: baseline; }
-      .top a { font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .top a { font-family: var(--mono); font-size: var(--font-size-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       /* a phone: a task's name takes the row, its figures go under it */
       @container (max-width: 420px) {
         .top { grid-template-columns: 1fr max-content max-content; column-gap: 14px; }

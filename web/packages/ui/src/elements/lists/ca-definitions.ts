@@ -31,7 +31,7 @@ export class CaDefinitions extends LitElement {
       :host { display: block; container-type: inline-size; }
       .defs { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 14px; align-items: start; }
       .deflist { display: flex; flex-direction: column; gap: 6px; }
-      .defitem { padding: 9px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); cursor: pointer; color: inherit; text-align: start;
+      .defitem { padding: 9px 12px; border-radius: var(--radius-lg); background: var(--panel); border: 1px solid var(--line); cursor: pointer; color: inherit; text-align: start;
         display: flex; flex-direction: column; gap: 2px; }
       .defitem:hover { border-color: var(--line2); }
       .defitem.sel { border-color: var(--accent); background: var(--accent-bg); }

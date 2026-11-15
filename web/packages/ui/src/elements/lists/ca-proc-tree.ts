@@ -15,8 +15,8 @@ export class CaProcTree extends LitElement {
     base,
     css`
       :host { display: block; }
-      .ptree2 { font-family: var(--mono); font-size: 11.5px; max-height: 220px; overflow: auto; }
-      .pt-n { display: flex; gap: 10px; align-items: center; padding: 3px 6px 3px calc(6px + var(--d) * 18px); border-radius: 6px; position: relative; }
+      .ptree2 { font-family: var(--mono); font-size: var(--font-size-xs); max-height: 220px; overflow: auto; }
+      .pt-n { display: flex; gap: 10px; align-items: center; padding: 3px 6px 3px calc(6px + var(--d) * 18px); border-radius: var(--radius-md); position: relative; }
       .pt-n:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
       .pt-n::before { content: ''; position: absolute; left: calc(var(--d) * 18px - 8px); top: 0; bottom: 50%; width: 8px;
         border-left: 1px solid var(--line2); border-bottom: 1px solid var(--line2); }

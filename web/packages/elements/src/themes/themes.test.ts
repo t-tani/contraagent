@@ -1,7 +1,7 @@
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_THEME,
+  DEFAULT_CHOICE,
   THEMES,
   THEME_CHOICES,
   THEME_NAMES,
@@ -44,18 +44,21 @@ describe('theme resolution', () => {
     }
   });
 
-  it('anything else is the default, contraagent Dark', () => {
-    expect(DEFAULT_THEME).toBe('contraagent-dark');
-    for (const x of ['', 'dark', 'solarized', null, undefined, 3]) expect(resolveTheme(x, true)).toBe('contraagent-dark');
+  it('anything else follows the colour scheme too, as the default choice does', () => {
+    expect(DEFAULT_CHOICE).toBe('system');
+    for (const x of ['', 'dark', 'solarized', null, undefined, 3]) {
+      expect(resolveTheme(x, true)).toBe('contraagent-light');
+      expect(resolveTheme(x, false)).toBe('contraagent-dark');
+    }
   });
 
   it('reads the stored choice; an unset, invalid or blocked one is the default', () => {
     expect(preferredTheme(store({ [THEME_STORE_KEY]: 'nord' }))).toBe('nord');
     expect(preferredTheme(store({ [THEME_STORE_KEY]: 'system' }))).toBe('system');
-    expect(preferredTheme(store())).toBe('contraagent-dark');
-    expect(preferredTheme(store({ [THEME_STORE_KEY]: 'neon' }))).toBe('contraagent-dark');
-    expect(preferredTheme(store({}, true))).toBe('contraagent-dark');
-    expect(preferredTheme(undefined)).toBe('contraagent-dark');
+    expect(preferredTheme(store())).toBe('system');
+    expect(preferredTheme(store({ [THEME_STORE_KEY]: 'neon' }))).toBe('system');
+    expect(preferredTheme(store({}, true))).toBe('system');
+    expect(preferredTheme(undefined)).toBe('system');
   });
 
   it('remembers a choice, and a blocked storage is not an error', () => {
@@ -77,7 +80,8 @@ describe('theme resolution', () => {
       });
       return attrs['data-ca-theme'];
     };
-    expect(run(null, true)).toBe('contraagent-dark');
+    expect(run(null, true)).toBe('contraagent-light');
+    expect(run(null, false)).toBe('contraagent-dark');
     expect(run('neon', false)).toBe('contraagent-dark');
     expect(run('system', true)).toBe('contraagent-light');
     expect(run('system', false)).toBe('contraagent-dark');
@@ -85,7 +89,7 @@ describe('theme resolution', () => {
   });
 
   it('lists every theme once in the control, the default first', () => {
-    expect(THEME_CHOICES[0]).toBe(DEFAULT_THEME);
+    expect(THEME_CHOICES[0]).toBe(DEFAULT_CHOICE);
     expect(new Set(THEME_CHOICES).size).toBe(THEME_CHOICES.length);
     expect([...THEME_CHOICES].filter((c) => c !== 'system').sort()).toEqual([...THEME_NAMES].sort());
   });
@@ -138,7 +142,9 @@ describe('theme contrast', () => {
     });
 
     it(`${name}: code reads at 4.5:1 where it is shown`, () => {
-      for (const k of Object.keys(t).filter((k) => k.startsWith('code-'))) expect(worst(k, ['well', 'card', 'panel'].map(c)), k).toBeGreaterThanOrEqual(4.5);
+      // Also on a marked line of a code block: the accent at 6% over the well.
+      const shown = [...['well', 'card', 'panel'].map(c), tint(c('accent'), 0.06, c('well'))];
+      for (const k of Object.keys(t).filter((k) => k.startsWith('code-'))) expect(worst(k, shown), k).toBeGreaterThanOrEqual(4.5);
     });
   }
 });
@@ -157,7 +163,7 @@ describe('theme data', () => {
   it('writes a rule per theme with its colour scheme and its --ca-* properties', () => {
     const css = themeRules();
     for (const n of THEME_NAMES) expect(css).toContain(`:where([data-ca-theme="${n}"]) { color-scheme: ${THEMES[n].scheme}; --ca-color-scheme: ${THEMES[n].scheme};`);
-    expect(css).toContain('--ca-bg: #060a11;');
+    expect(css).toContain(`--ca-bg: ${THEMES['contraagent-dark'].tokens.bg};`);
     expect(css).toContain(`--ca-text-secondary: ${THEMES['contraagent-dark'].tokens['text-2']};`);
     for (const t of TOKENS) expect(css.includes(`${t.prop}:`), t.prop).toBe(!t.derive);
     expect(themeRules((n: ThemeName) => `:host([data-ca-theme="${n}"])`)).toContain(':host([data-ca-theme="nord"]) {');

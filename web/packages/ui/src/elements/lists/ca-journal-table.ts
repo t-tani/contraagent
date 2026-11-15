@@ -22,20 +22,23 @@ const CELLS = [
   executorIconStyles,
   css`
     caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-    tr { column-gap: 12px; row-gap: 2px; padding: 7px 12px; border-bottom: 1px solid var(--line); font-size: 12px; min-width: 980px; }
+    tr { column-gap: 12px; row-gap: 2px; padding: 7px 12px; border-bottom: 1px solid var(--line); font-size: var(--font-size-xs); }
     th, td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     tbody [data-col='outcome'], tbody [data-col='agent'], tbody [data-col='tokens'], tbody [data-col='reason'] { white-space: normal; }
     /* a cell takes the size of the one line it draws, so the line sits where it did as the cell itself */
-    tbody [data-col='ended'], tbody [data-col='task'] { font-family: var(--mono); font-size: 11.5px; }
-    thead { position: sticky; top: 0; z-index: 1; }
-    thead tr { color: var(--text-muted); font-size: 11px; background: var(--bg); }
+    tbody [data-col='ended'], tbody [data-col='task'] { font-family: var(--mono); font-size: var(--font-size-xs); }
+    /* the column names stay at the top of the view while the rows scroll under them: the table is never wider than
+       its room (below), so it is not a scroller of its own (a header sticks to the nearest one, the view) */
+    table { overflow-x: visible; }
+    thead { position: sticky; top: calc(-1 * var(--view-top, 0px)); z-index: 1; }
+    thead tr { color: var(--text-muted); font-size: var(--font-size-xs); background: var(--bg); }
     tbody tr[data-key]:hover { background: var(--card); }
     tbody tr[data-executor='python'] { opacity: 0.85; }
     tbody tr[data-executor='python']:hover, tbody tr[data-executor='python'][data-tone='failed'] { opacity: 1; }
     tbody tr[data-ran='false'] { opacity: 0.8; }
     tbody tr[data-fresh] { animation: rowin 1.6s var(--ease); }
     tr.empty { min-width: 0; }
-    tr.empty td { font-size: var(--font-size-sm); }
+    tr.empty td { font-size: var(--font-size-xs); }
     .jwhy { color: var(--text-2); overflow-wrap: anywhere; }
     .later { color: var(--status-done); }
     .nw { white-space: nowrap; }
@@ -45,14 +48,22 @@ const CELLS = [
     .jstop.two { display: grid; grid-template-columns: auto minmax(0, 1fr); align-content: center; }
     .jstop.two > * { grid-column: 2; }
     .jstop.two::before { grid-row: 1; }
-    .two .sub { color: var(--text-muted); font-size: 11px; white-space: normal; overflow-wrap: anywhere; }
+    .two .sub { color: var(--text-muted); font-size: var(--font-size-xs); white-space: normal; overflow-wrap: anywhere; }
     [data-col='tokens'] .two > span { white-space: nowrap; }
     .sub .q { color: var(--text-2); font-family: var(--mono); white-space: nowrap; }
     .jstop .sub { font-weight: 400; }
     .cost { font-variant-numeric: tabular-nums; color: var(--text-2); }
+    /* narrower than every column needs: when it ended, the task, how it ended, its cost and its time; a reason on a line
+       of its own under them, and none for a row without one; who ran it and its tokens are in the task's own view */
+    @container (max-width: 1040px) {
+      tr { grid-template-columns: 64px minmax(0, 1.2fr) minmax(0, 1fr) 60px 76px; }
+      [data-col='agent'], [data-col='tokens'], [data-col^='x:'], thead [data-col='reason'] { display: none; }
+      tbody [data-col='reason'] { grid-column: 2 / -1; }
+      tbody [data-col='reason']:has(> .jwhy > .jdim:only-child) { display: none; }
+    }
     /* a phone: when it ended, the task in two lines at most and how it ended; the reason under them, across the row; the row says what each is without the column names */
     @container (max-width: 560px) {
-      tr { min-width: 0; grid-template-columns: 58px minmax(0, 1fr) auto; padding: 7px 8px; }
+      tr { grid-template-columns: 58px minmax(0, 1fr) auto; padding: 7px 8px; }
       [data-col='agent'], [data-col='tokens'], [data-col='cost'], [data-col='time'], [data-col^='x:'] { display: none; }
       thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
       tbody [data-col='task'] { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
@@ -78,7 +89,7 @@ export class CaJournalTable extends LitElement {
     css`
       :host { display: block; }
       .jtally { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 0 12px; }
-      .jchip { border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; font-size: 11.5px; color: var(--text-muted);
+      .jchip { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 3px 11px; font-size: var(--font-size-xs); color: var(--text-muted);
         cursor: pointer; transition: all 0.15s; background: none; }
       .jchip b { color: var(--text); }
       .jchip:hover { border-color: var(--line2); color: var(--text); }

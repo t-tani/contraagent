@@ -122,7 +122,7 @@ const SHOTS = [
     height: 1100,
     ready: 'ca-task-view',
     clip: async (page) => [
-      await card(page, 'ca-task-view .taskmeta'),
+      await card(page, 'ca-task-view .tm-top'),
       await between(page, 'ca-task-view', '[part="picker"]', /^Output failed checks$/, 1),
     ],
   },
@@ -136,11 +136,10 @@ const SHOTS = [
     ready: 'ca-journal-table',
     gap: 0,
     clip: async (page) => {
-      // The header and two rows, in the table's order, up to the reason (which a 900 px table
-      // cuts short); stacked with no gap, they read as one table.
+      // The header and two rows, in the table's order (a table of this width has no column for the
+      // reason: one stands under its row); stacked with no gap, they read as one table.
       const head = await boxOf(page, 'ca-journal-table thead tr');
-      const reason = await page.locator('ca-journal-table thead th', { hasText: 'Reason' }).boundingBox();
-      const width = reason.x - head.x + 8;
+      const width = head.width + 16;
       const rows = [];
       for (const unit of ['beta', 'delta']) rows.push(await page.locator('ca-journal-table tbody tr', { hasText: `summarize · ${unit}` }).boundingBox());
       rows.sort((a, b) => a.y - b.y);
@@ -148,7 +147,7 @@ const SHOTS = [
     },
   },
   {
-    // The model switch in the task's detail, in the dark theme (the monitor's default).
+    // The model switch in the task's detail, in the dark theme.
     set: 'readme',
     name: 'model-switch-dark',
     width: 896, // a card of the page then fills 880 px: GitHub's column
@@ -157,7 +156,7 @@ const SHOTS = [
     height: 1100,
     ready: 'ca-task-view',
     clip: async (page) => [
-      await card(page, 'ca-task-view .taskmeta'),
+      await card(page, 'ca-task-view .tm-top'),
       await between(page, 'ca-task-view', '[part="picker"]', '[part="picker"]'),
     ],
   },

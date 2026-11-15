@@ -1810,10 +1810,6 @@
   <source>High contrast</source>
   <target>ハイコントラスト</target>
 </trans-unit>
-<trans-unit id="s851220394bf4ca62">
-  <source>Theme: <x id="0" equiv-text="${themeLabel(this.value)}"/></source>
-  <target>テーマ: <x id="0" equiv-text="${themeLabel(this.value)}"/></target>
-</trans-unit>
 <trans-unit id="saab875d8cfcfe712">
   <source>Theme</source>
   <target>テーマ</target>
@@ -3371,6 +3367,14 @@
   <source>Failed</source>
   <note from="lit-localize">A task that failed</note>
   <target>失敗</target>
+</trans-unit>
+<trans-unit id="s21136de28ecda8c2">
+  <source>Not copied</source>
+  <target>コピーできませんでした</target>
+</trans-unit>
+<trans-unit id="s9d8b8aa2b404c2c8">
+  <source>Settings</source>
+  <target>設定</target>
 </trans-unit>
 </body>
 </file>

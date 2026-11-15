@@ -55,7 +55,8 @@ describe('ca-task-table', () => {
     const { rows, el } = await table({ live: false });
     const z = byKey(rows, 'summarize-z');
     const cells = [...z.children].map(text);
-    expect(cells.slice(1, 6)).toEqual(['0', 'none', 'none', 'none', 'none']);
+    // The status stands beside the task's name; the values follow it.
+    expect(cells.slice(2, 7)).toEqual(['0', 'none', 'none', 'none', 'none']);
     expect([text(z.querySelector('.pill')), text(z.querySelector('.cause'))]).toEqual(['not started', 'earlier task prepare · z failed']);
     const w = byKey(rows, 'write-a');
     // Waiting when the run ended: it did not run.

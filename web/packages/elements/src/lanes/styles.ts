@@ -9,12 +9,12 @@ export const lanesStyles = css`
   @container (max-width: 760px) { .lanes { --label: var(--cae-lanes-label-width, 78px); } }
   @container (max-width: 480px) { .axis span:nth-child(even) { display: none; } }
   .lanes { position: relative; }
-  .axis { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--text-muted); margin: 0 0 6px calc(var(--label) + 8px); }
+  .axis { display: flex; justify-content: space-between; font-family: var(--mono); font-size: var(--font-size-xs); color: var(--text-muted); margin: 0 0 6px calc(var(--label) + 8px); }
   .lane { display: grid; grid-template-columns: var(--label) minmax(0, 1fr); gap: 8px; align-items: center; min-height: 24px; padding: 4px 0; }
-  .name { font-size: 11.5px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .track { position: relative; height: calc(var(--rows, 1) * 14px + 2px); border-radius: 4px;
+  .name { font-size: var(--font-size-xs); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .track { position: relative; height: calc(var(--rows, 1) * 14px + 2px); border-radius: var(--radius-sm);
     background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--text) 5%, transparent) 0 1px, transparent 1px 10%); }
-  .bar { position: absolute; top: calc(var(--row, 0) * 14px + 2px); height: 12px; border-radius: 4px; min-width: 3px; cursor: default;
+  .bar { position: absolute; top: calc(var(--row, 0) * 14px + 2px); height: 12px; border-radius: var(--radius-sm); min-width: 3px; cursor: default;
     transform-origin: left center; transition: width 1s linear; }
   .anim .bar:not(.running) { animation: growx 0.6s var(--ease) both; }
   :is(.bar, .legend i)[data-pattern] { background: var(--bar); }

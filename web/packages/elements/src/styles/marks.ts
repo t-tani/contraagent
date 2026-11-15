@@ -23,6 +23,17 @@ export const markStyles = css`
   .big .mark:is(:not([data-tone]), [data-tone='attention'], [data-tone='muted'])[data-n]::after { color: var(--text); }
   .mark:hover, .mark:focus-visible { transform: scale(1.4); outline: var(--focus-width) solid var(--text); outline-offset: 1px; z-index: 2; }
   .mark.sel { outline: var(--focus-width) solid var(--accent); outline-offset: 2px; z-index: 2; }
+  /* Forced colours take fills, shadows and gradients away: each shape is redrawn with the text's system colour, so a
+     mark still shows and still tells its state by its shape (a disc done, a square failed, a ring waiting, a half partly done). */
+  @media (forced-colors: active) {
+    .mark { forced-color-adjust: none; opacity: 1; background: CanvasText; box-shadow: none; }
+    .mark[data-shape='ring'], .mark[data-shape='hatched'] { background: Canvas; border: 1.5px solid CanvasText; }
+    .mark[data-shape='hatched'] { border-style: dashed; }
+    .mark[data-shape='half'] { background: Canvas; border: 1.5px solid CanvasText; border-block-end-width: calc(var(--m) / 2); }
+    .big .mark[data-tone='failed']::after, .big .mark[data-n]::after { color: Canvas; }
+    .mark[data-n]::after { background: Canvas; }
+    .mark.sel { outline-color: Highlight; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .mark { transition: none; }
     .mark[data-tone='running'] { animation: none; background: linear-gradient(90deg, var(--status-running) 50%, transparent 50%); box-shadow: inset 0 0 0 1.5px var(--status-running); }

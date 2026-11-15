@@ -32,6 +32,11 @@ export interface ChooseThemeDetail {
   theme: ThemeChoice;
 }
 
+export interface ChooseLocaleDetail {
+  /** The language the reader chose: a locale code (`en`, `ja`). */
+  locale: string;
+}
+
 /** What a journal row says about a try (the fields this needs). */
 export interface TryResult {
   attempt?: number | null;
@@ -89,8 +94,10 @@ export interface CaEventMap {
   'ca-filter': FilterDetail;
   /** Go elsewhere in the monitor (its own views use this). */
   'ca-navigate': NavigateDetail;
-  /** Show another theme (the theme control). */
+  /** Show another theme (the settings). */
   'ca-choose-theme': ChooseThemeDetail;
+  /** Show another language (the settings). */
+  'ca-choose-locale': ChooseLocaleDetail;
   /** Close the element (the run picker). */
   'ca-close': Record<string, never>;
   /** A transcript's rounds or its shown round changed; does not bubble (`ca-transcript`). */
@@ -104,6 +111,7 @@ declare global {
     'ca-filter': CustomEvent<FilterDetail>;
     'ca-navigate': CustomEvent<NavigateDetail>;
     'ca-choose-theme': CustomEvent<ChooseThemeDetail>;
+    'ca-choose-locale': CustomEvent<ChooseLocaleDetail>;
     'ca-close': CustomEvent<Record<string, never>>;
     'ca-rounds': CustomEvent<RoundsChangedDetail>;
   }

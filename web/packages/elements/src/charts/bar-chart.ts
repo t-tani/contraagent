@@ -23,7 +23,7 @@ export class CaeBarChart extends ChartElement {
     ...ChartElement.styles,
     css`
       .bars { display: grid; grid-template-columns: minmax(80px, max-content) minmax(0, 1fr) max-content; gap: 6px 12px; align-items: center;
-        font-size: var(--font-size-sm); }
+        font-size: var(--font-size-xs); }
       .bars .r { display: contents; }
       .bars .l { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 34ch; }
       .bars .track { display: block; height: 12px; }

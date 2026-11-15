@@ -52,12 +52,12 @@ export class CaDefinition extends LitElement {
       .df-tog { flex: none; margin-inline-start: auto; }
       .df-sum::before { content: '▸'; color: var(--text-muted); width: 10px; flex: none; transition: transform 0.15s; }
       .df-sum[aria-expanded='true']::before { transform: rotate(90deg); }
-      .py-sig { font-family: var(--mono); font-size: 14px; padding: 10px 14px; background: var(--well); border: 1px solid var(--line);
-        border-radius: 8px; overflow-x: auto; white-space: pre; }
-      .py-where { margin: 6px 2px 12px; font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); overflow-wrap: anywhere; }
+      .py-sig { font-family: var(--mono); font-size: var(--font-size-md); padding: 10px 14px; background: var(--well); border: 1px solid var(--line);
+        border-radius: var(--radius-md); overflow-x: auto; white-space: pre; }
+      .py-where { margin: 6px 2px 12px; font-family: var(--mono); font-size: var(--font-size-xs); color: var(--text-muted); overflow-wrap: anywhere; }
       .py-doc { margin: 0 0 12px; padding: 8px 12px; border-left: 3px solid var(--line2); color: var(--text-2); white-space: pre-wrap; line-height: 1.6; }
       .src { display: grid; grid-template-columns: auto minmax(0, 1fr); background: var(--well); border: 1px solid var(--line);
-        border-radius: 8px; font-family: var(--mono); font-size: 12px; line-height: 1.55; max-height: 520px; overflow: auto; }
+        border-radius: var(--radius-md); font-family: var(--mono); font-size: var(--font-size-xs); line-height: 1.55; max-height: 520px; overflow: auto; }
       .src pre { margin: 0; padding: 10px 12px; white-space: pre; }
       .src .ln { color: var(--text-muted); text-align: right; user-select: none; border-right: 1px solid var(--line); opacity: 0.7; }
     `,
@@ -125,7 +125,7 @@ export class CaDefinition extends LitElement {
             )}`
         : nothing}
       ${files.length
-        ? html`<h4 class="sect-h">${msg('Files')}</h4>${files.map((f) => this.file(f, isRole(f), !!def.role))}`
+        ? html`<h4 class="sr">${msg('Files')}</h4>${files.map((f) => this.file(f, isRole(f), !!def.role))}`
         : html`<div class="meta">${msg(html`No files | defined in Python code (<code>TaskAdapter</code>)`)}</div>`}`;
   }
 
@@ -183,7 +183,7 @@ export class CaDefinition extends LitElement {
     return html`<div class="df">
       <div class="df-hd">
         <button type="button" class="df-sum" aria-expanded=${isOpen ? 'true' : 'false'} title=${isRole ? msg('Role of this kind') : nothing} @click=${toggle}>
-          <span class="tag">${f.part}</span><span class="jmono">${f.path}</span>
+          <span class="sr">${f.part}</span><span class="jmono">${f.path}</span>
         </button>
         ${isMd
           ? html`<button type="button" class="df-tog" @click=${flip}>${showSource ? msg('Show rendered') : msg('Show source')}</button>`

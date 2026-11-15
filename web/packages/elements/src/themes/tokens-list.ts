@@ -27,6 +27,7 @@ export const TOKENS: readonly TokenInfo[] = [
   { name: 'track', prop: '--ca-track' },
   { name: 'line', prop: '--ca-line' },
   { name: 'line2', prop: '--ca-line2' },
+  { name: 'line-field', prop: '--ca-line-field', derive: 'color-mix(in oklab, var(--text-muted) 72%, var(--card))' },
   { name: 'shadow', prop: '--ca-shadow' },
   { name: 'text', prop: '--ca-text' },
   { name: 'text-2', prop: '--ca-text-secondary' },
@@ -69,14 +70,16 @@ export const TOKENS: readonly TokenInfo[] = [
   { name: 'code-type', prop: '--ca-code-type' },
   { name: 'code-name', prop: '--ca-code-name' },
   // The type and radius scale: the same in every theme, so each has a default and no theme sets it.
-  { name: 'font-size-xs', prop: '--ca-font-size-xs', derive: '10px' },
-  { name: 'font-size-sm', prop: '--ca-font-size-sm', derive: '11px' },
-  { name: 'font-size-md', prop: '--ca-font-size-md', derive: '12px' },
-  { name: 'font-size-lg', prop: '--ca-font-size-lg', derive: '13px' },
-  { name: 'font-size-xl', prop: '--ca-font-size-xl', derive: '15px' },
-  { name: 'font-size-2xl', prop: '--ca-font-size-2xl', derive: '28px' },
+  // The sizes are in rem (12, 13, 14, 16, 20 and 28px at the browser's default), so they follow the
+  // font size the reader set in the browser and the operating system's text scale.
+  { name: 'font-size-xs', prop: '--ca-font-size-xs', derive: '0.75rem' },
+  { name: 'font-size-sm', prop: '--ca-font-size-sm', derive: '0.8125rem' },
+  { name: 'font-size-md', prop: '--ca-font-size-md', derive: '0.875rem' },
+  { name: 'font-size-lg', prop: '--ca-font-size-lg', derive: '1rem' },
+  { name: 'font-size-xl', prop: '--ca-font-size-xl', derive: '1.25rem' },
+  { name: 'font-size-2xl', prop: '--ca-font-size-2xl', derive: '1.75rem' },
   { name: 'radius-sm', prop: '--ca-radius-sm', derive: '4px' },
-  { name: 'radius-md', prop: '--ca-radius-md', derive: '8px' },
-  { name: 'radius-lg', prop: '--ca-radius-lg', derive: '12px' },
+  { name: 'radius-md', prop: '--ca-radius-md', derive: '6px' },
+  { name: 'radius-lg', prop: '--ca-radius-lg', derive: '10px' },
   { name: 'radius-pill', prop: '--ca-radius-pill', derive: '999px' },
 ];

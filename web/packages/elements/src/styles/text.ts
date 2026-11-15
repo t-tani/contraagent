@@ -6,8 +6,8 @@ export const textStyles = css`
   .jmono, code, .mono { font-family: var(--mono); }
   /* read by screen readers, not shown: the word beside a status mark or an icon */
   .sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-  .jmono { font-size: 11.5px; }
-  .meta { color: var(--text-muted); font-size: var(--font-size-sm); }
+  .jmono { font-size: var(--font-size-xs); }
+  .meta { color: var(--text-muted); font-size: var(--font-size-xs); }
   /* a label in a tight box: it wraps at spaces and between phrases, never inside a word (Japanese included) */
   .words { word-break: keep-all; overflow-wrap: break-word; line-break: strict; }
   /* one fact of a row in .words (factLine): the line breaks between facts first, inside one only when it is wider than the box */

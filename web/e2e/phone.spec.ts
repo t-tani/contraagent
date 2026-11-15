@@ -37,9 +37,13 @@ test('a phone: the header is one line', async ({ page }) => {
   const header = page.locator('ca-monitor header');
   await expect(header.locator('.runbtn')).toBeVisible();
   expect((await box(header)).height).toBeLessThan(60);
-  // The language: one button, which switches to the other one.
-  await expect(header.locator('.langs')).toBeHidden();
-  await header.locator('.lang-next').click();
+  // The language is one of the settings, which open under their button, inside the screen.
+  await header.locator('ca-settings .trig').click();
+  const panel = header.locator('ca-settings').getByRole('dialog');
+  const p = await box(panel);
+  expect(p.x).toBeGreaterThanOrEqual(0);
+  expect(p.x + p.width).toBeLessThanOrEqual(PHONE.width);
+  await panel.locator('.langs button[lang=ja]').click();
   await expect(page.locator('html')).toHaveAttribute('lang', /ja/);
 });
 

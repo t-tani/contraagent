@@ -10,9 +10,10 @@ does not.
 
 ## The monitor's theme
 
-In the monitor, the header's theme control changes the theme and remembers it
-in this browser. `System` follows the system's colour scheme (contraagent Dark
-or contraagent Light). With no choice made, the monitor shows contraagent Dark.
+In the monitor, the settings behind the button at the end of the header change
+the theme and remember it in this browser. `System` follows the system's colour
+scheme (contraagent Dark or contraagent Light), and it is what the monitor
+shows with no choice made.
 
 `<ca-monitor theme="nord">` fixes the theme of an embedded monitor; it also
 takes `system`. The theme it shows is reflected as `data-ca-theme` on the

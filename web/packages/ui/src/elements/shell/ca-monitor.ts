@@ -16,7 +16,7 @@ import {
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
-import type { ChooseThemeDetail, FilterDetail, NavigateDetail, OpenTaskDetail, SelectRunDetail } from '../../core/events.js';
+import type { ChooseLocaleDetail, ChooseThemeDetail, FilterDetail, NavigateDetail, OpenTaskDetail, SelectRunDetail } from '../../core/events.js';
 import { LOCALE_NAMES, allLocales, chooseLocale, configureLocales, getLocale, isLocale, type Locale } from '../../core/i18n.js';
 import { LocalMemory, flushMemory, keepMemory, memoryOf } from '../../core/memory.js';
 import { ScrollMemory } from '../../core/scroll.js';
@@ -26,6 +26,7 @@ import { LocaleController } from '../../controllers/locale.js';
 import { ShortcutsController, isShortcutScope, type ShortcutScope } from '../../controllers/shortcuts.js';
 import { ThemeController } from '../../controllers/theme.js';
 import { runLine, runLineAccounts, shownTasksLine, shownTriesLine } from '../../words/index.js';
+import { facts } from '../../words/format.js';
 import { filterJournal, filterTasks } from '../../adapters/filters.js';
 import { runMark } from '../../words/run-line.js';
 import { exportTip, exportedLabel } from '../../words/export.js';
@@ -40,14 +41,14 @@ import { base } from '@contraagent/elements/styles';
 import { adoptThemes, hostThemeStyles, rememberTheme, type ThemeChoice, type ThemeName } from '@contraagent/elements/themes';
 import { rowToast, type CaToasts } from './ca-toasts.js';
 import { monitorStyles } from './styles.js';
-import { monitorTabs, moveTabIndicator, tabBar, tabId, tabStyles } from './tabs.js';
+import { monitorTabs, revealTab, tabBar, tabId, tabStyles } from './tabs.js';
 import { brand, connection, nowLine } from './header.js';
 import { tabView } from './views.js';
-import './ca-clock.js';
 import './ca-hosts.js';
 import './ca-run-picker.js';
 import './ca-toasts.js';
-import './ca-theme-switch.js';
+import './ca-settings.js';
+import type { KeyHint } from './ca-settings.js';
 import '../trends/ca-trends.js';
 import { browserZone, runGroups, trendsQuery } from '../../lib/trends.js';
 import { trendsTip, trendsTitle } from '../../words/trends.js';
@@ -116,7 +117,7 @@ export class CaMonitor extends LitElement {
    * The theme: `contraagent-dark`, `contraagent-light`, `system` (one of the two,
    * as the system's colour scheme), `github-dark`, `github-light`, `one-dark`,
    * `nord` or `high-contrast`. Unset: the reader's earlier choice, else
-   * `contraagent-dark`. The header's control changes it and remembers it. The
+   * `system`. The settings in the header change it and remember it. The
    * theme shown is reflected as `data-ca-theme` (on `<html>` too, with `history="url"`).
    */
   @property() theme: ThemeChoice | '' = '';
@@ -160,8 +161,6 @@ export class CaMonitor extends LitElement {
     if (!e.composedPath().some((n) => n instanceof HTMLElement && (n.localName === 'ca-run-picker' || n.classList.contains('runbtn')))) this.pickerOpen = false;
   };
   private outsideClickOn = false;
-  private navObserver: ResizeObserver | null = null;
-  private navObserved: Element | null = null;
   private readonly language: LocaleController;
   /** Whether the elements can switch language: false when the page configured Lit Localize itself. */
   private locales = false;
@@ -186,12 +185,7 @@ export class CaMonitor extends LitElement {
     this.openStore();
     this.openViewRouter();
     void this.store.start();
-    this.cleanups.push(() => {
-      this.listenOutside(false);
-      this.navObserver?.disconnect();
-      this.navObserver = null;
-      this.navObserved = null;
-    });
+    this.cleanups.push(() => this.listenOutside(false));
     this.addEventListener('ca-open-task', (e: CustomEvent<OpenTaskDetail>) => {
       this.navigate({ tab: 'stream', key: e.detail.key, ...(e.detail.view ? { view: e.detail.view } : {}) });
     });
@@ -204,6 +198,9 @@ export class CaMonitor extends LitElement {
     this.addEventListener('ca-choose-theme', (e: CustomEvent<ChooseThemeDetail>) => {
       this.theme = e.detail.theme;
       rememberTheme(e.detail.theme);
+    });
+    this.addEventListener('ca-choose-locale', (e: CustomEvent<ChooseLocaleDetail>) => {
+      if (isLocale(e.detail.locale)) this.pickLocale(e.detail.locale);
     });
   }
 
@@ -343,7 +340,7 @@ export class CaMonitor extends LitElement {
       this.pickerOpen = true;
     } else if (e.key === '/') {
       e.preventDefault();
-      this.renderRoot.querySelector<HTMLInputElement>('.bar input')?.focus();
+      this.renderRoot.querySelector<HTMLInputElement>('.filter input')?.focus();
     } else if (/^[1-9]$/.test(e.key) && !this.viewRoute.page) {
       const tab = monitorTabs(this.snap.info.panels)[Number(e.key) - 1];
       if (tab) this.navigate({ tab: tab.id });
@@ -364,13 +361,12 @@ export class CaMonitor extends LitElement {
 
   protected override updated(): void {
     // A monitor that is the page names it, in its language.
-    if (this.history === 'url' && this.snap) document.title = msg(str`${this.snap.info.title} monitor`);
+    if (this.history === 'url' && this.snap) document.title = this.pageTitle();
     // The click on the run button that opened the picker reaches the document after this: `onOutsideClick` passes it over.
     this.listenOutside(this.isConnected && this.pickerOpen);
-    this.observeNav();
     // Tab comes back into the tab list on the selected tab.
     if (this.snap && this.viewRoute) this.tabFocus.set(Math.max(0, this.selectedTab()));
-    moveTabIndicator(this.renderRoot);
+    revealTab(this.renderRoot);
     if (this.main) this.mainScroll.attach(this.main);
     if (this.pendingScroll) {
       // A new place starts at the top; Back, Forward and a reload return to where the reader was.
@@ -381,23 +377,22 @@ export class CaMonitor extends LitElement {
     if (this.snap && this.viewRoute) this.mainScroll.update(this.complete());
   }
 
+  /** The page's title: the place first (a run's tab and the run, the trends, the hosts), then the monitor's name; a browser's tab cuts its end. */
+  private pageTitle(): string {
+    const { viewRoute } = this;
+    const name = msg(str`${this.snap.info.title} monitor`);
+    if (!viewRoute) return name;
+    const tab = monitorTabs(this.snap.info.panels).find((t) => t.id === viewRoute.tab)?.label ?? '';
+    const place = viewRoute.page === 'trends' ? trendsTitle() : viewRoute.page === 'hosts' ? msg('Hosts') : viewRoute.run ? facts(tab, viewRoute.run) : '';
+    return facts(place, name);
+  }
+
   /** Whether all of what the place shows has arrived: the run's replay, the trends asked for, the hosts. */
   private complete(): boolean {
     const { snap, viewRoute } = this;
     if (viewRoute.page === 'hosts') return snap.hosts !== null;
     if (viewRoute.page === 'trends') return !!snap.trends?.data && !snap.trends.loading;
     return snap.run === viewRoute.run && snap.state.ready;
-  }
-
-  /** Move the line under the selected tab when the tab bar changes size. */
-  private observeNav(): void {
-    const nav = this.renderRoot.querySelector('nav');
-    if (!nav || typeof ResizeObserver === 'undefined') return;
-    if (this.navObserved === nav) return;
-    if (!this.navObserver) this.navObserver = new ResizeObserver(() => moveTabIndicator(this.renderRoot));
-    else this.navObserver.disconnect();
-    this.navObserver.observe(nav);
-    this.navObserved = nav;
   }
 
   private setQ(q: string): void {
@@ -409,13 +404,7 @@ export class CaMonitor extends LitElement {
     }, Q_DEBOUNCE_MS);
   }
 
-  /** The header's language switch: switch now, and remember it for the next visit. */
-  /** A phone's language control: one button, named in the language it switches to (the next one, of two or more). */
-  private otherLocale() {
-    const next = allLocales[(allLocales.indexOf(getLocale()) + 1) % allLocales.length] as Locale;
-    return html`<button type="button" class="lang-next" lang=${next} title=${msg('Language')} @click=${() => this.pickLocale(next)}>${LOCALE_NAMES[next]}</button>`;
-  }
-
+  /** The settings' language choice: switch now, and remember it for the next visit. */
   private pickLocale(locale: Locale): void {
     this.locale = locale;
     void chooseLocale(locale);
@@ -432,39 +421,35 @@ export class CaMonitor extends LitElement {
     const hostsPage = viewRoute.page === 'hosts';
     const trendsPage = viewRoute.page === 'trends';
     return html`
-      <header>
+      <header class=${hostsPage || trendsPage ? 'solo' : ''}>
         ${brand(snap.info.title)}
         <button type="button" class="runbtn" title=${keys ? msg('Switch run (r)') : msg('Switch run')} aria-haspopup="dialog" aria-expanded=${this.pickerOpen ? 'true' : 'false'}
           @click=${() => (this.pickerOpen = !this.pickerOpen)}>
           ${hostsPage ? this.hostsLabel() : trendsPage ? this.trendsLabel() : this.runLabel(hub, derived)}
-          <span class="chev" aria-hidden="true">▾</span>
+          <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
         <div class="hdr-right">
           ${nowLine(this, acts)}
-          <ca-theme-switch .value=${this.themes.choice} .system=${this.themes.system}></ca-theme-switch>
-          ${this.locales
-            ? html`<cae-segmented class="langs" label=${msg('Language')} .value=${getLocale()}
-                .options=${allLocales.map((l) => ({ value: l, label: LOCALE_NAMES[l], lang: l }))}
-                @cae-change=${(e: CustomEvent<{ value: string }>) => isLocale(e.detail.value) && this.pickLocale(e.detail.value)}></cae-segmented>
-              ${this.otherLocale()}`
-            : nothing}
           ${snap.info.export
             ? pill({ text: exportedLabel(snap.info.export), tone: 'muted', title: exportTip(snap.info.export) })
             : connection(snap.connected)}
-          <ca-clock class="clock"></ca-clock>
+          <ca-settings .theme=${this.themes.choice} .system=${this.themes.system} locale=${getLocale()}
+            .locales=${this.locales ? allLocales.map((l) => ({ value: l, label: LOCALE_NAMES[l] })) : []}
+            .keys=${keys ? this.keyHints(hostsPage || trendsPage) : []}></ca-settings>
         </div>
         <ca-run-picker .runs=${snap.runs} current=${viewRoute.run} ?open=${this.pickerOpen} ?hub=${hub} .hosts=${snap.hosts?.hosts ?? []} page=${viewRoute.page}
           @ca-close=${() => this.closePicker()}></ca-run-picker>
       </header>
       ${hostsPage
-        ? html`${this.renderApiError()}<main id="main"><ca-hosts .hosts=${snap.hosts}></ca-hosts></main>`
+        ? html`${this.renderApiError()}<main><ca-hosts .hosts=${snap.hosts}></ca-hosts></main>`
         : trendsPage
-        ? html`${this.renderApiError()}<main id="main"><ca-trends .view=${snap.trends} days=${viewRoute.days} from=${viewRoute.from} to=${viewRoute.to}
+        ? html`${this.renderApiError()}<main><ca-trends .view=${snap.trends} days=${viewRoute.days} from=${viewRoute.from} to=${viewRoute.to}
             tz=${viewRoute.tz || browserZone()} group=${viewRoute.group} .groups=${runGroups(snap.runs)} .panels=${snap.info.panels}
             tab=${viewRoute.trendsTab} ?exported=${!!snap.info.export}></ca-trends></main>`
-        : html`${this.renderTabs(derived, acts.length)} ${this.renderBar(derived)} ${this.renderApiError()}
-            <main id="main" class=${viewRoute.tab === 'stream' ? 'stream' : ''} role="tabpanel" aria-labelledby=${tab >= 0 ? tabId(tab) : nothing}
-              >${tabView({ snap, viewRoute, derived, q: this.qDraft ?? viewRoute.q, client: this.store.client, baseUrl: this.store.client.baseUrl })}</main>`}
+        : html`${this.renderTabs(derived, acts.length)} ${this.renderApiError()}
+            <main class=${viewRoute.tab === 'stream' ? 'stream' : ''}
+              ><div id="view" class="view" role="tabpanel" aria-labelledby=${tab >= 0 ? tabId(tab) : nothing}
+                >${tabView({ snap, viewRoute, derived, q: this.qDraft ?? viewRoute.q, client: this.store.client, baseUrl: this.store.client.baseUrl })}</div></main>`}
       <ca-toasts></ca-toasts>
     `;
   }
@@ -519,22 +504,34 @@ export class CaMonitor extends LitElement {
           : id === 'procs'
             ? [state.procs?.alive ? busy || '' : '', 'running']
             : null;
-    return tabBar(monitorTabs(this.snap.info.panels), this.viewRoute.tab, badge, (id) => this.navigate({ tab: id }), 'main', this.shortcutScope !== 'off');
+    return tabBar(monitorTabs(this.snap.info.panels), this.viewRoute.tab, badge, (id) => this.navigate({ tab: id }), 'view', this.renderFilter(d));
   }
 
-  private renderBar(d: RunDerived) {
+  /** The keys that work now and what each does, for the settings; a page of no run has no tabs and no filter. */
+  private keyHints(noRun: boolean): KeyHint[] {
+    const tabs = Math.min(9, monitorTabs(this.snap.info.panels).length);
+    return [
+      ...(noRun ? [] : [{ keys: ['1', String(tabs)], does: msg('Tabs') }]),
+      { keys: ['r'], does: msg('Runs') },
+      ...(noRun ? [] : [{ keys: ['/'], does: msg('Filter') }]),
+    ];
+  }
+
+  /** What the tasks and the history filter by, at the end of the tab list: a kind and a text; then how many rows they leave. */
+  private renderFilter(d: RunDerived) {
     const { viewRoute } = this;
     if (viewRoute.tab !== 'tasks' && viewRoute.tab !== 'journal') return nothing;
     const { kinds } = d;
-    return html`<div class="bar">
+    return html`<search class="filter">
       <select title=${msg('Kind')} aria-label=${msg('Kind')} @change=${(e: Event) => this.navigate({ kind: (e.target as HTMLSelectElement).value })}>
         <option value="" ?selected=${!viewRoute.kind}>${msg('All kinds')}</option>
         ${kinds.map((k) => html`<option ?selected=${k === viewRoute.kind}>${k}</option>`)}
       </select>
-      <input placeholder=${msg('Filter')} aria-label=${msg('Text filter')} size="22" title=${this.shortcutScope !== 'off' ? msg('Text filter (/)') : msg('Text filter')} .value=${this.qDraft ?? viewRoute.q}
+      <input type="search" placeholder=${msg('Filter')} aria-label=${msg('Text filter')} autocomplete="off" autocapitalize="off" spellcheck="false"
+        title=${this.shortcutScope !== 'off' ? msg('Text filter (/)') : msg('Text filter')} .value=${this.qDraft ?? viewRoute.q}
         @input=${(e: Event) => this.setQ((e.target as HTMLInputElement).value)} />
-      <span class="meta" aria-live="polite">${this.shownLine(d)}</span>
-    </div>`;
+      <span class="meta" role="status">${this.shownLine(d)}</span>
+    </search>`;
   }
 
   /** While a filter is on, how many of the tab's rows it shows; the tab's badge counts them all. */

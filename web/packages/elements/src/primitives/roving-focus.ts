@@ -119,6 +119,8 @@ export class RovingFocusController implements ReactiveController {
   };
 
   private readonly onKey = (e: KeyboardEvent): void => {
+    // Alt and an arrow key is the browser's own (back, forward).
+    if (e.altKey) return;
     const items = this.o.items();
     const i = this.indexOf(e);
     if (i < 0) return;

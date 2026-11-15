@@ -31,19 +31,20 @@ export class CaRunDriver extends LitElement {
     css`
       :host { display: block; }
       .drv { display: flex; gap: 14px; align-items: flex-start; }
-      .drv-ic { width: 42px; height: 42px; border-radius: 12px; flex: none; display: grid; place-items: center; font-size: 16px;
+      .drv-ic { width: 40px; height: 40px; border-radius: var(--radius-lg); flex: none; display: grid; place-items: center; font-size: var(--font-size-lg);
         background: var(--raise); color: var(--text-muted); }
-      .drv.on .drv-ic { background: var(--status-running-bg); box-shadow: 0 0 0 1px color-mix(in srgb, var(--status-running) 35%, transparent), 0 0 22px var(--status-running-bg); }
+      .drv.on .drv-ic { background: var(--status-running-bg); }
       /* how a run ended: the mark's shape and the title's words carry it; the colour only where a status applies */
       .drv-ic[data-tone] { color: var(--tone); font-weight: 700; }
       .drv-ic[data-tone='failed'], .drv-ic[data-tone='attention'] { background: var(--tone-bg); }
       .drv.on .drv-ic .spin { width: 18px; height: 18px; }
-      .drv-t { font-size: 15px; font-weight: 600; }
-      .drv-up { font-family: var(--mono); font-size: 12px; color: var(--status-running); margin-left: 6px; font-weight: 400; }
+      /* the state of the run is the headline of its page: the largest words on it, in the text's colour (the mark carries the status) */
+      .drv-t { font-size: var(--font-size-xl); font-weight: 650; line-height: 1.25; letter-spacing: -0.015em; text-wrap: balance; }
+      .drv-up { font-family: var(--mono); font-size: var(--font-size-xs); color: var(--status-running); margin-left: 6px; font-weight: 400; }
       .drv-cmd { margin-top: 8px; }
-      .drv-cmd summary { cursor: pointer; font-size: 11px; color: var(--text-muted); }
-      .pf { margin-top: 10px; font-size: 12px; }
-      .pf-h { color: var(--text-muted); font-size: 11px; margin-bottom: 4px; }
+      .drv-cmd summary { cursor: pointer; font-size: var(--font-size-xs); color: var(--text-muted); }
+      .pf { margin-top: 10px; font-size: var(--font-size-xs); }
+      .pf-h { color: var(--text-muted); font-size: var(--font-size-xs); margin-bottom: 4px; }
       /* a label, then its fact: one row each, the facts in one column */
       .pf-rows { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 12px; margin: 0; }
       .pf-rows dt { color: var(--text-muted); }
@@ -83,7 +84,7 @@ export class CaRunDriver extends LitElement {
       return html`<div class="drv off">
         <div class="drv-ic" data-tone=${toneAttr(tone)} aria-hidden="true">${MARK[tone]}</div>
         <div>
-          <div class="drv-t tone-text" data-tone=${tone === 'done' ? nothing : toneAttr(tone)}>${title}</div>
+          <div class="drv-t">${title}</div>
           <div class="meta">${facts(
             this.plan.preflight?.stopped?.length ? preflightStoppedCause(this.plan.preflight.stopped) : '',
             quiet ? lastReport(this.host) : '',

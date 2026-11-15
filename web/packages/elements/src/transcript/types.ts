@@ -57,6 +57,8 @@ export interface TranscriptTag {
   tip?: string;
   /** `mono`: the value in the monospace font; `quiet`: monospace, muted and without a background. */
   look?: 'mono' | 'quiet';
+  /** The value says what it is where it stands (a model's name): the label is not shown, and a screen reader still reads it. */
+  bare?: boolean;
 }
 
 /** A folded text in a section's head: code (a command line) or prose (a prompt, drawn by `renderDetail`). */

@@ -59,6 +59,7 @@ export const chartStrings = (): Partial<ChartStrings> => ({
 export const codeStrings = (): Partial<CodeStrings> => ({
   copy: msg('Copy'),
   copied: msg('Copied'),
+  notCopied: msg('Not copied'),
   wrap: msg('Wrap lines'),
   empty: msg('No text'),
   cut: (shown: number, total: number) =>
