@@ -142,7 +142,9 @@ describe('theme contrast', () => {
     });
 
     it(`${name}: code reads at 4.5:1 where it is shown`, () => {
-      for (const k of Object.keys(t).filter((k) => k.startsWith('code-'))) expect(worst(k, ['well', 'card', 'panel'].map(c)), k).toBeGreaterThanOrEqual(4.5);
+      // Also on a marked line of a code block: the accent at 6% over the well.
+      const shown = [...['well', 'card', 'panel'].map(c), tint(c('accent'), 0.06, c('well'))];
+      for (const k of Object.keys(t).filter((k) => k.startsWith('code-'))) expect(worst(k, shown), k).toBeGreaterThanOrEqual(4.5);
     });
   }
 });
