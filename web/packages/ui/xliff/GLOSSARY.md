@@ -260,13 +260,14 @@ review comment or a commit message.
 
 ## Themes
 
-The theme control in the header. A theme's own name stays as it is, in every
-language: contraagent Dark, contraagent Light, GitHub Dark, GitHub Light, One
+The settings behind the header's button: the theme and the language. A theme's
+own name stays as it is, in every language: contraagent Dark, contraagent Light, GitHub Dark, GitHub Light, One
 Dark, Nord.
 
 | English (UI) | 日本語 |
 |---|---|
-| Theme (the header's control; its tooltip: Theme: GitHub Dark) | テーマ（ツールチップ: テーマ: GitHub Dark） |
+| Settings (the header's button, and the panel it opens) | 設定 |
+| Theme (the list of themes in the settings; a screen reader's name for it) | テーマ |
 | System (the theme follows the system's colour scheme) | システム設定に合わせる |
 | High contrast | ハイコントラスト |
 | Editor themes (the group of themes from code editors) | エディタのテーマ |
