@@ -73,7 +73,7 @@ export class CaPanelBody extends LitElement {
       .pane { min-width: 0; }
       @media (max-width: 720px) { .pair { grid-template-columns: minmax(0, 1fr); } .pair > .tree { max-height: 40vh; } }
       /* a page of the pipeline's own: as tall as the body says, else the screen under the monitor's header */
-      .embed { display: block; width: 100%; height: calc(100dvh - 160px); min-height: 320px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+      .embed { display: block; width: 100%; height: calc(100dvh - 160px); min-height: 320px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--card); }
     `,
   ];
 

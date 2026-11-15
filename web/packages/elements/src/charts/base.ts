@@ -43,7 +43,7 @@ export abstract class ChartElement extends LitElement {
         font: inherit; font-size: var(--font-size-sm); color: var(--text-muted); cursor: pointer; }
       .switch:hover, .switch:focus-visible { color: var(--text); border-color: var(--line2); }
       .plot { position: relative; outline-offset: 2px; }
-      .plot:focus-visible { outline: 2px solid var(--accent); border-radius: var(--radius-sm); }
+      .plot:focus-visible { border-radius: var(--radius-sm); }
       svg { display: block; overflow: visible; }
       .axis { font-size: ${AXIS_PX}px; fill: var(--text-muted); font-variant-numeric: tabular-nums; }
       .grid { stroke: var(--line); stroke-width: 1; shape-rendering: crispEdges; }
@@ -159,7 +159,7 @@ export abstract class ChartElement extends LitElement {
   /** The arrow keys move between the items (up and down by a row of a grid), Home and End to the first and the last; Escape hides the tooltip. */
   private readonly onKey = (e: KeyboardEvent): void => {
     const n = this.itemCount();
-    if (!n) return;
+    if (!n || e.altKey) return;
     const at = this.active;
     let next: number | null = at;
     const row = this.rowLength();
@@ -169,6 +169,7 @@ export abstract class ChartElement extends LitElement {
     else if (e.key === 'End') next = n - 1;
     else if (e.key === 'Escape') next = null;
     else return;
+    if (next === at) return;
     e.preventDefault();
     this.active = next;
   };

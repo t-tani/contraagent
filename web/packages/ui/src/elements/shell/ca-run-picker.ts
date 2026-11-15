@@ -16,6 +16,14 @@ import { base } from '@contraagent/elements/styles';
 
 const took = (r: RunSummary) => elapsedS(r);
 
+/**
+ * A key pressed while an input method composes text (Japanese, Chinese, Korean): it
+ * belongs to the input method, which uses Enter to confirm, Escape to cancel and the
+ * arrow keys to choose. Safari reports the confirming Enter after the composition
+ * ended, with the key code 229.
+ */
+const composing = (e: KeyboardEvent): boolean => e.isComposing || e.keyCode === 229;
+
 /** The id of the option at `i` in the visible list. */
 const optionId = (i: number) => `run-${i}`;
 
@@ -161,6 +169,7 @@ export class CaRunPicker extends LitElement {
 
   /** The dialog's keys: Escape closes; Tab stays in the dialog, between the search field and (on a hub) the host filter. */
   private onDialogKey(e: KeyboardEvent): void {
+    if (composing(e)) return;
     if (e.key === 'Escape') this.close();
     else if (e.key === 'Tab') {
       e.preventDefault();
@@ -170,6 +179,7 @@ export class CaRunPicker extends LitElement {
 
   /** The search field's keys: the arrow keys move through the options, Enter picks one. */
   private onKey(e: KeyboardEvent, opts: Option[]): void {
+    if (composing(e)) return;
     if (e.key === 'ArrowDown') this.kb = Math.min(opts.length - 1, this.kb + 1);
     else if (e.key === 'ArrowUp') this.kb = Math.max(0, this.kb - 1);
     else if (e.key === 'Enter') {

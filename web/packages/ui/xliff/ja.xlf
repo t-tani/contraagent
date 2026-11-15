@@ -3372,6 +3372,10 @@
   <note from="lit-localize">A task that failed</note>
   <target>失敗</target>
 </trans-unit>
+<trans-unit id="s21136de28ecda8c2">
+  <source>Not copied</source>
+  <target>コピーできませんでした</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

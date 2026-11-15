@@ -35,7 +35,6 @@ export class CaModelUsage extends LitElement {
       .head cae-segmented { flex: none; }
       /* scrolls sideways on a narrow card: a keyboard reaches it */
       .wrap { overflow-x: auto; margin-top: 14px; border-radius: 6px; }
-      .wrap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       /* The columns as wide as their contents, so a model's figures sit near its name. */
       table { border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
       th { font-weight: 500; color: var(--text-muted); text-align: right; padding: 0 0 6px 28px; white-space: nowrap; border-bottom: 1px solid var(--line); }

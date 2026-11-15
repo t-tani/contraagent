@@ -24,4 +24,26 @@ describe('ca-run-picker', () => {
     expect(names[0]!.querySelector('.pill')!.getAttribute('title')).toBe('Tasks played by the stub agent with scripted replies (stub)');
     el.remove();
   });
+
+  it('leaves Enter, Escape and the arrow keys to an input method while it composes text', async () => {
+    const el: CaRunPicker = document.createElement('ca-run-picker');
+    Object.assign(el, { runs: [run('docs'), run('analyse')], current: 'docs', open: true });
+    const sent: string[] = [];
+    for (const name of ['ca-select-run', 'ca-navigate', 'ca-close']) el.addEventListener(name, () => sent.push(name));
+    document.body.append(el);
+    await el.updateComplete;
+    const input = el.shadowRoot!.querySelector('input')!;
+    const key = (k: string, init: KeyboardEventInit = {}) =>
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, composed: true, cancelable: true, ...init }));
+    // Confirming a conversion, cancelling it and choosing a candidate: none of them is the picker's.
+    for (const k of ['Enter', 'Escape', 'ArrowDown']) key(k, { isComposing: true });
+    // Safari sends the confirming Enter after the composition ended, with the key code 229.
+    key('Enter', { keyCode: 229 });
+    await el.updateComplete;
+    expect(sent).toEqual([]);
+    expect(el.shadowRoot!.querySelector('.item.kb')).toBeNull();
+    key('Enter');
+    expect(sent).toEqual(['ca-close', 'ca-navigate']); // the first option: the trends
+    el.remove();
+  });
 });

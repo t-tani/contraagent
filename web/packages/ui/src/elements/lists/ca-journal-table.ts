@@ -27,7 +27,10 @@ const CELLS = [
     tbody [data-col='outcome'], tbody [data-col='agent'], tbody [data-col='tokens'], tbody [data-col='reason'] { white-space: normal; }
     /* a cell takes the size of the one line it draws, so the line sits where it did as the cell itself */
     tbody [data-col='ended'], tbody [data-col='task'] { font-family: var(--mono); font-size: 11.5px; }
-    thead { position: sticky; top: 0; z-index: 1; }
+    /* the column names stay at the top of the view while the rows scroll under them: the view scrolls the
+       rows both ways, so the table is not a scroller of its own (a header sticks to the nearest one) */
+    table { overflow-x: visible; }
+    thead { position: sticky; top: calc(-1 * var(--view-top, 0px)); z-index: 1; }
     thead tr { color: var(--text-muted); font-size: 11px; background: var(--bg); }
     tbody tr[data-key]:hover { background: var(--card); }
     tbody tr[data-executor='python'] { opacity: 0.85; }

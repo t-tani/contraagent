@@ -18,7 +18,7 @@ export const statTilesStyles = css`
   .sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
   /* a tile with an action is a link as a whole: the link covers the tile */
   .action { position: absolute; inset: 0; border-radius: inherit; }
-  .action:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .action:focus-visible { outline-offset: calc(-1 * var(--focus-width)); }
   .tile:has(.action):hover { border-color: var(--accent); }
   .tile[data-tone] { --edge: var(--tone); }
   .tile[data-tone] .value, .tile[data-tone] .label::before { color: var(--tone); }

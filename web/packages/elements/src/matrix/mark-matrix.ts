@@ -231,7 +231,7 @@ export class CaeMarkMatrix extends LitElement {
 
   private onKey(e: KeyboardEvent, rows: readonly MatrixRowInput[]): void {
     const t = e.target as HTMLElement;
-    if (!t.classList.contains('mark')) return;
+    if (!t.classList.contains('mark') || e.altKey) return;
     const r = Number(t.dataset['r']);
     const c = Number(t.dataset['c']);
     if (e.key === 'Enter') {

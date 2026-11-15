@@ -104,4 +104,19 @@ describe('a text shown as code', () => {
     await vi.waitFor(() => expect(copy!.textContent).toBe('Copied'));
     el.remove();
   });
+
+  it('says when the browser did not copy the text', async () => {
+    const el = document.createElement('cae-code');
+    Object.assign(el, { code: 'x = 1\n' });
+    // A page that is not served over https has no clipboard.
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+    document.body.append(el);
+    await el.updateComplete;
+    const root = el.shadowRoot!;
+    const copy = root.querySelectorAll<HTMLButtonElement>('.tools button')[1]!;
+    copy.click();
+    await vi.waitFor(() => expect(copy.textContent).toBe('Not copied'));
+    expect(root.querySelector('[role=status]')?.textContent).toBe('Not copied');
+    el.remove();
+  });
 });

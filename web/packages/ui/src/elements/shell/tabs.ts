@@ -110,8 +110,8 @@ export const tabStyles = css`
   nav { flex: none; display: flex; gap: 2px; padding: 6px 18px 0; position: relative; overflow-x: auto; scrollbar-width: none; align-items: center;
     --shade: color-mix(in srgb, var(--text) 22%, transparent);
     background:
-      linear-gradient(to right, var(--backdrop) 40%, transparent) left / 32px 100% no-repeat local,
-      linear-gradient(to left, var(--backdrop) 40%, transparent) right / 32px 100% no-repeat local,
+      linear-gradient(to right, var(--bg) 40%, transparent) left / 32px 100% no-repeat local,
+      linear-gradient(to left, var(--bg) 40%, transparent) right / 32px 100% no-repeat local,
       radial-gradient(farthest-side at 0 50%, var(--shade), transparent) left / 12px 100% no-repeat scroll,
       radial-gradient(farthest-side at 100% 50%, var(--shade), transparent) right / 12px 100% no-repeat scroll; }
   nav::-webkit-scrollbar { display: none; }

@@ -13,6 +13,8 @@ export interface CodeStrings {
   copy: string;
   /** What the copy button says for a moment after the text was copied. */
   copied: string;
+  /** What it says for a moment when the browser did not copy the text. */
+  notCopied: string;
   /** The switch between long lines wrapped and scrolled sideways. */
   wrap: string;
   /** What a text with no characters shows. */
@@ -24,6 +26,7 @@ export interface CodeStrings {
 export const DEFAULT_CODE_STRINGS: Readonly<CodeStrings> = {
   copy: 'Copy',
   copied: 'Copied',
+  notCopied: 'Not copied',
   wrap: 'Wrap lines',
   empty: 'No text',
   cut: (shown, total) => `First ${shown.toLocaleString('en')} of ${total.toLocaleString('en')} lines`,
@@ -137,12 +140,13 @@ export class CaeCode extends LitElement {
   @property({ attribute: false }) strings: Partial<CodeStrings> = {};
 
   @state() private wrapped = false;
-  @state() private copied = false;
+  /** The last copy: done, refused by the browser, or none shown now. */
+  @state() private copied: 'done' | 'refused' | null = null;
   private copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
   override willUpdate(changed: PropertyValues<this>): void {
     if (changed.has('wrap')) this.wrapped = this.wrap;
-    if (changed.has('code')) this.copied = false;
+    if (changed.has('code')) this.copied = null;
   }
 
   override disconnectedCallback(): void {
@@ -151,18 +155,21 @@ export class CaeCode extends LitElement {
   }
 
   private async copy(): Promise<void> {
+    let copied: 'done' | 'refused' = 'done';
     try {
+      // No clipboard on a page that is not served over https (or from this machine): the read of `clipboard` throws.
       await navigator.clipboard.writeText(this.code);
     } catch {
-      return;
+      copied = 'refused';
     }
-    this.copied = true;
+    this.copied = copied;
     clearTimeout(this.copiedTimer);
-    this.copiedTimer = setTimeout(() => (this.copied = false), 1500);
+    this.copiedTimer = setTimeout(() => (this.copied = null), copied === 'done' ? 1500 : 4000);
   }
 
   override render() {
     const s = withDefaults(DEFAULT_CODE_STRINGS, this.strings);
+    const said = this.copied === 'done' ? s.copied : this.copied === 'refused' ? s.notCopied : null;
     const lang = languageOf(this.language);
     const { shown, lines, total, cut } = shownText(this.code, this.maxLines, this.maxCharacters);
     const last = this.start + Math.max(lines, 1) - 1;
@@ -177,9 +184,9 @@ export class CaeCode extends LitElement {
         ${lang ? html`<span class="lang">${lang}</span>` : nothing}
         <span class="tools">
           <button type="button" aria-pressed=${this.wrapped ? 'true' : 'false'} @click=${() => (this.wrapped = !this.wrapped)}>${s.wrap}</button>
-          <button type="button" ?disabled=${!this.code} @click=${() => void this.copy()}>${this.copied ? s.copied : s.copy}</button>
+          <button type="button" ?disabled=${!this.code} @click=${() => void this.copy()}>${said ?? s.copy}</button>
         </span>
-        <span class="sr" role="status">${this.copied ? s.copied : ''}</span>
+        <span class="sr" role="status">${said ?? ''}</span>
       </div>
       ${this.code
         ? html`<div class="scroll ${this.wrapped ? 'wrap' : ''}" part="code" data-scroll=${this.wrapped ? 'y' : 'x'} tabindex="0" role=${this.label || this.path ? 'region' : nothing}

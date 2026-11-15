@@ -42,12 +42,13 @@ export const monitorStyles = css`
 
   .bar { flex: none; display: flex; gap: 8px; padding: 8px 18px; border-top: 1px solid var(--line); align-items: center; flex-wrap: wrap; }
   .bar select, .bar input { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
-    padding: 5px 9px; outline: none; font: inherit; font-size: 12px; }
-  .bar input:focus, .bar select:focus { border-color: var(--focus); box-shadow: 0 0 0 calc(var(--focus-width) - 2px) var(--focus); }
+    padding: 5px 9px; font: inherit; font-size: 12px; }
+  .bar input:focus-visible, .bar select:focus-visible { outline-offset: 0; }
 
   .api-error { flex: none; margin: 0; padding: 8px 18px; color: var(--status-failed); font: 12px var(--mono); overflow-wrap: anywhere; }
   .api-error:empty { padding: 0; }
-  main { border-top: 1px solid var(--line); flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 18px 48px; }
+  /* --view-top: the room over the view, which a header that stays at the top of the view (a table's) covers */
+  main { --view-top: 16px; border-top: 1px solid var(--line); flex: 1 1 auto; min-height: 0; overflow: auto; padding: var(--view-top) 18px 48px; }
   /* the task view fills the view; a header taller than the room left for the transcript scrolls away above it (cqb: this box's height) */
   main.stream { display: flex; flex-direction: column; overflow: hidden auto; padding-bottom: 16px; container-type: size; }
   /* too narrow for one line: the controls go under the name and the run button */
@@ -62,7 +63,7 @@ export const monitorStyles = css`
     ca-run-picker { inset-inline: 16px; width: auto; }
     .hdr-right { width: 100%; margin-left: 0; flex-wrap: wrap; row-gap: 6px; }
     .nowline { max-width: none; flex: 1 1 100%; }
-    main { padding: 12px 12px 40px; }
+    main { --view-top: 12px; padding: var(--view-top) 12px 40px; }
     .bar { padding: 8px 12px; }
     .bar input { flex: 1 1 10em; min-width: 0; }
   }
