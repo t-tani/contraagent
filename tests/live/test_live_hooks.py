@@ -1,8 +1,8 @@
 """A plugin's post_tool hook against real coding agents: it objects (exit 2) to a note written
 without a title line, and the agent fixes the note in the same session. The hook script reads
 the tool input in Claude Code's shape (`file_path`) on every agent. On the agents whose stop
-hook continues the session (Claude Code, Codex, omp), a check the stop hook fails is fixed in the
-same session too, and an agent that never writes its output spends `max_corrections` on the
+hook continues the session (Claude Code, Codex, omp, agy), a check the stop hook fails is fixed in
+the same session too, and an agent that never writes its output spends `max_corrections` on the
 stop hook's objections and the resumes together.
 
     CONTRAAGENT_LIVE=1 uv run pytest -m live -s tests/live/test_live_hooks.py
@@ -13,6 +13,7 @@ stop hook's objections and the resumes together.
     pi        openai/gpt-5.6-luna                        a ChatGPT login (subscription, provider openai)
     opencode  CONTRAAGENT_LIVE_OPENCODE_MODEL (default: OpenCode Zen's free Muse model)
     codex     gpt-5.6-luna                               ambient (the ChatGPT login of codex)
+    agy       CONTRAAGENT_LIVE_AGY_MODEL (default: gemini-3.8-flash-low), ambient (agy's Google login)
 """
 
 import json
@@ -43,6 +44,7 @@ ROUTES = {
     "pi": {"agent": "pi", "model": "openai/gpt-5.6-luna", "effort": "low", "credential": "chatgpt"},
     "opencode": {"agent": "opencode", "model": OPENCODE_MODEL},
     "codex": {"agent": "codex", "model": "gpt-5.6-luna", "effort": "low"},
+    "agy": {"agent": "agy", "model": os.environ.get("CONTRAAGENT_LIVE_AGY_MODEL", "gemini-3.8-flash-low")},
 }
 AGENTS = [a for a in os.environ.get("CONTRAAGENT_LIVE_AGENTS", ",".join(ROUTES)).split(",") if a in ROUTES]
 
@@ -157,7 +159,7 @@ if "call validate" in parent:
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="the check reads its parent's command line from /proc")
-@pytest.mark.parametrize("agent", ["claude", "codex", "omp"])
+@pytest.mark.parametrize("agent", ["claude", "codex", "omp", "agy"])
 def test_a_check_the_stop_hook_fails_is_fixed_in_the_same_session(ws, agent):
     if agent not in AGENTS:
         pytest.skip(f"{agent} is not in CONTRAAGENT_LIVE_AGENTS")
@@ -204,7 +206,7 @@ exit 0
 """
 
 
-@pytest.mark.parametrize("agent", ["claude", "codex", "omp"])
+@pytest.mark.parametrize("agent", ["claude", "codex", "omp", "agy"])
 def test_an_agent_that_never_writes_its_output_spends_max_corrections(ws, agent):
     """The built-in stop hook objects at most once per round (the agent sends `stop_hook_active`
     on the stop after an objection), the objections and the resumes together spend

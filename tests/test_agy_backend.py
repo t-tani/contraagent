@@ -19,6 +19,8 @@ from contraagent.plugins import Plugin, new_plugin
 from fake_cli import write_fake_cli
 
 GOOGLE = Subscription(name="google", provider="google")
+#: The settings of a launch that names no mode, and nothing else.
+AUTO = {"agentMode": "auto", "permissions": {"allow": ["read_url(*)"]}}
 KEY = ApiKey(name="gemini-key", provider="google", key=Secret("env:MY_GEMINI_KEY"))
 
 
@@ -63,7 +65,8 @@ def test_a_plain_launch_names_the_prompt_the_model_and_nothing_else(backend, tmp
     argv = backend.argv(Launch(prompt="summarize it", label="t", model="gemini-3.8-flash", effort="high", cwd=tmp_path))
     assert argv[:-2] == ["agy", "-p", "summarize it", "--output-format", "stream-json", "--model", "gemini-3.8-flash", "--effort", "high"]
     # Its mode is the launch's own setting: in agy's other modes a headless session runs no command.
-    assert argv[-2] == "--settings" and json.loads(Path(argv[-1]).read_text(encoding="utf-8")) == {"agentMode": "auto"}
+    # The sandbox of that mode gets the network, which agy gives it for the domains a rule lets it read.
+    assert argv[-2] == "--settings" and json.loads(Path(argv[-1]).read_text(encoding="utf-8")) == AUTO
 
 
 def test_a_long_prompt_goes_over_stdin_as_one_json_message(backend, tmp_path):
@@ -83,22 +86,22 @@ def test_a_resume_names_the_conversation(backend, tmp_path):
 
 
 @pytest.mark.parametrize(
-    ("mode", "expected", "agent_mode"),
+    ("mode", "expected", "settings"),
     [
-        (None, [], "auto"),
-        ("default", [], ""),
+        (None, [], AUTO),
+        ("default", [], {"agentMode": ""}),  # agy's own default mode: no sandbox, so no network rule
         ("plan", ["--mode", "plan"], None),
         ("acceptEdits", ["--mode", "accept-edits"], None),
         ("bypassPermissions", ["--dangerously-skip-permissions"], None),
     ],
 )
-def test_a_permission_mode_is_agy_s_own_flag_or_setting(backend, tmp_path, mode, expected, agent_mode):
+def test_a_permission_mode_is_agy_s_own_flag_or_setting(backend, tmp_path, mode, expected, settings):
     argv = backend.argv(Launch(prompt="x", label="t", model="m", cwd=tmp_path, permission_mode=mode))
     rest = argv[argv.index("m") + 1 :]
-    if agent_mode is None:
+    if settings is None:
         assert rest == expected
     else:
-        assert rest[:-2] == expected and json.loads(Path(flag(argv, "--settings")).read_text(encoding="utf-8")) == {"agentMode": agent_mode}
+        assert rest[:-2] == expected and json.loads(Path(flag(argv, "--settings")).read_text(encoding="utf-8")) == settings
 
 
 def test_the_run_s_out_and_the_input_roots_join_the_workspace(backend, tmp_path):
@@ -210,13 +213,13 @@ def test_a_plugin_reaches_a_launch_in_a_directory_of_its_own(backend, tmp_path, 
     assert servers == mcp_config(str(plugin / ".mcp.json"))
     assert json.loads(Path(flag(argv, "--settings")).read_text(encoding="utf-8")) == {
         "agentMode": "auto",
-        "permissions": {"allow": ["mcp(notes/*)", "mcp(docs/*)"]},
+        "permissions": {"allow": ["read_url(*)", "mcp(notes/*)", "mcp(docs/*)"]},
     }
     # Made afresh: what an earlier launch of the label left is gone.
     (plugin / ".mcp.json").unlink()
     again = backend.argv(Launch(prompt="x", label="t", model="m", cwd=tmp_path, plugin_dirs=(str(plugin),)))
     assert not (agents / "mcp_config.json").exists() and not (agents / "skills" / "glossary").exists()
-    assert json.loads(Path(flag(again, "--settings")).read_text(encoding="utf-8")) == {"agentMode": "auto"}
+    assert json.loads(Path(flag(again, "--settings")).read_text(encoding="utf-8")) == AUTO
     # A launch with nothing to give adds no directory.
     assert "--add-dir" not in backend.argv(Launch(prompt="x", label="bare", model="m", cwd=tmp_path))
 
@@ -275,8 +278,14 @@ def test_the_task_s_denied_tools_are_the_launch_s_settings(backend, tmp_path):
     argv = backend.argv(Launch(prompt="x", label="t", model="m", cwd=tmp_path, limits=limits))
     settings = Path(flag(argv, "--settings"))
     assert json.loads(settings.read_text(encoding="utf-8")) == {
-        "agentMode": "auto",
+        "agentMode": "auto",  # a task that denies WebFetch gets no network in the sandbox
         "permissions": {"deny": ["read_url(*)", "command(git push)", "write_file(*)"]},
+    }
+    one = Limits(disallowed_tools=("WebFetch(domain:example.com)", "Bash(rm:*)"))
+    argv = backend.argv(Launch(prompt="x", label="t", model="m", cwd=tmp_path, limits=one))
+    assert json.loads(Path(flag(argv, "--settings")).read_text(encoding="utf-8"))["permissions"] == {
+        "allow": ["read_url(*)"],  # every other domain: agy's deny rule holds over its allow rule
+        "deny": ["read_url(example.com)", "command(rm)"],
     }
     assert AgyBackend.tool_deny_problem(limits.disallowed_tools) is None and AgyBackend.tool_deny_problem(()) is None
 
@@ -313,7 +322,7 @@ def test_a_launch_s_environment_holds_its_credential_alone(tmp_path):
     # The model provider is the launch's own setting: a key is used only with `gemini`.
     for credential, provider in ((KEY, "gemini"), (GOOGLE, "")):
         argv = backend.argv(Launch(prompt="x", label="t", model="m", cwd=tmp_path, credential=credential))
-        assert json.loads(Path(flag(argv, "--settings")).read_text(encoding="utf-8")) == {"agentMode": "auto", "modelProvider": provider}
+        assert json.loads(Path(flag(argv, "--settings")).read_text(encoding="utf-8")) == {**AUTO, "modelProvider": provider}
     unset = AgyBackend(base_env={"PATH": "/bin"}).run(Launch(prompt="x", label="t", cwd=tmp_path, credential=KEY))
     assert unset.stop is Stop.LAUNCH_FAILED and "secret env:MY_GEMINI_KEY is not set" in unset.stderr_tail
 
@@ -435,7 +444,9 @@ if "--conversation" in args and "--lose" not in os.environ.get("FAKE", ""):
 home = os.path.join(os.environ["HOME"], ".gemini", "antigravity-cli")
 os.makedirs(os.path.join(home, "conversations"), exist_ok=True)
 os.makedirs(os.path.join(home, "brain", cid, "logs"), exist_ok=True)
+os.makedirs(os.path.join(home, "presence"), exist_ok=True)
 open(os.path.join(home, "conversations", cid + ".db"), "w").close()
+open(os.path.join(home, "presence", cid + ".lock"), "w").close()
 def say(event, **fields): print(json.dumps({"event": event, **fields}), flush=True)
 say("init", conversation_id=cid, init={"model": "gemini-3.8-flash-high", "cwd": os.getcwd(), "tools": ["run_command"]})
 usage = {"input_tokens": 100, "output_tokens": 7, "thinking_tokens": 0, "cache_read_tokens": 50, "total_tokens": 107}
@@ -475,7 +486,7 @@ def test_a_launch_is_run_read_and_leaves_no_conversation(fake, tmp_path):
     assert backend.catalogue() == {*catalogue.parse_models(MODELS), "gemini-3.8-flash", "gemini-4-argon"}
     # A session nobody resumes is removed from agy's own directory.
     data = home / ".gemini" / "antigravity-cli"
-    assert list((data / "conversations").iterdir()) == [] and list((data / "brain").iterdir()) == []
+    assert [list((data / d).iterdir()) for d in ("conversations", "brain", "presence")] == [[], [], []]
     kept = backend.run(backend.resumable(launch))
     assert (data / "conversations" / f"{kept.session_id}.db").is_file() and (data / "brain" / kept.session_id).is_dir()
     backend.discard_session(launch, kept.session_id)

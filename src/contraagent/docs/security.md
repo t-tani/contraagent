@@ -164,8 +164,11 @@ The coding agents' CLIs do not enforce the same things. The table in
   from the plugin's `settings.json`, and opencode from the role's `tools:`. omp
   (`--approval-mode yolo`) and pi run with no permission checks. agy runs in its
   `auto` mode, which the launch sets for itself: it edits files without asking, and not
-  only in its workspace, and runs each command in its terminal sandbox, which has no
-  network. agy itself reviews a command that asks to leave the sandbox. A command its
+  only in its workspace, and runs each command in its terminal sandbox. The launch gives
+  that sandbox the network (an allow rule for every domain), as Codex's has it, so a
+  command there can send what it reads to another host, and agy does not review it. A
+  kind whose `disallowed_tools` name `WebFetch` runs with no network in the sandbox.
+  agy itself reviews a command that asks to leave the sandbox. A command its
   review does not let through needs an approval nobody can give, so agy ends the
   launch there (`denied`).
 - Scratch directories are under `<temp dir>/contraagent-<uid>/` (`<temp dir>` is
