@@ -28,8 +28,12 @@ light launch.
 
 A launch runs in agy's `auto` mode, set in the settings of the launch alone (`agentMode`),
 whatever mode the user saved (checked against agy 1.5.9). In `auto` mode agy edits files
-without asking, runs each command in its terminal sandbox, which has no network, and
-reviews a command that asks to leave the sandbox itself: one it lets through runs. In
+without asking, runs each command in its terminal sandbox, and reviews a command that
+asks to leave the sandbox itself: one it lets through runs. agy's sandbox has no network
+by itself, and gets the domains a permission rule lets agy read (`read_url`). A launch
+allows every domain (`NETWORK`), so its commands reach the network inside the sandbox, as
+Codex's do: a command that needs it would otherwise fail first and run only when the
+model asks to leave the sandbox. A task that denies `WebFetch` gets no such rule. In
 agy's other modes a command needs an approval, and a headless session has nobody to give
 one: agy ends the launch at the first such call, with no output (`denied`). So does
 `auto` mode for a command its review does not let through, and for every command on an
@@ -100,6 +104,9 @@ MODES: dict[str, tuple[str, ...]] = {
     "acceptEdits": ("--mode", "accept-edits"),
     "plan": ("--mode", "plan"),
 }
+#: The permission rule that gives agy's sandbox the network: agy lets a command of the
+#: sandbox reach each domain a `read_url` rule allows.
+NETWORK = "read_url(*)"
 #: `Launch.permission_mode` as the `agentMode` of the launch's settings, where no flag of
 #: `MODES` sets the mode: `auto` for a launch that names none, agy's default mode (which
 #: asks before each command) for `default`.
@@ -223,8 +230,9 @@ class AgyBackend(ResumeById, Backend):
     `modelProvider` set to `gemini` for the launch).
 
     A launch runs in agy's `auto` mode (`agentMode` in the launch's settings): commands in
-    agy's terminal sandbox, with no network, and agy's own review of a command that asks
-    to leave it. `Launch.permission_mode` names another one: `acceptEdits` and `plan` are
+    agy's terminal sandbox, with the network (a `read_url(*)` allow rule of the launch,
+    unless the task denies `WebFetch`), and agy's own review of a command that asks to
+    leave it. `Launch.permission_mode` names another one: `acceptEdits` and `plan` are
     agy's modes of those names, `default` its default mode, and `bypassPermissions` is
     `--dangerously-skip-permissions`. In `acceptEdits` and `default` a command needs an
     approval nobody can give, so agy ends the launch at the first one (`denied`).
@@ -232,8 +240,8 @@ class AgyBackend(ResumeById, Backend):
     hold in every mode.
 
     A launch that keeps no session (`Launch.persist_session` False) removes the
-    conversation agy saved for it: `conversations/<id>.db` and `brain/<id>/` under
-    `~/.gemini/antigravity-cli/`.
+    conversation agy saved for it: `conversations/<id>.db`, `brain/<id>/` and
+    `presence/<id>.lock` under `~/.gemini/antigravity-cli/`.
     """
 
     name = "agy"
@@ -315,14 +323,17 @@ class AgyBackend(ResumeById, Backend):
     def _settings(self, launch: Launch) -> dict[str, Any]:
         """The settings of this launch alone (`--settings`): its mode (`AGENT_MODES`; a light
         launch, which calls no tool, names none), the deny rules of `Limits.disallowed_tools`,
-        an allow rule for each MCP server the launch brings, and the model provider its
-        credential names (`gemini` for an API key, agy's own for a Google login)."""
+        an allow rule for each MCP server the launch brings and, in `auto` mode, for the
+        network of the sandbox (`NETWORK`, unless a deny rule is the same), and the model
+        provider its credential names (`gemini` for an API key, agy's own for a Google login)."""
         out: dict[str, Any] = {}
         mode = AGENT_MODES.get(launch.permission_mode or "")
         if mode is not None and not self._light(launch):
             out["agentMode"] = mode
         deny = [r for r in map(deny_rule, launch.limits.disallowed_tools) if r is not None]
         allow = [f"mcp({name}/*)" for name in self._mcp_servers(launch)]
+        if out.get("agentMode") == "auto" and NETWORK not in deny:
+            allow.insert(0, NETWORK)
         if deny or allow:
             out["permissions"] = {**({"allow": allow} if allow else {}), **({"deny": list(dict.fromkeys(deny))} if deny else {})}
         if isinstance(launch.credential, ApiKey):
@@ -387,11 +398,13 @@ class AgyBackend(ResumeById, Backend):
             self._remove_conversation(session_id)
 
     def _remove_conversation(self, session_id: str) -> None:
-        """Remove what agy keeps of one conversation: its database and its transcript directory."""
+        """Remove what agy keeps of one conversation alone: its database, its transcript
+        directory and the lock file of the process that ran it."""
         if not _CONVERSATION_RE.match(session_id or ""):
             return
         root = self._data_dir()
         (root / "conversations" / f"{session_id}.db").unlink(missing_ok=True)
+        (root / "presence" / f"{session_id}.lock").unlink(missing_ok=True)
         shutil.rmtree(root / "brain" / session_id, ignore_errors=True)
 
     # --- argv --------------------------------------------------------------

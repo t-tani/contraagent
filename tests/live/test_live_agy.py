@@ -4,7 +4,7 @@
     CONTRAAGENT_LIVE=1 uv run pytest -m live -s tests/live/test_live_agy.py
 
 One small task (a plugin's role, its output skill, the call file, the stop hook's output
-check) run on the user's own login, the monitor's view of it, a plugin's hooks inside a
+check) run twice at once on the user's own login, the monitor's view of it, a plugin's hooks inside a
 launch, a light launch in a project with instructions of its own, and the limits contraagent
 enforces. CONTRAAGENT_LIVE_AGY_MODEL names the model (one `agy models` lists): the plan's
 quota is by group of models.
@@ -74,12 +74,14 @@ class Summary(BaseModel):
     points: list[str] = Field(description="the key points, one short sentence each")
 
 
+#: The units of the summarize run, launched together.
+UNITS = ["a1", "a2"]
 LIVE_DIR = Path(os.environ.get("CONTRAAGENT_LIVE_DIR") or Path(__file__).resolve().parents[2] / "live-demo") / "agy"
 
 
 @pytest.fixture(scope="module")
 def run_all():
-    """The task, run once in one pipeline; the tests below look at the result."""
+    """The task, run for two units at once in one pipeline; the tests below look at the result."""
     if LIVE_DIR.exists():
         shutil.rmtree(LIVE_DIR)
     ws = LIVE_DIR
@@ -89,28 +91,31 @@ def run_all():
     new_plugin(plugin)
     (plugin / "agents" / "worker.md").write_text(ROLE)
     (ws / "in").mkdir()
-    (ws / "in" / "a1.md").write_text(DOC)
+    for unit in UNITS:
+        (ws / "in" / f"{unit}.md").write_text(DOC)
     (ws / "pipeline.toml").write_text(CONFIG)
     summarize = agent_task("summarize", plugin=plugin, params=Doc, output=Summary, max_turns=16, timeout_s=300)
     handles = {}
 
     def live():
-        handles["a1"] = summarize("a1", Doc(path="in/a1.md"))
+        for unit in UNITS:
+            handles[unit] = summarize(unit, Doc(path=f"in/{unit}.md"))
 
-    report = Pipeline(ws / "pipeline.toml", runs_dir=ws / "runs", cwd=ws, log=print).run(live)
+    report = Pipeline(ws / "pipeline.toml", runs_dir=ws / "runs", cwd=ws, max_concurrent=len(UNITS), log=print).run(live)
     mon = Monitor(ws / "runs")
     rows = {r["key"]: r for r in mon.journal("live")[0]}
     return {"report": report, "rows": rows, "handles": handles, "monitor": mon}
 
 
-def test_the_task_ran_on_agy_and_met_its_contract(run_all):
-    row = run_all["rows"]["summarize-a1"]
+@pytest.mark.parametrize("unit", UNITS)
+def test_the_task_ran_on_agy_and_met_its_contract(run_all, unit):
+    row = run_all["rows"][f"summarize-{unit}"]
     print(f"\n  stop={row['stop']} ok={row['ok']} wall={row['wall_s']}s model={row['model']} calls={row['usage']['calls']}")
     assert row["agent"] == "agy" and row["model"] == MODEL
     assert row["ok"] and row["stop"] == "completed", row["reason"]
     assert row["cost_usd"] is None and row["usage"]["calls"] > 0 and row["usage"]["peak_context"] > 0  # tokens of each response, no cost
-    summary = run_all["handles"]["a1"].output
-    assert summary.unit == "a1" and summary.points and summary.summary
+    summary = run_all["handles"][unit].output
+    assert summary.unit == unit and summary.points and summary.summary  # its own unit's: the two ran at once
 
 
 def test_the_transcript_renders_in_the_monitor(run_all):
@@ -203,6 +208,33 @@ def test_agy_sends_only_events_its_reader_knows(tmp_path):
     for ev in recorded["denied"]:
         denied.feed(ev)
     assert denied.denied  # the task's deny rule held, inside the launch
+
+
+def test_a_command_reaches_the_network_inside_the_sandbox(tmp_path):
+    """agy's sandbox has no network by itself: a launch allows it, so a command that needs it
+    runs on its first try, without asking to leave the sandbox."""
+    plugin = tmp_path / "plugins" / "log"
+    new_plugin(plugin)
+    _script(plugin, "log.sh", 'cat >> "$CLAUDE_PLUGIN_ROOT/seen.jsonl"; echo >> "$CLAUDE_PLUGIN_ROOT/seen.jsonl"; exit 0')
+    (plugin / "hooks.toml").write_text('[[hooks]]\non = "pre_tool"\ntool = "bash"\nscript = "hooks/log.sh"\n')
+    hooks.write(Plugin.load(plugin))
+    cwd = tmp_path / "work"
+    cwd.mkdir()
+    launch = Launch(
+        prompt="Run this shell command and report the three digits it prints: curl -s -o /dev/null -w %{http_code} https://example.com",
+        label="network",
+        model=MODEL,
+        cwd=cwd,
+        plugin_dirs=(str(plugin),),
+        limits=Limits(timeout_s=180),
+        env={"CONTRAAGENT_PYTHON": sys.executable},
+    )
+    r = AgyBackend().run(launch)
+    calls = [json.loads(line)["tool_input"] for line in (plugin / "seen.jsonl").read_text().splitlines() if line.strip()]
+    tried = [(c.get("command"), c.get("BypassSandbox")) for c in calls]
+    print(f"\n  stop={r.stop.value} turns={r.num_turns} calls={tried} answer={r.result_text!r}")
+    assert r.ok and "200" in r.result_text, r.stderr_tail
+    assert len(calls) == 1 and not calls[0].get("BypassSandbox")  # one try, inside the sandbox
 
 
 def test_a_launch_agy_ends_on_an_approval_nobody_can_give_is_denied(tmp_path):

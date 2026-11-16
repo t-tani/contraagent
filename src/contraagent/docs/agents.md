@@ -29,7 +29,7 @@ budget and ends the launch itself.
 | Role file attached to the prompt (`needs_inline_role_file`) | no: `--agent <role>` | yes | no: added to its system prompt (`instructions`) | yes | yes | yes |
 | How the system prompt reaches it | a file: `--system-prompt-file` | a file: `--system-prompt=<file>` | a file its config names: `{file:<file>}` for a light launch, `instructions` for another | a file: `--system-prompt <file>` | a file: `model_instructions_file` | in a light launch, the file of an agent of agy's own (`--agent`); in another launch, at the head of the prompt |
 | How a `preamble` param reaches it | it does not | at the head of the prompt | at the head of the prompt | at the head of the prompt | at the head of the prompt | at the head of the prompt |
-| Permissions | the plugin's `settings.json` | none: `--approval-mode yolo` | the role's `tools:` | none | its `workspace-write` sandbox | its `auto` mode, set for the launch: each command in agy's terminal sandbox, and agy's own review of a command that asks to leave it |
+| Permissions | the plugin's `settings.json` | none: `--approval-mode yolo` | the role's `tools:` | none | its `workspace-write` sandbox | its `auto` mode, set for the launch: each command in agy's terminal sandbox, with the network, and agy's own review of a command that asks to leave it |
 | Stop hook continues the session (`stop_hooks_file`) | yes: `hooks/hooks.json` | yes: `omp/hooks.json`, run by `omp/index.ts` at omp's `session_stop` | no | no | yes: `codex/hooks.json` | yes: `agy/hooks.json`, run by the bridge at agy's `Stop` |
 | Hooks rendered from `hooks.toml` | `hooks/hooks.json` | `omp/index.ts` and `omp/hooks.json` | `opencode/index.js` | `pi/index.ts` | `codex/hooks.json`, with no `read`, `grep` or `glob` hook | `agy/hooks.json` |
 | Light launch (`light_launch`) | yes | yes | yes | yes | no | yes |
@@ -134,15 +134,18 @@ launch as it starts (`error`).
 
 A launch on agy runs in agy's `auto` mode, which the launch sets for itself (`agentMode`
 in its settings), whatever mode the user saved. In that mode agy edits files without
-asking and runs each command in its terminal sandbox, which has no network. A command
-that asks to leave the sandbox is reviewed by agy itself, and runs when the review
-lets it through. In agy's other modes a command needs an approval, and a headless
+asking and runs each command in its terminal sandbox. agy's sandbox has no network by
+itself, and reaches the domains a permission rule lets agy read. A launch allows every
+domain (`read_url(*)`), so a command reaches the network inside the sandbox, as on
+Codex. A task that denies `WebFetch` (`disallowed_tools`) gets no such rule, and its
+commands have no network there. A command that asks to leave the sandbox is reviewed
+by agy itself, and runs when the review lets it through. In agy's other modes a command needs an approval, and a headless
 session has nobody to give one: agy then ends the launch at that call, with no
 output. It does the same in `auto` mode for a command its review does not let
 through, and for every command on an account that has no `auto` mode. Such a launch
 ends `denied`, and its reason and its `denied` in `launches.jsonl` name the call. So a
-task whose commands need the network, or a path the sandbox does not reach, depends on
-agy's review of each of them.
+task whose commands need a path the sandbox does not reach depends on agy's review of
+each of them. agy does not review what a command sends from inside the sandbox.
 
 agy names a model's reasoning level in the model's id (`gemini-3.8-flash-high`), or
 takes it as an effort beside an id that names none (`model = "gemini-3.8-flash"` with
@@ -191,8 +194,8 @@ them when it exits. Besides it:
   under `<temp dir>/contraagent-<uid>/`, removed when the launch ends.
 - **agy** saves every conversation under `~/.gemini/antigravity-cli/`, the user's own
   directory: it has no flag that names another one. A launch whose session is not kept
-  for a resume removes its conversation there when it ends (`conversations/<id>.db` and
-  `brain/<id>/`); a conversation kept for a correction round is removed after the last
+  for a resume removes its conversation there when it ends (`conversations/<id>.db`,
+  `brain/<id>/` and `presence/<id>.lock`); a conversation kept for a correction round is removed after the last
   round.
 
 ## Another coding agent
