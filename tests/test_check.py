@@ -259,7 +259,7 @@ def test_a_call_file_validator_on_a_python_task_is_reported():
 def test_an_unknown_primary_agent_is_refused_with_the_closest_name(plugin_dir):
     summarize = agent_task("summarize", plugin=plugin_dir, output=Summary, max_turns=5, timeout_s=60)
     errors = pipeline({"tasks": {"summarize": {"agent": "opm"}}}).check(lambda: summarize("a")).errors
-    known = "claude, omp, omp-rpc, opencode, pi, codex, stub"
+    known = "claude, omp, omp-rpc, opencode, pi, codex, agy, stub"
     assert errors == [f"routing: kind summarize names unknown agent 'opm' (did you mean omp?); known: {known}"]
 
 

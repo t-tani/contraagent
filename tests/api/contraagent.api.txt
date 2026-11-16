@@ -1170,6 +1170,45 @@ class WorkloadIdentity(Credential)
 
 ## contraagent.backends
 
+class AgyBackend(ResumeById, Backend)
+    def __init__(self, binary: str = 'agy', base_env: dict[str, str] | None = None)
+    def argv(self, launch: Launch) -> list[str]
+    binary = 'agy'
+    def bind_credential(
+        self,
+        credential: Credential,
+        model: str = '',
+        *,
+        env: dict[str, str] | None = None,
+        label: str = '',
+    ) -> CredentialBinding
+    def discard_session(self, launch: Launch, session_id: str) -> None
+    effort_levels: tuple[str, ...] | None = catalogue.LEVELS
+    def env(self, launch: Launch) -> dict[str, str]
+    def exchange(
+        self,
+        launch: Launch,
+        argv: list[str],
+        env: dict[str, str],
+        fold: EventFold,
+        watch: LimitsWatch,
+    ) -> tuple[bytes, str, int | None, Stop | None]
+    def fold(self, launch: Launch) -> EventFold
+    light_launch = True
+    name = 'agy'
+    needs_inline_role_file = True
+    def prepare(self, launch: Launch) -> Launch
+    def read_models(self) -> dict[str, int | None] | None
+    def resumable(self, launch: Launch) -> Launch
+    def resumed(self, launch: Launch, prior: LaunchResult, prompt: str) -> Launch | None
+    signals: Signals = agy_wire.SIGNALS
+    stop_hooks_file: str | None = HOOKS_FILE
+    @classmethod
+    def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None
+    def usage_reading(self, launch: Launch) -> QuotaReading | None
+    watched_limits: frozenset[str] = frozenset({'max_turns', 'context_budget'})
+    wire: ModuleType | None = agy_wire
+
 class Backend(abc.ABC)
     def __init__(self, binary: str = '', base_env: dict[str, str] | None = None)
     def account(self, credential: Credential, model: str = '') -> str

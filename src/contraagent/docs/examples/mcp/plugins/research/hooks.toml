@@ -1,8 +1,9 @@
 # Hooks, declared once for every coding agent. `contraagent plugin render` writes
 # from this file, for each coding agent:
+#   agy       agy/hooks.json
 #   claude    hooks/hooks.json
 #   codex     codex/hooks.json
-#   omp       package.json; for a pre_tool or post_tool hook, omp/index.ts
+#   omp       package.json, omp/index.ts, omp/hooks.json
 #   opencode  for a pre_tool or post_tool hook, opencode/index.js
 #   pi        package.json; for a pre_tool or post_tool hook, pi/index.ts
 

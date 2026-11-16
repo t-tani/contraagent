@@ -43,7 +43,7 @@ anything launches.
 seconds above 0, so every launch has a deadline. `max_budget_usd` caps
 a launch's cost as the coding agent reports it: Claude Code enforces it itself;
 on omp, opencode and pi contraagent sums the cost the agent reports for each API
-call and ends the launch (`budget`) once it passes the cap; Codex reports no
+call and ends the launch (`budget`) once it passes the cap; Codex and agy report no
 cost, so the cap does not hold there. [Coding agents](agents.md) has each agent's
 budgets in one table. Every key: the reference at the end.
 
@@ -53,7 +53,8 @@ calls run in parallel or one after another. A call that a subagent makes is not 
 turn of the launch. Every coding agent counts turns in this way. Claude Code and
 opencode stop before the turn past the cap. On omp and pi, contraagent stops the
 launch when that turn begins; on Codex, when that turn ends, because Codex does not
-report the start of a turn. `LaunchResult.num_turns` is the count, and the reason
+report the start of a turn; on agy, when that turn's text begins, or when the turn
+ends if it has no text. `LaunchResult.num_turns` is the count, and the reason
 of a launch that stopped on `max_turns` gives it with the cap.
 
 A launch that stopped on `max_turns` moves its task to the next hop of the failover
@@ -78,7 +79,7 @@ The journal row records the continuation rounds (`continuations`) among its
 `rounds`, and each hop the `max_turns` it ran under.
 
 `context_budget` caps a launch's peak context: the whole input (fresh input,
-cache read and cache write) of its largest API call. Claude Code and opencode
+cache read and cache write) of its largest API call. Claude Code, opencode and agy
 launches end `context_budget` once one call passes it; omp, pi and Codex report
 each call's tokens but are not stopped. `context_warn_pct` (1 to 99, in a task
 table, `agent_task(...)` or `[defaults]`) is a percent of `context_budget` and
@@ -123,6 +124,11 @@ another tool there is refused; omp, in an extension of contraagent's own that se
 each call before it runs, whole tools and a pattern of a command, a path read or
 written (`Read`, `Write`, `Edit`, `MultiEdit`; an `Edit` pattern also denies omp's
 `ast_edit` whole), a domain or a skill, so a pattern of another tool there is refused; pi whole tools (`--exclude-tools`), so a pattern there is refused;
+agy, by a deny rule of its permissions, a command or its prefix (`Bash`,
+`Bash(git push:*)`), a file or a directory read or written (`Read(secrets/**)`,
+`Write`, `Edit`, `MultiEdit`, `NotebookEdit`), a domain or an MCP tool
+(`mcp__<server>__<tool>`), so another tool, or a wildcard inside a pattern, is refused
+there;
 Codex has no way to deny a tool. A route that cannot deny what the task names is
 refused before anything launches (`Backend.tool_deny_problem`), failover hops
 included ([Coding agents](agents.md)).
@@ -233,14 +239,14 @@ never written anywhere.
 
 Each coding agent says which credential types it can use:
 
-| type | claude | omp | opencode | pi | codex |
-|---|---|---|---|---|---|
-| `subscription` | the `/login` in a `CLAUDE_CONFIG_DIR` | the login in an omp profile; a ChatGPT login (`provider = "openai"`) runs `openai-codex/<model>`; an OpenCode one is `OPENCODE_API_KEY`, which omp also reads from its `.env` files | the provider's stored login (`opencode providers login`) | the `/login` in a pi agent directory (`config_dir`, by default `~/.pi/agent`); for `opencode` and `opencode-go` with no such login there, opencode's stored login | the ChatGPT login in a `CODEX_HOME` (`provider = "openai"`) |
-| `api_key` | Anthropic | any provider (`<PROVIDER>_API_KEY`) | any provider | any provider (`<PROVIDER>_API_KEY`) | OpenAI (`CODEX_API_KEY`) |
-| `oauth_token` | `CLAUDE_CODE_OAUTH_TOKEN` | Anthropic | — | Anthropic | — |
-| `gateway` | an Anthropic-API endpoint (bearer or API key, custom headers) | a provider endpoint (`litellm` by default) | a provider endpoint: a provider opencode knows (`anthropic`, `openai`, ...) keeps its own API, another name is OpenAI-compatible | an OpenAI-compatible endpoint (`litellm` by default, custom headers) | a Responses-API endpoint (bearer or API key, custom headers) |
-| `workload_identity`, `bedrock`, `vertex` | yes | — | — | — | — |
-| `pool` | several of the above used as one (`in_order`, `round_robin`) | the same | the same | the same | the same |
+| type | claude | omp | opencode | pi | codex | agy |
+|---|---|---|---|---|---|---|
+| `subscription` | the `/login` in a `CLAUDE_CONFIG_DIR` | the login in an omp profile; a ChatGPT login (`provider = "openai"`) runs `openai-codex/<model>`; an OpenCode one is `OPENCODE_API_KEY`, which omp also reads from its `.env` files | the provider's stored login (`opencode providers login`) | the `/login` in a pi agent directory (`config_dir`, by default `~/.pi/agent`); for `opencode` and `opencode-go` with no such login there, opencode's stored login | the ChatGPT login in a `CODEX_HOME` (`provider = "openai"`) | the Google login agy keeps in the system's keyring (`provider = "google"`; it names no `config_dir`) |
+| `api_key` | Anthropic | any provider (`<PROVIDER>_API_KEY`) | any provider | any provider (`<PROVIDER>_API_KEY`) | OpenAI (`CODEX_API_KEY`) | a Gemini API key (`provider = "google"`: `GEMINI_API_KEY`) |
+| `oauth_token` | `CLAUDE_CODE_OAUTH_TOKEN` | Anthropic | — | Anthropic | — | — |
+| `gateway` | an Anthropic-API endpoint (bearer or API key, custom headers) | a provider endpoint (`litellm` by default) | a provider endpoint: a provider opencode knows (`anthropic`, `openai`, ...) keeps its own API, another name is OpenAI-compatible | an OpenAI-compatible endpoint (`litellm` by default, custom headers) | a Responses-API endpoint (bearer or API key, custom headers) | — |
+| `workload_identity`, `bedrock`, `vertex` | yes | — | — | — | — | — |
+| `pool` | several of the above used as one (`in_order`, `round_robin`) | the same | the same | the same | the same | the same |
 
 A **gateway** is your own endpoint: LiteLLM, a company proxy, a self-hosted
 API. Claude Code speaks the Anthropic Messages API to it; omp, opencode and pi
@@ -351,7 +357,11 @@ starts or resumes, omp at each launch, Codex with each API call of a ChatGPT
 login. opencode and pi report none, so for an `opencode-go` model contraagent reads
 the OpenCode Go subscription's usage itself at each launch, from the endpoint OpenCode's
 console serves (`<base>/v1/usage` with the key; omp reads the same): the 5-hour and
-weekly windows, and the monthly one by name in `windows`. The run starts
+weekly windows, and the monthly one by name in `windows`. agy reports none in its
+stream either, so for a Google login contraagent reads the plan's usage before a
+launch (`agy -p /usage --output-format json`, which calls no model; one report serves
+the launches of a minute): the weekly and 5-hour windows of the group of models the
+launch's model is in. The run starts
 from the newest of recent runs' journals and takes each launch's as it ends, so
 tasks that start together all start before the first of them reports the cap is
 reached. A credential with no readings (a gateway, an API key, an OpenCode Zen model)
@@ -406,7 +416,11 @@ What is guaranteed:
   over any key in the user's own opencode config; an OAuth login (which opencode
   refreshes and writes back over every stored login) is not narrowed, so a task
   that requires traits is refused on it. Codex runs with an empty `CODEX_HOME`
-  and without the user's `config.toml`.
+  and without the user's `config.toml`. agy keeps its Google login in the system's
+  keyring and uses a Gemini API key only when its `modelProvider` setting is
+  `gemini`: a launch sets that setting for itself, to `gemini` for an `api_key` and
+  to agy's own for a `subscription`, so a key that does not work fails instead of
+  falling back to the login.
 - **What the agent says it used.** A launch whose reported credential source
   does not match its credential ends `credential_mismatch` and is not ok.
 

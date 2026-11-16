@@ -2,9 +2,9 @@
 
 A task's behaviour includes hooks: a script that gates a tool call, one that
 reacts to a result, a check when the agent is about to stop. Each coding agent
-wires hooks its own way (Claude Code in `hooks/hooks.json`, Codex in its own
-`hooks.json`, omp and pi each in a TypeScript extension, opencode in a JavaScript
-plugin), so written by hand they
+wires hooks its own way (Claude Code in `hooks/hooks.json`, Codex and agy each in a
+`hooks.json` of its own, omp and pi each in a TypeScript extension, opencode in a
+JavaScript plugin), so written by hand they
 exist once per agent and drift. A plugin declares
 them once, agent-neutrally, in `hooks.toml`:
 
@@ -22,8 +22,8 @@ and `contraagent plugin render` (`write`) writes what each agent needs, so the
 hooks run *inside* the coding agent, on its own machinery. The scripts stay
 neutral: they read the JSON Claude Code sends hooks on stdin
 (`{"tool_name": "Bash", "tool_input": {"command": ...}}`); the omp and pi
-extensions, the opencode plugin and the Codex bridge (`run_codex_hook`) build the
-same payload, so one script serves every agent. A `pre_tool` script blocks by
+extensions, the opencode plugin and the Codex and agy bridges (`run_codex_hook`,
+`run_agy_hook`) build the same payload, so one script serves every agent. A `pre_tool` script blocks by
 exiting 2 with the reason on stderr.
 
 What each agent can do differs, and the difference is recorded rather than
@@ -45,6 +45,11 @@ hidden (`render` returns notes, `lint` shows them):
     blocks, sends the words back, continues the session). A shell command reaches the
     script as `Bash`; a file change (`apply_patch`) as `Write` or `Edit` per file. Codex
     has no read, grep or glob tool: a hook for one does not run there.
+
+    agy (agy/hooks.json, in Claude Code's format, run by a bridge the agy backend puts in
+    the launch's own `hooks.json`): a `pre_tool` script that exits 2 denies the call with
+    its words, a `stop` hook that exits 2 continues the session with them, and the words of
+    a `post_tool` script that exits 2 reach the model before its next response.
 
 A script reads the tool input in Claude Code's shape on every agent: each agent's
 argument names are renamed to Claude Code's (`TOOL_ARGS`: opencode's `filePath`,
@@ -68,8 +73,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from contraagent._internal.backends.agy import hooks as agy_hooks
 from contraagent._internal.backends.codex.hooks import HOOKS_FILE as CODEX_HOOKS_FILE
 from contraagent._internal.backends.omp.backend import HOOKS_FILE as OMP_HOOKS_FILE
+from contraagent._internal.platform import envvars
 from contraagent._internal.platform.commands import commands
 
 if TYPE_CHECKING:
@@ -79,9 +86,16 @@ EVENTS = ("stop", "pre_tool", "post_tool")
 CLAUDE_TOOL = {"bash": "Bash", "read": "Read", "write": "Write", "edit": "Edit", "grep": "Grep", "glob": "Glob"}
 #: Each coding agent's tool argument names as Claude Code's, by the agent's tool name:
 #: what a hook script reads in `tool_input` (checked against omp 18.3's, pi 1.2.0's and
-#: opencode 1.19.0's tool schemas). Arguments not named keep their names: `command`,
+#: opencode 1.19.0's tool schemas, and against what agy 1.5.9 sends its hooks for the tools
+#: of its Gemini, Claude and GPT models). Arguments not named keep their names: `command`,
 #: `pattern`, `content` and the `path` of a search are already Claude Code's.
 TOOL_ARGS: dict[str, dict[str, dict[str, str]]] = {
+    "agy": {
+        "run_command": {"CommandLine": "command"},
+        "read_file": {"Path": "file_path"},
+        "write_file": {"Path": "file_path", "Content": "content"},
+        "edit_file": {"Path": "file_path", "Target": "old_string", "Replacement": "new_string"},
+    },
     "omp": {tool: {"path": "file_path"} for tool in ("read", "write", "edit")},
     "pi": {tool: {"path": "file_path"} for tool in ("read", "write", "edit")},
     "opencode": {
@@ -659,6 +673,177 @@ def run_codex_hook(stdin_text: str, root: str | Path, script: str, tool: str = "
     return 0, stdout, ""
 
 
+#: agy's tools as Claude Code names them. The first five are the tools agy 1.5.9 gives its
+#: Gemini, Claude and GPT models, as its hooks name them (checked); the rest are other
+#: names agy's documentation lists for hooks.
+AGY_CLAUDE_TOOL = {
+    "run_command": "Bash",
+    "read_file": "Read",
+    "write_file": "Write",
+    "edit_file": "Edit",
+    "search_web": "WebSearch",
+    "view_file": "Read",
+    "write_to_file": "Write",
+    "replace_file_content": "Edit",
+    "multi_replace_file_content": "Edit",
+    "grep_search": "Grep",
+    "find_by_name": "Glob",
+    "list_dir": "LS",
+    "read_url_content": "WebFetch",
+}
+
+
+def render_agy(plugin: Plugin) -> Rendered:
+    """`agy/hooks.json`, in Claude Code's hook format: each hook's command reads Claude
+    Code's input and objects by exiting 2, and a tool hook's group is matched by Claude
+    Code's name of the tool (`Bash`), a hook with a `match` holding it beside its command.
+
+    agy does not read this file. The agy backend gives every launch of a task of this
+    plugin a `hooks.json` of its own, in agy's format, whose handlers run a bridge
+    (`run_agy_hook`): it runs the commands of this file for the event agy reports and
+    answers agy in its own terms (checked against agy 1.5.9)."""
+    groups: dict[tuple[str, str], list[dict]] = {}
+    for h in plugin.hooks:
+        if h["on"] == "stop":
+            groups.setdefault(("Stop", ""), []).append({"type": "command", "command": stop_command(h)})
+            continue
+        event = "PreToolUse" if h["on"] == "pre_tool" else "PostToolUse"
+        handler = {"type": "command", "command": f"${{CLAUDE_PLUGIN_ROOT}}/{h['script']}"}
+        if h.get("match"):
+            handler["match"] = str(h["match"])
+        groups.setdefault((event, CLAUDE_TOOL.get(h.get("tool", ""), h.get("tool") or "")), []).append(handler)
+    if not groups:
+        return {}, []
+    hooks: dict[str, list] = {}
+    for (event, matcher), cmds in groups.items():
+        hooks.setdefault(event, []).append({"matcher": matcher, "hooks": cmds} if matcher else {"hooks": cmds})
+    return {agy_hooks.HOOKS_FILE: json.dumps({"hooks": hooks}, indent=2) + "\n"}, []
+
+
+def agy_input(tool: str, args: object, cwd: str) -> dict:
+    """An agy tool call's arguments under Claude Code's names (`TOOL_ARGS`), each file path
+    absolute (`PATH_ARGS`), a relative one taken from `cwd`."""
+    out = dict(args) if isinstance(args, dict) else {}
+    for own, claude in TOOL_ARGS["agy"].get(tool, {}).items():
+        if own in out and claude not in out:
+            out[claude] = out.pop(own)
+    for key in PATH_ARGS:
+        if isinstance(out.get(key), str) and out[key]:
+            out[key] = os.path.abspath(os.path.join(cwd, os.path.expanduser(out[key])))
+    return out
+
+
+def _matches(matcher: str, tool: str) -> bool:
+    """Whether a hook group's `matcher` (Claude Code's: a tool name or a pattern of one; none
+    for every tool) holds `tool`."""
+    if not matcher or matcher == "*":
+        return True
+    try:
+        return re.fullmatch(matcher, tool) is not None
+    except re.error:
+        return matcher == tool
+
+
+def run_agy_hook(stdin_text: str, root: str | Path, env: dict[str, str] | None = None) -> str:
+    """What agy runs for a plugin's hooks (`contraagent plugin hook --agent agy`): the
+    commands the plugin's `agy/hooks.json` declares for the event agy reports on stdin
+    (`hookEventName`), each with the input in Claude Code's shape, in the session's
+    directory, with `CLAUDE_PLUGIN_ROOT` and `CLAUDE_PROJECT_DIR` set as Claude Code sets
+    them. Returns what the hook prints, agy's answer; the hook always exits 0, since agy
+    fails a tool call whose hook exits otherwise.
+
+    - `PreToolUse`: the first command that exits 2 denies the call with its words
+      (`{"decision": "deny", "reason": ...}`); with none, nothing is printed and agy's own
+      permissions decide.
+    - `PostToolUse`: the words of each command that exits 2 are held in the launch's hook
+      state (`backends.agy.hooks`) and `{}` is printed: agy takes no words there.
+    - `PreInvocation`: the words held since the model was called last go to the model as a
+      system message (`injectSteps`).
+    - `Stop`: the first command that exits 2 continues the session with its words
+      (`{"decision": "continue", "reason": ...}`), which the launch's hook state records.
+      A stop hook is told `stop_hook_active` once agy has continued the turn
+      (`executionNum` above 0)."""
+    env = dict(os.environ if env is None else env)
+    try:
+        payload = json.loads(stdin_text or "{}")
+    except ValueError:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    event = str(payload.get("hookEventName") or "")
+    state = agy_hooks.state_dir(env)
+    if event == "PreInvocation":
+        held = agy_hooks.take(state)
+        if not held:
+            return "{}"
+        return json.dumps({"injectSteps": [{"systemMessage": {"systemMessage": FEEDBACK.replace("\\n", "\n") + held}}]})
+    root = Path(root)
+    declared = agy_hooks.declared(root).get(event, [])
+    cwd = str(payload.get("cwd") or os.getcwd())
+    base = {
+        "hook_event_name": event,
+        "session_id": str(payload.get("conversationId") or ""),
+        "transcript_path": str(payload.get("transcriptPath") or ""),
+        "cwd": cwd,
+    }
+    bash = env.get(envvars.BASH) or commands.bash(env) or "bash"
+    run_env = {**env, "CLAUDE_PLUGIN_ROOT": str(root), "CLAUDE_PROJECT_DIR": cwd}
+
+    def objection(command: str, hook_input: dict) -> str | None:
+        """What `command` says when it exits 2 on `hook_input`, else None."""
+        try:
+            proc = subprocess.run(
+                [bash, "-c", command],
+                input=json.dumps(hook_input),
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                env=run_env,
+                encoding="utf-8",
+                errors="replace",
+            )
+        except OSError:
+            return None  # fail-open: a hook that cannot start never blocks the pipeline
+        return (proc.stderr.strip() or "a task hook objected") if proc.returncode == 2 else None
+
+    if event == "Stop":
+        executions = payload.get("executionNum")
+        active = bool(payload.get("continuationActive")) or (isinstance(executions, int) and executions > 0)
+        for group in declared:
+            for h in group.get("hooks") or []:
+                said = objection(str(h.get("command") or ""), {**base, "stop_hook_active": active})
+                if said is not None:
+                    agy_hooks.note_objection(state, said)
+                    return json.dumps({"decision": "continue", "reason": said})
+        return "{}"
+    if event not in ("PreToolUse", "PostToolUse"):
+        return "{}"
+    call = payload.get("toolCall")
+    call = call if isinstance(call, dict) else {}
+    name = str(call.get("name") or "")
+    tool = AGY_CLAUDE_TOOL.get(name, name)
+    tool_input = agy_input(name, call.get("args"), cwd)
+    objections: list[str] = []
+    for group in declared:
+        if not _matches(str(group.get("matcher") or ""), tool):
+            continue
+        for h in group.get("hooks") or []:
+            if h.get("match") and str(h["match"]) not in str(tool_input.get("command") or ""):
+                continue
+            said = objection(str(h.get("command") or ""), {**base, "tool_name": tool, "tool_input": tool_input})
+            if said is None:
+                continue
+            if event == "PreToolUse":
+                return json.dumps({"decision": "deny", "reason": said})
+            objections.append(said)
+    if event == "PreToolUse":
+        return ""
+    if objections:
+        agy_hooks.hold(state, "\n".join(objections))
+    return "{}"
+
+
+register_renderer("agy", render_agy, files=(agy_hooks.HOOKS_FILE,))
 register_renderer("claude", render_claude, files=("hooks/hooks.json",))
 register_renderer("codex", render_codex, files=(CODEX_HOOKS_FILE,))
 register_renderer("omp", render_omp, files=("package.json", "omp/index.ts", OMP_HOOKS_FILE))

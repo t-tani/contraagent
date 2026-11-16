@@ -22,6 +22,7 @@ const AGENTS = [
   { name: 'opencode', cli: 'opencode', run: 'opencode run' },
   { name: 'omp', cli: 'oh-my-pi', run: 'omp -p' },
   { name: 'pi', cli: 'pi', run: 'pi -p' },
+  { name: 'agy', cli: 'Antigravity CLI', run: 'agy -p' },
 ];
 const INSTALL = "uv add 'contraagent[monitor]'";
 /** The card's command, a line each, before `--agent`. */
@@ -58,7 +59,7 @@ const RUN = ['contraagent run tasks.py:docs', `--kwargs '{"units": ["alpha"]}'`]
       </div>
 
       <figure class="ca-agents-card">
-        <figcaption class="ca-card-title">The same tasks, plugin and config on five coding agents</figcaption>
+        <figcaption class="ca-card-title">The same tasks, plugin and config on six coding agents</figcaption>
         <pre class="ca-card-cmd" data-scroll="x"><span class="ca-sr">{`${RUN.join(' ')} --agent followed by one of ${AGENTS.map((a) => a.name).join(', ')}`}</span><span aria-hidden="true"><span class="ca-prompt">$</span> {RUN[0]} \
     {RUN[1]} \
     --agent <span class="ca-agent-name" data-agent-name>{AGENTS[0]!.name}</span></span></pre>

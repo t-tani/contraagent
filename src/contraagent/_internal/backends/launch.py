@@ -49,7 +49,8 @@ class Stop(str, enum.Enum):
     `auth_failed`: a 401 or 403; a retry cannot fix the credential. `api_error`: the agent
     reported an API error (not a 429, a 401 or a refusal). `rate_limited`: a 429 or a
     usage-limit message. `refused`: a safety refusal. `aborted`: stopped in the middle of a
-    tool call. `denied`: more permission denials than `Limits.max_denials`. `error`: a
+    tool call. `denied`: more permission denials than `Limits.max_denials`, or a tool call
+    that needed an approval nobody could give (agy ends its launch there). `error`: a
     nonzero exit with no result (a Python task: it raised). `no_output`: the process ended
     with no result line. `launch_failed`: the program is missing, the launch could not
     be set up, or the operating system refused to start it (`LaunchResult.retryable`
@@ -70,7 +71,7 @@ class Stop(str, enum.Enum):
     RATE_LIMITED = "rate_limited"  # 429 or usage-limit copy
     REFUSED = "refused"  # Safety refusal
     ABORTED = "aborted"  # Mid-tool abort (`terminal_reason` aborted_*)
-    DENIED = "denied"  # Permission denials past `Limits.max_denials`
+    DENIED = "denied"  # Permission denials past `Limits.max_denials`, or an approval nobody could give
     ERROR = "error"  # Nonzero exit with no result text (generic failure)
     NO_OUTPUT = "no_output"  # Process ended with no result line
     LAUNCH_FAILED = "launch_failed"  # Missing binary or broken launch setup
@@ -186,13 +187,13 @@ class Launch:
     `out_dir` is the run's `out/`, where the agent writes its output files: a coding agent
     that writes only under its working directory by default is allowed to write there too when
     it is outside `cwd` (`writable_out`): Codex's sandbox takes it as a writable root,
-    Claude Code as `--add-dir`, opencode as an allowed `external_directory`. None: no such
-    directory.
+    Claude Code and agy as `--add-dir`, opencode as an allowed `external_directory`. None: no
+    such directory.
 
     `input_roots` are the directories of the run's input roots (`Pipeline(input_roots=)`),
     where the agent reads the input files its call file names by their absolute paths: a
     coding agent that reads only under its working directory by default is allowed to read
-    each one outside `cwd` too (`readable_roots`): Claude Code takes it as `--add-dir`,
+    each one outside `cwd` too (`readable_roots`): Claude Code and agy take it as `--add-dir`,
     opencode as an allowed `external_directory`. Codex's sandbox reads every directory.
     """
 

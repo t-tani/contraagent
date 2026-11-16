@@ -1211,7 +1211,7 @@ flow does, with Python tasks.
   `--execute`.
 - Codex writes only in its working directory and its own temporary directory, so
   contraagent lets it write in the run's `out/` too when that is outside the task's
-  working directory; so it does for Claude Code (`--add-dir`) and opencode
+  working directory; so it does for Claude Code and agy (`--add-dir`) and opencode
   (`external_directory`). An omp launch reads `.env` and `.omp/` of the task's working
   directory, which a worktree holds only when git tracks them.
 

@@ -10,9 +10,10 @@
 * `streams.py`      raw transcript lines -> the monitor's renderable events
 * `plugin_files.py` a plugin's MCP servers and extensions, as every backend reads them
 * `opencode_key.py` an OpenCode key, wherever an agent finds it: its account and its usage
-* `claude/`, `omp/`, `opencode/`, `pi/`, `codex/`  the concrete CLIs: `backend.py` (argv, env,
-  credentials), `wire.py` (the reader and the monitor's view of its events), `catalogue.py`
-  (the model list), `login.py` (a login it keeps)
+* `claude/`, `omp/`, `opencode/`, `pi/`, `codex/`, `agy/`  the concrete CLIs: `backend.py`
+  (argv, env, credentials), `wire.py` (the reader and the monitor's view of its events),
+  `catalogue.py` (the model list), `login.py` (a login it keeps), `hooks.py` (how a plugin's
+  hooks reach it)
 
 The registry below is the one place a coding-agent *name* (what a config
 file, a `Route` or a journal row says) is tied to a class. Everything that
@@ -23,6 +24,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from contraagent._internal.backends.agy import AgyBackend
 from contraagent._internal.backends.base import Backend
 from contraagent._internal.backends.claude import ClaudeBackend
 from contraagent._internal.backends.codex import CodexBackend
@@ -55,6 +57,7 @@ _REGISTRY: dict[str, type[Backend]] = {
     "opencode": OpencodeBackend,
     "pi": PiBackend,
     "codex": CodexBackend,
+    "agy": AgyBackend,
 }
 
 
@@ -85,6 +88,7 @@ __all__ = [
     "AMBIENT",
     "OMP_PREAMBLE",
     "STDIN_THRESHOLD",
+    "AgyBackend",
     "Ambient",
     "ApiKey",
     "Backend",

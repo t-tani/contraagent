@@ -10,7 +10,7 @@ from contraagent.engine import Router
 
 def test_create_backend():
     assert type(create_backend("claude")).__name__ == "ClaudeBackend"
-    assert known_agents() == ("claude", "omp", "omp-rpc", "opencode", "pi", "codex")
+    assert known_agents() == ("claude", "omp", "omp-rpc", "opencode", "pi", "codex", "agy")
     assert type(create_backend("opencode")).__name__ == "OpencodeBackend"
     with pytest.raises(KeyError):
         create_backend("nope")

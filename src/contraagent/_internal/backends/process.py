@@ -227,7 +227,12 @@ def write_launch_marker(argv: list[str], launch: Launch) -> None:
 
 
 def run_process(
-    argv: list[str], env: dict[str, str], launch: Launch, sink: Sink | None = None, stderr_sink: Sink | None = None
+    argv: list[str],
+    env: dict[str, str],
+    launch: Launch,
+    sink: Sink | None = None,
+    stderr_sink: Sink | None = None,
+    stdin_text: str | None = None,
 ) -> tuple[bytes, str, int | None, Stop | None]:
     """Run argv to completion under the launch's `Limits`. Returns stdout, stderr tail, exit, kill reason.
 
@@ -243,6 +248,10 @@ def run_process(
     only there (opencode logs a provider's refusal it keeps retrying, and
     prints nothing on stdout while it waits). Its `Stop` ends the run
     within a second.
+
+    `stdin_text` is what goes over stdin when the prompt does (`via_stdin`), for a CLI
+    that reads its prompt there in a form of its own (agy: one JSON message per line);
+    None: the prompt as it is.
     """
     started_wall = time.monotonic()
     if live_processes.launches_refused():
@@ -270,13 +279,19 @@ def run_process(
                 pipe.close()
         raise LaunchError(live_processes.REFUSED)
     try:
-        return _supervise(proc, argv, launch, sink, started_wall, stderr_sink)
+        return _supervise(proc, argv, launch, sink, started_wall, stderr_sink, stdin_text)
     finally:
         live_processes.unregister(proc)
 
 
 def _supervise(
-    proc: subprocess.Popen, argv: list[str], launch: Launch, sink: Sink | None, started_wall: float, stderr_sink: Sink | None = None
+    proc: subprocess.Popen,
+    argv: list[str],
+    launch: Launch,
+    sink: Sink | None,
+    started_wall: float,
+    stderr_sink: Sink | None = None,
+    stdin_text: str | None = None,
 ) -> tuple[bytes, str, int | None, Stop | None]:
     # Head of this invocation's stream append: the as-is argv + submitted
     # prompt, before any of the child's own output lands. Written once per
@@ -284,7 +299,7 @@ def _supervise(
     # marker per round -- the monitor's per-invocation boundary.
     write_launch_marker(argv, launch)
     if via_stdin(launch):
-        threading.Thread(target=_feed, args=(proc.stdin, launch.prompt), daemon=True).start()
+        threading.Thread(target=_feed, args=(proc.stdin, launch.prompt if stdin_text is None else stdin_text), daemon=True).start()
     stderr_buf: list[str] = []
     stderr_stops: list[Stop] = []
     assert proc.stderr is not None

@@ -64,7 +64,7 @@ class PerTaskTable(_Table):
 
 
 class _Routing(_Table):
-    agent: str | None = Field(None, description="a registered coding agent: claude, omp, omp-rpc, opencode, pi, codex")
+    agent: str | None = Field(None, description="a registered coding agent: claude, omp, omp-rpc, opencode, pi, codex, agy")
     model: str | None = None
     effort: str | None = None
     credential: str | None = Field(None, description='a `[credentials.<name>]`; without it, "ambient"')
