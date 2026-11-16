@@ -50,7 +50,8 @@ options:
   --title TITLE
   --stream-format AGENT=FORMAT
                         render a custom coding agent's transcript as a built-in format (claude,
-                        omp, omp-rpc, opencode, pi, codex), e.g. --stream-format myagent=claude
+                        omp, omp-rpc, opencode, pi, codex, agy), e.g. --stream-format
+                        myagent=claude
   --panels MODULE:ATTR  the pipeline's own views: a dict of name -> Panel (or a callable), as
                         path/to/views.py:PANELS or package.module:PANELS
   --groups MODULE:ATTR  the plan's columns and the trends' groups: a list of {"id", "label",
@@ -257,22 +258,23 @@ positional arguments:
 
 options:
   -h, --help     show this help message and exit
-  --agent AGENT  claude, codex, omp, opencode, pi (default: every renderer)
+  --agent AGENT  agy, claude, codex, omp, opencode, pi (default: every renderer)
   --check        only report files that are out of date
 
 $ contraagent plugin hook --help
-usage: contraagent plugin hook [-h] --agent {codex} --root ROOT [--tool TOOL] [--match MATCH]
-                               script
+usage: contraagent plugin hook [-h] --agent {codex,agy} --root ROOT [--tool TOOL] [--match MATCH]
+                               [script]
 
 positional arguments:
-  script           the hook script, relative to the plugin
+  script               the hook script, relative to the plugin (agy: none, it runs every hook of
+                       the event)
 
 options:
-  -h, --help       show this help message and exit
-  --agent {codex}  the coding agent that runs the hook
-  --root ROOT      the plugin's directory
-  --tool TOOL      the tool the hook is for, as hooks.toml names it (default: every tool)
-  --match MATCH    run only when the command holds this text
+  -h, --help           show this help message and exit
+  --agent {codex,agy}  the coding agent that runs the hook
+  --root ROOT          the plugin's directory
+  --tool TOOL          the tool the hook is for, as hooks.toml names it (default: every tool)
+  --match MATCH        run only when the command holds this text
 
 $ contraagent call --help
 usage: contraagent call [-h] {validate} ...

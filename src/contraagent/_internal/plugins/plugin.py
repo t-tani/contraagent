@@ -18,8 +18,8 @@ HOOKS_TOML = "hooks.toml"
 #: What a plugin holds besides skills that acts on the session that loads it: named
 #: agents, slash commands, permissions, tools, hooks (each coding agent's rendering too).
 #: What `contraagent plugin render` writes from `hooks.toml`: nothing a skill plugin needs.
-RENDERED = ("hooks", "package.json", "codex", "omp", "opencode", "pi")
-NOT_SKILLS = ("agents", "commands", "settings.json", ".mcp.json", HOOKS_TOML, "hooks", "package.json", "codex", "omp", "opencode", "pi")
+RENDERED = ("hooks", "package.json", "agy", "codex", "omp", "opencode", "pi")
+NOT_SKILLS = ("agents", "commands", "settings.json", ".mcp.json", HOOKS_TOML, *RENDERED)
 
 
 class PluginError(ContraagentError):
@@ -38,7 +38,8 @@ class Plugin:
     The Python side declares a task's *interface* (`agent_task`: its parameters,
     its output, its budget); the plugin holds everything about *how* the task is
     done, in the form Claude Code and omp read natively through `--plugin-dir` (pi is given
-    its skills and hooks by flag; opencode and Codex, its parts as config):
+    its skills and hooks by flag; opencode and Codex, its parts as config; agy, a copy of its
+    skills and its hooks in a directory of the launch's own):
 
         plugins/summarize/
           .claude-plugin/plugin.json   what makes the directory a plugin
@@ -54,6 +55,7 @@ class Plugin:
           package.json, pi/            hooks as pi reads them            (rendered)
           opencode/index.js            hooks as opencode reads them      (rendered)
           codex/hooks.json             hooks as Codex reads them         (rendered)
+          agy/hooks.json               hooks as the agy backend runs them (rendered)
 
     Nothing in it names a run, a unit or a file path: those arrive per task in the
     call file (`contraagent.backends.CallFile`).

@@ -78,7 +78,7 @@ that does not.
 
 ## Checked twice, by the same rules
 
-- **Inside the session**, on Claude Code, Codex and omp. The plugin's stop hook
+- **Inside the session**, on Claude Code, Codex, omp and agy. The plugin's stop hook
   runs `contraagent call validate`, which reads the call file (`$CONTRAAGENT_CALL`),
   imports the output model and runs the command validators. A failure keeps the
   agent working in the same turn. The agent tells the hook when it already
@@ -202,6 +202,7 @@ shows it on the tokens of each attempt. Each coding agent does it with its own f
 | Claude Code | `--system-prompt-file` | `--tools ""` | `--setting-sources ""` and `--strict-mcp-config`, as on every launch; no `--plugin-dir`, no `--agent` |
 | omp | `--system-prompt=<file>`; omp still appends its environment footer (the working directory, the system) | `--no-tools --no-lsp` | the isolation overlay every launch has (no context files, skills, rules or MCP servers); no `--plugin-dir` |
 | pi | `--system-prompt <file>` | `--no-tools` | the flags every launch has (`--no-extensions`, `--no-skills`, `--no-context-files`, ...); no `--skill`, no `-e` |
+| agy | an agent of its own (`--agent`) whose file is the system prompt | that agent's file lists no tool (`tools: []`) | that agent takes none of the workspace's customizations and MCP servers (`inheritCustomizations` and `inheritMcp` off); no skill, hook or MCP server is given |
 | opencode | an agent of its own (`--agent`) whose `prompt` is `{file:<file>}`; opencode's free models refuse such a session | that agent's `permission` denies every tool | the user's opencode config is not read either (an empty `XDG_CONFIG_HOME`: with no tool, nothing else reads it); no plugin |
 
 Each `<file>` is a file in the launch's scratch directory that holds the system prompt.

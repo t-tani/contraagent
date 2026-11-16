@@ -43,7 +43,6 @@ cost, and a call's tokens only in the rollout file, once the call has ended.
 
 from __future__ import annotations
 
-import dataclasses
 import json
 import secrets
 import shutil
@@ -51,7 +50,7 @@ from pathlib import Path
 from types import ModuleType
 
 from contraagent._internal.backends import plugin_files
-from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend, ResumeById, safe_label, temp_root
+from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend, ResumeById, context_in_prompt, safe_label, temp_root
 from contraagent._internal.backends.codex import wire as codex_wire
 from contraagent._internal.backends.codex.hooks import HOOKS_FILE, hooks_config
 from contraagent._internal.backends.codex.wire import EventReader, RolloutTail, find_rollout
@@ -310,14 +309,7 @@ class CodexBackend(ResumeById, Backend):
         of a session: codex takes developer instructions only as a config value of its command
         line (`developer_instructions`), with no file form, and a text there past 131072
         bytes keeps it from starting; a resumed session holds them already."""
-        append = launch.append_system_prompt if not launch.resume else None
-        if not launch.preamble and not launch.context_files and append is None:
-            return launch
-        parts = [x for x in (append, launch.preamble) if x]
-        for f in launch.context_files:
-            parts.append(f'<file path="{f}">\n{Path(f).read_text(encoding="utf-8")}\n</file>')
-        parts.append(launch.prompt)
-        return dataclasses.replace(launch, prompt="\n\n".join(parts), preamble=None, context_files=(), append_system_prompt=None)
+        return context_in_prompt(launch)
 
     def argv(self, launch: Launch) -> list[str]:
         """Assemble argv. `codex exec resume` takes neither `-s` nor `-C`, so the sandbox is

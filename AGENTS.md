@@ -1,6 +1,6 @@
 # contraagent
 
-`contraagent` runs coding-agent CLIs (`claude -p`, `omp -p`, Codex, opencode, pi)
+`contraagent` runs coding-agent CLIs (`claude -p`, `omp -p`, Codex, opencode, pi, agy)
 as typed, supervised tasks: a Python package (`src/contraagent/`) and a web monitor
 (`web/`). This file is for agents changing contraagent itself. Before changing
 anything under `web/`, read `web/AGENTS.md`.
@@ -32,6 +32,7 @@ the test names it. Rewrite it with:
 | the omp version | `uv run python tests/fixtures/omp/record.py` (spends a few cents), then `tests/test_omp_wire.py` |
 | the codex version | `uv run python tests/fixtures/codex/record.py` (spends a fraction of a cent), then `tests/test_codex_wire.py` |
 | the Claude Code version | `uv run python tests/fixtures/claude/record.py` (spends a fraction of a cent), then `tests/test_claude_wire.py` |
+| the agy version | `uv run python tests/fixtures/agy/record.py` (spends a little of the Google login's quota), then `tests/test_agy_wire.py` |
 
 Release checks: `uv run pyright --verifytypes contraagent --ignoreexternal` (no unknown
 type outside `contraagent.docs`), `uv run griffe check --search src contraagent --against

@@ -2,7 +2,7 @@
 
 contraagent runs coding agents as typed, checked and supervised tasks. Claude Code
 (`claude -p`), Codex CLI (`codex exec`), opencode (`opencode run`), oh-my-pi
-(`omp -p`) and pi (`pi -p`) become the steps of a Python pipeline. A task is a typed
+(`omp -p`), pi (`pi -p`) and Antigravity CLI (`agy -p`) become the steps of a Python pipeline. A task is a typed
 function whose body is a coding agent, and its result is a file that contraagent
 checks against a pydantic model. The runner handles scheduling, failover, quotas,
 deadlines and resume, and a live monitor shows every run.
@@ -45,7 +45,7 @@ pipeline needs, so the agent needs no source code of contraagent.
 
 Real runs need Linux, macOS or Windows, Python 3.12 or later, and one or more coding
 agents on `PATH`, such as `claude` (Claude Code), `omp` (oh-my-pi), `opencode`, `pi`
-(pi.dev) or `codex` (Codex CLI). [Operating systems](guide.md#operating-systems) lists
+(pi.dev), `codex` (Codex CLI) or `agy` (Antigravity CLI). [Operating systems](guide.md#operating-systems) lists
 what differs between them.
 
 ```

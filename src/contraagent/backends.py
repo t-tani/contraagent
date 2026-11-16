@@ -7,6 +7,7 @@ task hands its agent a call file (`CallFile.path_of(launch)`): its params and it
 """
 
 from contraagent._internal.backends import create_backend, known_agents, register_backend
+from contraagent._internal.backends.agy import AgyBackend
 from contraagent._internal.backends.base import Backend, ModelChains
 from contraagent._internal.backends.claude import ClaudeBackend
 from contraagent._internal.backends.codex import CodexBackend
@@ -23,6 +24,7 @@ from contraagent._internal.contracts.calls import CallFile, CallOutput, SchemaRe
 from contraagent._internal.public import publish
 
 __all__ = [
+    "AgyBackend",
     "Backend",
     "CallFile",
     "CallOutput",

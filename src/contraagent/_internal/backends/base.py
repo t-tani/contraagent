@@ -590,6 +590,28 @@ def preamble_in_prompt(launch: Launch) -> Launch:
     return dataclasses.replace(launch, prompt=f"{launch.preamble}\n\n{launch.prompt}", preamble=None)
 
 
+def context_in_prompt(launch: Launch, *, append: bool = True) -> Launch:
+    """`launch` with its preamble and its attached files written into its prompt, each file
+    as `<file path="...">` and its text, for an agent that attaches no file (Codex, agy).
+    With `append`, `Launch.append_system_prompt` goes at the head of the prompt too, on the
+    first launch of a session (a resumed session holds it already), for an agent with no
+    file for added instructions. Raises `OSError` for a file it cannot read."""
+    added = launch.append_system_prompt if append and not launch.resume else None
+    if not launch.preamble and not launch.context_files and added is None:
+        return launch
+    parts = [x for x in (added, launch.preamble) if x]
+    for f in launch.context_files:
+        parts.append(f'<file path="{f}">\n{Path(f).read_text(encoding="utf-8")}\n</file>')
+    parts.append(launch.prompt)
+    return dataclasses.replace(
+        launch,
+        prompt="\n\n".join(parts),
+        preamble=None,
+        context_files=(),
+        append_system_prompt=None if append else launch.append_system_prompt,
+    )
+
+
 class ResumeById:
     """Session resume for an agent that reports its session's id (Claude Code, Codex): the
     session only has to be kept, and a resume names it."""

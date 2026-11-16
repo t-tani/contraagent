@@ -614,7 +614,7 @@ def test_the_testing_module_lists_every_kind_of_reply():
     assert [n for n in replies if f"`{n}(" not in doc] == []
 
 
-AGENTS = ("claude", "omp", "opencode", "pi", "codex")
+AGENTS = ("claude", "omp", "opencode", "pi", "codex", "agy")
 
 
 def _agent_table() -> dict[str, dict[str, str]]:

@@ -397,6 +397,10 @@ SENSITIVE = (
     # Codex
     "CODEX_API_KEY",
     "CODEX_ACCESS_TOKEN",
+    # agy: Application Default Credentials in place of its login, and another Gemini endpoint
+    "AGY_ADC_AUTH",
+    "GOOGLE_CLOUD_QUOTA_PROJECT",
+    "GOOGLE_GEMINI_BASE_URL",
     # other providers omp can use
     "OPENAI_API_KEY",
     "OPENAI_BASE_URL",

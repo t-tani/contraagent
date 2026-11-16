@@ -164,7 +164,7 @@
         },
         "agent": {
           "type": "string",
-          "description": "a registered coding agent: claude, omp, omp-rpc, opencode, pi, codex",
+          "description": "a registered coding agent: claude, omp, omp-rpc, opencode, pi, codex, agy",
           "title": "Agent"
         },
         "model": {
@@ -554,7 +554,7 @@
         },
         "agent": {
           "type": "string",
-          "description": "a registered coding agent: claude, omp, omp-rpc, opencode, pi, codex",
+          "description": "a registered coding agent: claude, omp, omp-rpc, opencode, pi, codex, agy",
           "title": "Agent"
         },
         "model": {

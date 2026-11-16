@@ -138,15 +138,16 @@ for another port).
 - On macOS and Windows some things differ from Linux
   ([Operating systems](#operating-systems)).
 - The coding agents differ in what they enforce, and [Coding agents](agents.md)
-  has a row for each difference. In short: Claude Code, Codex and omp run a stop
+  has a row for each difference. In short: Claude Code, Codex, omp and agy run a stop
   hook that continues the session, so on opencode and pi the runner's check and a
   correction round alone hold the output to its contract; Codex runs no light
-  launch and enforces no `max_budget_usd`; only Claude Code and opencode enforce
-  `context_budget`.
+  launch, and Codex and agy enforce no `max_budget_usd`; only Claude Code, opencode
+  and agy enforce `context_budget`; agy keeps neither the project's nor the user's own
+  rules, skills, hooks and MCP servers out of a launch, except a light launch.
 - A credential rests on a quota only where its coding agent reports quota
   readings, or contraagent reads them: Claude Code, omp, Codex with a ChatGPT
-  login, and opencode and pi for an `opencode-go` model, through the OpenCode Go
-  usage ([Routing](routing.md#quota-caps)). A gateway, an API key or another
+  login, agy with a Google login, and opencode and pi for an `opencode-go` model,
+  through the OpenCode Go usage ([Routing](routing.md#quota-caps)). A gateway, an API key or another
   opencode or pi model never rests on a quota.
 - omp's credential isolation is verified for the `anthropic`, `openai-codex` and
   `litellm` providers only. A launch opencode runs sees the user's own opencode
@@ -155,7 +156,8 @@ for another port).
   documentation and are not yet checked against the real CLI.
 - contraagent writes outside the run directory: its scratch directories under
   `<temp dir>/contraagent-<uid>/`, and pi's and Codex's directories under
-  `~/.cache/contraagent/` ([Coding agents](agents.md#directories-outside-the-run)).
+  `~/.cache/contraagent/`; in agy's own `~/.gemini/antigravity-cli/` it removes the
+  conversations of its launches ([Coding agents](agents.md#directories-outside-the-run)).
 
 ## Operating systems
 

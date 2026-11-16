@@ -4,8 +4,8 @@ Every backend writes raw per-launch lines to `launch.stream_path`, in its own wi
 vocabulary: omp's/omp-rpc's/pi's `--mode json`/RPC shapes
 (`assistantMessageEvent`/`toolCall`/`toolResult`/...), claude's own
 `--output-format stream-json` shapes (Anthropic Messages API events),
-opencode's `run --format json` parts (`step_finish`/`tool_use`/`text`/...) and
-codex's `exec --json` items. A stream format is a registered coding agent's name: its
+opencode's `run --format json` parts (`step_finish`/`tool_use`/`text`/...),
+codex's `exec --json` items and agy's `--output-format stream-json` steps. A stream format is a registered coding agent's name: its
 `Backend.wire` module's `normalize_event` renders its lines, and with
 `Backend.plaintext_stream` its `normalize_text_line` renders a line that is not JSON (omp's
 text mode narrates in plain text). `register_normalizer` adds a format of its own.

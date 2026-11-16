@@ -3,9 +3,9 @@
 </h1>
 
 contraagent runs coding agents as typed, checked and supervised tasks. Claude Code,
-Codex CLI, opencode, oh-my-pi and pi become the steps of a Python pipeline. Each
-task is a typed function whose body is a coding agent, and its result is a file that
-contraagent checks against a pydantic model. The runner schedules the tasks and
+Codex CLI, opencode, oh-my-pi, pi and Antigravity CLI become the steps of a Python
+pipeline. Each task is a typed function whose body is a coding agent, and its result
+is a file that contraagent checks against a pydantic model. The runner schedules the tasks and
 handles failover, quotas, deadlines and resume, and a live monitor shows every run.
 
 ![Python 3.12 | 3.13 | 3.14](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-3776ab)
@@ -37,7 +37,7 @@ contraagent docs --pointer >> AGENTS.md
 ```
 
 Then ask for the pipeline in plain words. The request names no coding agent, so
-Claude Code, Codex, opencode, omp and pi can each take it.
+Claude Code, Codex, opencode, omp, pi and agy can each take it.
 
 ```text
 Use contraagent to write a pipeline that reviews each module in src/ and writes a
@@ -175,7 +175,7 @@ its own and no tool API of its own. It runs the coding agents that you already u
 and adds what a pipeline of them needs.
 
 - The same task, plugin and config run on `claude -p`, `codex exec`, `opencode run`,
-  `omp -p` and `pi -p`. `pipeline.toml` chooses the coding agent and model for each
+  `omp -p`, `pi -p` and `agy -p`. `pipeline.toml` chooses the coding agent and model for each
   kind, and with `--agent` every task of a run uses another coding agent. You write
   hooks once in `hooks.toml`, and contraagent renders them into the hook system of
   each agent. The agents load a plugin in different ways, and the page
@@ -211,7 +211,7 @@ and adds what a pipeline of them needs.
 ## The monitor and the audit trail
 
 Every agent session leaves a record in the run directory, and the read-only monitor
-(`contraagent monitor`) shows it for all five coding agents, live and after the run.
+(`contraagent monitor`) shows it for all six coding agents, live and after the run.
 For each task, it shows the transcript of each session with its tool calls, web
 searches, messages and reasoning, the files the task changed, model switches,
 failed checks and corrections, deferrals, tokens, cost and subscription usage. A
@@ -363,6 +363,7 @@ repeatable.
 | `opencode` | opencode | `opencode run --format json` |
 | `omp` | oh-my-pi | `omp -p`, or `omp --mode rpc` (`omp-rpc`) |
 | `pi` | pi (pi.dev) | `pi --mode json -p` |
+| `agy` | Antigravity CLI | `agy -p --output-format stream-json` |
 
 Their CLIs enforce different things, such as stop hooks, budgets, quota readings and
 tool denial. The page [Coding agents](src/contraagent/docs/agents.md) lists each

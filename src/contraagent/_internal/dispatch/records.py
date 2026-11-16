@@ -282,7 +282,9 @@ class QuotaReading(RecordModel):
     * omp (`omp`, `omp-rpc`): at each launch, what the account's latest request reported
       (`omp usage --json`, read before the launch: `Backend.usage_reading`);
     * opencode and pi: for an OpenCode Go model only, OpenCode's usage endpoint, read by
-      contraagent before each launch (`Backend.usage_reading`); the agents report none.
+      contraagent before each launch (`Backend.usage_reading`); the agents report none;
+    * agy: at each launch of a Google login, the plan's usage for the group of models the
+      launch's model is in (`agy -p /usage`, read before the launch: `Backend.usage_reading`).
 
     Account-wide: it includes whatever else used the same account, parallel tasks too.
     `LaunchResult.quota` holds a launch's, the journal's `quota` an attempt's that give a

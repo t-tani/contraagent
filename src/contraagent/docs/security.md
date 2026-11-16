@@ -20,7 +20,7 @@ Claude Code runs with `--setting-sources ""` and `--strict-mcp-config`, and its
 `CLAUDE.md` files and auto-memory are disabled. Codex runs with `--ignore-rules`, its
 plugins are disabled, and it reads no `AGENTS.md`.
 
-Three exceptions remain:
+Four exceptions remain:
 
 - opencode reads the user's `~/.config/opencode`. A light launch (a task with no
   tools) does not.
@@ -29,6 +29,13 @@ Three exceptions remain:
 - On omp, contraagent verifies that a launch uses only its own credential for the
   providers `anthropic`, `openai-codex` and `litellm`. It does not verify other omp
   providers, so a task that requires traits is refused on them.
+- agy has no switch for the project's or the user's own customizations. A launch on
+  it reads the rules and the `.agents/` directory of the task's working directory and
+  of each directory above it up to the repository's root (`AGENTS.md`, `GEMINI.md`,
+  skills, hooks, MCP servers), and the user's own under `~/.gemini/`. A light launch
+  reads none of them. agy also saves each conversation in the user's
+  `~/.gemini/antigravity-cli/`, where contraagent removes it once the launch's
+  session is no longer needed.
 
 A pipeline can give a session more than its plugin holds:
 
@@ -48,8 +55,8 @@ A pipeline can give a session more than its plugin holds:
 - [Input roots](tasks.md#files-outside-the-working-directory-input-roots):
   `Pipeline(input_roots=)` and `--input-root` name directories outside the working
   directory, and every agent task's coding agent may read them, not only the files its
-  call file names. Claude Code gets each one as `--add-dir`, which does not limit it to
-  reading, and opencode as an allowed `external_directory`. Codex's sandbox reads
+  call file names. Claude Code and agy get each one as `--add-dir`, which does not limit
+  them to reading, and opencode as an allowed `external_directory`. Codex's sandbox reads
   every directory already and writes in none of them. So a root names only a directory
   that every task of the run may read.
 - [Files a task changes](tasks.md#files-a-task-changes): a kind declared with
@@ -126,7 +133,7 @@ accepts. The facts that concern security:
 The coding agents' CLIs do not enforce the same things. The table in
 [What each one does](agents.md#what-each-one-does) has a row for each:
 
-- `disallowed_tools`: Claude Code, opencode and omp deny tools and some patterns, pi
+- `disallowed_tools`: Claude Code, opencode, omp and agy deny tools and some patterns, pi
   whole tools only; Codex cannot, so a route on it is refused before anything launches,
   as is a route whose agent cannot deny a pattern the task names.
 - On omp, `disallowed_tools` is enforced by an extension of contraagent's own inside
@@ -135,8 +142,8 @@ The coding agents' CLIs do not enforce the same things. The table in
   thing that denies a call. As on Claude Code, a pattern does not hold what another
   tool does: a `Read(secrets/**)` pattern does not stop `bash` from printing the file.
   Deny the whole tool (`Bash`) when that matters.
-- `max_budget_usd`: Codex reports no cost, so the cap does not hold there.
-- `context_budget`: only Claude Code and opencode launches are stopped by it.
+- `max_budget_usd`: Codex and agy report no cost, so the cap does not hold there.
+- `context_budget`: only Claude Code, opencode and agy launches are stopped by it.
 
 `timeout_s` and `max_turns` are required for every kind. `max_budget_usd`,
 `stall_s` and `context_budget` apply only when the config or the task sets them.
@@ -155,7 +162,12 @@ The coding agents' CLIs do not enforce the same things. The table in
   Seatbelt on macOS, Codex's Windows sandbox), with the network on, and with a
   temporary directory of its own for each launch. Claude Code takes its permissions
   from the plugin's `settings.json`, and opencode from the role's `tools:`. omp
-  (`--approval-mode yolo`) and pi run with no permission checks.
+  (`--approval-mode yolo`) and pi run with no permission checks. agy runs in its
+  `auto` mode, which the launch sets for itself: it edits files without asking, and not
+  only in its workspace, and runs each command in its terminal sandbox, which has no
+  network. agy itself reviews a command that asks to leave the sandbox. A command its
+  review does not let through needs an approval nobody can give, so agy ends the
+  launch there (`denied`).
 - Scratch directories are under `<temp dir>/contraagent-<uid>/` (`<temp dir>` is
   `$TMPDIR`, else `/tmp`), and only their owner can use them. contraagent refuses a
   symbolic link or another user's directory there. On Windows they are under

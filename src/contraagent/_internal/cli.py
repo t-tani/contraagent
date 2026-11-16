@@ -6,6 +6,7 @@ contraagent plugin new plugins/summarize [--name N]
 contraagent plugin lint plugins          # a plugin, or a directory of plugins
 contraagent plugin render <plugin>       # hooks.toml -> each coding agent's native hooks
 contraagent plugin hook --agent codex --root DIR SCRIPT  # what a rendered Codex hook runs
+contraagent plugin hook --agent agy --root DIR  # what agy runs for a plugin's hooks
 contraagent call validate [--call PATH]  # what a plugin's Stop hook runs (default: $CONTRAAGENT_CALL)
 contraagent check tasks.py:docs --config pipeline.toml --kwargs '{"units": ["alpha"]}'
                                          # a flow, checked without launching anything
@@ -121,11 +122,13 @@ def parser(command: str | None = "") -> argparse.ArgumentParser:
     lint.add_argument("paths", nargs="+")
     ren = psub.add_parser("render", help="write each coding agent's native hooks from hooks.toml")
     ren.add_argument("plugin")
-    ren.add_argument("--agent", action="append", help="claude, codex, omp, opencode, pi (default: every renderer)")
+    ren.add_argument("--agent", action="append", help="agy, claude, codex, omp, opencode, pi (default: every renderer)")
     ren.add_argument("--check", action="store_true", help="only report files that are out of date")
     hook = psub.add_parser("hook", help="run a hook script on the input a coding agent's hook got, in Claude Code's shape")
-    hook.add_argument("script", help="the hook script, relative to the plugin")
-    hook.add_argument("--agent", required=True, choices=["codex"], help="the coding agent that runs the hook")
+    hook.add_argument(
+        "script", nargs="?", default="", help="the hook script, relative to the plugin (agy: none, it runs every hook of the event)"
+    )
+    hook.add_argument("--agent", required=True, choices=["codex", "agy"], help="the coding agent that runs the hook")
     hook.add_argument("--root", required=True, help="the plugin's directory")
     hook.add_argument("--tool", default="", help="the tool the hook is for, as hooks.toml names it (default: every tool)")
     hook.add_argument("--match", default="", help="run only when the command holds this text")
@@ -551,7 +554,13 @@ def _plugin(args) -> int:
             print(f"  wrote {_shown(f)}")
         print(f"\nnext: write the procedure in {args.directory}/agents/worker.md, then `contraagent plugin lint {args.directory}`")
         return 0
+    if args.pcmd == "hook" and args.agent == "agy":
+        sys.stdout.write(hooks.run_agy_hook(sys.stdin.read(), args.root))
+        return 0
     if args.pcmd == "hook":
+        if not args.script:
+            print("contraagent plugin hook --agent codex needs the hook script", file=sys.stderr)
+            return 2
         code, out, err = hooks.run_codex_hook(sys.stdin.read(), args.root, args.script, args.tool, args.match)
         sys.stdout.write(out)
         if err:

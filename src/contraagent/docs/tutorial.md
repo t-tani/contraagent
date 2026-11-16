@@ -7,8 +7,8 @@ When you finish, you can design a pipeline of your own: you know which part goes
 where, how to check it without spending tokens, and how to read what a run did.
 
 You need Linux, macOS or Windows, Python 3.12 or later and [uv](https://docs.astral.sh/uv/). Steps
-1 to 7 call no model and cost nothing. Step 8 runs a coding agent: any of the five
-contraagent runs (Claude Code, omp, opencode, pi, Codex), on your `PATH` and logged
+1 to 7 call no model and cost nothing. Step 8 runs a coding agent: any of the six
+contraagent runs (Claude Code, omp, opencode, pi, Codex, agy), on your `PATH` and logged
 in. Step 8's config uses Claude Code: install it as its
 [setup page](https://docs.claude.com/en/docs/claude-code/setup) says, then run
 `claude` once and log in (`/login`) with a Claude subscription or an Anthropic API
@@ -311,14 +311,14 @@ uv run contraagent run tasks.py:triage_all --config pipeline.toml --kwargs '{"re
 
 `--kwargs '{"reports": ["login-timeout"]}'` runs one report, and so spends a
 third. `--agent codex --model <model>` runs every kind on Codex instead (or on
-`omp`, `opencode`, `pi`), with a model of that coding agent: each one names its
+`omp`, `opencode`, `pi`, `agy`), with a model of that coding agent: each one names its
 models its own way.
 
 For each triage, contraagent writes the call file, starts `claude -p` with the
 plugin loaded and the role selected, and waits. Before the agent stops, the
 plugin's stop hook checks its output file against the schema; when it fails,
 the agent reads the errors and fixes the file in the same turn. Claude Code,
-Codex and omp run this stop hook; opencode and pi have none that continues a session
+Codex, omp and agy run this stop hook; opencode and pi have none that continues a session
 ([Coding agents](agents.md)), so for them the runner's check below does this work.
 After the session, the runner checks the file again, with the validators too. An
 output that still fails goes back to the same session with the errors, a
