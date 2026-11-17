@@ -189,25 +189,35 @@ def normalize_event(e: dict) -> dict:
 
 #: The event types omp sends in `--mode json` and on the RPC wire alike (its
 #: `AgentEvent` and `AgentSessionEvent` unions and `session_settled`, which the RPC wire
-#: sends once background work drains; checked against omp 18.9.1 and the recordings in
+#: sends once background work drains; checked against omp 18.22.0 and the recordings in
 #: `tests/fixtures/omp/`). A type outside this set is counted in
 #: `LaunchResult.unread_events`: a newer omp sends something this reader does not read.
+#: `tool_stream_update` is a preview of a tool call's arguments while the model still writes
+#: them (omp's `edit`); the reader and the monitor leave it, as they leave `toolcall_delta`.
 KNOWN_EVENTS = STREAM_FWD | {
     "session",
     "error",
     "advisor_cost_changed",
+    "advisor_yielded",
     "auto_compaction_start",
     "auto_compaction_end",
+    "cache_warming_start",
+    "cache_warming_end",
+    "config_warnings_changed",
     "goal_updated",
     "irc_message",
+    "manual_compaction_start",
+    "manual_compaction_end",
     "model_changed",
     "notice",
+    "queue_update",
     "retry_fallback_applied",
     "retry_fallback_succeeded",
     "session_settled",
     "thinking_level_changed",
     "todo_auto_clear",
     "todo_reminder",
+    "tool_stream_update",
     "ttsr_triggered",
 }
 #: `message_update` kinds (`assistantMessageEvent.type`), from omp's `AssistantMessageEvent`.

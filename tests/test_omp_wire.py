@@ -8,6 +8,7 @@ same way; the tests run on every recording.
 """
 
 import json
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -91,6 +92,16 @@ def test_an_event_this_reader_does_not_know_is_counted():
     }
 
 
+def test_a_tool_call_s_streamed_arguments_are_read_and_not_shown():
+    """omp 18.22 sends `tool_stream_update` while the model writes the arguments of an `edit`
+    call, in `--mode json` with only these fields; the tool call shows when it starts."""
+    event = {"type": "tool_stream_update", "toolCallId": "c1", "toolName": "edit"}
+    reader = TraceReader()
+    reader.feed(event)
+    assert reader.result(LAUNCH, "omp", exit_code=0, killed=None).unread_events == {}
+    assert normalize_event(event) == {"type": "skip"}
+
+
 def test_an_error_omp_retried_past_is_not_the_outcome():
     reader = TraceReader()
     failed = {"role": "assistant", "content": [], "errorStatus": 429, "errorMessage": "rate limit exceeded"}
@@ -160,11 +171,14 @@ STOP_VERSIONS = sorted(p.parent.name for p in FIXTURES.glob("*/stop.jsonl"))
 @pytest.mark.parametrize("version", STOP_VERSIONS)
 def test_a_stop_hook_s_objection_is_read_from_the_continued_session(version):
     """`stop.jsonl`: the plugin's stop hook objected once and omp went on in the same session,
-    and the task's `Bash(rm:*)` blocked the call."""
+    and the task's `Bash(rm:*)` blocked the call. The model may also read the plugin's skill
+    after the objection: each call is counted once, whichever calls the model made."""
     result = TraceReader().read((FIXTURES / version / "stop.jsonl").read_bytes()).result(LAUNCH, "omp", exit_code=0, killed=None)
     assert result.stop == Stop.COMPLETED and result.ok
     assert result.hook_errors == [["out.txt: must hold the word BANANA, not APPLE"]]
-    assert result.tool_uses == {"write": 2, "bash": 1} and result.unread_events == {}
+    started = Counter(e["toolName"] for e in events(version, "stop") if e["type"] == "tool_execution_start")
+    assert started["write"] == 2 and started["bash"] == 1
+    assert result.tool_uses == started and result.unread_events == {}
     shown = [normalize_event(e) for e in events(version, "stop")]
     said = [e["text"] for e in shown if e["type"] == "notice" and e["text"].startswith("Stop hook feedback:")]
     assert said == ["Stop hook feedback:\nThe output file does not pass its checks:\n- out.txt: must hold the word BANANA, not APPLE"]
