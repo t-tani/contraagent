@@ -10,6 +10,11 @@ The changes not released yet are the fragments in [`changelog.d/`](changelog.d/)
 
 <!-- towncrier release notes start -->
 
+## [0.11.1] - 2026-11-17
+
+### Fixed
+
+- contraagent reads the events that omp 18.22 added: `tool_stream_update`, which omp sends while the model writes the arguments of an `edit` call, and `manual_compaction_start`, `manual_compaction_end`, `cache_warming_start`, `cache_warming_end`, `config_warnings_changed`, `advisor_yielded` and `queue_update`. A launch on omp 18.22 counted them in `unread_events`, and the monitor listed them as unrecognized events, often thousands of `tool_stream_update` in one launch that edited files. Claude Code's `command_lifecycle` and `conversation_reset` messages (Claude Code 2.1.326) are read as well.
 ## [0.11.0] - 2026-11-16
 
 ### Added
