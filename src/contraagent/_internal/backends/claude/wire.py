@@ -52,12 +52,14 @@ SIGNALS = Signals(
     nonzero_exit_is_error=False,
     stderr_stops=frozenset({Stop.ERROR, Stop.NO_OUTPUT, Stop.API_ERROR, Stop.LAUNCH_FAILED}),
 )
-#: The event types Claude Code sends on its stream (its SDK's message types). Another is
-#: counted in `LaunchResult.unread_events`.
+#: The event types Claude Code sends on its stream (its SDK's message types, checked against
+#: Claude Code 2.1.326; its `bash_command` is input only). Another is counted in
+#: `LaunchResult.unread_events`.
 KNOWN_EVENTS = frozenset(
     {
         *("system", "assistant", "user", "result", "rate_limit_event", "stream_event"),
         *("tool_progress", "tool_use_summary", "auth_status", "prompt_suggestion"),
+        *("command_lifecycle", "conversation_reset"),
     }
 )
 #: The fields `StreamReader` reads on every event of its kind (`EventFold.read_fields`),
