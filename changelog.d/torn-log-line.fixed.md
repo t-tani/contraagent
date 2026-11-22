@@ -1,0 +1,1 @@
+A line that was cut short as it was written no longer spoils the one appended after it. The next row of a journal was joined to such a line and lost, so a resume ran a finished task again. An append now starts on a line of its own, in every log and transcript.

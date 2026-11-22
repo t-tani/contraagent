@@ -16,7 +16,7 @@ import os
 import sys
 import threading
 import uuid
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -47,12 +47,13 @@ from contraagent._internal.execution import teardown as _teardown
 from contraagent._internal.execution.adapter import TaskAdapter
 from contraagent._internal.execution.cursor import CursorStore
 from contraagent._internal.execution.estimates import JournalEstimates, recent_runs
-from contraagent._internal.execution.journal import Journal
+from contraagent._internal.execution.journal import Journal, unread_warnings
 from contraagent._internal.execution.pipeline_files import writing_into
 from contraagent._internal.execution.python_tasks import PythonTaskRunner
 from contraagent._internal.execution.runner import AgentRunner
 from contraagent._internal.execution.schemas import DeferredRow, FlowCallRow, PlanRow
 from contraagent._internal.platform import processes
+from contraagent._internal.platform.flushing import flush_folder
 from contraagent._internal.platform.locks import locks
 from contraagent._internal.routing.capacity import sized
 from contraagent._internal.routing.config import PerTask, PipelineConfig
@@ -60,7 +61,7 @@ from contraagent._internal.routing.kind_config import KindConfig
 from contraagent._internal.routing.quota import CredentialRests, QuotaRule, caps_of
 from contraagent._internal.routing.router import Router
 from contraagent._internal.runs import layout
-from contraagent._internal.runs.files import append_lines, parse_rows, read_document, read_rows, write_document
+from contraagent._internal.runs.files import LogRows, append_lines, parse_rows, read_document, write_document
 from contraagent._internal.runs.names import check_portable
 from contraagent._internal.runs.source import DirectorySource, parse_info
 from contraagent._internal.runs.times import iso_of, now_iso
@@ -332,10 +333,6 @@ class Run:
         self.runs_dir: Path = Path(runs_dir)
         self.dir: Path = self.runs_dir / run_id
         self.config = config
-        if fresh:
-            self._refuse_existing()
-        self.dir.mkdir(parents=True, exist_ok=True)
-        (self.dir / layout.STREAMS).mkdir(exist_ok=True)
         # A task given no unit has it defaulted to its own key, which names
         # no unit; the journal row then carries an empty unit.
         self._unit_of = unit_of or (lambda t: t.declared_unit)
@@ -347,6 +344,10 @@ class Run:
             unit_of=self._unit_of,
             row_extras=row_extras,
         )
+        if fresh:
+            self._refuse_existing(self.journal.read())
+        self.dir.mkdir(parents=True, exist_ok=True)
+        (self.dir / layout.STREAMS).mkdir(exist_ok=True)
         self._log_to = log
         self._lock_fd: int | None = None
         self._estimates: JournalEstimates | None = None
@@ -362,22 +363,34 @@ class Run:
         self._journal_error: Exception | None = None
         if lock:
             self._acquire()
+        try:
+            self._open(fresh=fresh, lock=lock, cwd=cwd, resumed_from=resumed_from)
+        except BaseException:
+            self.close()
+            raise
+
+    def _open(self, *, fresh: bool, lock: bool, cwd: str | Path | None, resumed_from: Mapping[str, str] | None) -> None:
+        """Read what earlier attempts of this run id left, then write this one's `run.json`:
+        nothing of theirs is replaced before all of it has read."""
+        journal = self.journal.read()
         if fresh:  # rows another process wrote before this one held the lock
-            try:
-                self._refuse_existing()
-            except RunExists:
-                self.close()
-                raise
-        self._check_format()
+            self._refuse_existing(journal)
+        previous = self._info() or {}
+        self._check_format(previous)
+        for line in unread_warnings(self.journal.path, journal):
+            self._log(logging.WARNING, line)
         if lock:
             self._clear_inflight()
+        uid = previous.get("run_uid")
+        earlier = resumed_from or previous.get("resumed_from")
         write_document(
             self.dir / layout.RUN_INFO,
             json.dumps(
                 {
                     "format": layout.FORMAT,
-                    "run_id": run_id,
-                    "run_uid": self._previous_uid() or uuid.uuid4().hex,
+                    "run_id": self.run_id,
+                    # A resumed run keeps the id of the attempts before it.
+                    "run_uid": uid if isinstance(uid, str) and uid else uuid.uuid4().hex,
                     "host_id": layout.host_id(),
                     "run_group": self.run_group,
                     "pid": os.getpid(),
@@ -385,21 +398,19 @@ class Run:
                     "argv": list(sys.argv),
                     "cwd": str(Path(cwd or os.getcwd()).resolve()),
                     "started_at": now_iso(),
-                    **({"resumed_from": dict(earlier)} if (earlier := resumed_from or self._previous("resumed_from")) else {}),
+                    **({"resumed_from": dict(earlier)} if earlier else {}),
                 }
             ),
+            fsync=True,
         )
+        flush_folder(self.runs_dir)  # the run directory's own name
 
-    def _check_format(self) -> None:
+    def _check_format(self, info: Mapping[str, Any]) -> None:
         """Refuse a run directory an earlier attempt left in a run format this release does not
         read (`RunFormatError`), before its `run.json` is replaced."""
-        info = self._info()
-        if info is None:
-            return
         found = layout.format_of(info)
         if found in layout.FORMATS:
             return
-        self.close()
         raise RunFormatError(
             f"{self.dir} is of run format {info.get('format')!r}; this contraagent reads run format "
             f"{', '.join(map(str, layout.FORMATS))}: resume it with the contraagent that wrote it, or start a new run id"
@@ -409,21 +420,13 @@ class Run:
         """Remove the in-flight markers an earlier attempt of this run left: with the run
         lock held, no other process runs a task of it."""
         for path in (self.dir / layout.INFLIGHT).glob("*.json"):
-            path.unlink(missing_ok=True)
+            with self._never_fails(layout.INFLIGHT, path=path):
+                path.unlink(missing_ok=True)
 
-    def _refuse_existing(self) -> None:
-        rows = len(read_rows(self.dir / layout.JOURNAL))
-        if rows:
-            raise RunExists(self.dir, rows)
-
-    def _previous_uid(self) -> str | None:
-        """The `run_uid` of an earlier attempt of this run id: a resumed run keeps it."""
-        uid = (self._info() or {}).get("run_uid")
-        return uid if isinstance(uid, str) and uid else None
-
-    def _previous(self, field: str) -> Any:
-        """What `run.json` of an earlier attempt of this run id says in `field`, else None."""
-        return (self._info() or {}).get(field)
+    def _refuse_existing(self, journal: LogRows) -> None:
+        """`RunExists` when the journal holds a run: a line that does not read was a row too."""
+        if count := len(journal.rows) + len(journal.unread):
+            raise RunExists(self.dir, count)
 
     # --- lock and lifecycle ------------------------------------------------
 
@@ -485,14 +488,25 @@ class Run:
         """Merge `fields` into run.json (what the monitor shows about this run)."""
         info = self._info() or {}
         info.update(fields)
-        write_document(self.dir / layout.RUN_INFO, json.dumps(info))
+        write_document(self.dir / layout.RUN_INFO, json.dumps(info), fsync=True)
 
     def _info(self) -> dict[str, Any] | None:
-        """`run.json` as this run directory holds it; None before the first write."""
+        """`run.json` as this run directory holds it; None only when it is absent.
+        ContraagentError when it cannot be read or does not read: made again, it would lose
+        the run's `run_uid` and run format."""
+        path = self.dir / layout.RUN_INFO
         try:
-            return parse_info(read_document(self.dir / layout.RUN_INFO))
-        except OSError:
+            text = read_document(path)
+        except FileNotFoundError:
             return None
+        except OSError as exc:
+            raise ContraagentError(f"cannot read {path.as_posix()} ({type(exc).__name__}: {exc}); it is left as it is") from exc
+        if (info := parse_info(text)) is None:
+            raise ContraagentError(
+                f"{path.as_posix()} does not read as a JSON object and is left as it is: restore it, "
+                "or remove it to go on with the run under a new run_uid"
+            )
+        return info
 
     def on_teardown(self, callback: Callable[[], None]) -> None:
         """Register a stop callback (a server, a VM lease) for `teardown`."""
@@ -551,6 +565,7 @@ class Run:
                     "resumed_from": run_id,
                 }
             )
+            self.journal.flush_output(result.task)
             self.journal.append_row(row)
         except Exception as exc:  # the task's result stands; the run fails at its end
             self._record_failed(layout.JOURNAL, exc, key)
@@ -590,7 +605,7 @@ class Run:
     def rows(self) -> list[dict[str, Any]]:
         return self.journal.rows()
 
-    def _record_failed(self, name: str, error: Exception, about: str = "") -> None:
+    def _record_failed(self, name: str, error: Exception, about: str = "", path: Path | None = None) -> None:
         """A record of the run, its file `name` in the run directory, that could not be
         written: count it, keep the first error of a journal row, and say so in a warning
         progress line with the file, the task or flow call it is `about`, and the error.
@@ -601,7 +616,17 @@ class Run:
                 self._journal_error = error
         what = f" for {about}" if about else ""
         after = "; a resume runs the task again, and the run fails at its end" if name == layout.JOURNAL else ""
-        self._log(logging.WARNING, f"[error] {(self.dir / name).as_posix()} not written{what}: {type(error).__name__}: {error}{after}")
+        file = (path or self.dir / name).as_posix()
+        self._log(logging.WARNING, f"[error] {file} not written{what}: {type(error).__name__}: {error}{after}")
+
+    @contextlib.contextmanager
+    def _never_fails(self, name: str, about: str = "", path: Path | None = None) -> Iterator[None]:
+        """The write in the block is of a record only the monitor reads: when it fails, it
+        is said and counted (`_record_failed`), and the run goes on."""
+        try:
+            yield
+        except Exception as exc:
+            self._record_failed(name, exc, about, path)
 
     def _record_failures(self) -> dict[str, int]:
         """How many writes of each record file failed so far, by file name; empty: none."""
@@ -645,7 +670,7 @@ class Run:
     ) -> AgentRunner:
         """An `AgentRunner` whose launches are attributed to this run and recorded under it;
         every argument is the `AgentRunner`'s."""
-        return AgentRunner(
+        runner = AgentRunner(
             backends,
             configs,
             run_dir=self.dir,
@@ -663,6 +688,8 @@ class Run:
             enrichers=enrichers,
             rests=rests,
         )
+        runner._report = self._record_failed
+        return runner
 
     def python_runner(
         self,
@@ -678,7 +705,7 @@ class Run:
         to `inner` (`RetryingRunner(...)`). Each attempt of a Python task is journaled:
         a retried one here, the last by the queue. `scopes` / `enrichers` wrap each
         attempt of a Python task (`PythonTaskRunner`)."""
-        return PythonTaskRunner(
+        runner = PythonTaskRunner(
             inner,
             adapter=adapter,
             run_dir=self.dir,
@@ -688,6 +715,8 @@ class Run:
             enrichers=enrichers,
             config=self.config,
         )
+        runner._report = self._record_failed
+        return runner
 
     def estimator(self) -> JournalEstimates:
         """The estimates of durations and tails (`JournalEstimates`): read from the recent
@@ -896,7 +925,8 @@ class Run:
             cwd=task.cwd.as_posix() if task.cwd is not None else "",
             input_files=input_files_of(getattr(task.payload, "params", None)),
         ).to_dict()
-        self._append(layout.PLAN, row)
+        with self._never_fails(layout.PLAN, task.key):
+            self._append(layout.PLAN, row)
         if self._estimates is not None:
             self._estimates.observe_plan(row)
 
@@ -906,17 +936,16 @@ class Run:
         no way to launch it) loses its running marker too."""
         self._mark_inflight(task, running=False)
         row = DeferredRow(ts=now_iso(), key=task.key, kind=kind_name(task.kind), unit=self._unit_of(task), reason=reason, cause=cause)
-        self._append(layout.DEFERRED, row.to_dict())
+        with self._never_fails(layout.DEFERRED, task.key):
+            self._append(layout.DEFERRED, row.to_dict())
         self._log(logging.INFO, f"[deferred] {task.key}: {reason}")
 
     def _record_rest(self, event: str, rest: Rest) -> None:
         """One line of `rests.jsonl` (a `RestEvent`): `event` `start` when the credential
         began resting, `end` when it was found not resting again (with the rest that ended)."""
         row = RestEvent.model_validate({"ts": now_iso(), "event": event, **rest.to_dict()})
-        try:
+        with self._never_fails(layout.RESTS, f"credential {rest.credential}"):  # the rest itself holds
             self._append(layout.RESTS, row.model_dump(mode="json", exclude_unset=True))
-        except Exception as exc:  # the monitor's record only: the rest itself holds
-            self._record_failed(layout.RESTS, exc, f"credential {rest.credential}")
         self._log(logging.INFO, f"[rest] {rest.text()}" if event == "start" else f"[rest] {rest.credential} rests no more")
 
     def record_flow_call(
@@ -963,7 +992,8 @@ class Run:
             if unawaited:
                 end["unawaited"] = list(unawaited)
             row = FlowCallRow.model_validate(end)
-        self._append(layout.FLOW_CALLS, row.to_dict())
+        with self._never_fails(layout.FLOW_CALLS, f"flow call {call_id}"):
+            self._append(layout.FLOW_CALLS, row.to_dict())
         if event == "end" and self._estimates is not None:
             self._estimates.flow_call_ended(call_id, state or "")
 
@@ -977,26 +1007,27 @@ class Run:
         a marker whose process is gone, or whose pid another process now has, is ignored
         by the monitor, so a crash leaves nothing that looks live, and a resume removes
         the markers an earlier attempt left (`_clear_inflight`)."""
-        (self.dir / layout.INFLIGHT).mkdir(exist_ok=True)
         path = self.dir / layout.task_entry(layout.INFLIGHT, task.key)
-        if not running:
-            path.unlink(missing_ok=True)
-            return
-        write_document(
-            path,
-            json.dumps(
-                {
-                    "key": task.key,
-                    "kind": kind_name(task.kind),
-                    "unit": self._unit_of(task),
-                    "claims": list(task.claims),
-                    "executor": task.executor,
-                    "started_at": now_iso(),
-                    "pid": os.getpid(),
-                    "start_ticks": processes.start_ticks(os.getpid()),
-                }
-            ),
-        )
+        with self._never_fails(layout.INFLIGHT, task.key, path):
+            if not running:
+                path.unlink(missing_ok=True)
+                return
+            path.parent.mkdir(exist_ok=True)
+            write_document(
+                path,
+                json.dumps(
+                    {
+                        "key": task.key,
+                        "kind": kind_name(task.kind),
+                        "unit": self._unit_of(task),
+                        "claims": list(task.claims),
+                        "executor": task.executor,
+                        "started_at": now_iso(),
+                        "pid": os.getpid(),
+                        "start_ticks": processes.start_ticks(os.getpid()),
+                    }
+                ),
+            )
 
 
 def _hook_failure(fields: Mapping[str, Any]) -> str:

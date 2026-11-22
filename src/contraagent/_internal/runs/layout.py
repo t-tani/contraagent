@@ -7,7 +7,8 @@ so the layout is written down once; a record's name relative to the run director
 (`journal.jsonl`, `streams/<file>.stream.jsonl`) is its layout name.
 
 Logs (one JSON object per line, appended, never rewritten; `files.append_lines`
-writes them and `files.read_lines` reads complete lines only): `JOURNAL`, `LAUNCHES`,
+writes them, or `files.open_log` for a transcript, and `files.read_lines` reads complete
+lines only): `JOURNAL`, `LAUNCHES`,
 `PLAN`, `FLOW_CALLS`, `DEFERRED`, `RESTS`, `SERVICES`, one transcript per task, `stream(key)`, and
 the pipeline logs, `pipeline_log(name)`.
 

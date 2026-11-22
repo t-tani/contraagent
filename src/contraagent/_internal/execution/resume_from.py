@@ -36,9 +36,10 @@ from pathlib import Path
 from typing import Any
 
 from contraagent._internal.errors import ContraagentError
+from contraagent._internal.execution.journal import unread_warnings
 from contraagent._internal.platform.locks import locks
 from contraagent._internal.runs import layout
-from contraagent._internal.runs.files import read_document, read_rows, write_document
+from contraagent._internal.runs.files import read_document, read_log, write_document
 
 #: The folders copied into the new run directory as it starts.
 COPIED = (layout.OUT, layout.PIPELINE, layout.DEFINITIONS)
@@ -47,8 +48,9 @@ TAKEN_OVER = (layout.CONTRACTS, layout.CALLS)
 
 
 class EarlierRunError(ContraagentError):
-    """The run to resume from cannot be: it does not exist, it is of a run format this
-    release does not read, or another process drives it."""
+    """The run to resume from cannot be: it does not exist, its `run.json` or its journal
+    cannot be read, it is of a run format this release does not read, or another process
+    drives it."""
 
 
 class EarlierRun:
@@ -60,11 +62,18 @@ class EarlierRun:
         info = self._info()
         self.run_uid = str(info.get("run_uid") or "")
         self._lock_fd = self._hold(Path(runs_dir) / f"{run_id}.lock")
+        journal = self.dir / layout.JOURNAL
         try:
-            rows = read_rows(self.dir / layout.JOURNAL)
+            log = read_log(journal)
+        except OSError as exc:
+            self.release()
+            raise EarlierRunError(f"cannot read {journal.as_posix()} ({type(exc).__name__}: {exc}): resume from it when it reads") from exc
         except BaseException:
             self.release()
             raise
+        #: A warning line for each line of its journal that does not read.
+        self.warnings: list[str] = unread_warnings(journal, log)
+        rows = log.rows
         #: Each key's last journal row: what the new run compares a task with.
         self.last_rows: dict[str, dict[str, Any]] = {r["key"]: r for r in rows if r.get("key")}
         #: Each key's place in the journal: the order the flow is given the skipped tasks' results.
@@ -75,6 +84,8 @@ class EarlierRun:
             info = json.loads(read_document(self.dir / layout.RUN_INFO))
         except FileNotFoundError:
             raise EarlierRunError(f"no run {self.run_id!r} to resume from: {self.dir} holds none") from None
+        except OSError as exc:
+            raise EarlierRunError(f"cannot read {(self.dir / layout.RUN_INFO).as_posix()} ({type(exc).__name__}: {exc})") from exc
         except ValueError as exc:
             raise EarlierRunError(f"{self.dir / layout.RUN_INFO} does not read: {exc}") from None
         if not isinstance(info, dict) or layout.format_of(info) not in layout.FORMATS:

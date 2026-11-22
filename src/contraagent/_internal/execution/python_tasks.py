@@ -63,7 +63,7 @@ from contraagent._internal.execution.recording import Recorder, Replay
 from contraagent._internal.execution.runner import RetryingRunner
 from contraagent._internal.routing.config import PipelineConfig
 from contraagent._internal.routing.kind_config import KindConfig
-from contraagent._internal.runs import layout
+from contraagent._internal.runs import failures, layout
 from contraagent._internal.runs.files import write_document
 
 _logger = logging.getLogger(__name__)
@@ -121,6 +121,8 @@ class PythonTaskRunner:
         self._run_dir = Path(run_dir) if run_dir else None
         self._cwd = Path(cwd) if cwd else Path.cwd()
         self._defined: set[str] = set()
+        #: Where a record that cannot be written is reported; the run that makes the runner sets it.
+        self._report: failures.RecordFailed | None = None
 
     def config(self, task: Task) -> RunnerConfig:
         if task.fn is not None or self._inner is None:
@@ -150,15 +152,16 @@ class PythonTaskRunner:
         return outs, ins
 
     def run(self, task: Task) -> TaskResult:
-        if task.fn is None:
-            if self._inner is None:
-                raise TypeError(f"{task.key}: an agent task, and no runner to launch it")
-            return self._inner.run(task)
-        self._record_definition(task)
-        outs, ins = self.contracts(task)
-        if self._run_dir is not None and (outs or ins):
-            record_contracts(self._run_dir, task, outs, ins, self._cwd)
-        return self._attempts(task, outs, ins)
+        with failures.reported_to(self._report):
+            if task.fn is None:
+                if self._inner is None:
+                    raise TypeError(f"{task.key}: an agent task, and no runner to launch it")
+                return self._inner.run(task)
+            self._record_definition(task)
+            outs, ins = self.contracts(task)
+            if self._run_dir is not None and (outs or ins):
+                record_contracts(self._run_dir, task, outs, ins, self._cwd)
+            return self._attempts(task, outs, ins)
 
     def _record_definition(self, task: Task) -> None:
         """`definitions/<kind>.json`, once per kind per run, as for agent tasks: what
@@ -167,12 +170,12 @@ class PythonTaskRunner:
         if self._run_dir is None or not definition or task.kind in self._defined:
             return
         self._defined.add(task.kind)
+        path = self._run_dir / layout.entry(layout.DEFINITIONS, layout.file_name(str(task.kind)))
         try:
-            d = self._run_dir / layout.DEFINITIONS
-            d.mkdir(parents=True, exist_ok=True)
-            write_document(d / f"{layout.file_name(str(task.kind))}.json", json.dumps({"kind": task.kind, **definition}, default=str))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            write_document(path, json.dumps({"kind": task.kind, **definition}, default=str))
         except OSError as exc:  # a definition the monitor cannot show must not fail the task
-            _logger.warning("[error] %s/%s.json not written: %r", (self._run_dir / layout.DEFINITIONS).as_posix(), task.kind, exc)
+            failures.reporter()(layout.DEFINITIONS, exc, str(task.kind), path)
 
     def _attempts(self, task: Task, outs: list[Any], ins: list[Any]) -> TaskResult:
         """Run an attempt, and another after an exception of the task's `retry_on`, up to

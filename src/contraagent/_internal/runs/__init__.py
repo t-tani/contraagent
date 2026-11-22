@@ -4,6 +4,8 @@
   `run.json`, ...), the file name of a task's files, the files a contract names.
 * `files`: a document written atomically, lines appended to a log, a log's complete
   lines read by line or by byte offset, its JSON rows.
+* `failures`: where a record that only the monitor reads is reported when it cannot be
+  written.
 * `times`: the times records hold, written and parsed one way.
 * `names`: the check that keeps a name from outside a plain file name.
 * `source`: `RunSource`, where runs' records are read from: `DirectorySource` (one

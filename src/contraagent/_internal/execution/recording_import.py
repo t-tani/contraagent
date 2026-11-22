@@ -150,6 +150,14 @@ def _changes(row: Mapping[str, Any]) -> tuple[list[str], list[str]]:
     return written, list(changes.get("deleted") or ())
 
 
+def _rows(path: Path) -> list[dict[str, Any]]:
+    """The rows of one of the run's logs; none when it is absent."""
+    try:
+        return read_rows(path)
+    except OSError as exc:
+        raise RecordingError(f"import: cannot read {path.as_posix()} ({type(exc).__name__}: {exc})") from exc
+
+
 def import_recording(
     run_dir: str | Path, directory: str | Path, *, record_max_file_mb: float = MAX_FILE_MB, by_key: bool = False
 ) -> RecordingImport:
@@ -180,7 +188,7 @@ def import_recording(
     if run_format not in layout.FORMATS:
         reads = ", ".join(map(str, layout.FORMATS))
         raise RecordingError(f"import: {run_dir} is a run of run format {info.get('format')!r}; this release reads run format {reads}")
-    every = read_rows(run_dir / layout.JOURNAL)
+    every = _rows(run_dir / layout.JOURNAL)
     rows = [r for r in every if r.get("key") and r.get("stop") != STOP_SKIPPED]
     # The tasks the run took over from the run it resumes from: their attempts are that run's.
     taken = {
@@ -190,12 +198,12 @@ def import_recording(
         raise RecordingError(f"import: {run_dir} has no journal row ({layout.JOURNAL}): nothing finished")
     cwd = str(info.get("cwd") or "")
     # A task whose call options named a working directory: its changes are relative to it.
-    own_cwd = {str(r["key"]): str(r["cwd"]) for r in read_rows(run_dir / layout.PLAN) if r.get("key") and r.get("cwd")}
+    own_cwd = {str(r["key"]): str(r["cwd"]) for r in _rows(run_dir / layout.PLAN) if r.get("key") and r.get("cwd")}
     run_id = str(info.get("run_id") or run_dir.name)
     imported_from: dict[str, Any] = {"run": run_id, "run_uid": str(info.get("run_uid") or ""), "imported_at": now_iso()}
     if by_key:
         imported_from["by_key"] = True
-    launches = {str(r.get("label")): r for r in read_rows(run_dir / layout.LAUNCHES)}
+    launches = {str(r.get("label")): r for r in _rows(run_dir / layout.LAUNCHES)}
     cap = record_max_file_mb * _MB
 
     attempts: dict[str, int] = {}

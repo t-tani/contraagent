@@ -559,6 +559,11 @@ class Graph:
             return node.outside_error
         return next((why for bound in node.input_files if (why := changed(bound))), "")
 
+    def output_file(self, task: Task) -> Path | None:
+        """The file that holds `task`'s output; None for a task that has none."""
+        node = self._by_key.get(task.key)
+        return node.output_path if node is not None else None
+
     def output_reads(self, task: Task) -> bool:
         """Whether `task`'s output file reads under its current output schema, as the flow
         would receive it (`Pending.output`): what a resume asks before it skips the task. A

@@ -1,0 +1,1 @@
+A power loss no longer takes back what a resume rests on. A journal row is flushed to disk, the output of an ok task before its row, and `run.json` and `cursor.json` as they are written. A journal row takes a few milliseconds more to write; a file system that cannot flush works as before.

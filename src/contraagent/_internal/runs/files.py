@@ -1,15 +1,21 @@
 """Reading and writing run records as files: one implementation of each.
 
 * `write_document`: a document written whole, atomically (a reader sees the old text or
-  the new, never a part).
-* `append_lines`: lines appended to a log, each whole.
+  the new, never a part); with `fsync`, on disk when it returns.
+* `append_lines`: lines appended to a log, each whole; with `fsync`, on disk when it
+  returns. `open_log` and `write_all` are its parts, for a writer that holds a log open.
+  A last line cut short (a write that failed, a process killed as it wrote) is ended
+  before anything is appended, so it spoils no line but itself.
 * `read_lines` (by line number) and `lines_at` (by byte offset, for a reader that keeps
   its place): a log's **complete** lines. A line is complete when its newline is written;
   a last line without one is still being written, and no reader sees it until it is
   complete. `seek_line` turns a line number into a byte offset; `last_line` reads the
   last complete line from the end.
-* `parse_rows`, `read_rows`: the JSON objects of a log's lines; a line that does not
-  parse, or is not an object, is skipped.
+* `parse_rows`: the JSON objects of lines, for a reader of what a run left; a line that
+  does not parse, or is not an object, is skipped.
+* `read_log`, `read_rows`: a whole log for a reader that rests on it: empty only when it
+  is absent, `OSError` when it cannot be read; `read_log` also says which lines did not
+  read.
 
 Lines are split on `\\n` only and decoded as UTF-8, an undecodable byte replaced: a
 transcript is a coding agent's raw output.
@@ -20,12 +26,14 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import stat
 import threading
 from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import BinaryIO
+from typing import Any, BinaryIO, NamedTuple
 
 from contraagent._internal.platform import sharing
+from contraagent._internal.platform.flushing import flush_file, flush_folder
 
 #: How much of a log is read at a time while looking for a newline or counting lines.
 BLOCK = 1 << 20
@@ -43,7 +51,8 @@ def write_document(path: str | os.PathLike[str], text: str | bytes, *, fsync: bo
     pattern), which then replaces `path`. A reader sees the old document or the new one,
     never a part. A reader that holds the old one open does not stop the replace, on
     Windows too (`platform.sharing.replace`). Of writers racing on one document, the last
-    replace wins. With `fsync`, the content is on disk before the replace. Returns `path`."""
+    replace wins. With `fsync`, the content is on disk before the replace, and the
+    replace when this returns. Returns `path`."""
     path = Path(path)
     tmp = path.with_name(f".{path.name}.{os.getpid()}.{secrets.token_hex(6)}.tmp")
     data = text.encode() if isinstance(text, str) else text
@@ -53,8 +62,10 @@ def write_document(path: str | os.PathLike[str], text: str | bytes, *, fsync: bo
             f.write(data)
             if fsync:
                 f.flush()
-                os.fsync(f.fileno())
+                flush_file(f.fileno())
         sharing.replace(tmp, path)
+        if fsync:
+            flush_folder(path.parent)
     except BaseException:
         tmp.unlink(missing_ok=True)
         raise
@@ -69,23 +80,55 @@ def read_document(path: str | os.PathLike[str]) -> str:
         return f.read()
 
 
-def append_lines(path: str | os.PathLike[str], lines: Iterable[str]) -> None:
+def write_all(fd: int, data: bytes) -> None:
+    """Write all of `data` to `fd`: one write can take a part of it. `OSError` when it cannot."""
+    view = memoryview(data)
+    while view:
+        view = view[os.write(fd, view) :]
+
+
+def open_log(path: str | os.PathLike[str]) -> tuple[int, int]:
+    """Open the log `path` for appending (created when absent): the file descriptor, and the
+    log's size as it was. A last line without its newline is ended first. The caller is the
+    log's one writer, so that line is one whose write did not end, not one being written."""
+    fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT | BINARY, 0o666)
+    try:
+        st = os.fstat(fd)
+        if stat.S_ISREG(st.st_mode) and st.st_size:
+            os.lseek(fd, st.st_size - 1, os.SEEK_SET)
+            if os.read(fd, 1) != b"\n":
+                write_all(fd, b"\n")
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd, st.st_size
+
+
+def append_lines(path: str | os.PathLike[str], lines: Iterable[str], *, fsync: bool = False) -> None:
     """Append `lines` to the log `path` (created when absent), each ended by a newline
-    (one is added where a line has none), in one write: from any thread, the lines of one
-    call are never split by another's. Across processes that holds where the OS appends
-    atomically (POSIX), not on Windows; a run's logs have one writer process, the one
-    that holds the run lock."""
+    (one is added where a line has none), in one write after a last line cut short is
+    ended (`open_log`): from any thread, the lines of one call are never split by
+    another's. Across processes that holds where the OS appends atomically (POSIX), not on
+    Windows; a run's logs have one writer process, the one that holds the run lock. With
+    `fsync`, the lines are on disk when this returns, and the log's name with them when
+    they are its first."""
     data = "".join(line if line.endswith("\n") else line + "\n" for line in lines).encode()
     if not data:
         return
     with _append_lock:
-        fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | BINARY, 0o666)
+        fd, size = open_log(path)
         try:
-            view = memoryview(data)
-            while view:
-                view = view[os.write(fd, view) :]
-        finally:
+            write_all(fd, data)
+        except BaseException:
             os.close(fd)
+            raise
+    try:  # out of the lock: a flush takes milliseconds
+        if fsync:
+            flush_file(fd)
+            if not size:
+                flush_folder(Path(path).parent)
+    finally:
+        os.close(fd)
 
 
 def _decode(raw: list[bytes]) -> list[str]:
@@ -210,17 +253,49 @@ def parse_rows(lines: Iterable[str]) -> list[dict]:
 def iter_rows(lines: Iterable[str]) -> Iterator[dict]:
     """`parse_rows`, one row at a time."""
     for line in lines:
-        try:
-            row = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(row, dict):
+        if (row := _row(line)) is not None:
             yield row
 
 
-def read_rows(path: str | os.PathLike[str]) -> list[dict]:
-    """The rows of the log `path` (`parse_rows` of its complete lines); none when it cannot be read."""
+def _row(line: str) -> dict[str, Any] | None:
+    """The JSON object of `line`, else None."""
     try:
-        return parse_rows(read_lines(path)[0])
-    except OSError:
-        return []
+        row = json.loads(line)
+    except ValueError:
+        return None
+    return row if isinstance(row, dict) else None
+
+
+class LogRows(NamedTuple):
+    """A whole log, read (`read_log`)."""
+
+    #: The JSON objects of its complete lines, in their order.
+    rows: list[dict[str, Any]]
+    #: The numbers, from 1, of its complete lines that are no JSON object; a blank line is none.
+    unread: list[int]
+    #: Whether its last line has no newline.
+    cut_short: bool
+
+
+def read_log(path: str | os.PathLike[str]) -> LogRows:
+    """The whole log `path`; empty when it is absent, and only then. `OSError` when it
+    cannot be read: what cannot be read is not known to be empty."""
+    try:
+        with sharing.open_shared(path) as f:
+            *lines, tail = f.read().split(b"\n")
+    except FileNotFoundError:
+        return LogRows([], [], False)
+    rows: list[dict[str, Any]] = []
+    unread: list[int] = []
+    for n, line in enumerate(_decode(lines), 1):
+        if (row := _row(line)) is not None:
+            rows.append(row)
+        elif line.strip():
+            unread.append(n)
+    return LogRows(rows, unread, bool(tail))
+
+
+def read_rows(path: str | os.PathLike[str]) -> list[dict]:
+    """The rows of the log `path` (`read_log`): none when it is absent, `OSError` when it
+    cannot be read."""
+    return read_log(path).rows

@@ -3,6 +3,11 @@
 `runs/<id>/journal.jsonl` is what the monitor draws and what a resumed run
 reads to skip finished work; `runs/<id>/launches.jsonl` keeps the full
 `LaunchResult` of every agent launch beside it.
+
+A resume rests on the journal, so it is empty only when it is absent: one that cannot be
+read stops the run. A row is on disk when it is written, and the output of a row that is
+ok is on disk before the row (a write-ahead log's order: data, then the record that
+commits it). The other records are not flushed: the monitor alone reads them.
 """
 
 from __future__ import annotations
@@ -13,8 +18,10 @@ from typing import Any
 
 from contraagent._internal.backends.process import signal_of
 from contraagent._internal.dispatch.task import Task, TaskResult, kind_name
+from contraagent._internal.errors import ContraagentError
 from contraagent._internal.execution.schemas import JournalRow
-from contraagent._internal.runs.files import append_lines, read_rows
+from contraagent._internal.platform.flushing import flush_folder, flush_path
+from contraagent._internal.runs.files import LogRows, append_lines, read_log
 from contraagent._internal.runs.times import now_iso
 
 
@@ -43,6 +50,9 @@ class Journal:
         #: The digest of the file a task fills in (`output_of`) as it is now, after an attempt
         #: (`output_of_after`); empty for a task that fills in none. Set by whoever knows the files.
         self.filled_after: Callable[[Task], str] | None = None
+        #: The output file of a task, None for one that has none: put on disk before a row that
+        #: says the task is ok. Set by whoever knows the files.
+        self.output_file: Callable[[Task], Path | None] | None = None
 
     def row(self, result: TaskResult) -> JournalRow:
         """The journal row for one finished attempt."""
@@ -98,10 +108,12 @@ class Journal:
 
     def append(self, result: TaskResult, on_launch_error: Callable[[Exception], None] | None = None) -> JournalRow:
         """Append one row, plus the full `LaunchResult` when the attempt was an agent launch.
-        Returns the row. `on_launch_error(error)`: the `LaunchResult` could not be written
-        (the row was); without it, the error is raised."""
+        Returns the row, on disk, and before it the output of an ok one. `on_launch_error(error)`:
+        the `LaunchResult` could not be written (the row was); without it, the error is raised."""
         row = self.row(result)
-        append_lines(self.path, [row.model_dump_json()])
+        if result.ok:
+            self.flush_output(result.task)
+        append_lines(self.path, [row.model_dump_json()], fsync=True)
         if result.launch_result is not None:
             try:
                 result.launch_result.record(self.launches_path)
@@ -113,11 +125,29 @@ class Journal:
 
     def append_row(self, row: JournalRow) -> None:
         """Append a row made apart from an attempt (`Run.record_taken_over`)."""
-        append_lines(self.path, [row.model_dump_json()])
+        append_lines(self.path, [row.model_dump_json()], fsync=True)
+
+    def flush_output(self, task: Task) -> None:
+        """Put `task`'s output file (`output_file`) on disk, before a row says it is ok."""
+        path = self.output_file(task) if self.output_file is not None else None
+        if path is not None:
+            flush_path(path)
+            flush_folder(path.parent)
+
+    def read(self) -> LogRows:
+        """The journal as it is on disk; empty when it is absent. ContraagentError when it
+        cannot be read: taken for empty, it would run every finished task again."""
+        try:
+            return read_log(self.path)
+        except OSError as exc:
+            raise ContraagentError(
+                f"cannot read {self.path.as_posix()} ({type(exc).__name__}: {exc}): the journal says which tasks finished, "
+                "so it is not taken for empty; resume the run when it can be read"
+            ) from exc
 
     def rows(self) -> list[dict[str, Any]]:
-        """Every row on disk, as dicts (a domain's extra columns included)."""
-        return read_rows(self.path)
+        """Every row on disk, as dicts (a domain's extra columns included); as `read` reads them."""
+        return self.read().rows
 
     def last_rows(self) -> dict[str, dict[str, Any]]:
         """Each key's last row: what a resume compares a task with."""
@@ -127,3 +157,12 @@ class Journal:
         """Each key's place in the order the journal recorded its tasks: the index of its
         last row. A resume gives the flow the results of the tasks it skips in this order."""
         return {r["key"]: i for i, r in enumerate(self.rows()) if r.get("key")}
+
+
+def unread_warnings(path: Path, log: LogRows) -> list[str]:
+    """A warning line for each line of the journal at `path` that a resume cannot read."""
+    name = path.as_posix()
+    out = [f"[error] {name} line {n} does not read; a resume runs again a task whose last row it was" for n in log.unread]
+    if log.cut_short:
+        out.append(f"[error] {name}: its last line was cut short as it was written; a resume runs again the task it was of")
+    return out
