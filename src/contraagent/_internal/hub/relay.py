@@ -22,6 +22,11 @@ what it does not hold yet:
   `FileRef`; `sha256: null` for a missing one. A relative path is under the run's `cwd`
   in `run.json` (`layout.file_path`).
 
+A run, a log or a document whose name is not UTF-8 is not sent, since no URL of the
+monitor could name it: the relay logs a warning once for each and sends the rest. What
+else the hub cannot hold as it is (a NUL, a byte that is not UTF-8 in a path or an
+argument) is made text it can by the protocol's models (`text`).
+
 Every `interval_s` seconds a heartbeat (`Relay.heartbeat_once`) reports the runs this
 host's liveness (`ProcLiveness`) counts live, with their process snapshots, and its TTL
 `ttl_s`: the hub counts the host as up for `ttl_s` seconds after it receives the
@@ -84,6 +89,7 @@ from contraagent._internal.hub.protocol import (
     RunLiveness,
     RunRef,
 )
+from contraagent._internal.hub.text import wire_text
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import parse_rows, read_document, write_document
 from contraagent._internal.runs.liveness import Liveness
@@ -217,6 +223,7 @@ class Relay:
         self._next_resync = 0.0
         self._unreadable: set[tuple[str, str, str]] = set()  # (run, document, SHA-256) warned about
         self._reported: set[tuple[str, str]] = set()
+        self._unnamed: set[tuple[str, str]] = set()  # (run, log or document) warned about as not UTF-8
         #: run -> the keys of its running tasks, for each run live at the last heartbeat
         self._running: dict[str, set[str]] = {}
         self.runs: dict[str, RunProgress] = self._load()
@@ -295,6 +302,17 @@ class Relay:
         the hub refuses the relay's token."""
         return max(MAX_BACKOFF_S, self.interval_s) if self._refused else self.interval_s
 
+    def _sendable(self, run: str, name: str = "") -> bool:
+        """Whether run `run`, and its log or document `name`, are named in UTF-8; one that is
+        not is warned about once."""
+        if wire_text(run) == run and wire_text(name) == name:
+            return True
+        if (run, name) not in self._unnamed:
+            self._unnamed.add((run, name))
+            what = f"{name!r} of run {run!r}" if name else f"run {run!r}"
+            _logger.warning("%s has a name that is not UTF-8; not sent until it is renamed", what)
+        return False
+
     # --- one pass ---
 
     def pass_once(self) -> bool:
@@ -305,6 +323,8 @@ class Relay:
         try:
             runs = self.source.runs()
             for run in runs:
+                if not self._sendable(run):
+                    continue
                 try:
                     self._ship(run, resync)
                 except HubUnavailable as exc:
@@ -398,6 +418,8 @@ class Relay:
     def _documents(self, run: str, prog: RunProgress, pending: _Pending) -> None:
         present = set()
         for name in self.source.documents(run):
+            if not self._sendable(run, name):
+                continue
             text = self.source.document(run, name)
             if text is None:
                 continue
@@ -442,6 +464,8 @@ class Relay:
     def _logs(self, run: str, prog: RunProgress, pending: _Pending, probe: bool, names: list[str] | None = None) -> None:
         budget_bytes, budget_lines = self.batch_bytes, self.batch_lines
         for log in self.source.logs(run) if names is None else names:
+            if not self._sendable(run, log):
+                continue
             held = prog.logs.get(log)
             lines_at, byte_at = held if held is not None else (0, 0)
             st = self.source.stat(run, log)
@@ -575,6 +599,8 @@ class Relay:
             reports = []
             running: dict[str, set[str]] = {}
             for run in sorted(self.liveness.live()):
+                if not self._sendable(run):
+                    continue
                 info = self.source.info(run)
                 if not isinstance(info, dict):
                     continue
