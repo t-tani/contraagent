@@ -146,6 +146,7 @@ upgrade the hub first, then the relays.
 | a host shows "no report from host" | no heartbeat of its relay arrived within the relay's `--ttl` | the relay's service (`journalctl -u contraagent-relay`), the network to the hub |
 | a relay logs "hub unavailable" | the hub did not answer | `/healthz`; the relay catches up when the hub is back |
 | a relay logs 401 or 403 | a wrong token or host id | the Tokens table above |
+| a relay logs "has a name that is not UTF-8" | a directory or a file under its runs directory | rename it; the relay sends the rest meanwhile |
 | `hub-data` grows | open segments of running tasks | segments are sealed when a task ends, at 64 MiB, after ten idle minutes or an hour |
 
 A hub is one process: its open segments are on one host's disk.

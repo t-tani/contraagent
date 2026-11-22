@@ -60,6 +60,17 @@ when the hub holds less (a new hub, lost data). A run is named on the hub
 `<run_id>@<host_id>`; the host id is `--host-id`, else `CONTRAAGENT_HOST_ID`, else the
 host name.
 
+## Text a hub cannot hold
+
+A hub holds a run's text as its host wrote it, with two exceptions. A NUL, which a
+power loss can leave in a log, is held as SUB (U+001A), because Postgres takes no NUL
+in text. A line keeps its length, and a damaged line reads as no row on the hub as on
+its host. A transcript is stored as bytes and keeps its NUL. A byte that is not UTF-8
+in a path or in a process's arguments is held written out as its escape (`\udce9`).
+
+A run, a log or a document whose name is not UTF-8 is not sent. The relay logs a
+warning once for each and sends the rest.
+
 ## What the monitor shows
 
 The same views as on one host, for every host's runs. A host is up for the TTL of its

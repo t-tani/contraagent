@@ -412,7 +412,7 @@ class DirectorySource:
             with sharing.open_shared(where) as f:
                 st = os.fstat(f.fileno())
                 data = f.read()
-        except OSError:
+        except (OSError, ValueError):  # ValueError: a path no file system has (a NUL, a lone surrogate)
             return None
         return RunFile(data, iso_of(st.st_mtime))
 
@@ -433,14 +433,14 @@ class DirectorySource:
                     decoder.decode(b"", final=True)
                 except UnicodeDecodeError:
                     text = None
-        except OSError:
+        except (OSError, ValueError):  # as in `file`
             return None
         return text, st.st_size, iso_of(st.st_mtime)
 
     def file_stat(self, run: str, path: str) -> Stat | None:
         try:
             st = self._file(run, path).stat()
-        except OSError:
+        except (OSError, ValueError):  # as in `file`
             return None
         return Stat(st.st_size, st.st_mtime_ns)
 
