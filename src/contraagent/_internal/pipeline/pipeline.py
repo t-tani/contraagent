@@ -93,7 +93,8 @@ class RunReport:
     `summary` is the queue's (`wall_s`, `finished`, `ok`, `by_stop`, `by_kind`,
     `deferred`) plus the attempts this call journaled (`attempt_totals`), and
     `record_failures` when a record of the run could not be written: the count by file
-    name (`Pipeline.run` says which records). A `partial` result is ok, so `ok` holds
+    name, or by folder for a record kept one file per task or kind (`streams`,
+    `inflight`; `Pipeline.run` says which records). A `partial` result is ok, so `ok` holds
     with one; `partial` lists them (`by_stop` counts them).
 
     A deferred task (stop `deferred`: not launched, nothing spent) is not a failure: it is
@@ -522,11 +523,15 @@ class Pipeline:
         `resume_from` with `resume=True` or with a replay, or naming `run_id` itself
         (ValueError). `contraagent docs tasks` says what is copied and what is not.
 
-        A run record that cannot be written is said in a warning line of the run's log and
-        counted in `RunReport.summary["record_failures"]`; the run goes on. A journal row
+        A record that only the monitor reads (the plan, a transcript, a running marker, ...)
+        and that cannot be written is said in a warning line of the run's log and counted in
+        `RunReport.summary["record_failures"]`; the run and its tasks go on. A journal row
         is different, since a resume reads the journal: the run goes on to its end, then
         raises `ContraagentError`, which names the journal and the first error, and leaves
-        the run unfinished for a resume.
+        the run unfinished for a resume. A journal or a `run.json` that cannot be read, and
+        a `run.json` that does not read, raise `ContraagentError` too, and are never taken
+        for empty: before the run starts, nothing runs and neither is replaced. A journal
+        line that does not read is a warning line.
 
         On the main thread, SIGTERM and SIGINT (Ctrl-C) stop the run's agents while it
         runs, then end the process as they would have; the handlers in place before are
@@ -591,6 +596,8 @@ class Pipeline:
         with run:
             if earlier is not None:
                 earlier.copy_into(run.dir)  # what a resume finds in its own run directory
+                for line in earlier.warnings:
+                    run.progress(line, warning=True)
             run.stop_on_signals()  # SIGTERM or Ctrl-C stops the agents too (on the main thread)
             run.update_info(flow=_name(flow))  # the runs of one flow: the monitor's forecast
             services = Services(
@@ -599,6 +606,7 @@ class Pipeline:
                 log=lambda line, warning: run.progress(line, warning=warning),
                 plays=self._plays,
                 cooloff_s=self.service_cooloff_s,
+                on_record_failed=run._record_failed,
             )
             run.on_teardown(services.interrupted)  # SIGTERM or Ctrl-C stops them too
             if self.input_roots:
@@ -682,6 +690,7 @@ class Pipeline:
             graph.driver = driver
             run.journal.filled_after = graph.filled_after
             run.journal.filled_file = graph.filled_file
+            run.journal.output_file = graph.output_file
 
             def follow_up(result: TaskResult) -> list[Task]:
                 graph.record(result)

@@ -54,7 +54,7 @@ from contraagent._internal.contracts.validators import CommandValidator, Validat
 from contraagent._internal.dispatch.records import OtherModel
 from contraagent._internal.dispatch.task import kind_name
 from contraagent._internal.platform import envvars
-from contraagent._internal.runs import layout
+from contraagent._internal.runs import failures, layout
 from contraagent._internal.runs.files import write_document
 
 _logger = logging.getLogger(__name__)
@@ -559,11 +559,12 @@ def record_contracts(
         "outputs": [spec(c, "output") for c in output_contracts],
         "inputs": [spec(c, "input") for c in input_contracts],
     }
+    path = Path(run_dir) / layout.task_entry(layout.CONTRACTS, task.key)
     try:
-        (Path(run_dir) / layout.CONTRACTS).mkdir(parents=True, exist_ok=True)
-        write_document(Path(run_dir) / layout.task_entry(layout.CONTRACTS, task.key), json.dumps(record, default=str))
-    except (OSError, TypeError):
-        pass
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_document(path, json.dumps(record, default=str))
+    except (OSError, TypeError) as exc:  # the monitor's record only: the task goes on
+        failures.reporter()(layout.CONTRACTS, exc, task.key, path)
 
 
 def add_other_models(a: dict[str, OtherModel], b: dict[str, OtherModel]) -> dict[str, OtherModel]:

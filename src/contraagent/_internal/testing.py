@@ -22,6 +22,7 @@ from contraagent._internal.backends import Backend, backend_class, known_agents
 from contraagent._internal.backends.credentials import Credential, CredentialBinding
 from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResult, QuotaRefusal, Stop, Usage
 from contraagent._internal.backends.streams import resolve_format
+from contraagent._internal.backends.transcript import Transcript
 from contraagent._internal.backends.wire import feedback_errors
 from contraagent._internal.contracts.calls import CallFile
 from contraagent._internal.contracts.contract import DEFAULT_MAX_CORRECTIONS, example
@@ -472,8 +473,9 @@ class StubAgent(Backend):
     def _emit(self, launch: Launch, event: dict[str, Any]) -> None:
         if launch.stream_path is None:
             return
-        with open(launch.stream_path, "a", encoding="utf-8", newline="\n") as f:
-            f.write(json.dumps(event, ensure_ascii=False) + "\n")
+        transcript = Transcript(launch)
+        transcript.write((json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8"))
+        transcript.close()
 
     def _result(self, launch: Launch, started: float, reply: Reply) -> LaunchResult:
         session = launch.resume or f"stub-{launch.label}-{time.monotonic_ns()}"

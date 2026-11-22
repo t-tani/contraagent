@@ -14,7 +14,7 @@ The modules are those of `src/contraagent/_internal/`.
 
 | Lean file | Describes | Holds |
 |---|---|---|
-| `Contraagent/Runs/Files.lean` | `runs/files.py` | a run's log: the bytes an append writes, what a write that was cut leaves, and the lines a reader reads |
+| `Contraagent/Runs/Files.lean` | `runs/files.py` | a run's log: the bytes an append writes, what a write that was cut leaves, the lines a reader reads, and what a reader that rests on it reads of no file or of one it cannot read |
 | `Contraagent/Dispatch/Records.lean` | `dispatch/records.py` | the cause of a deferral, a line of `services.jsonl`, a quota reading and why a credential rests |
 | `Contraagent/Dispatch/Task.lean` | `dispatch/task.py` | a task, its result, a time box, a deferral and the stop values |
 | `Contraagent/Dispatch/Queue.lean` | `dispatch/queue.py` | the work queue: what it accepts, what a pass starts and in which order, what it defers, retries and cancels, and how each task finishes |
@@ -183,7 +183,9 @@ lines, also after a write that was cut, whose line it ends first (`append_whole`
 every row of such an append is read after any appends that follow (`whole_read`); and
 that every line read is a row an append was given, or the first bytes of one whose
 write was cut (`Reachable.read_given`). A write is cut by a full disk or by a host
-that lost power. `Contraagent/Execution/Journal/Recorded.lean` puts this with the
+that lost power. A reader that rests on a log reads it as empty only when there is no
+file or its file has no complete line: a file it cannot read is not empty
+(`Found.read_nil`). `Contraagent/Execution/Journal/Recorded.lean` puts this with the
 resume: a resume skips a task only on a row the run recorded for the task's key, ok
 and not `partial`, never on what a crash left in the file
 (`resume_skips_recorded`); and a row appended whole is among the rows a resume reads,
@@ -192,7 +194,9 @@ that it holds no newline and that its first bytes alone do not parse as a row, a
 JSON object does not. A task whose attempt the run's end cut is not skipped
 (`unfinished_not_skipped`): the attempt left its in-flight marker and no row, so the
 task's last row is of an earlier attempt, and its output file may hold what the cut
-attempt wrote.
+attempt wrote. A marker that does not read counts as placed after every row, so its task
+is one of these (`unfinishedKeys_after_every_row`); and a journal that cannot be read
+gives no rows to skip by (`foundRows_nil`).
 
 `Contraagent/Hub/Segments/Rows.lean` proves, of the hub's logs, that in every
 state the hub reaches, each index row names an object that is in the store
@@ -272,14 +276,17 @@ the Python package:
   calls of a `Router`, each at a time the scenario gives (`Conformance/Router.lean`,
   `tests/lean/router_scenarios.py`, 100 scenarios in
   `tests/lean/router_scenarios.jsonl`). A scenario of a resume is the rows of a
-  journal, some keys with rows of earlier attempts, and the tasks the resume is asked
-  about; it is played on `resume_skip` over what `Journal` reads from a log of those
-  rows (`Conformance/Run.lean`, `tests/lean/resume_scenarios.py`, 60 scenarios in
+  journal, some keys with rows of earlier attempts, the in-flight markers the run left,
+  some of which do not read, and the tasks the resume is asked about; it is played on
+  `resume_skip` over what `Journal` reads from a log of those rows and what
+  `unfinished_keys` reads of those markers (`Conformance/Run.lean`,
+  `tests/lean/resume_scenarios.py`, 60 scenarios in
   `tests/lean/resume_scenarios.jsonl`). A scenario of a log is a list of appends,
-  some cut after any of their bytes; it is played on `append_lines` over a file whose
-  write fails as on a full disk, and the complete lines and the line with no end are
-  compared (`Conformance/Files.lean`, `tests/lean/logs_scenarios.py`, 200 scenarios
-  in `tests/lean/logs_scenarios.jsonl`). A scenario of the graph is some declarations
+  some cut after any of their bytes, and how a reader then finds the log: as it is,
+  gone, or a folder in its place; it is played on `append_lines` over a file whose
+  write fails as on a full disk, and the complete lines, the line with no end and what
+  `read_log` reads of the log as found are compared (`Conformance/Files.lean`,
+  `tests/lean/logs_scenarios.py`, 200 scenarios in `tests/lean/logs_scenarios.jsonl`). A scenario of the graph is some declarations
   and a list of task calls, each by a flow call (`Conformance/Graph.lean`,
   `tests/lean/graph_scenarios.py`, 150 scenarios in
   `tests/lean/graph_scenarios.jsonl`). A scenario of the host's room is some needs

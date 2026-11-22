@@ -13,6 +13,8 @@ Of the description of a run's logs, for rows that hold no newline:
 - Every line read is a row that an append was given, or the first bytes of one whose write
   was cut (`Reachable.read_given`). A cut row does not parse as a row, so the rows a reader
   gets are rows that were given to an append.
+- A reader that rests on a log reads no line only of a log with none or of no file: a file
+  it cannot read is not read as empty (`Found.read_nil`).
 -/
 
 namespace Contraagent
@@ -227,5 +229,16 @@ end Log
 /-- info: 'Contraagent.Log.Reachable.read_given' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Log.Reachable.read_given
+
+/-! ## Reading what is found -/
+
+theorem Found.read_nil (found : Found) (none_read : found.read = some []) :
+    found = .absent ∨ ∃ log, found = .present log ∧ log.read = [] := by
+  cases found with
+  | absent => exact .inl rfl
+  | unreadable => simp [Found.read] at none_read
+  | present log =>
+    simp only [Found.read, Option.some.injEq] at none_read
+    exact .inr ⟨log, rfl, none_read⟩
 
 end Contraagent

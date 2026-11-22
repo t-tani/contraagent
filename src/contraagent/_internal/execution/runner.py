@@ -57,7 +57,7 @@ from contraagent._internal.routing.kind_config import KindConfig
 from contraagent._internal.routing.pool import CredentialPool, pools_of
 from contraagent._internal.routing.quota import CredentialRests
 from contraagent._internal.routing.router import Route, Router
-from contraagent._internal.runs import layout
+from contraagent._internal.runs import failures, layout
 from contraagent._internal.runs.files import write_document
 
 _logger = logging.getLogger(__name__)
@@ -231,6 +231,8 @@ class AgentRunner:
         self.rests = rests
         self._changes = ChangesEnricher(self.adapter.changes, self.cwd, keep=self._keeps_failed_changes)
         self._defined: set[str] = set()
+        #: Where a record that cannot be written is reported; the run that makes the runner sets it.
+        self._report: failures.RecordFailed | None = None
         # The account each coding agent bills as each credential for a model in a directory, asked once a run.
         self._accounts: dict[tuple[str, str, str, Path], str] = {}
         self._accounts_lock = threading.Lock()
@@ -480,6 +482,7 @@ class AgentRunner:
         mark = self._stop_mark(task)
         try:
             with contextlib.ExitStack() as stack:
+                stack.enter_context(failures.reported_to(self._report))
                 stack.enter_context(stopped_by(mark))
                 for scope in self.scopes:
                     stack.enter_context(scope(task))
@@ -524,13 +527,13 @@ class AgentRunner:
         if kind in self._defined:
             return
         self._defined.add(kind)
+        path = self.run_dir / layout.entry(layout.DEFINITIONS, layout.file_name(kind))
         try:
             body = {"kind": kind, **(self.adapter.definition(task) or {})}
-            d = self.run_dir / layout.DEFINITIONS
-            d.mkdir(parents=True, exist_ok=True)
-            write_document(d / f"{layout.file_name(kind)}.json", json.dumps(body, default=str))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            write_document(path, json.dumps(body, default=str))
         except Exception as exc:  # a definition the monitor cannot show must not fail a launch
-            _logger.warning("[error] %s/%s.json not written: %r", (self.run_dir / layout.DEFINITIONS).as_posix(), kind, exc)
+            failures.reporter()(layout.DEFINITIONS, exc, kind, path)
 
     def _refuse(self, task: Task, stop: Stop, reason: str) -> TaskResult:
         launch_result = LaunchResult(

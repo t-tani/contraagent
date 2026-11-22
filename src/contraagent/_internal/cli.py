@@ -528,7 +528,11 @@ def _print_created(result) -> None:
     from contraagent._internal.runs import layout
     from contraagent._internal.runs.files import read_rows
 
-    rows = read_rows(result.run_dir / layout.PLAN)
+    try:
+        rows = read_rows(result.run_dir / layout.PLAN)
+    except OSError as exc:  # the monitor's record only: the run itself ended
+        print(f"the tasks created cannot be listed: {exc}")
+        return
     print(f"{len(rows)} task{'s' if len(rows) != 1 else ''} created:")
     for row in rows:
         res = result.results.get(row["key"])

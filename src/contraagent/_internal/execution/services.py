@@ -51,7 +51,7 @@ from contraagent._internal.dispatch.queue import RunnerConfig, TaskRunner, claim
 from contraagent._internal.dispatch.records import ServiceEvent, ServiceStopCause
 from contraagent._internal.dispatch.task import Deferral, Task, TaskResult
 from contraagent._internal.platform import envvars
-from contraagent._internal.runs import layout
+from contraagent._internal.runs import failures, layout
 from contraagent._internal.runs.files import append_lines
 from contraagent._internal.runs.times import now_iso
 
@@ -143,7 +143,8 @@ class Services:
     where `services.jsonl` is written; `log`: a progress line, and whether it is a warning;
     `plays(task)`: whether the run plays `task` (a stub run, a replay), so that it holds
     no service; `cooloff_s`: the seconds after a failed start before a task that claims
-    the name tries the start again (None: never in this run)."""
+    the name tries the start again (None: never in this run); `on_record_failed`: told of
+    an event that could not be written to `services.jsonl` (None: `log` is)."""
 
     def __init__(
         self,
@@ -153,12 +154,16 @@ class Services:
         log: Callable[[str, bool], None] | None = None,
         plays: Callable[[Task], bool] | None = None,
         cooloff_s: float | None = None,
+        on_record_failed: failures.RecordFailed | None = None,
     ) -> None:
         self._services = dict(services)
         self._cooloff_s = cooloff_s
         self._plays = plays or (lambda task: False)
         self._file = run_dir / layout.SERVICES
         self._log = log or (lambda line, warning: None)
+        self._record_failed: failures.RecordFailed = on_record_failed or (
+            lambda name, error, about, path: self._log(f"[service] {name}: {error}", True)
+        )
         self._states: dict[str, _State] = {}
         self._lock = threading.Lock()
         self._starts = 0
@@ -288,7 +293,7 @@ class Services:
         try:
             append_lines(self._file, [event.model_dump_json(exclude_none=True)])
         except OSError as exc:  # a record that cannot be written must not stop the service's tasks
-            self._log(f"[service] {self._file.name}: {exc}", True)
+            self._record_failed(layout.SERVICES, exc, f"service {event.name}", self._file)
 
 
 @contextmanager

@@ -2,9 +2,9 @@
 
     uv run python tests/lean/resume_scenarios.py     # rewrites tests/lean/resume_scenarios.jsonl
 
-A scenario is the rows of a journal, the in-flight markers the run left, the tasks a resume
-is asked about, in order, and
-the keys whose output no longer reads; `lean/Conformance/Run.lean` has its fields. `play`
+A scenario is the rows of a journal, the in-flight markers the run left, those of them
+that do not read (the keys they are named for), the tasks a resume is asked about, in
+order, and the keys whose output no longer reads; `lean/Conformance/Run.lean` has its fields. `play`
 plays one on `resume_skip` and returns whether each task is skipped and why each task that an
 earlier attempt finished runs again (`lake exe contraagent-lean resume`).
 `tests/lean/resume_scenarios.jsonl` holds scenarios (`scenarios`) with what the specification
@@ -58,7 +58,11 @@ def play(scenario: dict[str, Any]) -> dict[str, Any]:
             marker = Path(folder) / layout.task_entry(layout.INFLIGHT, key)
             marker.parent.mkdir(exist_ok=True)
             marker.write_text(json.dumps({"key": key, "journal_rows": place}))
-        unfinished = unfinished_keys(Path(folder))
+        for key in scenario["damaged"]:  # what a disk left of a marker: it names its task by its file only
+            marker = Path(folder) / layout.task_entry(layout.INFLIGHT, key)
+            marker.parent.mkdir(exist_ok=True)
+            marker.write_text('{"key": "')
+        unfinished = unfinished_keys(Path(folder), journal.rows())
     unread = set(scenario["unread"])
     reruns: dict[str, str] = {}
     skip = resume_skip(last, reruns, reads=lambda task: task.key not in unread, unfinished=unfinished)
@@ -167,7 +171,15 @@ def scenario(rng: random.Random) -> dict[str, Any]:
         journal.append(row)
     # Some tasks were in flight as the run ended: with a row since they started, or with none.
     markers = [[k, rng.randint(0, len(journal))] for k in keys if rng.random() < 0.25]
-    return {"rows": journal, "tasks": tasks, "unread": [k for k in keys if rng.random() < 0.1], "markers": markers}
+    marked = {k for k, _ in markers}
+    damaged = [k for k in keys if k not in marked and rng.random() < 0.1]  # one marker a task, as on disk
+    return {
+        "rows": journal,
+        "tasks": tasks,
+        "unread": [k for k in keys if rng.random() < 0.1],
+        "markers": markers,
+        "damaged": damaged,
+    }
 
 
 def scenarios(seed: int, count: int) -> list[dict[str, Any]]:

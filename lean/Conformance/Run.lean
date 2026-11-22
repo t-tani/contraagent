@@ -5,8 +5,8 @@ import Contraagent.Execution.Journal
 /-!
 # Scenarios of a resume
 
-A scenario is the rows of a journal, the in-flight markers the run left, the tasks a resume
-is asked about, in order, and
+A scenario is the rows of a journal, the in-flight markers the run left, those of them that
+do not read (the keys they are named for), the tasks a resume is asked about, in order, and
 the keys whose output no longer reads. `runScenario` plays it on the specification and
 returns whether each task is skipped, and why each task that an earlier attempt finished
 runs again, in the words of the code. `tests/lean/resume_scenarios.py` plays the same
@@ -48,12 +48,14 @@ structure ScenarioTask where
   deriving FromJson
 
 /-- `markers`: the in-flight markers the run left, each with its task's key and how many
-rows the journal held when the task started. -/
+rows the journal held when the task started. `damaged`: the keys of the markers that do not
+read, each named by its file only. -/
 structure Scenario where
   rows : List ScenarioRow
   tasks : List ScenarioTask
   unread : List String
   markers : List (String × Nat)
+  damaged : List String
   deriving FromJson
 
 def toRow (r : ScenarioRow) : JournalRow :=
@@ -102,7 +104,8 @@ def runScenario (text : String) : Json :=
       { fingerprintOf := fun _ _ key _ =>
           (((sc.tasks.find? (·.key == key)).bind (·.spliced))).getD "",
         reads := fun task => ! sc.unread.contains task.key,
-        unfinished := (unfinishedKeys (sc.rows.map toRow) sc.markers).contains }
+        unfinished := (unfinishedKeys (sc.rows.map toRow)
+          (sc.markers ++ sc.damaged.map fun key => (key, sc.rows.length))).contains }
     let rows := lastRows (sc.rows.map toRow)
     let (state, skips) := sc.tasks.foldl
       (fun (acc : ResumeState × Array Json) t =>
