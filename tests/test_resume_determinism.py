@@ -222,6 +222,26 @@ def test_a_file_changed_by_hand_runs_again_the_tasks_after_its_writer(tmp_path):
     assert reruns(rep) == {"fill-a": why, "polish-a": why}
 
 
+def test_a_task_that_fills_in_a_file_names_only_what_changed_when_it_runs_again(tmp_path):
+    """The instructions of `fill` change, and the file is as `fill` left it: the reason
+    names its definition. It named the file too, whose digest is never the one the task
+    found there, since the task's own output is in it."""
+    agent = filler()
+
+    def flow(instructions: str):
+        task = agent_task("fill", instructions=instructions, output=Report, output_of=outline, max_turns=3, timeout_s=30)
+
+        def filled():
+            outline("a")
+            task("a")
+
+        return filled
+
+    assert pipeline(tmp_path, agent).run(flow("Summarize."), run_id="r").ok
+    rep = pipeline(tmp_path, agent).run(flow("Summarize every item."), run_id="r", resume=True)
+    assert rep.ok and reruns(rep) == {"fill-a": "its fingerprint changed: its definition"}
+
+
 @python_task
 def sheet(unit: str) -> Report:
     return Report(items=[Item(id="1"), Item(id="2")])  # the same for every unit

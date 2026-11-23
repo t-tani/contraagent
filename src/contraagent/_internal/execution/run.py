@@ -17,6 +17,7 @@ import sys
 import threading
 import uuid
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -155,11 +156,13 @@ def resume_skip(
         row = last.get(task.key)
         fingerprint = None
         refill = False
+        judged = task  # the task as its row is compared with
         if row is not None and "output_of" in task.fingerprint_parts:
             recorded = (row.get("fingerprint_parts") or {}).get("output_of")
             if recorded is not None and _as_left(row, task.fingerprint_parts["output_of"], left_by):
                 parts = {**task.fingerprint_parts, "output_of": str(recorded)}
                 fingerprint = fingerprint_of(task.kind, task.unit, task.key, parts)
+                judged = replace(task, fingerprint_parts=parts)  # the file is as left: that part did not change
             else:
                 refill = True
         finished = not refill and finished_before(row, task, fingerprint)
@@ -173,7 +176,7 @@ def resume_skip(
             elif refill and not task.rerun_on_resume and row.get("stop") != STOP_PARTIAL:
                 why = REFILL
             else:
-                why = rerun_reason(row, task, skipped)
+                why = rerun_reason(row, judged, skipped)
             reruns[task.key] = why
             if warn is not None and why.startswith(DIVERGENCE):
                 warn(f"[resume] {task.key}: {why}")

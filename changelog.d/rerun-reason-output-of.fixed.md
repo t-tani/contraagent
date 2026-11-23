@@ -1,0 +1,1 @@
+The reason a resume gives for running a task again that fills in another task's file (`output_of`) names only the parts that changed. It always named the file too (`the file it fills in (output_of)`), also when the file was as the task had left it, since the file then holds the task's own output and never the content the task found
