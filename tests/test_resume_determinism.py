@@ -10,9 +10,11 @@ import json
 import threading
 from types import SimpleNamespace
 
+import pytest
 from pydantic import BaseModel
 
 from contraagent import Pipeline, Task, TaskResult, agent_task, python_task
+from contraagent._internal.pipeline.graph import Graph
 from contraagent.engine import WorkQueue
 from contraagent.testing import StubAgent
 
@@ -193,6 +195,40 @@ def filler() -> StubAgent:
             "polish": lambda launch: {"items": [{"id": "a-1", "summary": "One."}, {"id": "a-2", "summary": "Two."}]},
         }
     )
+
+
+def test_the_tasks_of_one_file_run_one_after_the_other(tmp_path):
+    """Each task that fills in a file waits for the latest task that writes or fills it."""
+    graph = Graph(tmp_path / "out")
+    with graph.building():
+        filling()
+    assert {node.key: node.after for node in graph.nodes} == {
+        "python:outline-a": (),
+        "fill-a": ("python:outline-a",),
+        "polish-a": ("fill-a",),
+    }
+
+
+def test_a_file_s_writer_created_after_a_task_that_fills_it_in_is_refused(tmp_path):
+    """`fill` is called before `outline`, whose file it fills in: `fill` waits for nothing,
+    and nothing would make `outline` wait for it, so the two could write the file at once
+    (they did). The flow is told to call them the other way round."""
+    graph = Graph(tmp_path / "out")
+    with graph.building():
+        fill("a")
+        with pytest.raises(ValueError) as refused:
+            outline("a")
+    assert str(refused.value) == (
+        "task 'python:outline-a' would write out/outline/a.json, which task 'fill-a' already fills in (output_of): "
+        "call the task that writes a file before the tasks that fill it in"
+    )
+
+    def flow():
+        fill("a")
+        outline("a")
+
+    report = pipeline(tmp_path, filler()).check(flow)
+    assert not report.ok and "already fills in (output_of)" in report.errors[0]
 
 
 def test_an_unchanged_file_leaves_the_tasks_that_fill_it_in_skipped(tmp_path):
