@@ -27,6 +27,7 @@ The modules are those of `src/contraagent/_internal/`.
 | `Contraagent/Pipeline/Graph.lean` | `pipeline/graph.py` | what the graph decides of a task call: its key, its output file and the tasks it waits for, or why the call is refused |
 | `Contraagent/Hub/Segments.lean` | `hub/segments.py` | the hub's copies of a log: which lines it holds and which are durable, when an open segment is sealed, the order of a seal's steps, what a start recovers from the files, the objects and the index, and what `sweep` and `drop` delete |
 | `Contraagent/Hub/Relay.lean` | `hub/relay.py` | the relay's shipping of a run's logs: the lines of each request, what it takes from the hub's answer as its progress, and when it sends the run again or stops |
+| `Contraagent/Hub/Core.lean` | `hub/core.py` | what the hub answers a request for a run its retention removed: the answer that stores nothing, or the run stored again |
 
 A description holds the fields that its module decides by. What only travels with
 a task or a result is left out, and the first comment of each file says what.
@@ -130,6 +131,13 @@ hub that keeps every line once, in order, holds only first lines of the log
 (`hubTakes_prefix`): never a line the log does not have in that place. The relay
 takes as its progress what the hub says it holds (`acceptChunk_exact`), so its next
 chunk starts where the hub's copy ends.
+
+`Contraagent/Hub/Core/Pruned.lean` proves, of a run the hub pruned, that a request
+that brings no line is answered and stores nothing (`answer_of_probe`), that every
+answer names at least the lines of each chunk's offset (`answer_no_loss`), so the
+relay finds no line lost and does not send the run again (`acceptChunk_kept`), and
+that the hub stores the run again exactly when a chunk brings a line past those it
+held (`answer_none_iff`).
 
 `Contraagent/Pipeline/Graph/Order.lean` proves, of every graph a flow builds
 (`Built`), that no two tasks have one key (`Built.keys_distinct`) and that each task

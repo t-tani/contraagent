@@ -12,9 +12,12 @@ it: a new run or a new `run_uid`, a log not held before, new lines, a document w
 differs or one removed that was held, or a file ref that differs. A batch that stores
 nothing new (a relay asking how many lines are held, a resend) leaves it as it was.
 
-Retention (`core.Hub.prune`) removes old runs (`HubStore.delete_run`), heartbeats of hosts
+Retention (`core.Hub.prune`) removes old runs (`HubStore.prune_run`), heartbeats of hosts
 long gone (`HubStore.delete_heartbeat`), and blobs no file ref references
-(`HubStore.referenced_blobs`, `BlobStore.items`, `BlobStore.delete`).
+(`HubStore.referenced_blobs`, `BlobStore.items`, `BlobStore.delete`). The store remembers
+each run it pruned (`PrunedRun`, `HubStore.pruned`): the run's host may still hold the run
+and ask how much of it the hub holds, and the hub then answers without storing it again
+(`core.pruned_answer`).
 
 `MemoryHubStore` and `MemoryBlobs` keep everything in memory (tests, a single-process
 hub); `DirectoryBlobs` keeps blobs as files. The Postgres store and the S3 blobs are in
@@ -36,6 +39,16 @@ from typing import NamedTuple, Protocol
 from contraagent._internal.hub.protocol import Accepted, FileRef, Heartbeat, RecordBatch, RunRef
 from contraagent._internal.runs.files import write_document
 from contraagent._internal.runs.source import page
+
+
+class PrunedRun(NamedTuple):
+    """A run that retention removed, as the hub remembers it: its run uid, when it was
+    removed (ISO 8601), and how many lines of each of its logs the hub held then, the
+    transcripts too."""
+
+    run_uid: str
+    at: str
+    logs: dict[str, int]
 
 
 class HubStore(Protocol):
@@ -102,6 +115,21 @@ class HubStore(Protocol):
         """Remove everything held of the run under `name` (its logs, documents, file refs
         and activity); with `run_uid`, only while the run held under `name` has that uid.
         Whether a run was removed; removing an absent run does nothing."""
+        ...
+
+    def prune_run(self, name: str, run_uid: str, transcripts: dict[str, int], at: str) -> bool:
+        """`delete_run(name, run_uid)`, and remember the run as pruned at `at` (`pruned`),
+        with how many lines of each log the store held and `transcripts`, the same for the
+        logs the store does not keep. Whether a run was removed; nothing is remembered of an
+        absent run."""
+        ...
+
+    def pruned(self, name: str) -> PrunedRun | None:
+        """The run last pruned under `name` (`prune_run`), or None."""
+        ...
+
+    def forget_pruned(self, name: str) -> None:
+        """Forget the run pruned under `name`: it is stored again, or the name holds another run."""
         ...
 
     def delete_heartbeat(self, host_id: str) -> bool:
@@ -180,6 +208,7 @@ class MemoryHubStore:
 
     def __init__(self) -> None:
         self._runs: dict[str, _Run] = {}
+        self._pruned: dict[str, PrunedRun] = {}
         self._heartbeats: dict[str, tuple[Heartbeat, str]] = {}
         self._lock = threading.Lock()
 
@@ -291,6 +320,24 @@ class MemoryHubStore:
                 return False
             del self._runs[name]
             return True
+
+    def prune_run(self, name: str, run_uid: str, transcripts: dict[str, int], at: str) -> bool:
+        with self._lock:
+            run = self._runs.get(name)
+            if run is None or run.entry.run_uid != run_uid:
+                return False
+            del self._runs[name]
+            logs = {**transcripts, **{log: len(lines) for log, lines in run.logs.items()}}
+            self._pruned[name] = PrunedRun(run_uid, at, logs)
+            return True
+
+    def pruned(self, name: str) -> PrunedRun | None:
+        with self._lock:
+            return self._pruned.get(name)
+
+    def forget_pruned(self, name: str) -> None:
+        with self._lock:
+            self._pruned.pop(name, None)
 
     def delete_heartbeat(self, host_id: str) -> bool:
         with self._lock:

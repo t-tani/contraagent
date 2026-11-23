@@ -96,6 +96,11 @@ of what happened), or a run with no activity time. File contents (blobs) no run
 references are removed a day after they were stored. Hosts not seen for N days lose
 their heartbeat. Without a retention the hub keeps everything.
 
+A host may still hold a run that the hub removed. The hub remembers each run it
+removed, with the number of lines it held of each log, and the host's relay does not
+send that run again. When the run gets new lines, the relay sends it whole and the hub
+holds it again. The hub keeps this record of a removed run: it is one small row.
+
 The hub prunes five minutes after it starts and then every `--prune-every` hours (24, or
 1 for a retention under 7 days), and logs one line per round:
 
