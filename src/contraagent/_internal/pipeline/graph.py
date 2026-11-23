@@ -307,6 +307,21 @@ class Node:
 _NUMBERED = re.compile(r"~[0-9]+$")
 
 
+def _stem_and_suffix(name: str) -> tuple[str, str]:
+    """A file name as its stem and its suffix: the suffix is the name from its last dot on,
+    and a name whose only such dot is its first or its last character has none. `pathlib`
+    reads a name that starts with dots (the file of a unit `..`) in another way from Python
+    3.14 on, and a task's output file is the same file under every Python."""
+    dot = name.rfind(".")
+    return (name[:dot], name[dot:]) if 0 < dot < len(name) - 1 else (name, "")
+
+
+def _unnumbered(name: str) -> str:
+    """An output file's name without the `~n` of the n-th task under one key."""
+    stem, suffix = _stem_and_suffix(name)
+    return _NUMBERED.sub("", stem) + suffix
+
+
 def _writes_output(spec: Any) -> bool:
     """An agent task with an output, or a Python task that returns one: a task with an output file."""
     return spec.output_format is not None and (spec.executor == "agent" or spec.output_schema is not None)
@@ -389,7 +404,7 @@ class Graph:
         path = self._filled(other, name, base)
         for node in reversed(self.nodes):
             p = node.output_path
-            if node.spec.kind == other.kind and p is not None and p.with_name(_NUMBERED.sub("", p.stem) + p.suffix) == path:
+            if node.spec.kind == other.kind and p is not None and p.with_name(_unnumbered(p.name)) == path:
                 path = p
                 break
         writer = next((node.key for node in reversed(self.nodes) if node.output_path == path), None)
@@ -473,7 +488,8 @@ class Graph:
                 else:
                     out = self._filled(spec, name, base)
                     if n > 1:
-                        out = out.with_name(f"{out.stem}~{n}{out.suffix}")
+                        stem, suffix = _stem_and_suffix(out.name)
+                        out = out.with_name(f"{stem}~{n}{suffix}")
                     if (taken := self._writers.get(out)) is not None:
                         raise ValueError(
                             f"tasks {taken!r} and {key!r} would both write {out.relative_to(self.out_dir.parent).as_posix()}: "
