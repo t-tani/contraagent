@@ -17,6 +17,7 @@ lake exe contraagent-lean queue        # plays the scenarios of the work queue g
 lake exe contraagent-lean router       # the same for the failover breaker
 lake exe contraagent-lean resume       # the same for what a resume skips
 lake exe contraagent-lean graph        # the same for the task graph
+lake exe contraagent-lean capacity     # the same for the host's room
 ```
 
 Run these at the repository's root:
@@ -28,6 +29,7 @@ uv run python tests/lean/queue_scenarios.py                      # rewrites test
 uv run python tests/lean/router_scenarios.py                     # rewrites tests/lean/router_scenarios.jsonl
 uv run python tests/lean/resume_scenarios.py                     # rewrites tests/lean/resume_scenarios.jsonl
 uv run python tests/lean/graph_scenarios.py                      # rewrites tests/lean/graph_scenarios.jsonl
+uv run python tests/lean/capacity_scenarios.py                   # rewrites tests/lean/capacity_scenarios.jsonl
 ```
 
 ## Files
@@ -102,4 +104,5 @@ uv run python tests/lean/queue_scenarios.py                            # at the 
 uv run python tests/lean/router_scenarios.py
 uv run python tests/lean/resume_scenarios.py
 uv run python tests/lean/graph_scenarios.py
+uv run python tests/lean/capacity_scenarios.py
 ```
