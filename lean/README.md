@@ -33,10 +33,17 @@ tasks and `giveUp`, at any times and with any answers of the callbacks. The proo
 assumes one thing of the runner: the task it gives as a task starts has the key of
 the task it was given (`QueueEnv.KeepsKey`).
 
-The other properties of the queue (a task starts after the tasks it comes after, a
-claim capacity is not passed, each task finishes once, no slot idles) are stated
-in the code's documentation and are not proved yet. The tests below hold the code
-to the description, on which they would be proved.
+`Contraagent/Dispatch/Queue/After.lean` proves that no task starts before the tasks
+it comes after have finished (`Reachable.starts_after`): wherever the queue's log
+shows a task starting, each key the task names in `after` is of a task that the log
+shows finished before, with any result. It assumes that the task the runner gives
+as a task starts comes after the same tasks (`QueueEnv.KeepsAfter`).
+`Queue/Reachable.lean` holds these assumptions and the reachable states.
+
+The other properties of the queue (a claim capacity is not passed, each task
+finishes once, no slot idles, the queue ends) are stated in the code's
+documentation and are not proved yet. The tests below hold the code to the
+description, on which they would be proved.
 
 `Contraagent/Routing/Router/Breaker.lean` proves, of the breaker, that a 429 changes
 nothing when it comes from a launch on the primary that is no probe

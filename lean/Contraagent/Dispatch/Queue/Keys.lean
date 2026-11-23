@@ -1,4 +1,4 @@
-import Contraagent.Dispatch.Queue
+import Contraagent.Dispatch.Queue.Reachable
 
 /-!
 # No key is in flight twice
@@ -10,7 +10,7 @@ of `Queue.lean` keeps it, so no two tasks of one key ever run at once
 (`running_keys_distinct`).
 
 The one assumption is about the runner: the task it gives as a task starts
-(`QueueEnv.starting`) has the key of the task it was given.
+(`QueueEnv.starting`) has the key of the task it was given (`QueueEnv.KeepsKey`).
 -/
 
 namespace Contraagent
@@ -53,10 +53,6 @@ def flightBound (s : QueueState) (key : Key) : Nat :=
 queue, to be deferred), and a key that is held is in flight. -/
 def KeysOnce (s : QueueState) (limbo : List Task) : Prop :=
   ∀ key, keyCount key s + limbo.countP (·.key == key) ≤ flightBound s key
-
-/-- The runner gives a task as it starts with the key it was given. -/
-def QueueEnv.KeepsKey (env : QueueEnv) : Prop :=
-  ∀ task, (env.starting task).key = task.key
 
 theorem keyCount_push (key : Key) (s : QueueState) (result : TaskResult) (attempt : Nat) :
     keyCount key (s.push result attempt)
@@ -285,14 +281,13 @@ theorem keysOnce_finishOne (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List
       (s1.inflight = if p.result.stop == Stop.duplicateKey then s.inflight
         else s.inflight.filter (· != p.result.task.key)) → KeysOnce s1 limbo :=
     fun s1 hq hr hs hi => keysOnce_pop p rest h hq hr hs hi
+  have ended : KeysOnce (reportEnd (markDone { s with settling := rest } p.result) p) limbo := by
+    apply popped <;> simp only [reportEnd, markDone, QueueState.report] <;> repeat' split
+    all_goals first | rfl | simp_all
   split
-  · apply keysOnce_extendCore env keeps
-    apply popped <;> simp only [QueueState.report] <;> repeat' split
-    all_goals first | rfl | simp_all
+  · exact keysOnce_extendCore env keeps limbo _ _ ended
   · apply keysOnce_skipStartable env keeps
-    apply keysOnce_extendCore env keeps
-    apply popped <;> simp only [QueueState.report] <;> repeat' split
-    all_goals first | rfl | simp_all
+    exact keysOnce_extendCore env keeps limbo _ _ ended
 
 /-- Finishing the results that wait keeps the keys once. -/
 theorem keysOnce_drain (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Task) :
@@ -696,38 +691,18 @@ theorem keysOnce_start : KeysOnce {} [] := by
   intro key
   simp [keyCount, flightBound]
 
-/-- The states a queue reaches: it starts empty, and each step is something it is told
-(`add`, `extend`, `cancel`), a pass, a task's end, or giving up what nothing can launch,
-at any time and with any answers of its callbacks, as long as the runner gives a task as
-it starts with the key it was given. -/
-inductive Reachable (cfg : QueueConfig) : QueueState → Prop where
-  | start : Reachable cfg {}
-  | added (env : QueueEnv) (keeps : env.KeepsKey) (s : QueueState) (task : Task) :
-      Reachable cfg s → Reachable cfg (add env s task).1
-  | extended (env : QueueEnv) (keeps : env.KeepsKey) (s : QueueState) (tasks : List Task) :
-      Reachable cfg s → Reachable cfg (extend env s tasks)
-  | cancelled (env : QueueEnv) (keeps : env.KeepsKey) (s : QueueState) (key : Key) :
-      Reachable cfg s → Reachable cfg (cancel env s key).1
-  | passed (env : QueueEnv) (keeps : env.KeepsKey) (now : Time) (s : QueueState) :
-      Reachable cfg s → Reachable cfg (pass cfg env now s)
-  | ended (env : QueueEnv) (keeps : env.KeepsKey) (now : Time) (s : QueueState) (id : String)
-      (outcome : Outcome) (waitS : Duration) :
-      Reachable cfg s → Reachable cfg (done cfg env now s id outcome waitS)
-  | gaveUp (env : QueueEnv) (keeps : env.KeepsKey) (s : QueueState) :
-      Reachable cfg s → Reachable cfg (giveUp env s)
-
 /-- In every state the queue reaches, each key is held at most once, and a held key is in
 flight. -/
 theorem Reachable.keysOnce {cfg : QueueConfig} {s : QueueState} (reached : Reachable cfg s) :
     KeysOnce s [] := by
   induction reached with
   | start => exact keysOnce_start
-  | added env keeps s task _ ih => exact keysOnce_add env keeps [] s task ih
-  | extended env keeps s tasks _ ih => exact keysOnce_extend env keeps [] tasks s ih
-  | cancelled env keeps s key _ ih => exact keysOnce_cancel env keeps [] s key ih
-  | passed env keeps now s _ ih => exact keysOnce_pass _ env keeps now [] s ih
-  | ended env keeps now s id outcome waitS _ ih => exact keysOnce_done _ env keeps now [] s id outcome waitS ih
-  | gaveUp env keeps s _ ih => exact keysOnce_giveUp env keeps [] s ih
+  | added env keeps s task _ ih => exact keysOnce_add env keeps.key [] s task ih
+  | extended env keeps s tasks _ ih => exact keysOnce_extend env keeps.key [] tasks s ih
+  | cancelled env keeps s key _ ih => exact keysOnce_cancel env keeps.key [] s key ih
+  | passed env keeps now s _ ih => exact keysOnce_pass _ env keeps.key now [] s ih
+  | ended env keeps now s id outcome waitS _ ih => exact keysOnce_done _ env keeps.key now [] s id outcome waitS ih
+  | gaveUp env keeps s _ ih => exact keysOnce_giveUp env keeps.key [] s ih
 
 theorem nodup_of_countP_le_one (l : List Key) (h : ∀ key, l.countP (· == key) ≤ 1) : l.Nodup := by
   induction l with

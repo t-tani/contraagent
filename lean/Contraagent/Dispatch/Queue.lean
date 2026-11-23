@@ -391,22 +391,30 @@ def extendCore (env : QueueEnv) (s : QueueState) : List Task → QueueState
       | (s, true) => extendCore env s rest
       | (s, false) => extendCore env (s.push (TaskResult.duplicateKey task) 0) rest
 
-/-- Close one task (`_finish`): its key is done and no longer in flight, unless it is a
-refused duplicate, whose key is the other task's; a task
-that launched, or was skipped or cancelled, is reported as ended; its follow-ups are
-queued; and the queued tasks after it may be skipped now. -/
+/-- A finished task's key is done and no longer in flight (a part of `_finish`), unless the
+result is a refused duplicate's, whose key is the other task's. -/
+def markDone (s : QueueState) (result : TaskResult) : QueueState :=
+  if result.stop == Stop.duplicateKey then s
+  else
+    { s with
+      inflight := s.inflight.filter (· != result.task.key)
+      doneKeys := if s.doneKeys.contains result.task.key then s.doneKeys else result.task.key :: s.doneKeys }
+
+/-- Report a task's end (a part of `_finish`): `ended` for a task that launched, or was
+skipped or cancelled, and `finished`, the call of `follow_up`, for every task. -/
+def reportEnd (s : QueueState) (p : Settling) : QueueState :=
+  let s := if p.result.stop == Stop.duplicateKey ∨ p.result.stop == Stop.deferred then s
+    else s.report (.ended p.result p.attempt)
+  s.report (.finished p.result)
+
+/-- Close one task (`_finish`): its key is done (`markDone`), its end is reported
+(`reportEnd`), its follow-ups are queued, and the queued tasks after it may be skipped
+now. -/
 def finishOne (env : QueueEnv) (s : QueueState) (p : Settling) : QueueState :=
-  let res := p.result
-  let duplicate := res.stop == Stop.duplicateKey
-  let s := if duplicate then s
-    else
-      { s with
-        inflight := s.inflight.filter (· != res.task.key)
-        doneKeys := if s.doneKeys.contains res.task.key then s.doneKeys else res.task.key :: s.doneKeys }
-  let s := if duplicate ∨ res.stop == Stop.deferred then s else s.report (.ended res p.attempt)
-  let s := s.report (.finished res)
-  let s := extendCore env s (env.followUp res)
-  if duplicate then s else skipStartable env s ((s.successors res.task.key).map (·.task.id))
+  let s := reportEnd (markDone s p.result) p
+  let s := extendCore env s (env.followUp p.result)
+  if p.result.stop == Stop.duplicateKey then s
+  else skipStartable env s ((s.successors p.result.task.key).map (·.task.id))
 
 /-- Finish the results that wait, and those their follow-ups add (`_settle`), at most `fuel`
 of them. -/
