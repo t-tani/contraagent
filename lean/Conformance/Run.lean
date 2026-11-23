@@ -1,10 +1,11 @@
 import Lean.Data.Json
 import Contraagent.Execution.Run
+import Contraagent.Execution.Journal
 
 /-!
 # Scenarios of a resume
 
-A scenario is each key's last journal row, the tasks a resume is asked about, in order, and
+A scenario is the rows of a journal, the tasks a resume is asked about, in order, and
 the keys whose output no longer reads. `runScenario` plays it on the specification and
 returns whether each task is skipped, and why each task that an earlier attempt finished
 runs again, in the words of the code. `tests/lean/resume_scenarios.py` plays the same
@@ -96,7 +97,7 @@ def runScenario (text : String) : Json :=
       { fingerprintOf := fun _ _ key _ =>
           (((sc.tasks.find? (·.key == key)).bind (·.spliced))).getD "",
         reads := fun task => ! sc.unread.contains task.key }
-    let rows := sc.rows.map toRow
+    let rows := lastRows (sc.rows.map toRow)
     let (state, skips) := sc.tasks.foldl
       (fun (acc : ResumeState × Array Json) t =>
         let (s, skip) := resumeSkip env rows acc.1 (toTask t)

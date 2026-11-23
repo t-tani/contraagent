@@ -74,13 +74,20 @@ def append_lines(path: str | os.PathLike[str], lines: Iterable[str]) -> None:
     (one is added where a line has none), in one write: from any thread, the lines of one
     call are never split by another's. Across processes that holds where the OS appends
     atomically (POSIX), not on Windows; a run's logs have one writer process, the one
-    that holds the run lock."""
+    that holds the run lock.
+
+    A write that was cut (a full disk, a host that lost power) leaves a last line with no
+    newline. The next append ends that line first, so its own lines are whole lines: a
+    reader skips the cut line (`parse_rows`) and reads every line appended after it."""
     data = "".join(line if line.endswith("\n") else line + "\n" for line in lines).encode()
     if not data:
         return
     with _append_lock:
-        fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | BINARY, 0o666)
+        fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT | BINARY, 0o666)
         try:
+            end = os.lseek(fd, 0, os.SEEK_END)
+            if end and os.lseek(fd, end - 1, os.SEEK_SET) == end - 1 and os.read(fd, 1) != b"\n":
+                data = b"\n" + data
             view = memoryview(data)
             while view:
                 view = view[os.write(fd, view) :]

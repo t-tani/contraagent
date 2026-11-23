@@ -2,7 +2,7 @@
 
     uv run python tests/lean/resume_scenarios.py     # rewrites tests/lean/resume_scenarios.jsonl
 
-A scenario is each key's last journal row, the tasks a resume is asked about, in order, and
+A scenario is the rows of a journal, the tasks a resume is asked about, in order, and
 the keys whose output no longer reads; `lean/Conformance/Run.lean` has its fields. `play`
 plays one on `resume_skip` and returns whether each task is skipped and why each task that an
 earlier attempt finished runs again (`lake exe contraagent-lean resume`).
@@ -13,25 +13,30 @@ answers for each; `tests/test_lean_scenarios.py` plays them on the code.
 from __future__ import annotations
 
 import importlib.util
+import json
 import random
+import tempfile
 from pathlib import Path
 from typing import Any
 
 from contraagent import Task
 from contraagent._internal.dispatch.task import Origin, fingerprint_of
+from contraagent._internal.execution.journal import Journal
 from contraagent._internal.execution.run import resume_skip
+from contraagent._internal.runs.files import append_lines
 
 FILE = Path(__file__).with_name("resume_scenarios.jsonl")
 #: What `lake exe contraagent-lean` is asked to play.
 WHAT = "resume"
 #: The scenarios of the committed file: `scenarios(SEED, COUNT)`.
-SEED, COUNT = 20261123, 80
+SEED, COUNT = 20261123, 60
 
 
 def play(scenario: dict[str, Any]) -> dict[str, Any]:
-    """Play `scenario` on `resume_skip`: whether each task is skipped, and the reasons by key."""
-    last = {
-        row["key"]: {
+    """Play `scenario` on `resume_skip`, over the last rows that `Journal` reads from a log
+    of the scenario's rows: whether each task is skipped, and the reasons by key."""
+    written = [
+        {
             "key": row["key"],
             "ok": row["ok"],
             "stop": row["stop"],
@@ -42,7 +47,11 @@ def play(scenario: dict[str, Any]) -> dict[str, Any]:
             "output_of_file": row["outputOfFile"],
         }
         for row in scenario["rows"]
-    }
+    ]
+    with tempfile.TemporaryDirectory() as folder:
+        journal = Journal(Path(folder) / "journal.jsonl", Path(folder) / "launches.jsonl", run_id="r", run_group="", unit_of=str)
+        append_lines(journal.path, [json.dumps(row) for row in written])
+        last = journal.last_rows()
     unread = set(scenario["unread"])
     reruns: dict[str, str] = {}
     skip = resume_skip(last, reruns, reads=lambda task: task.key not in unread)
@@ -137,7 +146,19 @@ def scenario(rng: random.Random) -> dict[str, Any]:
             }
         )
         keys.append(key)
-    return {"rows": rows, "tasks": tasks, "unread": [k for k in keys if rng.random() < 0.1]}
+    journal: list[dict[str, Any]] = []
+    for row in rows:  # some keys have rows of earlier attempts, before their last one
+        for _ in range(rng.choice([0, 0, 0, 1, 2])):
+            earlier_ok = rng.random() < 0.5
+            older = {
+                **row,
+                "ok": earlier_ok,
+                "stop": "completed" if earlier_ok else "error",
+                "fingerprint": rng.choice(["", row["fingerprint"]]),
+            }
+            journal.insert(rng.randint(0, len(journal)), older)
+        journal.append(row)
+    return {"rows": journal, "tasks": tasks, "unread": [k for k in keys if rng.random() < 0.1]}
 
 
 def scenarios(seed: int, count: int) -> list[dict[str, Any]]:

@@ -14,6 +14,7 @@ The modules are those of `src/contraagent/_internal/`.
 
 | Lean file | Describes | Holds |
 |---|---|---|
+| `Contraagent/Runs/Files.lean` | `runs/files.py` | a run's log: the bytes an append writes, what a write that was cut leaves, and the lines a reader reads |
 | `Contraagent/Dispatch/Records.lean` | `dispatch/records.py` | the cause of a deferral, a line of `services.jsonl`, a quota reading and why a credential rests |
 | `Contraagent/Dispatch/Task.lean` | `dispatch/task.py` | a task, its result, a time box, a deferral and the stop values |
 | `Contraagent/Dispatch/Queue.lean` | `dispatch/queue.py` | the work queue: what it accepts, what a pass starts and in which order, what it defers, retries and cancels, and how each task finishes |
@@ -25,6 +26,7 @@ The modules are those of `src/contraagent/_internal/`.
 | `Contraagent/Routing/Quota.lean` | `routing/quota.py` | the credential rests: which reading of a credential counts, when a cap or the quota rule rests it and until when, the grace window of the finishing kinds, when a pool rests, and a credential refused for the rest of the run |
 | `Contraagent/Execution/Runner.lean` | `execution/runner.py` | one attempt of an agent task on its kind's failover chain: the hops it launches on, the hops it passes over because their credential rests, when it is deferred, which launch's result is its own; and whether a fresh attempt follows |
 | `Contraagent/Execution/Services.lean` | `execution/services.py` | the services of a run: when the service a claim name stands for starts, which tasks a start that raised fails and for how long, and what the run's end stops, in which order |
+| `Contraagent/Execution/Journal.lean` | `execution/journal.py` | the journal a resume reads: the rows of its log, and each key's last row |
 | `Contraagent/Execution/Run.lean` | `execution/run.py` | what a resume skips, given each key's last journal row, and why it runs a finished task again |
 | `Contraagent/Pipeline/Graph.lean` | `pipeline/graph.py` | what the graph decides of a task call: its key, its output file and the tasks it waits for, or why the call is refused |
 | `Contraagent/Hub/Segments.lean` | `hub/segments.py` | the hub's copies of a log: which lines it holds and which are durable, when an open segment is sealed, the order of a seal's steps, what a start recovers from the files, the objects and the index, and what `sweep` and `drop` delete |
@@ -162,6 +164,20 @@ file's own: the rows of tasks that fill in another file change nothing in it
 so the first says "the same fingerprint", and what that means for the task's work
 rests on SHA-256.
 
+`Contraagent/Runs/Files/Whole.lean` proves, of a run's log, that a complete line stays
+as it is (`append_keeps`); that an append that is not cut adds its rows as whole
+lines, also after a write that was cut, whose line it ends first (`append_whole`), so
+every row of such an append is read after any appends that follow (`whole_read`); and
+that every line read is a row an append was given, or the first bytes of one whose
+write was cut (`Reachable.read_given`). A write is cut by a full disk or by a host
+that lost power. `Contraagent/Execution/Journal/Recorded.lean` puts this with the
+resume: a resume skips a task only on a row the run recorded for the task's key, ok
+and not `partial`, never on what a crash left in the file
+(`resume_skips_recorded`); and a row appended whole is among the rows a resume reads,
+whatever a cut write left before it (`recorded_read`). Both assume of a row's line
+that it holds no newline and that its first bytes alone do not parse as a row, as a
+JSON object does not.
+
 `Contraagent/Hub/Segments/Rows.lean` proves, of the hub's logs, that in every
 state the hub reaches, each index row names an object that is in the store
 (`Reachable.whole`): whichever seal failed, wherever a process died, and after an
@@ -224,16 +240,22 @@ the Python package:
   `tests/lean/vocabulary.json` holds them, and the test compares them with the
   code's: the stop values of `dispatch/task.py`, and the stops of a launch, the
   members of `Stop` in `backends/launch.py`.
-- The work queue, the flow driver, the failover breaker, a resume, the task graph,
+- A run's log, the work queue, the flow driver, the failover breaker, a resume, the
+  task graph,
   the host's room, a credential pool, the credential rests, a run's services, the
   attempts of agent tasks, the hub's logs, the relay and the hub's retention answer
   what their specifications do. A scenario of the breaker is a chain of routes and a list of
   calls of a `Router`, each at a time the scenario gives (`Conformance/Router.lean`,
   `tests/lean/router_scenarios.py`, 100 scenarios in
-  `tests/lean/router_scenarios.jsonl`). A scenario of a resume is each key's last
-  journal row and the tasks the resume is asked about (`Conformance/Run.lean`,
-  `tests/lean/resume_scenarios.py`, 80 scenarios in
-  `tests/lean/resume_scenarios.jsonl`). A scenario of the graph is some declarations
+  `tests/lean/router_scenarios.jsonl`). A scenario of a resume is the rows of a
+  journal, some keys with rows of earlier attempts, and the tasks the resume is asked
+  about; it is played on `resume_skip` over what `Journal` reads from a log of those
+  rows (`Conformance/Run.lean`, `tests/lean/resume_scenarios.py`, 60 scenarios in
+  `tests/lean/resume_scenarios.jsonl`). A scenario of a log is a list of appends,
+  some cut after any of their bytes; it is played on `append_lines` over a file whose
+  write fails as on a full disk, and the complete lines and the line with no end are
+  compared (`Conformance/Files.lean`, `tests/lean/logs_scenarios.py`, 200 scenarios
+  in `tests/lean/logs_scenarios.jsonl`). A scenario of the graph is some declarations
   and a list of task calls, each by a flow call (`Conformance/Graph.lean`,
   `tests/lean/graph_scenarios.py`, 150 scenarios in
   `tests/lean/graph_scenarios.jsonl`). A scenario of the host's room is some needs

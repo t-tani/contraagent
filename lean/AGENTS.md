@@ -27,6 +27,7 @@ lake exe contraagent-lean relay        # the same for the relay
 lake exe contraagent-lean flow         # the same for the flow driver
 lake exe contraagent-lean prune        # the same for the hub's retention
 lake exe contraagent-lean blobs        # the same for the hub's blobs while a prune runs beside the relays
+lake exe contraagent-lean logs         # the same for a run's log
 ```
 
 Run these at the repository's root:
@@ -48,6 +49,7 @@ uv run python tests/lean/relay_scenarios.py                      # rewrites test
 uv run python tests/lean/flow_scenarios.py                       # rewrites tests/lean/flow_scenarios.jsonl
 uv run python tests/lean/prune_scenarios.py                      # rewrites tests/lean/prune_scenarios.jsonl
 uv run python tests/lean/blobs_scenarios.py                      # rewrites tests/lean/blobs_scenarios.jsonl
+uv run python tests/lean/logs_scenarios.py                       # rewrites tests/lean/logs_scenarios.jsonl
 ```
 
 ## Files
@@ -69,7 +71,8 @@ uv run python tests/lean/blobs_scenarios.py                      # rewrites test
   file needs to be listed anywhere.
 
 A module is described when it decides which work runs, when, or whether it runs
-again: the schedulers, the flow driver, the task graph, resume, failover, capacity,
+again: a run's logs and its journal, the schedulers, the flow driver, the task graph,
+resume, failover, capacity,
 the credential pools and rests, the services, the hub's copies of a log and what its
 retention removes. A
 module that reads an agent's output, checks a file against a schema, counts tokens
@@ -134,6 +137,7 @@ uv run python tests/lean/relay_scenarios.py
 uv run python tests/lean/flow_scenarios.py
 uv run python tests/lean/prune_scenarios.py
 uv run python tests/lean/blobs_scenarios.py
+uv run python tests/lean/logs_scenarios.py
 ```
 
 A scenario of the flow driver holds the calls that a run of its flow made on the
