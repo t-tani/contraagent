@@ -19,6 +19,7 @@ The modules are those of `src/contraagent/_internal/`.
 | `Contraagent/Dispatch/Queue.lean` | `dispatch/queue.py` | the work queue: what it accepts, what a pass starts and in which order, what it defers, retries and cancels, and how each task finishes |
 | `Contraagent/Routing/Router.lean` | `routing/router.py` | the failover breaker: the route the next task runs on, what a 429 moves, the probe of the primary and what closes the breaker |
 | `Contraagent/Routing/Capacity.lean` | `routing/capacity.py` | a claim capacity sized by the host: how many tasks may hold a name, given the memory and cores one needs, what the running tasks hold and what the host reads |
+| `Contraagent/Routing/Pool.lean` | `routing/pool.py` | a credential pool: the member the next launch uses, in order or in a round robin, and how long a member rests after a 429 |
 | `Contraagent/Execution/Run.lean` | `execution/run.py` | what a resume skips, given each key's last journal row, and why it runs a finished task again |
 | `Contraagent/Pipeline/Graph.lean` | `pipeline/graph.py` | what the graph decides of a task call: its key, its output file and the tasks it waits for, or why the call is refused |
 
@@ -59,6 +60,11 @@ memory, a name that no task holds admits at least one task, whatever the host re
 (`allowed_one`): a queue with nothing running always finds room for a task whose
 capacities the host sizes.
 
+`Contraagent/Routing/Pool/Rest.lean` proves, of a credential pool, that the member
+a pick gives does not cool down on the model and is not excluded (`pick_rested`),
+and that a member that answered 429 on a model is not picked for that model until
+its wait has passed (`pick_after_rateLimited`).
+
 `Contraagent/Execution/Run/Skip.lean` proves, of a resume, that a task is skipped
 only when its key's last row is ok and not `partial`, holds the fingerprint the task
 is judged by, the task does not rerun on resume and its output reads
@@ -85,8 +91,9 @@ the Python package:
   sides. `lake exe contraagent-lean vocabulary` prints them,
   `tests/lean/vocabulary.json` holds them, and the test compares them with the
   code's: the stop values of `dispatch/task.py`.
-- The work queue, the failover breaker, a resume, the task graph and the host's
-  room answer what their specifications do. A scenario of the breaker is a chain of routes and a list of
+- The work queue, the failover breaker, a resume, the task graph, the host's room
+  and a credential pool answer what their specifications do. A scenario of the
+  breaker is a chain of routes and a list of
   calls of a `Router`, each at a time the scenario gives (`Conformance/Router.lean`,
   `tests/lean/router_scenarios.py`, 100 scenarios in
   `tests/lean/router_scenarios.jsonl`). A scenario of a resume is each key's last
@@ -99,7 +106,10 @@ the Python package:
   and a list of calls, each with what the host reads then, and the answer, the
   baseline and the running tasks are compared after every call
   (`Conformance/Capacity.lean`, `tests/lean/capacity_scenarios.py`, 80 scenarios in
-  `tests/lean/capacity_scenarios.jsonl`). A scenario of the queue scripts
+  `tests/lean/capacity_scenarios.jsonl`). A scenario of a pool is its members, its
+  strategy and its cool-down, and a list of picks and 429s, each at a time the
+  scenario gives (`Conformance/Pool.lean`, `tests/lean/pool_scenarios.py`, 100
+  scenarios in `tests/lean/pool_scenarios.jsonl`). A scenario of the queue scripts
   everything a queue does not decide: how each attempt ends and how long it takes,
   what a resume skips, what the runner defers, what a result's follow-up queues and
   what is cancelled, on a clock that only the scenario moves.

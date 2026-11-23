@@ -1,8 +1,7 @@
-"""The code answers what its Lean specification does, scenario by scenario: the work queue
-(`lean/Contraagent/Dispatch/Queue.lean`) and the failover breaker
-(`lean/Contraagent/Routing/Router.lean`). A module of `tests/lean/` says what a scenario of
-one of them is, makes scenarios and plays one on the code. The committed scenarios need no
-Lean; fresh ones are played on both sides under `-m lean`."""
+"""The code answers what its Lean specification does, scenario by scenario, for each part
+of `PARTS`. A module of `tests/lean/` says what a scenario of one part is, makes scenarios
+and plays one on the code. The committed scenarios need no Lean; fresh ones are played on
+both sides under `-m lean`."""
 
 from __future__ import annotations
 
@@ -29,7 +28,7 @@ def _module(name: str) -> ModuleType:
 
 exe = _module("exe")
 #: What is specified, with the module of its scenarios.
-PARTS = {name: _module(f"{name}_scenarios") for name in ("queue", "router", "resume", "graph", "capacity")}
+PARTS = {name: _module(f"{name}_scenarios") for name in ("queue", "router", "resume", "graph", "capacity", "pool")}
 COMMITTED = {name: [json.loads(line) for line in part.FILE.read_text(encoding="utf-8").splitlines()] for name, part in PARTS.items()}
 CASES = [(name, number) for name, entries in COMMITTED.items() for number in range(len(entries))]
 
