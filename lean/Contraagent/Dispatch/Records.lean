@@ -2,7 +2,8 @@
 # The facts a run records
 
 What `src/contraagent/_internal/dispatch/records.py` defines, with the fields the schedulers
-decide by: why a task was deferred, and what `services.jsonl` records of a service.
+decide by: why a task was deferred, what `services.jsonl` records of a service, a quota
+reading and why a credential rests.
 -/
 
 namespace Contraagent
@@ -37,6 +38,42 @@ raised. -/
 inductive ServiceEvent where
   | start (name : String) (key : String) (address : Option String) (error : Option String)
   | stop (name : String) (cause : ServiceStopCause) (error : Option String)
+  deriving DecidableEq, Repr
+
+/-- One window of a quota reading (`QuotaWindow`): its utilization in percent and when it
+resets. -/
+structure QuotaWindow where
+  pct : Option Int := none
+  resetsAt : Option Int := none
+  deriving DecidableEq, Repr
+
+/-- A subscription's utilization as a coding agent reported it (`QuotaReading`), with the
+fields the rests decide by. `fiveHour` and `sevenDay` are the fields of those two windows;
+`windows` is every window the reading names besides, by name, in order. -/
+structure QuotaReading where
+  observedAt : Option Int := none
+  credential : String := ""
+  account : String := ""
+  fiveHour : QuotaWindow := {}
+  sevenDay : QuotaWindow := {}
+  windows : List (String × QuotaWindow) := []
+  deriving DecidableEq, Repr
+
+/-- Why a credential rests (`Rest`): past the cap of a window (`window`, `pct`, `cap`), by
+the quota rule (`rule`), or because a launch as it was refused (`stop` is `auth_failed`) on
+a coding agent and a model. `until`: when the rest ends, `none` when unknown and for a
+refused credential. -/
+structure Rest where
+  credential : String
+  window : String := ""
+  pct : Option Int := none
+  cap : Option Int := none
+  rule : String := ""
+  «until» : Option Int := none
+  account : String := ""
+  stop : String := ""
+  agent : String := ""
+  model : String := ""
   deriving DecidableEq, Repr
 
 end Contraagent

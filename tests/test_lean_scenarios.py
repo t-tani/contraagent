@@ -28,7 +28,10 @@ def _module(name: str) -> ModuleType:
 
 exe = _module("exe")
 #: What is specified, with the module of its scenarios.
-PARTS = {name: _module(f"{name}_scenarios") for name in ("queue", "router", "resume", "graph", "capacity", "pool", "services", "attempt")}
+PARTS = {
+    name: _module(f"{name}_scenarios")
+    for name in ("queue", "router", "resume", "graph", "capacity", "pool", "services", "attempt", "rests")
+}
 COMMITTED = {name: [json.loads(line) for line in part.FILE.read_text(encoding="utf-8").splitlines()] for name, part in PARTS.items()}
 CASES = [(name, number) for name, entries in COMMITTED.items() for number in range(len(entries))]
 

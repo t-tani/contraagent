@@ -14,12 +14,13 @@ The modules are those of `src/contraagent/_internal/`.
 
 | Lean file | Describes | Holds |
 |---|---|---|
-| `Contraagent/Dispatch/Records.lean` | `dispatch/records.py` | the cause of a deferral, and a line of `services.jsonl` |
+| `Contraagent/Dispatch/Records.lean` | `dispatch/records.py` | the cause of a deferral, a line of `services.jsonl`, a quota reading and why a credential rests |
 | `Contraagent/Dispatch/Task.lean` | `dispatch/task.py` | a task, its result, a time box, a deferral and the stop values |
 | `Contraagent/Dispatch/Queue.lean` | `dispatch/queue.py` | the work queue: what it accepts, what a pass starts and in which order, what it defers, retries and cancels, and how each task finishes |
 | `Contraagent/Routing/Router.lean` | `routing/router.py` | the failover breaker: the route the next task runs on, what a 429 moves, the probe of the primary and what closes the breaker |
 | `Contraagent/Routing/Capacity.lean` | `routing/capacity.py` | a claim capacity sized by the host: how many tasks may hold a name, given the memory and cores one needs, what the running tasks hold and what the host reads |
 | `Contraagent/Routing/Pool.lean` | `routing/pool.py` | a credential pool: the member the next launch uses, in order or in a round robin, and how long a member rests after a 429 |
+| `Contraagent/Routing/Quota.lean` | `routing/quota.py` | the credential rests: which reading of a credential counts, when a cap or the quota rule rests it and until when, the grace window of the finishing kinds, when a pool rests, and a credential refused for the rest of the run |
 | `Contraagent/Execution/Runner.lean` | `execution/runner.py` | one attempt of an agent task on its kind's failover chain: the hops it launches on, the hops it passes over because their credential rests, when it is deferred, which launch's result is its own; and whether a fresh attempt follows |
 | `Contraagent/Execution/Services.lean` | `execution/services.py` | the services of a run: when the service a claim name stands for starts, which tasks a start that raised fails and for how long, and what the run's end stops, in which order |
 | `Contraagent/Execution/Run.lean` | `execution/run.py` | what a resume skips, given each key's last journal row, and why it runs a finished task again |
@@ -66,6 +67,13 @@ capacities the host sizes.
 a pick gives does not cool down on the model and is not excluded (`pick_rested`),
 and that a member that answered 429 on a model is not picked for that model until
 its wait has passed (`pick_after_rateLimited`).
+
+`Contraagent/Routing/Quota/Rests.lean` proves, of the credential rests, that a
+credential refused on a coding agent and a model rests there in every state the run
+reaches after, for a task of any kind (`Steps.refused_rests`); that a rest the quota
+rule gave an end holds to that end, whatever the readings and the rule say meanwhile
+(`judge_ruled`); and that a credential with no reading, no rest of the rule in force
+and no refused launch does not rest (`memberRest_unread`).
 
 `Contraagent/Execution/Runner/Ends.lean` proves that an attempt ends: on a chain
 with no two hops of one identity, its walk gives a result within twice the chain's
@@ -118,8 +126,8 @@ the Python package:
   `tests/lean/vocabulary.json` holds them, and the test compares them with the
   code's: the stop values of `dispatch/task.py`.
 - The work queue, the failover breaker, a resume, the task graph, the host's room,
-  a credential pool, a run's services and the attempts of agent tasks answer what
-  their specifications do. A scenario of the
+  a credential pool, the credential rests, a run's services and the attempts of
+  agent tasks answer what their specifications do. A scenario of the
   breaker is a chain of routes and a list of
   calls of a `Router`, each at a time the scenario gives (`Conformance/Router.lean`,
   `tests/lean/router_scenarios.py`, 100 scenarios in
@@ -136,7 +144,13 @@ the Python package:
   `tests/lean/capacity_scenarios.jsonl`). A scenario of a pool is its members, its
   strategy and its cool-down, and a list of picks and 429s, each at a time the
   scenario gives (`Conformance/Pool.lean`, `tests/lean/pool_scenarios.py`, 100
-  scenarios in `tests/lean/pool_scenarios.jsonl`). A scenario of the services is
+  scenarios in `tests/lean/pool_scenarios.jsonl`). A scenario of the rests is some
+  credentials with their caps, a pool and the grace window, and a list of readings,
+  refused launches and questions, each at a time of day and a reading of the clock
+  that only moves forward, with what the quota rule and the accounts answer then;
+  the answers and what `on_change` is told are compared (`Conformance/Quota.lean`,
+  `tests/lean/rests_scenarios.py`, 40 scenarios in
+  `tests/lean/rests_scenarios.jsonl`). A scenario of the services is
   the claim names that stand for one, the cool-off, and a list of tasks and ends of
   the run, each with the clock's reading and what the start or the stop of each
   service does then; the answers and the lines of `services.jsonl` are compared
