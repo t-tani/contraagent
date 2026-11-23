@@ -444,6 +444,19 @@ def test_work_a_resume_skipped_does_not_count_after_a_task():
     assert runner.launched == ["other", "first"] and summary["deferred"] == []
 
 
+def test_work_that_was_cancelled_does_not_count_after_a_task():
+    """As for a task a resume skipped: the 100 s of `then`, cancelled while queued, are not
+    ahead of `first`."""
+    runner = Runner()
+    q = WorkQueue(runner, max_concurrent=1, deadline_s=60, slack_s=60)
+    q.add(Task("a", key="first", estimate_s=10))
+    q.add(Task("a", key="then", after=("first",), estimate_s=100))
+    q.add(Task("a", key="other", estimate_s=1))
+    assert q.cancel("then")
+    summary = q.run()
+    assert runner.launched == ["other", "first"] and summary["deferred"] == []
+
+
 # --- no idle slot, and the finish chance ------------------------------------------------
 
 

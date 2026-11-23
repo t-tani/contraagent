@@ -548,6 +548,14 @@ class Graph:
             return ""
         return _file_digest(node.output_path)
 
+    def filled_file(self, task: Task) -> str:
+        """For a task that fills in another task's file (`output_of`): that file, as its path
+        under the run directory (journal `output_of_file`); empty for any other task."""
+        node = self._by_key.get(task.key)
+        if node is None or node.output_path is None or getattr(node.spec, "output_of", None) is None:
+            return ""
+        return node.output_path.relative_to(self.out_dir.parent).as_posix()
+
     def refusal(self, task: Task) -> str:
         """Why `task` cannot run, as it is about to: its outside state could not be worked
         out (`starting`), or an input file among its params no longer has the content its

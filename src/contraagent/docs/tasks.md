@@ -320,11 +320,12 @@ its task again, and its journal row's `rerun` says so.
 
 A task that fills in another task's file (`output_of`) left its own output in the
 file, so a resume cannot see in the file what the task found there. The journal
-row keeps both digests: the file as the task found it (`fingerprint_parts`
-`output_of`) and as the task left it (`output_of_after`). A resume skips the task
-when the file is as the task left it, or as a task after it that fills it in left
-it. A file changed by hand, or written again by a task before it that ran again,
-runs again every task after its writer that fills it in.
+row keeps both digests, the file as the task found it (`fingerprint_parts`
+`output_of`) and as the task left it (`output_of_after`), and the file's path
+(`output_of_file`). A resume skips the task when the file is as the task left it,
+or as a task after it that fills the same file in left it. A file changed by hand,
+or written again by a task before it that ran again, runs again every task after
+its writer that fills it in.
 
 A resume gives the flow the results of the tasks it skips one at a time, in the
 order the journal recorded them, so flow code that depends on the order in which

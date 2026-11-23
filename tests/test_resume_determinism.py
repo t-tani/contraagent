@@ -222,6 +222,45 @@ def test_a_file_changed_by_hand_runs_again_the_tasks_after_its_writer(tmp_path):
     assert reruns(rep) == {"fill-a": why, "polish-a": why}
 
 
+@python_task
+def sheet(unit: str) -> Report:
+    return Report(items=[Item(id="1"), Item(id="2")])  # the same for every unit
+
+
+draft = agent_task("draft", instructions="Summarize.", output=Report, output_of=sheet, max_turns=3, timeout_s=30)
+finish = agent_task("finish", instructions="Polish.", output=Report, output_of=sheet, max_turns=3, timeout_s=30)
+
+
+def two_sheets():
+    for unit in ("a", "b"):
+        sheet(unit)
+        draft(unit)
+        finish(unit)
+
+
+def test_a_file_that_holds_another_file_s_content_is_not_as_its_tasks_left_it(tmp_path):
+    """The two files hold the same content after `draft`, and each its own after `finish`.
+    `a`'s is then replaced by a copy of `b`'s. No task left `a`'s file so: the tasks that
+    fill it in run again, as after any change by hand (`draft-a` was skipped: a file's
+    history was followed by content alone, here into the history of `b`'s file)."""
+    agent = StubAgent(
+        {
+            "draft": lambda launch: {"items": [{"id": "1", "summary": "one"}, {"id": "2", "summary": "two"}]},
+            "finish": lambda launch: {"items": [{"id": "1", "summary": f"One, by {launch.key}."}, {"id": "2", "summary": "Two."}]},
+        }
+    )
+    first = pipeline(tmp_path, agent).run(two_sheets, run_id="r")
+    assert first.ok and sorted(keys(agent)) == ["draft-a", "draft-b", "finish-a", "finish-b"]
+    rows = {r["key"]: r for r in map(json.loads, (first.run_dir / "journal.jsonl").read_text().splitlines())}
+    assert rows["draft-a"]["output_of_after"] == rows["draft-b"]["output_of_after"]  # the same content in two files
+    (first.run_dir / "out/sheet/a.json").write_bytes((first.run_dir / "out/sheet/b.json").read_bytes())
+    agent.launches.clear()
+    rep = pipeline(tmp_path, agent).run(two_sheets, run_id="r", resume=True)
+    assert rep.ok and keys(agent) == ["draft-a", "finish-a"]
+    why = "the file it fills in (output_of) is not as the earlier attempts left it"
+    assert reruns(rep) == {"draft-a": why, "finish-a": why}
+
+
 # --- a task whose fingerprint is complete only when it starts ------------------------------------
 
 

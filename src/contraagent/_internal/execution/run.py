@@ -94,20 +94,24 @@ def finished_before(row: dict[str, Any] | None, task: Task, fingerprint: str | N
     return bool(row.get("ok")) and row.get("fingerprint", "") == (task.fingerprint if fingerprint is None else fingerprint)
 
 
-def _left_by(rows: Iterable[Mapping[str, Any]]) -> dict[str, set[str]]:
-    """For the tasks that fill in another task's file (`output_of`): each digest a file had
-    before such a task started, with the digests the task left it with."""
-    out: dict[str, set[str]] = {}
+def _left_by(rows: Iterable[Mapping[str, Any]]) -> dict[tuple[str, str], set[str]]:
+    """For the tasks that fill in another task's file (`output_of`): each file (journal
+    `output_of_file`) and digest it had before such a task started, with the digests the
+    task left it with. A file's history is its own: another file may hold the same content."""
+    out: dict[tuple[str, str], set[str]] = {}
     for row in rows:
         parts = row.get("fingerprint_parts") or {}
         if "output_of" in parts and row.get("output_of_after"):
-            out.setdefault(str(parts["output_of"]), set()).add(str(row["output_of_after"]))
+            file = str(row.get("output_of_file") or "")
+            out.setdefault((file, str(parts["output_of"])), set()).add(str(row["output_of_after"]))
     return out
 
 
-def _as_left(row: Mapping[str, Any], now: str, left_by: Mapping[str, set[str]]) -> bool:
+def _as_left(row: Mapping[str, Any], now: str, left_by: Mapping[tuple[str, str], set[str]]) -> bool:
     """Whether a file that a task fills in (`output_of`), whose digest is `now`, is as the
-    task's last attempt (`row`) left it, or as a task after it that fills it in left it."""
+    task's last attempt (`row`) left it, or as a task after it that fills the same file in
+    left it."""
+    file = str(row.get("output_of_file") or "")
     first = str(row.get("output_of_after") or "")
     seen: set[str] = set()
     todo = [first] if first else []
@@ -118,7 +122,7 @@ def _as_left(row: Mapping[str, Any], now: str, left_by: Mapping[str, set[str]]) 
         if digest == now:
             return True
         seen.add(digest)
-        todo.extend(left_by.get(digest, ()))
+        todo.extend(left_by.get((file, digest), ()))
     return False
 
 
@@ -537,7 +541,7 @@ class Run:
     def record_taken_over(self, result: TaskResult, earlier: Mapping[str, Any], run_id: str) -> None:
         """Journal a task this run took over from run `run_id`, which it resumes from: the row
         of its skipped result, with the fingerprint, its parts, the outside state and the
-        digest of the file it fills in (`output_of_after`) of `earlier`, that run's last row
+        digest of the file it fills in and that file (`output_of_after`, `output_of_file`) of `earlier`, that run's last row
         of the task, and `resumed_from`. A row that cannot be written is said as
         `record_attempt` says it."""
         key = result.task.key
@@ -548,6 +552,7 @@ class Run:
                     "fingerprint_parts": dict(earlier.get("fingerprint_parts") or {}),
                     "outside": str(earlier.get("outside") or ""),
                     "output_of_after": str(earlier.get("output_of_after") or ""),
+                    "output_of_file": str(earlier.get("output_of_file") or ""),
                     "resumed_from": run_id,
                 }
             )

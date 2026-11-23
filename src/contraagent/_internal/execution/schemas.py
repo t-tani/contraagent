@@ -152,6 +152,10 @@ class JournalRow(RecordModel):
     #: For a task that fills in another task's file (`output_of`): the digest of the file as
     #: the attempt left it, which a resume compares the file with; empty for any other task.
     output_of_after: str = ""
+    #: For such a task: the file it fills in, as its path under the run directory. A resume
+    #: follows what the attempts left in that file, not in another with the same content.
+    #: Empty for any other task, and in a row of a release before the path was recorded.
+    output_of_file: str = ""
     #: The flow call that created the task (`Origin.flow_call`); None for a task with no origin.
     flow_call: str | None = None
     #: The attempt was played from a recording (a replay), not launched or called: it spent nothing.

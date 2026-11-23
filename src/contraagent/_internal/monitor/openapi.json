@@ -3313,6 +3313,11 @@
             "title": "Output Of After",
             "default": ""
           },
+          "output_of_file": {
+            "type": "string",
+            "title": "Output Of File",
+            "default": ""
+          },
           "flow_call": {
             "anyOf": [
               {

@@ -914,6 +914,11 @@
       "title": "Output Of After",
       "type": "string"
     },
+    "output_of_file": {
+      "default": "",
+      "title": "Output Of File",
+      "type": "string"
+    },
     "flow_call": {
       "anyOf": [
         {

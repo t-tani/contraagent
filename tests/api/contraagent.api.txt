@@ -3291,6 +3291,7 @@ class JournalRow(RecordModel)
     model_config: ConfigDict = ConfigDict(extra='allow')
     ok: bool
     output_of_after: str = ''
+    output_of_file: str = ''
     outside: str = ''
     played: Played | None = None
     quota: list[QuotaReading] = Field(default_factory=list)

@@ -1611,6 +1611,11 @@ export type components = {
              * @default
              */
             output_of_after?: string;
+            /**
+             * Output Of File
+             * @default
+             */
+            output_of_file?: string;
             /** Flow Call */
             flow_call?: string | null;
             /**

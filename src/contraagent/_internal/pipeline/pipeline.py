@@ -681,6 +681,7 @@ class Pipeline:
             )
             graph.driver = driver
             run.journal.filled_after = graph.filled_after
+            run.journal.filled_file = graph.filled_file
 
             def follow_up(result: TaskResult) -> list[Task]:
                 graph.record(result)

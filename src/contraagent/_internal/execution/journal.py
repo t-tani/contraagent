@@ -43,6 +43,9 @@ class Journal:
         #: The digest of the file a task fills in (`output_of`) as it is now, after an attempt
         #: (`output_of_after`); empty for a task that fills in none. Set by whoever knows the files.
         self.filled_after: Callable[[Task], str] | None = None
+        #: The file such a task fills in, as its path under the run directory (`output_of_file`);
+        #: empty for a task that fills in none. Set with `filled_after`.
+        self.filled_file: Callable[[Task], str] | None = None
 
     def row(self, result: TaskResult) -> JournalRow:
         """The journal row for one finished attempt."""
@@ -90,6 +93,7 @@ class Journal:
             outside=task.outside,
             rerun=self.reruns.get(task.key, ""),
             output_of_after=self.filled_after(task) if self.filled_after is not None else "",
+            output_of_file=self.filled_file(task) if self.filled_file is not None else "",
             flow_call=task.origin.flow_call if task.origin is not None else None,
             replayed=result.replayed,
             played=result.played,
