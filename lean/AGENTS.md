@@ -19,6 +19,7 @@ lake exe contraagent-lean resume       # the same for what a resume skips
 lake exe contraagent-lean graph        # the same for the task graph
 lake exe contraagent-lean capacity     # the same for the host's room
 lake exe contraagent-lean pool         # the same for a credential pool
+lake exe contraagent-lean services     # the same for a run's services
 ```
 
 Run these at the repository's root:
@@ -32,6 +33,7 @@ uv run python tests/lean/resume_scenarios.py                     # rewrites test
 uv run python tests/lean/graph_scenarios.py                      # rewrites tests/lean/graph_scenarios.jsonl
 uv run python tests/lean/capacity_scenarios.py                   # rewrites tests/lean/capacity_scenarios.jsonl
 uv run python tests/lean/pool_scenarios.py                       # rewrites tests/lean/pool_scenarios.jsonl
+uv run python tests/lean/services_scenarios.py                   # rewrites tests/lean/services_scenarios.jsonl
 ```
 
 ## Files
@@ -54,7 +56,7 @@ uv run python tests/lean/pool_scenarios.py                       # rewrites test
 
 A module is described when it decides which work runs, when, or whether it runs
 again: the schedulers, the task graph, resume, failover, capacity, the
-credential pools, and the hub's copies of a log. A module that reads an agent's
+credential pools, the services, and the hub's copies of a log. A module that reads an agent's
 output, checks a file against a schema, counts tokens or draws the monitor is
 not described.
 
@@ -109,4 +111,5 @@ uv run python tests/lean/resume_scenarios.py
 uv run python tests/lean/graph_scenarios.py
 uv run python tests/lean/capacity_scenarios.py
 uv run python tests/lean/pool_scenarios.py
+uv run python tests/lean/services_scenarios.py
 ```

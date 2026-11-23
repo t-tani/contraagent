@@ -2,7 +2,7 @@
 # The facts a run records
 
 What `src/contraagent/_internal/dispatch/records.py` defines, with the fields the schedulers
-decide by: why a task was deferred.
+decide by: why a task was deferred, and what `services.jsonl` records of a service.
 -/
 
 namespace Contraagent
@@ -23,6 +23,20 @@ structure DeferralCause where
   needS : Option Duration := none
   leftS : Option Duration := none
   flowCall : Option FlowCallId := none
+  deriving DecidableEq, Repr
+
+/-- Why a service stopped (`ServiceStopCause`): the run ended, or a signal stopped the run. -/
+inductive ServiceStopCause where
+  | runEnd
+  | interrupted
+  deriving DecidableEq, Repr
+
+/-- One line of `services.jsonl` (`ServiceEvent`). A service started for the task of `key`
+and gave `address`, or did not start (`error`); or it stopped, and `error` is what its stop
+raised. -/
+inductive ServiceEvent where
+  | start (name : String) (key : String) (address : Option String) (error : Option String)
+  | stop (name : String) (cause : ServiceStopCause) (error : Option String)
   deriving DecidableEq, Repr
 
 end Contraagent
