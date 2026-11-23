@@ -6,7 +6,8 @@ A scenario is when a segment is sealed and a list of steps on some logs of two r
 appends, closes, ticks, reads, `sweep`, `drop`, and starts of the hub on what the last
 process left; `lean/Conformance/Segments.lean` has the fields. A step may name a seal that
 fails, or at which the process dies: the hub then starts again on the files, the objects
-and the index as that seal left them. `play` plays one on `SegmentedStreamLogs` with an
+and the index as that seal left them, and the files the process held open are closed, as
+the system closes them. `play` plays one on `SegmentedStreamLogs` with an
 objects store and an index in memory, and returns what each step answered and what
 survives after the last (`lake exe contraagent-lean hub`). `tests/lean/hub_scenarios.jsonl`
 holds scenarios (`scenarios`) with what the specification answers for each;
@@ -71,6 +72,21 @@ def play(scenario: dict[str, Any]) -> dict[str, Any]:
             if how(segment.key) == "crashAfterAdd":
                 raise Died
 
+    processes: list[SegmentedStreamLogs] = []  # the hub processes that started and have not ended
+
+    class Process(SegmentedStreamLogs):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            processes.append(self)  # before the start, which may die with files open
+            super().__init__(*args, **kwargs)
+
+    def end() -> None:
+        """What the system does when a process ends: the files it held open are closed. The
+        next start removes some of them, and Windows removes no file that is open."""
+        while processes:
+            for log in list(getattr(processes.pop(), "_logs", {}).values()):
+                if log.hot is not None:
+                    log.hot.stop()
+
     objects = Objects()
     held: dict[str, Any] = {"index": Index(), "logs": None}
     quiet = logging.getLogger("contraagent._internal.hub.segments")
@@ -83,8 +99,9 @@ def play(scenario: dict[str, Any]) -> dict[str, Any]:
             def start() -> bool:
                 """Start the hub on what the last process left; whether it died in the start."""
                 held["logs"] = None
+                end()
                 try:
-                    held["logs"] = SegmentedStreamLogs(
+                    held["logs"] = Process(
                         hot,
                         objects,
                         held["index"],
@@ -105,53 +122,56 @@ def play(scenario: dict[str, Any]) -> dict[str, Any]:
                     found.append((f"{name}/{uid}/{log}/{path.stem}", path.read_bytes().count(b"\n")))
                 return found
 
-            start()
-            for step in scenario["steps"]:
-                clock[0], armed[0] = step["now"], step["fault"]
-                logs, key = held["logs"], step["key"]
-                answer: Any = None
-                died = False
-                try:
-                    if step["op"] == "append":
-                        answer = {"held": list(logs.append(*key, step["offset"], step["lines"], "t")), "crashed": False}
-                    elif step["op"] == "close":
-                        logs.close(*key)
-                        answer = {"crashed": False}
-                    elif step["op"] == "tick":
-                        logs.tick()
-                        answer = {"crashed": False}
-                    elif step["op"] == "restart":
-                        if step["loseIndex"]:
-                            held["index"] = Index()
-                        for path in sorted(Path(hot).glob("*/*/*/*.jsonl"), key=lambda p: int(p.stem))[-1:]:
-                            with open(path, "ab") as torn:  # a torn last line: the start cuts it
-                                torn.write(b'{"torn')
-                        died = start()
-                        answer = {"crashed": died}
-                    elif step["op"] == "read":
-                        lines, total = logs.read(*key, step["since"], limit=step["limit"])
-                        answer = {"lines": lines, "total": total}
-                    elif step["op"] == "held":
-                        answer = list(logs.held(*key))
-                    elif step["op"] == "sweep":
-                        answer = sorted(logs.sweep())
-                    else:
-                        answer = sorted(logs.drop(key[0], key[1]))
-                except Died:
-                    died = True
-                    answer = {"crashed": True}
-                    if step["op"] == "append":  # the lines were written; what it would have answered died with it
-                        answer["held"] = None
-                armed[0] = None
-                if died:
-                    assert not start(), "a start with no fault died"
-                answers.append(answer)
-            index = held["index"]
-            kept = {
-                "rows": sorted(f"{s.key.removesuffix('.seg')}:{s.line_count}" for rows in index._rows.values() for s in rows.values()),
-                "objects": sorted(f"{key.removesuffix('.seg')}:{_lines(objects, key)}" for key in objects.keys()),
-                "files": sorted(f"{name}:{count}" for name, count in files()),
-            }
+            try:
+                start()
+                for step in scenario["steps"]:
+                    clock[0], armed[0] = step["now"], step["fault"]
+                    logs, key = held["logs"], step["key"]
+                    answer: Any = None
+                    died = False
+                    try:
+                        if step["op"] == "append":
+                            answer = {"held": list(logs.append(*key, step["offset"], step["lines"], "t")), "crashed": False}
+                        elif step["op"] == "close":
+                            logs.close(*key)
+                            answer = {"crashed": False}
+                        elif step["op"] == "tick":
+                            logs.tick()
+                            answer = {"crashed": False}
+                        elif step["op"] == "restart":
+                            if step["loseIndex"]:
+                                held["index"] = Index()
+                            for path in sorted(Path(hot).glob("*/*/*/*.jsonl"), key=lambda p: int(p.stem))[-1:]:
+                                with open(path, "ab") as torn:  # a torn last line: the start cuts it
+                                    torn.write(b'{"torn')
+                            died = start()
+                            answer = {"crashed": died}
+                        elif step["op"] == "read":
+                            lines, total = logs.read(*key, step["since"], limit=step["limit"])
+                            answer = {"lines": lines, "total": total}
+                        elif step["op"] == "held":
+                            answer = list(logs.held(*key))
+                        elif step["op"] == "sweep":
+                            answer = sorted(logs.sweep())
+                        else:
+                            answer = sorted(logs.drop(key[0], key[1]))
+                    except Died:
+                        died = True
+                        answer = {"crashed": True}
+                        if step["op"] == "append":  # the lines were written; what it would have answered died with it
+                            answer["held"] = None
+                    armed[0] = None
+                    if died:
+                        assert not start(), "a start with no fault died"
+                    answers.append(answer)
+                index = held["index"]
+                kept = {
+                    "rows": sorted(f"{s.key.removesuffix('.seg')}:{s.line_count}" for rows in index._rows.values() for s in rows.values()),
+                    "objects": sorted(f"{key.removesuffix('.seg')}:{_lines(objects, key)}" for key in objects.keys()),
+                    "files": sorted(f"{name}:{count}" for name, count in files()),
+                }
+            finally:
+                end()
     finally:
         quiet.setLevel(level)
     return {"answers": answers, "kept": kept}
