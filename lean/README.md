@@ -70,7 +70,15 @@ it is not startable, because a task it comes after has not finished or it waits 
 its retry, or what it needs is not free, or starting it would take what a task that
 waits for room still needs.
 
-That the queue ends is stated in the code's documentation and is not proved yet.
+`Contraagent/Dispatch/Queue/Ends.lean` proves that the queue ends. Every round of
+the queue's loop, a pass and then another pass, a task's end, the end of a retry
+wait or a give-up, takes at least one from a count of what the held tasks may still
+do, but for seven for each task the queue is newly given (`Round.lowers`). So a run
+in which the queue is given a bounded number of tasks has a bounded number of rounds
+(`Rounds.bounded`): from an empty queue, at most seven for each task
+(`Rounds.from_empty`), whatever the tasks' results are and whenever they end. A wait
+that ends with no task ended is no round, so the theorem assumes nothing of how long
+a task runs: it bounds what the queue does, not the time it takes.
 
 `Contraagent/Routing/Router/Breaker.lean` proves, of the breaker, that a 429 changes
 nothing when it comes from a launch on the primary that is no probe
