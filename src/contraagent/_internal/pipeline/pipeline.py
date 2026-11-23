@@ -789,6 +789,7 @@ class Pipeline:
                             run.journal.reruns,
                             graph.output_reads,
                             warn=lambda line: run.progress(line, warning=True),
+                            unfinished=earlier.unfinished if earlier is not None else run._unfinished,
                         )
                         if resume or earlier is not None
                         else None,

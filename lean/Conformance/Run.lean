@@ -5,7 +5,8 @@ import Contraagent.Execution.Journal
 /-!
 # Scenarios of a resume
 
-A scenario is the rows of a journal, the tasks a resume is asked about, in order, and
+A scenario is the rows of a journal, the in-flight markers the run left, the tasks a resume
+is asked about, in order, and
 the keys whose output no longer reads. `runScenario` plays it on the specification and
 returns whether each task is skipped, and why each task that an earlier attempt finished
 runs again, in the words of the code. `tests/lean/resume_scenarios.py` plays the same
@@ -46,10 +47,13 @@ structure ScenarioTask where
   spliced : Option String
   deriving FromJson
 
+/-- `markers`: the in-flight markers the run left, each with its task's key and how many
+rows the journal held when the task started. -/
 structure Scenario where
   rows : List ScenarioRow
   tasks : List ScenarioTask
   unread : List String
+  markers : List (String × Nat)
   deriving FromJson
 
 def toRow (r : ScenarioRow) : JournalRow :=
@@ -74,6 +78,7 @@ def partName : String → String
 
 /-- A reason in the words of the code. -/
 def reasonText : RerunReason → String
+  | .unfinished => "an attempt after its last finished one did not finish"
   | .unread => "its output no longer reads under its output schema"
   | .refill => "the file it fills in (output_of) is not as the earlier attempts left it"
   | .rerunOnResume => "its kind is declared rerun_on_resume"
@@ -96,7 +101,8 @@ def runScenario (text : String) : Json :=
     let env : ResumeEnv :=
       { fingerprintOf := fun _ _ key _ =>
           (((sc.tasks.find? (·.key == key)).bind (·.spliced))).getD "",
-        reads := fun task => ! sc.unread.contains task.key }
+        reads := fun task => ! sc.unread.contains task.key,
+        unfinished := (unfinishedKeys (sc.rows.map toRow) sc.markers).contains }
     let rows := lastRows (sc.rows.map toRow)
     let (state, skips) := sc.tasks.foldl
       (fun (acc : ResumeState × Array Json) t =>

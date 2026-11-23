@@ -4,22 +4,22 @@ import Contraagent.Execution.Run
 # What a skip rests on
 
 Of the description of `resume_skip`: a task is skipped only when its key's last row is ok
-and not `partial`, the task does not rerun on resume, its output reads, and the row holds
-the fingerprint the task is judged by; and the history of a file that tasks fill in is
-that file's own.
+and not `partial`, the task does not rerun on resume, no attempt of it was cut by the run's
+end, its output reads, and the row holds the fingerprint the task is judged by; and the
+history of a file that tasks fill in is that file's own.
 -/
 
 namespace Contraagent
 
 /-- A resume skips a task only on its key's last row: ok, not `partial`, with the
-fingerprint the task is judged by (`judged`), for a task that does not rerun on resume and
-whose output reads. -/
+fingerprint the task is judged by (`judged`), for a task that does not rerun on resume,
+whose output reads, and no attempt of which the run's end cut. -/
 theorem resumeSkip_sound (env : ResumeEnv) (rows : List JournalRow) (s : ResumeState) (task : Task)
     (skipped : (resumeSkip env rows s task).2 = true) :
     ∃ row as fingerprint,
       rows.find? (·.key == task.key) = some row ∧ judged env rows row task = some (as, fingerprint)
         ∧ row.ok = true ∧ row.stop ≠ Stop.«partial» ∧ row.fingerprint = fingerprint
-        ∧ task.rerunOnResume = false ∧ env.reads task = true := by
+        ∧ task.rerunOnResume = false ∧ env.reads task = true ∧ env.unfinished task.key = false := by
   unfold resumeSkip at skipped
   split at skipped
   · simp at skipped
@@ -33,11 +33,14 @@ theorem resumeSkip_sound (env : ResumeEnv) (rows : List JournalRow) (s : ResumeS
       refine ⟨row, as, fingerprint, found, same, ?_⟩
       simp only [same] at skipped
       by_cases finished : finishedBefore row task fingerprint = true
-      · by_cases reads : env.reads task = true
-        · simp [finishedBefore] at finished
-          exact ⟨finished.1.2, by simpa using finished.1.1.2, finished.2, finished.1.1.1, reads⟩
-        · simp [finished, reads] at skipped
+      · by_cases cut : env.unfinished task.key = true
+        · simp [finished, cut] at skipped
           split at skipped <;> simp at skipped
+        · by_cases reads : env.reads task = true
+          · simp [finishedBefore] at finished
+            exact ⟨finished.1.2, by simpa using finished.1.1.2, finished.2, finished.1.1.1, reads, by simpa using cut⟩
+          · simp [finished, cut, reads] at skipped
+            split at skipped <;> simp at skipped
       · simp [finished] at skipped
         split at skipped <;> simp at skipped
 
@@ -52,7 +55,7 @@ theorem resumeSkip_same_fingerprint (env : ResumeEnv) (rows : List JournalRow) (
     (task : Task) (plain : partOf task.fingerprintParts "output_of" = none)
     (skipped : (resumeSkip env rows s task).2 = true) :
     ∃ row, rows.find? (·.key == task.key) = some row ∧ row.fingerprint = task.fingerprint := by
-  obtain ⟨row, as, fingerprint, found, same, _, _, eq, _, _⟩ := resumeSkip_sound env rows s task skipped
+  obtain ⟨row, as, fingerprint, found, same, _, _, eq, _, _, _⟩ := resumeSkip_sound env rows s task skipped
   rw [judged_plain env rows row task plain] at same
   cases same
   exact ⟨row, found, eq⟩

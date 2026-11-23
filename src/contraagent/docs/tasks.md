@@ -320,6 +320,12 @@ A resume skips a task only when its output still reads under its output schema.
 An output file that no longer does (one edited by hand into another shape) runs
 its task again, and its journal row's `rerun` says so.
 
+A task that was running when the run's process ended has no journal row of that
+attempt, and its output file may hold what the attempt wrote before it ended. A
+resume runs such a task again, also when an earlier attempt of it finished with the
+same fingerprint: the run keeps a marker of each running task, and a marker that is
+still there with no journal row since says the attempt did not finish.
+
 A task that fills in another task's file (`output_of`) left its own output in the
 file, so a resume cannot see in the file what the task found there. The journal
 row keeps both digests, the file as the task found it (`fingerprint_parts`

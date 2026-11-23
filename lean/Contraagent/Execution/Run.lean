@@ -28,15 +28,20 @@ structure JournalRow where
   outputOfFile : String := ""
   deriving Repr
 
-/-- What a resume asks outside the journal. `fingerprintOf kind unit key parts`: the
-fingerprint of a task with these parts (`fingerprint_of`). `reads`: whether the task's
-output still reads under its output schema. -/
+/-- What a resume asks outside the journal's last rows. `fingerprintOf kind unit key parts`:
+the fingerprint of a task with these parts (`fingerprint_of`). `reads`: whether the task's
+output still reads under its output schema. `unfinished`: whether an attempt of the key
+began after its last row and did not finish, because the run ended
+(`journal.unfinished_keys`). -/
 structure ResumeEnv where
   fingerprintOf : Kind → String → Key → List (String × String) → String
   reads : Task → Bool
+  unfinished : Key → Bool := fun _ => false
 
 /-- Why a resume runs a task again whose last journal row is ok (journal `rerun`). -/
 inductive RerunReason where
+  /-- An attempt after its last finished one did not finish. -/
+  | unfinished
   /-- Its output no longer reads under its output schema. -/
   | unread
   /-- The file it fills in is not as the earlier attempts left it. -/
@@ -150,8 +155,9 @@ def judged (env : ResumeEnv) (rows : List JournalRow) (row : JournalRow) (task :
       else none
 
 /-- Whether a resume skips `task` (`resume_skip`), given each key's last row (`rows`, one
-for each key): its row shows it finished, and its output still reads. A task that an
-earlier attempt finished and that is not skipped is noted with why it runs again. -/
+for each key): its row shows it finished, no attempt of it began after that row and did not
+finish, and its output still reads. A task that an earlier attempt finished and that is not
+skipped is noted with why it runs again. -/
 def resumeSkip (env : ResumeEnv) (rows : List JournalRow) (s : ResumeState) (task : Task) :
     ResumeState × Bool :=
   match rows.find? (·.key == task.key) with
@@ -161,12 +167,14 @@ def resumeSkip (env : ResumeEnv) (rows : List JournalRow) (s : ResumeState) (tas
     let finished := match same with
       | some (_, fingerprint) => finishedBefore row task fingerprint
       | none => false
-    let unread := finished && ! env.reads task
-    if finished && ! unread then ({ s with skipped := task.key :: s.skipped }, true)
+    let cut := finished && env.unfinished task.key
+    let unread := finished && ! cut && ! env.reads task
+    if finished && ! cut && ! unread then ({ s with skipped := task.key :: s.skipped }, true)
     else if ! row.ok then (s, false)
     else
       let why :=
-        if unread then .unread
+        if cut then .unfinished
+        else if unread then .unread
         else if same.isNone && ! task.rerunOnResume && row.stop != Stop.«partial» then .refill
         else rerunReason row ((same.map (·.1)).getD task) s.skipped
       ({ s with reruns := (task.key, why) :: s.reruns.filter (·.1 != task.key) }, false)

@@ -26,7 +26,7 @@ The modules are those of `src/contraagent/_internal/`.
 | `Contraagent/Routing/Quota.lean` | `routing/quota.py` | the credential rests: which reading of a credential counts, when a cap or the quota rule rests it and until when, the grace window of the finishing kinds, when a pool rests, and a credential refused for the rest of the run |
 | `Contraagent/Execution/Runner.lean` | `execution/runner.py` | one attempt of an agent task on its kind's failover chain: the hops it launches on, the hops it passes over because their credential rests, when it is deferred, which launch's result is its own; and whether a fresh attempt follows |
 | `Contraagent/Execution/Services.lean` | `execution/services.py` | the services of a run: when the service a claim name stands for starts, which tasks a start that raised fails and for how long, and what the run's end stops, in which order |
-| `Contraagent/Execution/Journal.lean` | `execution/journal.py` | the journal a resume reads: the rows of its log, and each key's last row |
+| `Contraagent/Execution/Journal.lean` | `execution/journal.py` | the journal a resume reads: the rows of its log, each key's last row, and the tasks an attempt of which the run's end cut |
 | `Contraagent/Execution/Run.lean` | `execution/run.py` | what a resume skips, given each key's last journal row, and why it runs a finished task again |
 | `Contraagent/Pipeline/Graph.lean` | `pipeline/graph.py` | what the graph decides of a task call: its key, its output file and the tasks it waits for, or why the call is refused |
 | `Contraagent/Hub/Segments.lean` | `hub/segments.py` | the hub's copies of a log: which lines it holds and which are durable, when an open segment is sealed, the order of a seal's steps, what a start recovers from the files, the objects and the index, and what `sweep` and `drop` delete |
@@ -189,7 +189,10 @@ and not `partial`, never on what a crash left in the file
 (`resume_skips_recorded`); and a row appended whole is among the rows a resume reads,
 whatever a cut write left before it (`recorded_read`). Both assume of a row's line
 that it holds no newline and that its first bytes alone do not parse as a row, as a
-JSON object does not.
+JSON object does not. A task whose attempt the run's end cut is not skipped
+(`unfinished_not_skipped`): the attempt left its in-flight marker and no row, so the
+task's last row is of an earlier attempt, and its output file may hold what the cut
+attempt wrote.
 
 `Contraagent/Hub/Segments/Rows.lean` proves, of the hub's logs, that in every
 state the hub reaches, each index row names an object that is in the store

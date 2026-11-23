@@ -2,7 +2,8 @@
 
     uv run python tests/lean/resume_scenarios.py     # rewrites tests/lean/resume_scenarios.jsonl
 
-A scenario is the rows of a journal, the tasks a resume is asked about, in order, and
+A scenario is the rows of a journal, the in-flight markers the run left, the tasks a resume
+is asked about, in order, and
 the keys whose output no longer reads; `lean/Conformance/Run.lean` has its fields. `play`
 plays one on `resume_skip` and returns whether each task is skipped and why each task that an
 earlier attempt finished runs again (`lake exe contraagent-lean resume`).
@@ -21,8 +22,9 @@ from typing import Any
 
 from contraagent import Task
 from contraagent._internal.dispatch.task import Origin, fingerprint_of
-from contraagent._internal.execution.journal import Journal
+from contraagent._internal.execution.journal import Journal, unfinished_keys
 from contraagent._internal.execution.run import resume_skip
+from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import append_lines
 
 FILE = Path(__file__).with_name("resume_scenarios.jsonl")
@@ -52,9 +54,14 @@ def play(scenario: dict[str, Any]) -> dict[str, Any]:
         journal = Journal(Path(folder) / "journal.jsonl", Path(folder) / "launches.jsonl", run_id="r", run_group="", unit_of=str)
         append_lines(journal.path, [json.dumps(row) for row in written])
         last = journal.last_rows()
+        for key, place in scenario["markers"]:  # what the run left of the tasks in flight as it ended
+            marker = Path(folder) / layout.task_entry(layout.INFLIGHT, key)
+            marker.parent.mkdir(exist_ok=True)
+            marker.write_text(json.dumps({"key": key, "journal_rows": place}))
+        unfinished = unfinished_keys(Path(folder))
     unread = set(scenario["unread"])
     reruns: dict[str, str] = {}
-    skip = resume_skip(last, reruns, reads=lambda task: task.key not in unread)
+    skip = resume_skip(last, reruns, reads=lambda task: task.key not in unread, unfinished=unfinished)
     skips = [
         skip(
             Task(
@@ -158,7 +165,9 @@ def scenario(rng: random.Random) -> dict[str, Any]:
             }
             journal.insert(rng.randint(0, len(journal)), older)
         journal.append(row)
-    return {"rows": journal, "tasks": tasks, "unread": [k for k in keys if rng.random() < 0.1]}
+    # Some tasks were in flight as the run ended: with a row since they started, or with none.
+    markers = [[k, rng.randint(0, len(journal))] for k in keys if rng.random() < 0.25]
+    return {"rows": journal, "tasks": tasks, "unread": [k for k in keys if rng.random() < 0.1], "markers": markers}
 
 
 def scenarios(seed: int, count: int) -> list[dict[str, Any]]:

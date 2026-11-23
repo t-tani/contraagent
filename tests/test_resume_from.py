@@ -89,6 +89,38 @@ def test_a_new_run_skips_what_the_earlier_run_finished_and_holds_its_records(tmp
     assert (old.run_dir / "journal.jsonl").read_text() == before
 
 
+class Dies(Agent):
+    """A stub whose `write` writes its output, and whose process then ends: the attempt
+    leaves no journal row."""
+
+    def run(self, launch):
+        result = super().run(launch)
+        if self.launches[-1].kind == "write":
+            raise KeyboardInterrupt
+        return result
+
+
+def test_a_task_whose_attempt_the_earlier_run_s_end_cut_is_not_taken_over(tmp_path):
+    """The earlier run finished `write`, ran it again for an output that no longer read,
+    and ended while that attempt ran. A new run that resumes from it runs the task: its
+    output file holds what the cut attempt wrote."""
+    agent = Agent()
+    first = pipeline(tmp_path, agent).run(passing_on(), run_id="a")
+    assert first.ok
+    (first.run_dir / "out/write/u.json").write_text("{}")
+    dying = Dies()
+    dying.text = "what the attempt wrote before the run ended"
+    with pytest.raises(KeyboardInterrupt):
+        pipeline(tmp_path, dying).run(passing_on(), run_id="a", resume=True)
+    agent.launches.clear()
+    rep = pipeline(tmp_path, agent).run(passing_on(), run_id="b", resume_from="a")
+    assert rep.ok and keys(agent) == ["write-u"]  # it writes the first output again: check-u is taken over
+    rows = {r["key"]: r for r in map(json.loads, (rep.run_dir / "journal.jsonl").read_text().splitlines())}
+    assert rows["write-u"]["rerun"] == "an attempt after its last finished one did not finish"
+    assert json.loads((rep.run_dir / "out/write/u.json").read_text())["text"] == "first"
+    assert (first.run_dir / "inflight/write-u.json").is_file()  # the earlier run is left as it is
+
+
 def test_a_task_whose_fingerprint_changed_runs_and_says_why(tmp_path):
     agent = Agent()
     pipeline(tmp_path, agent).run(passing_on(), run_id="old")
