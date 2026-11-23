@@ -132,7 +132,7 @@ jobs:
         working-directory: web
 
   lean:
-    name: Lean specification (proofs, committed vocabulary)
+    name: Lean specification (proofs, the code against it)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -146,3 +146,10 @@ jobs:
       # the code on every runner: it must be what the specification says now.
       - run: lake exe contraagent-lean vocabulary | diff - ../tests/lean/vocabulary.json
         working-directory: lean
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      # The committed scenarios hold what the specification reports now, and the code
+      # reports what the specification does on scenarios made for this run.
+      - run: uv run pytest -m lean -n0

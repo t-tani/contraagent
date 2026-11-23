@@ -16,6 +16,7 @@ uv run pytest                 # parallel (xdist, at most 6 workers; -n0 for one)
 uv run pytest -m e2e          # the hub and relays as processes over Postgres and RustFS (docker)
 CONTRAAGENT_LIVE=1 uv run pytest -m live   # real coding agents; spends tokens
 (cd lean && lake build --wfail)            # the Lean specification, every proof (elan installs Lean)
+uv run pytest -m lean -n0                  # the code against the Lean specification on fresh scenarios (needs Lean)
 ```
 
 A committed file that a test compares against goes stale when its source changes;
@@ -36,6 +37,7 @@ the test names it. Rewrite it with:
 | the codex version | `uv run python tests/fixtures/codex/record.py` (spends a fraction of a cent), then `tests/test_codex_wire.py` |
 | the Claude Code version | `uv run python tests/fixtures/claude/record.py` (spends a fraction of a cent), then `tests/test_claude_wire.py` |
 | the agy version | `uv run python tests/fixtures/agy/record.py` (spends a little of the Google login's quota), then `tests/test_agy_wire.py` |
+| the Lean description of the work queue (`lean/Contraagent/Dispatch/Queue.lean`), or the scenarios' generator | `uv run python tests/lean/queue_scenarios.py` (`tests/lean/queue_scenarios.jsonl`; needs Lean), then `tests/test_lean_queue.py` |
 | a name the Lean specification shares with the code (a stop value) | `lake exe contraagent-lean vocabulary > ../tests/lean/vocabulary.json` in `lean/`; `tests/test_lean.py` reads it |
 
 Release checks: `uv run pyright --verifytypes contraagent --ignoreexternal` (no unknown

@@ -13,10 +13,16 @@ names. Run these in `lean/`:
 ```
 lake build --wfail                     # every file and every proof; a warning fails it, so a `sorry` does
 lake exe contraagent-lean vocabulary   # the names shared with the code, as tests/lean/vocabulary.json holds them
+lake exe contraagent-lean queue        # plays the scenarios of the work queue given on its input, one JSON line each
 ```
 
-`uv run pytest tests/test_lean.py` needs no Lean. It checks the names of the files,
-their imports and the shared names.
+Run these at the repository's root:
+
+```
+uv run pytest tests/test_lean.py tests/test_lean_queue.py   # needs no Lean: the files' names, the shared names, the committed scenarios
+uv run pytest -m lean -n0                                    # needs Lean: the committed files are current, and fresh scenarios agree
+uv run python tests/lean/queue_scenarios.py                  # rewrites tests/lean/queue_scenarios.jsonl
+```
 
 ## Files
 
@@ -29,9 +35,12 @@ their imports and the shared names.
 - A file imports only files of its own layer and of the layers that `_internal` lets
   that layer import.
 - Every declaration is in the namespace `Contraagent`.
+- `Conformance/<Module>.lean` plays scenarios on the description of that module:
+  it reads a scenario from JSON and prints what the description reports. Only this
+  library and `Main.lean` import Lean's JSON; the specification imports neither.
 - `Main.lean` is the executable `contraagent-lean`. No file imports it.
-- `lakefile.toml` builds every file under `Contraagent/`, so no file needs to be
-  listed anywhere.
+- `lakefile.toml` builds every file under `Contraagent/` and `Conformance/`, so no
+  file needs to be listed anywhere.
 
 A module is described when it decides which work runs, when, or whether it runs
 again: the schedulers, the task graph, resume, failover, capacity, and the hub's
@@ -54,6 +63,12 @@ are words of the glossary, so they name nothing of the specification itself.
   open.
 - A definition that says what the code computes is a function that runs. No
   definition is `noncomputable`.
+- A function is one method of the code. What the method reads from outside is an
+  argument: the clock's reading, and the answers of the callbacks as a record of
+  functions. A loop of the code that has no bound takes the number of its rounds
+  as an argument.
+- What the code reports is part of the state the function returns, so a theorem can
+  speak about everything that was reported.
 - No proof is left open, and no axiom is added: no `sorry`, no `axiom`, no
   `native_decide`. What the specification assumes of its surroundings (a runner, a
   clock, a digest that does not collide) is a hypothesis of each theorem that needs
@@ -63,8 +78,14 @@ are words of the glossary, so they name nothing of the specification itself.
 ## Changing a described module
 
 A pull request that changes what a described module decides changes its Lean file
-too. After changing a name that both sides share, rewrite the committed file:
+too: the committed scenarios fail on the code until both agree. Decide which of the
+two is right before changing either, and do not make the player of a scenario, on
+either side, hide a difference.
+
+After changing a name that both sides share, the description of the queue, or the
+scenarios' generator, rewrite the committed files:
 
 ```
-lake exe contraagent-lean vocabulary > ../tests/lean/vocabulary.json
+lake exe contraagent-lean vocabulary > ../tests/lean/vocabulary.json   # in lean/
+uv run python tests/lean/queue_scenarios.py                            # at the root
 ```
