@@ -17,6 +17,7 @@ The modules are those of `src/contraagent/_internal/`.
 | `Contraagent/Dispatch/Records.lean` | `dispatch/records.py` | the cause of a deferral, a line of `services.jsonl`, a quota reading and why a credential rests |
 | `Contraagent/Dispatch/Task.lean` | `dispatch/task.py` | a task, its result, a time box, a deferral and the stop values |
 | `Contraagent/Dispatch/Queue.lean` | `dispatch/queue.py` | the work queue: what it accepts, what a pass starts and in which order, what it defers, retries and cancels, and how each task finishes |
+| `Contraagent/Dispatch/Flow.lean` | `dispatch/flow.py` | the flow driver's record: the numbers of each flow call, which task it gives the queue and when, the order in which it gives results to the flow code, how a flow call ends, which task it cancels, and when it closes the flow calls that nothing will answer |
 | `Contraagent/Routing/Router.lean` | `routing/router.py` | the failover breaker: the route the next task runs on, what a 429 moves, the probe of the primary and what closes the breaker |
 | `Contraagent/Routing/Capacity.lean` | `routing/capacity.py` | a claim capacity sized by the host: how many tasks may hold a name, given the memory and cores one needs, what the running tasks hold and what the host reads |
 | `Contraagent/Routing/Pool.lean` | `routing/pool.py` | a credential pool: the member the next launch uses, in order or in a round robin, and how long a member rests after a 429 |
@@ -79,6 +80,28 @@ in which the queue is given a bounded number of tasks has a bounded number of ro
 (`Rounds.from_empty`), whatever the tasks' results are and whenever they end. A wait
 that ends with no task ended is no round, so the theorem assumes nothing of how long
 a task runs: it bounds what the queue does, not the time it takes.
+
+`Contraagent/Dispatch/Flow/Keys.lean` proves, of the flow driver, that the queue is
+given each key once, whatever flow code does with the key: creates its task twice,
+waits for it in several flow calls, or names it again after its result was given
+(`Reachable.sent_once`). A key the driver cancels on the queue is one it gave the
+queue (`Reachable.cancels_sent`). And when the driver closes the flow calls that
+nothing will answer, no flow call waits for a task, and every task the driver queued
+has given its result (`Reachable.stuck_waits_for_no_task`): what it closes waits for
+something that no task answers. These hold of every record the driver reaches
+(`Flow/Reachable.lean`): from the empty record, by any calls in any order. They
+assume that a Task that flow code creates is created in a flow call the driver
+holds.
+
+`Contraagent/Dispatch/Flow/Calls.lean` proves that each flow call has numbers of its
+own (`Reachable.calls_distinct`), and its id is those numbers joined by dots; that
+the driver says a flow call still runs exactly when one does (`Reachable.alive_iff`);
+and that once the run is over and the driver has closed the flow calls that still
+ran, none runs (`Reachable.none_runs_after_close`).
+`Contraagent/Dispatch/Flow/Order.lean` proves that the result the flow code gets
+next is, of the kept results of skipped tasks, the one whose key has the least place
+in the first run (`next_least`). So a resume gives the flow code those results in
+the order of the first run, whatever order they come in.
 
 `Contraagent/Routing/Router/Breaker.lean` proves, of the breaker, that a 429 changes
 nothing when it comes from a launch on the primary that is no probe
@@ -178,10 +201,10 @@ the Python package:
   sides. `lake exe contraagent-lean vocabulary` prints them,
   `tests/lean/vocabulary.json` holds them, and the test compares them with the
   code's: the stop values of `dispatch/task.py`.
-- The work queue, the failover breaker, a resume, the task graph, the host's room,
-  a credential pool, the credential rests, a run's services, the attempts of agent
-  tasks, the hub's logs and the relay answer what their specifications do. A scenario of the
-  breaker is a chain of routes and a list of
+- The work queue, the flow driver, the failover breaker, a resume, the task graph,
+  the host's room, a credential pool, the credential rests, a run's services, the
+  attempts of agent tasks, the hub's logs and the relay answer what their
+  specifications do. A scenario of the breaker is a chain of routes and a list of
   calls of a `Router`, each at a time the scenario gives (`Conformance/Router.lean`,
   `tests/lean/router_scenarios.py`, 100 scenarios in
   `tests/lean/router_scenarios.jsonl`). A scenario of a resume is each key's last
@@ -227,7 +250,18 @@ the Python package:
   is played on `Relay` over a run directory and a `Hub` in memory, and the requests
   of each pass, the relay's progress and the hub's lines are compared
   (`Conformance/Relay.lean`, `tests/lean/relay_scenarios.py`, 60 scenarios in
-  `tests/lean/relay_scenarios.jsonl`). A scenario of the queue scripts
+  `tests/lean/relay_scenarios.jsonl`). A scenario of the flow driver is a flow made
+  as data: waits, tasks, Tasks awaited or not, Tasks that are cancelled when one of
+  them fails, flow code that fails or goes on when it is cancelled, how each task
+  ends, the tasks the queue holds from its start, and the order in which the results
+  come. The flow is run on `FlowDriver` with a board in the queue's place, and the
+  calls that the run makes on the driver are kept with the scenario. The
+  specification is played on those calls, and what the driver answers each call,
+  the tasks it gives the queue, the keys it cancels and how each flow call ends are
+  compared (`Conformance/Flow.lean`, `tests/lean/flow_scenarios.py`, 30 scenarios
+  in `tests/lean/flow_scenarios.jsonl`). Which call comes when is decided by asyncio
+  and by the flow code, and the specification does not describe it. A scenario of
+  the queue scripts
   everything a queue does not decide: how each attempt ends and how long it takes,
   what a resume skips, what the runner defers, what a result's follow-up queues and
   what is cancelled, on a clock that only the scenario moves.

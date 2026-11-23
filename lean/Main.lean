@@ -11,6 +11,7 @@ import Conformance.Runner
 import Conformance.Quota
 import Conformance.Segments
 import Conformance.Relay
+import Conformance.Flow
 
 /-!
 # `lake exe contraagent-lean`
@@ -70,6 +71,9 @@ def main (args : List String) : IO UInt32 := do
   | ["relay"] =>
     playScenarios Conformance.Relay.runScenario (← IO.getStdin)
     return 0
+  | ["flow"] =>
+    playScenarios Conformance.Flow.runScenario (← IO.getStdin)
+    return 0
   | _ =>
-    IO.eprintln "usage: lake exe contraagent-lean vocabulary | (queue | router | resume | graph | capacity | pool | services | attempt | rests | hub | relay) < scenarios.jsonl"
+    IO.eprintln "usage: lake exe contraagent-lean vocabulary | (queue | router | resume | graph | capacity | pool | services | attempt | rests | hub | relay | flow) < scenarios.jsonl"
     return 2
