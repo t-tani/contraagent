@@ -16,6 +16,7 @@ lake exe contraagent-lean vocabulary   # the names shared with the code, as test
 lake exe contraagent-lean queue        # plays the scenarios of the work queue given on its input, one JSON line each
 lake exe contraagent-lean router       # the same for the failover breaker
 lake exe contraagent-lean resume       # the same for what a resume skips
+lake exe contraagent-lean graph        # the same for the task graph
 ```
 
 Run these at the repository's root:
@@ -26,6 +27,7 @@ uv run pytest -m lean -n0                                        # needs Lean: t
 uv run python tests/lean/queue_scenarios.py                      # rewrites tests/lean/queue_scenarios.jsonl
 uv run python tests/lean/router_scenarios.py                     # rewrites tests/lean/router_scenarios.jsonl
 uv run python tests/lean/resume_scenarios.py                     # rewrites tests/lean/resume_scenarios.jsonl
+uv run python tests/lean/graph_scenarios.py                      # rewrites tests/lean/graph_scenarios.jsonl
 ```
 
 ## Files
@@ -99,4 +101,5 @@ lake exe contraagent-lean vocabulary > ../tests/lean/vocabulary.json   # in lean
 uv run python tests/lean/queue_scenarios.py                            # at the root
 uv run python tests/lean/router_scenarios.py
 uv run python tests/lean/resume_scenarios.py
+uv run python tests/lean/graph_scenarios.py
 ```

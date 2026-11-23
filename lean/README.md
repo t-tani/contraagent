@@ -19,6 +19,7 @@ The modules are those of `src/contraagent/_internal/`.
 | `Contraagent/Dispatch/Queue.lean` | `dispatch/queue.py` | the work queue: what it accepts, what a pass starts and in which order, what it defers, retries and cancels, and how each task finishes |
 | `Contraagent/Routing/Router.lean` | `routing/router.py` | the failover breaker: the route the next task runs on, what a 429 moves, the probe of the primary and what closes the breaker |
 | `Contraagent/Execution/Run.lean` | `execution/run.py` | what a resume skips, given each key's last journal row, and why it runs a finished task again |
+| `Contraagent/Pipeline/Graph.lean` | `pipeline/graph.py` | what the graph decides of a task call: its key, its output file and the tasks it waits for, or why the call is refused |
 
 A description holds the fields that its module decides by. What only travels with
 a task or a result is left out, and the first comment of each file says what.
@@ -61,6 +62,12 @@ file's own: the rows of tasks that fill in another file change nothing in it
 so the first says "the same fingerprint", and what that means for the task's work
 rests on SHA-256.
 
+`Contraagent/Pipeline/Graph/Order.lean` proves, of every graph a flow builds
+(`Built`), that no two tasks have one key (`Built.keys_distinct`) and that each task
+waits for the latest earlier task of its output file, when there is one
+(`Built.chained`). With the queue's `Reachable.starts_after`, the tasks of one file
+run one after the other.
+
 ## How it is checked against the code
 
 `tests/test_lean.py` and `tests/test_lean_scenarios.py` run with the other tests of
@@ -72,14 +79,17 @@ the Python package:
   sides. `lake exe contraagent-lean vocabulary` prints them,
   `tests/lean/vocabulary.json` holds them, and the test compares them with the
   code's: the stop values of `dispatch/task.py`.
-- The work queue, the failover breaker and a resume answer what their
-  specifications do. A scenario of the breaker is a chain of routes and a list of
+- The work queue, the failover breaker, a resume and the task graph answer what
+  their specifications do. A scenario of the breaker is a chain of routes and a list of
   calls of a `Router`, each at a time the scenario gives (`Conformance/Router.lean`,
   `tests/lean/router_scenarios.py`, 100 scenarios in
   `tests/lean/router_scenarios.jsonl`). A scenario of a resume is each key's last
   journal row and the tasks the resume is asked about (`Conformance/Run.lean`,
   `tests/lean/resume_scenarios.py`, 80 scenarios in
-  `tests/lean/resume_scenarios.jsonl`). A scenario of the queue scripts
+  `tests/lean/resume_scenarios.jsonl`). A scenario of the graph is some declarations
+  and a list of task calls, each by a flow call (`Conformance/Graph.lean`,
+  `tests/lean/graph_scenarios.py`, 150 scenarios in
+  `tests/lean/graph_scenarios.jsonl`). A scenario of the queue scripts
   everything a queue does not decide: how each attempt ends and how long it takes,
   what a resume skips, what the runner defers, what a result's follow-up queues and
   what is cancelled, on a clock that only the scenario moves.
