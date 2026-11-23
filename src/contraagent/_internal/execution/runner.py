@@ -661,7 +661,8 @@ class AgentRunner:
                 pinned, walk = nxt_route, stop
                 continue
             if result.stop != Stop.RATE_LIMITED:
-                router.succeeded(route, started=started)
+                if result.ok:  # a launch a signal ended, or one as another credential, says nothing of the route
+                    router.succeeded(route, started=started)
                 return replace(result, route=label, reason=f"{prior_reason}; ran on {label}" if prior_reason else result.reason)
             hops += 1
             nxt = router.rate_limited(

@@ -115,6 +115,29 @@ def test_half_open_probe_returns_to_the_primary_when_it_recovers(tmp_path):
     ]
 
 
+def test_a_probe_that_a_signal_ended_does_not_close_the_breaker(tmp_path):
+    """A launch on the primary that a signal from outside ended says nothing of the limit:
+    the breaker stays on its hop. It closed, and named the primary recovered."""
+
+    class Killed(Agent):
+        def run(self, launch):
+            result = super().run(launch)
+            if launch.model == "m1" and state["killed"]:
+                result.exit_code = -15
+            return result
+
+    state = {"limited": True, "killed": False}
+    a = Killed("claude", lambda m: (Stop.RATE_LIMITED if state["limited"] else Stop.ERROR) if m == "m1" else Stop.COMPLETED)
+    router = chain(("claude", "m1"), ("claude", "m2"))
+    runner = build(tmp_path, {"claude": a}, {"k": router})
+    assert runner.run(Task("k", key="t1")).route.startswith("hop 2/2")
+    clock[0] = 10_000  # the cool-off has passed: the next task probes the primary
+    state.update(limited=False, killed=True)
+    res = runner.run(Task("k", key="t2"))
+    assert res.stop == "error" and res.route.startswith("hop 1/2")
+    assert router.active().model == "m2" and len(router.history()) == 1
+
+
 def test_a_success_begun_before_the_breaker_opened_does_not_close_it():
     """A launch on the primary that began before another task's 429 says nothing of the
     limit since: its success leaves the breaker open. A launch begun after it is a probe."""
