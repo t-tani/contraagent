@@ -1154,6 +1154,15 @@ reports a task table that sets it.
 
 ::code{file="examples/changes/flow.py" from="study = agent_task(" to="def pipeline("}
 
+A file is attributed to the task whose attempt ran when it changed, so two tasks
+that run at once under patterns that cover the same files cannot be told apart: a
+failed attempt of one removes the files the other created meanwhile. Give each
+task a directory of its own (`{unit}` in the pattern), or keep the tasks apart with
+`after=` or a claim they share. `contraagent check` warns of two tasks that may run
+at once in one working directory when their patterns may cover the same files. It
+compares the patterns, not the files, so it also warns of patterns such as
+`src/a*.py` and `src/*b.py`, which cover one file only when a name fits both.
+
 A pattern that starts with `!` leaves out what it matches, and everything under a
 directory it matches, whatever the other patterns cover: `["**", "!.git/**",
 "!**/__pycache__"]` is every file of the working directory but the version control

@@ -704,3 +704,54 @@ def test_a_check_drives_the_flows_with_no_event_loop_running():
 
     report = pipeline().check(flow)
     assert report.ok and seen == ["FlowLoop"]
+
+
+# --- changes that may overlap ---------------------------------------------------------------
+
+
+class Page(BaseModel):
+    text: str
+
+
+def test_two_tasks_that_may_run_at_once_over_the_same_files_are_warned_of():
+    """A failed attempt removes the files it created under its `changes` patterns, and a file
+    is attributed to the task that ran when it changed. Two tasks that run at once under
+    patterns that may cover one file cannot be told apart, so the check says so."""
+    budget = {"instructions": "Write.", "output": Page, "max_turns": 1, "timeout_s": 30}
+    shared = agent_task("shared", changes=["docs/**"], **budget)
+    own = agent_task("own", changes=["docs/{unit}/**"], **budget)
+    held = agent_task("held", changes=["notes/**"], claims=["notes"], **budget)
+    ordered = agent_task("ordered", changes=["drafts/*.md"], **budget)
+
+    def flow():
+        for unit in ("a", "b", "c"):
+            shared(unit)  # every pair may run at once over docs/**
+            own(unit)  # a directory each among themselves, and under docs/** of `shared`
+            held(unit)  # one at a time: they share a claim
+        first = ordered("a")
+        ordered.options(after=[first])("b")  # one after the other
+
+    report = pipeline().check(flow)
+    assert report.ok, report
+    warnings = [w for w in report.warnings if "may run at once" in w]
+    assert len(warnings) == 2, warnings
+    among, across = sorted(warnings, key=lambda w: "own-a" in w)
+    assert among.startswith("shared-a and shared-b (and 2 more such pairs) may run at once")
+    assert "'docs/**' and 'docs/**'" in among and "(contraagent docs tasks)" in among
+    assert across.startswith("shared-a and own-a (and 8 more such pairs) may run at once")
+    assert "'docs/**' and 'docs/a/**'" in across
+
+
+def test_changes_patterns_overlap_when_one_path_may_be_under_both():
+    from contraagent._internal.execution.changes import may_overlap
+
+    assert may_overlap(["docs/**"], ["docs/a/b.md"]) == ("docs/**", "docs/a/b.md")
+    assert may_overlap(["docs"], ["docs/a/b.md"]) is not None  # a directory covers what is under it
+    assert may_overlap(["**/*.md"], ["src/notes.md"]) is not None
+    assert may_overlap(["src/*.py", "!src/gen.py"], ["src/gen.py"]) is not None  # what `!` leaves out is not taken off
+    assert may_overlap(["topics/a*/**"], ["topics/ab/x"]) is not None
+    assert may_overlap(["docs/a/**"], ["docs/b/**"]) is None
+    assert may_overlap(["docs/**/*.md"], ["src/main.py"]) is None
+    assert may_overlap(["topics/a*.md"], ["topics/b*.md"]) is None
+    assert may_overlap(["out/*.json"], ["out/*.md"]) is None
+    assert may_overlap([], ["docs/**"]) is None
