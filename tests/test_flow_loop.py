@@ -15,6 +15,7 @@ import random
 import sys
 import threading
 import time
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -698,6 +699,70 @@ def test_a_task_created_under_a_flow_call_of_another_driver_is_a_top_flow_call()
         second.finish_here()
     assert list(second.calls) == ["0"] and second.calls["0"].parent is None
     assert second.calls["0"].state == "returned" and not second.alive()
+
+
+class Completes:
+    """A runner whose tasks complete at once."""
+
+    def __init__(self) -> None:
+        self.ran: list[str] = []
+
+    def config(self, task: Task) -> Any:
+        return SimpleNamespace(max_concurrent=None)
+
+    def run(self, task: Task) -> TaskResult:
+        self.ran.append(task.key)
+        return TaskResult(task=task, ok=True, stop="completed")
+
+
+def test_flow_code_that_goes_on_waiting_after_it_was_cancelled_does_not_keep_the_run_from_ending():
+    """A retry loop that catches the cancellation too catches that of a flow call that waits
+    for what nothing will answer, and waits again. The run ended only at its deadline, or
+    never: the flow call was cancelled at every pass of the queue. It is cancelled once, and
+    ended `closed` when it still waits."""
+    cancelled: list[str] = []
+
+    async def flow(d):
+        await d.wait(Task("a", key="first"))
+        while True:
+            try:
+                await asyncio.Event().wait()  # nobody sets it
+            except (Exception, asyncio.CancelledError) as error:
+                cancelled.append(type(error).__name__)
+
+    driver = FlowDriver(answer=result_or_raise)
+    runner = Completes()
+    ended = threading.Event()
+
+    def run() -> None:
+        driver.run(WorkQueue(runner), flow(driver))
+        ended.set()
+
+    threading.Thread(target=run, daemon=True).start()
+    assert ended.wait(20), "the run did not end"
+    call = driver.calls["0"]
+    assert call.state == "closed" and "for what nothing will answer" in str(call.error)
+    assert runner.ran == ["first"] and cancelled[0] == "CancelledError"
+
+
+def test_flow_code_that_creates_a_task_after_it_was_cancelled_gets_its_answer():
+    """Flow code may go on after the cancellation and create a task: the flow call is not
+    ended while that task is to give its result. It ends `closed`, as a flow call the driver
+    cancelled does, whatever it returns."""
+
+    async def flow(d):
+        await d.wait(Task("a", key="first"))
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            pass
+        return (await d.wait(Task("a", key="second"))).stop
+
+    driver = FlowDriver(answer=result_or_raise)
+    runner = Completes()
+    driver.run(WorkQueue(runner), flow(driver))
+    assert runner.ran == ["first", "second"]
+    assert driver.calls["0"].state == "closed" and driver.done["second"].stop == "completed"
 
 
 def test_a_flow_loop_runs_on_a_thread_of_its_own_too():

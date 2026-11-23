@@ -102,6 +102,19 @@ next is, of the kept results of skipped tasks, the one whose key has the least p
 in the first run (`next_least`). So a resume gives the flow code those results in
 the order of the first run, whatever order they come in.
 
+`Contraagent/Dispatch/Flow/Settles.lean` proves that a run does not wait for what
+nothing will answer. When the driver closes the flow calls that nothing will answer
+and they have their turn, no flow call runs after the settle, whatever their code
+does with the cancellation: one that goes on to wait again is ended by the driver
+(`settle_ends`). The file then puts the driver beside a queue that holds the tasks
+it was given until it finishes each and gives the driver each result (`Runs`): once
+that queue holds no task and the driver keeps no result, no key is open
+(`Runs.none_open`), so one settle ends every flow call, unless flow code creates a
+task or a flow call in it (`Runs.settles`). With the queue's own bound
+(`Rounds.bounded`), a run whose flow code creates a bounded number of tasks and of
+flow calls ends: this last step is an argument over the two theorems, and the
+queue's description and the driver's are not joined in one.
+
 `Contraagent/Routing/Router/Breaker.lean` proves, of the breaker, that a 429 changes
 nothing when it comes from a launch on the primary that is no probe
 (`rateLimited_no_probe`) or from a hop that is neither the primary nor the hop in

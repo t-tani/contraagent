@@ -31,6 +31,7 @@ inductive Reachable (replay : List (Key × Nat)) : FlowDriverState → Prop
   | ended {s} (call : FlowCallPath) (how : TaskEnd) : Reachable replay s → Reachable replay (s.ended call how).1
   | attach {s} : Reachable replay s → Reachable replay s.attach
   | closeStuck {s} (ready : Bool) : Reachable replay s → Reachable replay (s.closeStuck ready).1
+  | endStuck {s} (ready : Bool) : Reachable replay s → Reachable replay (s.endStuck ready)
   | cancelRest {s} : Reachable replay s → Reachable replay s.cancelRest
   | closeRest {s} : Reachable replay s → Reachable replay s.closeRest
 

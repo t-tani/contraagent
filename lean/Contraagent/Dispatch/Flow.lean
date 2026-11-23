@@ -13,7 +13,7 @@ reaches the driver as calls. A function here is one such call: a Task is created
 `create`), flow code creates a task (`add`) or begins to wait for one (`wait`), the queue
 finishes a task (`followUp`), the driver gives the flow code a result (`give`), a Task is
 cancelled (`cancelled`) or ends (`ended`), and the driver's own steps (`attach`,
-`closeStuck`, `cancelRest`, `closeRest`). Which call comes when is the business of asyncio
+`closeStuck`, `endStuck`, `cancelRest`, `closeRest`). Which call comes when is the business of asyncio
 and of the flow code, and is not described.
 
 Left out: a flow call's frontier and what reached it, which follow the callbacks of the
@@ -75,7 +75,7 @@ results of skipped tasks not yet given, each with its key's place on a resume an
 order it came in. `attached`: the queue is attached. `outbox`, `toCancel`: the tasks and
 the cancels that wait for the queue. `sent`, `cancels`, `given`: the tasks given to the
 queue, the keys cancelled on it and the results given to the flow code, the latest
-first. -/
+first. `stuck`: the flow calls the latest `closeStuck` cancelled. -/
 structure FlowDriverState where
   calls : List FlowCall := []
   tops : Nat := 0
@@ -94,6 +94,7 @@ structure FlowDriverState where
   sent : List Key := []
   cancels : List Key := []
   given : List Key := []
+  stuck : List FlowCallPath := []
   deriving Repr
 
 namespace FlowDriverState
@@ -204,12 +205,10 @@ def next (s : FlowDriverState) : Option FlowResult :=
   | first :: rest => some (rest.foldl earlier first).2.2
   | [] => s.results.head?
 
-/-- Take the next result out of those kept. -/
+/-- Take the next result out of those kept: that one, once. -/
 def takeNext (s : FlowDriverState) : FlowDriverState :=
   match s.replayed with
-  | first :: rest =>
-    let best := rest.foldl earlier first
-    { s with replayed := s.replayed.filter fun entry => !(entry.1 == best.1 && entry.2.1 == best.2.1) }
+  | first :: rest => { s with replayed := s.replayed.erase (rest.foldl earlier first) }
   | [] => { s with results := s.results.drop 1 }
 
 /-- The flow code gets `result` (`_give`): the waits for its key end. But for the result of
@@ -290,18 +289,30 @@ def attach (s : FlowDriverState) : FlowDriverState :=
 def alive (s : FlowDriverState) : Bool :=
   decide (s.running > 0)
 
+/-- Whether something may still answer a flow call: a callback of the flow loop is ready
+(`ready`), a result is kept, or a task the driver queued is still to give its result. -/
+def answerable (s : FlowDriverState) (ready : Bool) : Bool :=
+  ready || !s.results.isEmpty || !s.replayed.isEmpty || !s.«open».isEmpty
+
 /-- When the flows are quiescent and nothing is still to give a result, close every flow
-call that runs (`_close_stuck`): nothing will answer any of them. `ready`: a callback of
-the flow loop is ready. The flow calls closed are cancelled, so their waits end; whether
-any was. -/
+call that runs (`_close_stuck`): nothing will answer any of them. The flow calls closed
+are cancelled, so their waits end; whether any was. -/
 def closeStuck (s : FlowDriverState) (ready : Bool) : FlowDriverState × Bool :=
-  if s.running == 0 || ready || !s.results.isEmpty || !s.replayed.isEmpty || !s.«open».isEmpty then (s, false)
+  if s.running == 0 || s.answerable ready then (s, false)
   else
     let stuck := (s.calls.filter (·.state == .running)).map (·.path)
     ({ s with
         calls := s.calls.map fun call => if call.state == .running then { call with closing := true } else call
-        waiters := s.waiters.filter fun waiter => !stuck.contains waiter.2 },
+        waiters := s.waiters.filter fun waiter => !stuck.contains waiter.2
+        stuck := stuck },
       true)
+
+/-- Once the flow calls that `closeStuck` cancelled had their turn (`_end_stuck`): those
+that still run, while still nothing may answer them, end `closed`. Their code went on after
+the cancellation and waits again; it does not keep the run from ending. -/
+def endStuck (s : FlowDriverState) (ready : Bool) : FlowDriverState :=
+  if s.answerable ready then { s with stuck := [] }
+  else s.stuck.foldl (fun s path => s.endCall path .closed) { s with stuck := [] }
 
 /-- The run is over (`_cancel_rest`): every flow call that runs is closing, and every Task
 is cancelled. -/

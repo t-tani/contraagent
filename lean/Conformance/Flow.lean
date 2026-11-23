@@ -20,8 +20,8 @@ open Contraagent
 /-- One call. `op`: `create` (with `parent`), `add` and `wait` (with `call`, `key`,
 `cancellable`), `waited` (a wait of `call` got a result that ended in `stop`; `flag`: the
 run is past its grace window), `result` (with `key`, `stop`), `give`,
-`cancelled` and `ended` (with `call`, and `how`), `closeStuck` (with `flag`: a callback is
-ready), `cancelRest`, `closeRest` or `attach`. A flow call is named by its id. -/
+`cancelled` and `ended` (with `call`, and `how`), `closeStuck` and `endStuck` (with `flag`:
+a callback is ready), `cancelRest`, `closeRest` or `attach`. A flow call is named by its id. -/
 structure Op where
   op : String
   parent : Option String
@@ -78,6 +78,7 @@ def step (sc : Scenario) (s : FlowDriverState) (op : Op) : FlowDriverState × Js
   | "closeStuck" =>
     let (s, closed) := s.closeStuck op.flag
     (s, closed)
+  | "endStuck" => (s.endStuck op.flag, Json.null)
   | "cancelRest" => (s.cancelRest, Json.null)
   | "closeRest" => (s.closeRest, Json.null)
   | "attach" => (s.attach, Json.null)

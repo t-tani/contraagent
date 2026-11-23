@@ -381,12 +381,22 @@ theorem KeysOnce.closeStuck {s : FlowDriverState} (h : KeysOnce s) (ready : Bool
 theorem KeysOnce.cancelRest {s : FlowDriverState} (h : KeysOnce s) : KeysOnce s.cancelRest :=
   h.congr rfl rfl rfl rfl rfl rfl rfl rfl (fun _ mem => by cases mem) (fun _ mem => mem)
 
-theorem KeysOnce.closeRest {s : FlowDriverState} (h : KeysOnce s) : KeysOnce s.closeRest := by
-  unfold FlowDriverState.closeRest
-  generalize (s.calls.filter (·.state == .running)).map (·.path) = paths
+theorem KeysOnce.closeEach {s : FlowDriverState} (h : KeysOnce s) (paths : List FlowCallPath) :
+    KeysOnce (paths.foldl (fun s path => s.endCall path .closed) s) := by
   induction paths generalizing s with
   | nil => exact h
   | cons path rest ih => exact ih (h.endCall path .closed)
+
+theorem KeysOnce.closeRest {s : FlowDriverState} (h : KeysOnce s) : KeysOnce s.closeRest :=
+  h.closeEach _
+
+theorem KeysOnce.endStuck {s : FlowDriverState} (h : KeysOnce s) (ready : Bool) : KeysOnce (s.endStuck ready) := by
+  have cleared : KeysOnce { s with stuck := [] } :=
+    h.congr rfl rfl rfl rfl rfl rfl rfl rfl (fun _ mem => mem) (fun _ mem => mem)
+  unfold FlowDriverState.endStuck
+  split
+  · exact cleared
+  · exact cleared.closeEach _
 
 /-! ## Every record the driver reaches -/
 
@@ -405,6 +415,7 @@ theorem Reachable.keys {replay : List (Key × Nat)} {s : FlowDriverState} (h : R
   | ended call how _ ih => exact ih.ended call how
   | attach _ ih => exact ih.attach
   | closeStuck ready _ ih => exact ih.closeStuck ready
+  | endStuck ready _ ih => exact ih.endStuck ready
   | cancelRest _ ih => exact ih.cancelRest
   | closeRest _ ih => exact ih.closeRest
 
@@ -444,11 +455,11 @@ theorem Reachable.stuck_waits_for_no_task {replay : List (Key × Nat)} {s : Flow
     s.waiters = [] ∧ ∀ key ∈ s.queuedKeys, s.isDone key = true := by
   have keys := h.keys
   have none_open : s.«open» = [] := by
-    unfold FlowDriverState.closeStuck at closes
-    by_cases quiet : (s.running == 0 || ready || !s.results.isEmpty || !s.replayed.isEmpty || !s.«open».isEmpty) = true
+    unfold FlowDriverState.closeStuck FlowDriverState.answerable at closes
+    by_cases quiet : (s.running == 0 || (ready || !s.results.isEmpty || !s.replayed.isEmpty || !s.«open».isEmpty)) = true
     · simp [quiet] at closes
     · simp only [Bool.or_eq_true, not_or, Bool.not_eq_true', Bool.not_eq_false, List.isEmpty_iff] at quiet
-      exact quiet.2
+      exact quiet.2.2
   refine ⟨?_, ?_⟩
   · cases waiters : s.waiters with
     | nil => rfl

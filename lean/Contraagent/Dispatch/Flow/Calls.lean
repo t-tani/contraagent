@@ -431,6 +431,13 @@ theorem Numbered.closeRest {s : FlowDriverState} (h : Numbered s) :
   refine ⟨each.1, each.2 fun call mem runs => ?_⟩
   exact List.mem_map.mpr ⟨call, List.mem_filter.mpr ⟨mem, by simp [runs]⟩, rfl⟩
 
+theorem Numbered.endStuck {s : FlowDriverState} (h : Numbered s) (ready : Bool) : Numbered (s.endStuck ready) := by
+  have cleared : Numbered { s with stuck := [] } := h.same rfl rfl rfl
+  unfold FlowDriverState.endStuck
+  split
+  · exact cleared
+  · exact (cleared.closeEach _).1
+
 /-! ## Every record the driver reaches -/
 
 theorem Reachable.numbered {replay : List (Key × Nat)} {s : FlowDriverState} (h : Reachable replay s) : Numbered s := by
@@ -448,6 +455,7 @@ theorem Reachable.numbered {replay : List (Key × Nat)} {s : FlowDriverState} (h
   | ended call how _ ih => exact ih.ended call how
   | attach _ ih => exact ih.same rfl rfl rfl
   | closeStuck ready _ ih => exact ih.closeStuck ready
+  | endStuck ready _ ih => exact ih.endStuck ready
   | cancelRest _ ih => exact ih.cancelRest
   | closeRest _ ih => exact ih.closeRest.1
 

@@ -135,6 +135,10 @@ class Noted(FlowDriver):
         self.answers[at] = closed
         return closed
 
+    def _end_stuck(self) -> None:
+        self.note("endStuck", call=None, flag=bool(self._loop.ready()))
+        super()._end_stuck()
+
     def _cancel_rest(self) -> None:
         self.note("cancelRest", call=None)
         self.quiet = True
@@ -305,8 +309,8 @@ def scenario(rng: random.Random) -> dict[str, Any]:
     """A random scenario: a flow of a few levels whose tasks end well, fail or are deferred,
     some of them cancellable, some named by more than one step, some skipped on a resume,
     some the queue's own from the start, with waits that nothing answers, flow code that
-    fails by itself and flow code that goes on when it is cancelled; with the calls its run
-    makes."""
+    fails by itself and flow code that goes on when it is cancelled, to wait again or to
+    create a task; with the calls its run makes."""
     count = [0]
 
     def names() -> Any:
@@ -323,7 +327,19 @@ def scenario(rng: random.Random) -> dict[str, Any]:
         # when it is attached late.
         early = [["add", next(source), "completed", True], ["never"]]
         flow = [["task", [["group", [early, [["fail"]]]]], False], *flow]
-    elif opening < 0.3:
+    elif opening < 0.2:
+        # Flow code that goes on when the driver closes it: it waits again for what nothing
+        # answers, and is ended; or it creates a task, and gets the task's answer; or it
+        # creates a Task that waits for what nothing answers, which the next settle closes.
+        again = rng.choice(
+            [
+                [["never"]],
+                [["wait", next(source), "completed", False], ["never"]],
+                [["task", [["never"]], False], ["never"]],
+            ]
+        )
+        flow = [["task", [["keep", [["never"]]], *again], False], *flow]
+    elif opening < 0.4:
         # A cancellable task whose creator is cancelled while another flow call waits for it,
         # which is cancelled later, when the results come in that order.
         key, first, second = next(source), next(source), next(source)
