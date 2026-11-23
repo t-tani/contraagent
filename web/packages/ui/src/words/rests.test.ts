@@ -44,6 +44,8 @@ describe('deferredText', () => {
     expect(c({ cause: 'grace_window' })).toBe('Past the deadline and its finishing time');
     expect(c({ cause: 'cannot_finish', need_s: 720, left_s: 190 })).toBe('Cannot finish before the deadline | needs 12m 00s | 3m 10s left');
     expect(c({ cause: 'dependency_not_queued' })).toBe('An earlier task was never scheduled');
+    expect(c({ cause: 'no_capacity' })).toBe('Its capacity is set to 0');
+    expect(c({ cause: 'dependency_cycle' })).toBe('Its earlier tasks wait for each other');
     expect(c({ cause: 'dependency_deferred', dependency: 'review-zeta' })).toBe('An earlier task was not run');
   });
   it('names the function whose own deadline (a time box) it was', () => {

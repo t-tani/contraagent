@@ -583,17 +583,29 @@ def nextRetry (now : Time) (s : QueueState) : Option Time :=
       | some b => some (min b t))
     none
 
-/-- Nothing can launch what is queued (`_defer_all`): each task is deferred, its
-dependency never queued. -/
+/-- Nothing runs and a pass could start nothing (`_give_up`): the queued tasks that nothing
+can launch are deferred, each with its cause. One names a key in `after` that is neither
+done nor in flight (`dependency_not_queued`); one whose dependencies are done finds no room
+with nothing running (`no_capacity`). A task that only waits for one of them stays queued.
+With no such task, every queued task waits for another, and all are deferred
+(`dependency_cycle`). -/
 def giveUp (env : QueueEnv) (s : QueueState) : QueueState :=
-  deferAll env s (s.queued.map fun e =>
-    (e.task, { cause := { cause := "dependency_not_queued" } }))
+  let stuck := s.queued.filterMap fun e =>
+    let waitsFor := e.task.after.filter fun key => ! s.doneKeys.contains key
+    if waitsFor.any fun key => ! s.inflight.contains key then
+      some (e.task, ({ cause := { cause := "dependency_not_queued" } } : Deferral))
+    else if waitsFor.isEmpty && ! free env s e.task then
+      some (e.task, { cause := { cause := "no_capacity" } })
+    else none
+  deferAll env s
+    (if stuck.isEmpty then s.queued.map fun e => (e.task, { cause := { cause := "dependency_cycle" } })
+     else stuck)
 
 /-- What the loop of `run_async` does once a pass took the queue from `before` to `after`.
 `again`: the pass finished a task, so it makes another pass. `wait`: tasks run. `retryAt`:
 nothing runs and a queued task waits for its retry. `giveUp`: nothing runs, the pass
-started and finished nothing, and no retry is waited for. `stop`: nothing is queued or
-running. -/
+started and finished nothing, and no retry is waited for: it defers what nothing can
+launch (`giveUp`), and makes another pass. `stop`: nothing is queued or running. -/
 inductive AfterPass where
   | again
   | wait

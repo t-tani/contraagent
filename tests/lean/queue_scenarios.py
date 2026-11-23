@@ -286,7 +286,7 @@ def scenario(rng: random.Random) -> dict[str, Any]:
         "throttleS": rng.choice([5, 300]),
         "overdueS": rng.choice([2, 600]),
         "retryWaitS": rng.choice([0, 3]),
-        "claimCapacity": sorted({"x": rng.choice([1, 2]), "y": 1}.items()) if rng.random() < 0.5 else [],
+        "claimCapacity": sorted({"x": rng.choice([0, 1, 2]), "y": 1}.items()) if rng.random() < 0.5 else [],
         "kindCaps": [["capped", rng.choice([1, 2])]],
         "estimates": [["a", 5]] if rng.random() < 0.3 else [],
         "skip": [key for key in keys if rng.random() < 0.15],

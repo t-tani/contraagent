@@ -88,7 +88,10 @@ work. A task it does not skip is given again as it starts when it starts.
 Every task the queue accepts finishes exactly once, through `follow_up`: with
 its last attempt's result, as `skipped`, or as `deferred` (not launched by the
 deadline or the grace window, or with no way to launch; `ok` False, not passed
-to `on_result`). A follow-up task `add()` refuses finishes as `duplicate_key`,
+to `on_result`). A task has no way to launch when nothing runs, no pass starts
+it, and it names a dependency that was never queued, finds a capacity of 0, or
+waits for tasks that wait for it; a task that only waits for such a task is
+not deferred with it, and may start once that one is. A follow-up task `add()` refuses finishes as `duplicate_key`,
 so whoever waits for it is answered. Finished results settle from one deque,
 never recursively, so a long chain of skipped follow-ups costs no stack. The
 run continues while follow-ups queue work, deferred results included: a
@@ -151,8 +154,11 @@ from contraagent._internal.dispatch.entry import run_sync
 from contraagent._internal.dispatch.records import DeferralCause
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, Deferral, Task, TaskResult, TimeBox
 
-#: The queue's own deferral with no deadline in it (`Deferral.cause` names it).
+#: The queue's own deferrals with no deadline in them (`Deferral.cause` names each): of a
+#: task that nothing can launch, when nothing runs and a pass started nothing (`_give_up`).
 _NOT_QUEUED = Deferral("no launchable task (dependency never queued)", DeferralCause(cause="dependency_not_queued"))
+_NO_CAPACITY = Deferral("no launchable task (a claim capacity or its kind's cap is 0)", DeferralCause(cause="no_capacity"))
+_CYCLE = Deferral("no launchable task (its dependencies wait for each other)", DeferralCause(cause="dependency_cycle"))
 
 #: Used when a task carries no estimate and the `estimate` callback has none: about one
 #: coding-agent session, the usual task. Only an ordering default; a task with no known
@@ -595,10 +601,10 @@ class WorkQueue:
                             await self._wait(set(), max(0.0, min(POLL_S, left)))
                             continue
                         # Nothing runs, and the pass started and finished nothing: what is
-                        # queued waits for a retry, or for a task that will never come.
+                        # queued waits for a retry, or nothing can launch it.
                         if await self._sleep_until_retry():
                             continue
-                        self._defer_all(_NOT_QUEUED)
+                        self._give_up()
                         continue
                     for fut in await self._wait(set(self._running), POLL_S):
                         task = self._running.pop(fut)
@@ -949,12 +955,28 @@ class WorkQueue:
         await self._wait(set(), min(max(0.05, min(waits)), 5.0))
         return True
 
-    def _defer_all(self, deferral: Deferral) -> None:
-        tasks = list(self._queued.values())
-        for t in tasks:
+    def _give_up(self) -> None:
+        """Nothing runs, and a pass could start nothing: defer the queued tasks that nothing
+        can launch, each with its cause. One names a key in `after` that is neither done nor
+        in flight (`dependency_not_queued`); one whose dependencies are done finds no room
+        with nothing running (`no_capacity`: a claim capacity or its kind's cap is 0). A
+        task that only waits for one of them stays queued: the deferral marks that key
+        done, as any deferral does, so the next pass may start it. With no such task, every
+        queued task waits for another: they wait for each other, and all are deferred
+        (`dependency_cycle`)."""
+        stuck: list[tuple[Task, Deferral]] = []
+        for t in self._queued.values():
+            waits_for = [d for d in t.after if d not in self._done_keys]
+            if any(d not in self._inflight_keys for d in waits_for):
+                stuck.append((t, _NOT_QUEUED))
+            elif not waits_for and not self._free(t):
+                stuck.append((t, _NO_CAPACITY))
+        if not stuck:
+            stuck = [(t, _CYCLE) for t in self._queued.values()]
+        for t, _ in stuck:
             self._dequeue(t)
-        for t in tasks:
-            self._defer(t, deferral)
+        for t, why in stuck:
+            self._defer(t, why)
 
     def _defer(self, task: Task, deferral: Deferral) -> None:
         """Not launched: reported as `deferred`, then finished as such."""

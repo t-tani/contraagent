@@ -457,6 +457,45 @@ def test_work_that_was_cancelled_does_not_count_after_a_task():
     assert runner.launched == ["other", "first"] and summary["deferred"] == []
 
 
+def causes_of(queue_options: dict, *tasks: Task) -> tuple[list[str], dict[str, str]]:
+    """The keys launched, and the cause each deferred task was deferred with."""
+    runner = Runner()
+    causes: dict[str, str] = {}
+    q = WorkQueue(runner, on_event=lambda e, t, **f: causes.update({t.key: f["cause"].cause}) if e == "deferred" else None, **queue_options)
+    for task in tasks:
+        q.add(task)
+    q.run()
+    return runner.launched, causes
+
+
+def test_a_task_that_nothing_can_launch_is_deferred_with_its_own_cause():
+    """A capacity of 0, a dependency never queued and tasks that wait for each other are
+    three causes (each was `dependency_not_queued`)."""
+    launched, causes = causes_of(
+        {"claim_capacity": {"heavy": 0}},
+        Task("a", key="closed", claims=("heavy",)),
+        Task("a", key="orphan", after=("never",)),
+        Task("a", key="one", after=("other",)),
+        Task("a", key="other", after=("one",)),
+    )
+    assert launched == []
+    assert causes == {"closed": "no_capacity", "orphan": "dependency_not_queued", "one": "dependency_cycle", "other": "dependency_cycle"}
+
+
+def test_a_task_after_one_that_nothing_can_launch_starts_once_that_one_is_deferred():
+    """As after any deferral: `then` only waits for `closed`, so it is not deferred with it
+    (it was, as a task whose dependency was never queued)."""
+    launched, causes = causes_of(
+        {"claim_capacity": {"heavy": 0}},
+        Task("a", key="closed", claims=("heavy",)),
+        Task("a", key="orphan", after=("never",)),
+        Task("a", key="then", after=("closed", "orphan")),
+        Task("a", key="last", after=("then",)),
+    )
+    assert launched == ["then", "last"]
+    assert causes == {"closed": "no_capacity", "orphan": "dependency_not_queued"}
+
+
 # --- no idle slot, and the finish chance ------------------------------------------------
 
 
@@ -575,9 +614,9 @@ class Checked(WorkQueue):
         self._idle()
         return await super()._wait(running, timeout)
 
-    def _defer_all(self, deferral) -> None:
+    def _give_up(self) -> None:
         self._idle()
-        super()._defer_all(deferral)
+        super()._give_up()
 
 
 def test_no_slot_idles_while_a_task_can_start(monkeypatch):

@@ -179,7 +179,7 @@ tasks took every slot, or with every hop on a resting credential, finishes `defe
 (`RunReport.deferred`, never `RunReport.failed`). `deferred.jsonl` records why (`DeferredRow`): a
 `Deferral`, its reason in one line and its cause as data (`DeferralCause`: `deadline`,
 `grace_window`, `cannot_finish`, each with the `flow_call` whose time box it was,
-`dependency_not_queued`, `rest`, and `dependency_deferred`, with the `dependency` it read,
+`dependency_not_queued`, `no_capacity`, `dependency_cycle`, `rest`, and `dependency_deferred`, with the `dependency` it read,
 written by releases before 0.7; `AgentRunner.deferral`); a follow-up task the
 queue refuses because its key is in flight finishes `duplicate_key`. A task a
 flow waited for that did not succeed raises `TaskFailed` at the `await`

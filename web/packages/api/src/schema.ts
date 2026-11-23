@@ -814,7 +814,9 @@ export type components = {
          * DeferralCause
          * @description Why a task was deferred, as data (`Deferral.cause`). `cause`: `deadline`,
          *     `grace_window` (past the deadline's grace window), `cannot_finish` (`need_s`, `left_s`),
-         *     `dependency_not_queued`, `dependency_deferred` (written by releases before 0.7: a task
+         *     `dependency_not_queued` (a task it comes after was never queued), `no_capacity` (a claim
+         *     capacity or its kind's cap is 0), `dependency_cycle` (the tasks it comes after wait for
+         *     each other, or for it), `dependency_deferred` (written by releases before 0.7: a task
          *     whose output it read was deferred, `dependency`), `rest` (the credential of every hop it could take rests:
          *     `rests`), or a runner's own name. A field a cause does not have is left unset, and
          *     `deferred.jsonl` records only the fields set.

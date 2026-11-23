@@ -15,9 +15,9 @@ added and compared, nothing else. -/
 abbrev Duration := Int
 
 /-- Why a task was deferred, as data (`DeferralCause`). `cause` is `deadline`,
-`grace_window`, `cannot_finish` (with `needS` and `leftS`), `dependency_not_queued`, or a
-runner's own name (`rest`). `flowCall` names the time box when the deadline is a flow
-call's, not the run's. -/
+`grace_window`, `cannot_finish` (with `needS` and `leftS`), `dependency_not_queued`,
+`no_capacity`, `dependency_cycle`, or a runner's own name (`rest`). `flowCall` names the
+time box when the deadline is a flow call's, not the run's. -/
 structure DeferralCause where
   cause : String
   needS : Option Duration := none
