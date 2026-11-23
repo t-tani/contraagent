@@ -18,7 +18,8 @@ listed in a `SegmentIndex`; the open one is a file on the hub's local disk.
   its log (a log the index does not hold continues from line 0); one that starts past
   that end is first joined by any objects of the log the index lacks, and dropped when
   still not contiguous (the relay resends from `held`). Files that follow one another
-  are sealed but the last, which stays open.
+  are sealed but the last, which stays open. The logs are recovered in the order of their
+  names, so that a start does the same on the same files.
 * **Read.** Pages are bounded as `runs.source.page` bounds them. Sealed lines come
   through the block table with one ranged read per segment a page touches (normally
   one), and decompressed blocks are kept in an LRU of `cache_bytes`; open lines are read
@@ -893,7 +894,7 @@ class SegmentedStreamLogs:
             q_name, q_uid, q_log = path.parts[-4:-1]
             found.setdefault((unquote(q_name), unquote(q_uid), unquote(q_log)), []).append((int(path.stem), path))
         now = self.clock()
-        for key, files in found.items():
+        for key, files in sorted(found.items()):  # in the order of their names, not of the directory's listing
             files.sort()
             st = self._get(key, create=True)
             assert st is not None

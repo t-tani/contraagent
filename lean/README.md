@@ -25,6 +25,7 @@ The modules are those of `src/contraagent/_internal/`.
 | `Contraagent/Execution/Services.lean` | `execution/services.py` | the services of a run: when the service a claim name stands for starts, which tasks a start that raised fails and for how long, and what the run's end stops, in which order |
 | `Contraagent/Execution/Run.lean` | `execution/run.py` | what a resume skips, given each key's last journal row, and why it runs a finished task again |
 | `Contraagent/Pipeline/Graph.lean` | `pipeline/graph.py` | what the graph decides of a task call: its key, its output file and the tasks it waits for, or why the call is refused |
+| `Contraagent/Hub/Segments.lean` | `hub/segments.py` | the hub's copies of a log: which lines it holds and which are durable, when an open segment is sealed, the order of a seal's steps, what a start recovers from the files, the objects and the index, and what `sweep` and `drop` delete |
 
 A description holds the fields that its module decides by. What only travels with
 a task or a result is left out, and the first comment of each file says what.
@@ -108,6 +109,14 @@ file's own: the rows of tasks that fill in another file change nothing in it
 so the first says "the same fingerprint", and what that means for the task's work
 rests on SHA-256.
 
+`Contraagent/Hub/Segments/Rows.lean` proves, of the hub's logs, that in every
+state the hub reaches, each index row names an object that is in the store
+(`Reachable.whole`): whichever seal failed, wherever a process died, and after an
+index that lost its rows. A seal puts its object before it commits its row, and
+`sweep` deletes only objects that no row names. The description gives a seal four
+steps at which it may fail or the process may die, so every order of events a crash
+leaves is one of its states.
+
 `Contraagent/Pipeline/Graph/Order.lean` proves, of every graph a flow builds
 (`Built`), that no two tasks have one key (`Built.keys_distinct`) and that each task
 waits for the latest earlier task of its output file, when there is one
@@ -126,8 +135,8 @@ the Python package:
   `tests/lean/vocabulary.json` holds them, and the test compares them with the
   code's: the stop values of `dispatch/task.py`.
 - The work queue, the failover breaker, a resume, the task graph, the host's room,
-  a credential pool, the credential rests, a run's services and the attempts of
-  agent tasks answer what their specifications do. A scenario of the
+  a credential pool, the credential rests, a run's services, the attempts of agent
+  tasks and the hub's logs answer what their specifications do. A scenario of the
   breaker is a chain of routes and a list of
   calls of a `Router`, each at a time the scenario gives (`Conformance/Router.lean`,
   `tests/lean/router_scenarios.py`, 100 scenarios in
@@ -163,7 +172,12 @@ the Python package:
   the script, and the results the journal gets, each task's result and the
   breaker's switches are compared (`Conformance/Runner.lean`,
   `tests/lean/attempt_scenarios.py`, 30 scenarios in
-  `tests/lean/attempt_scenarios.jsonl`). A scenario of the queue scripts
+  `tests/lean/attempt_scenarios.jsonl`). A scenario of the hub's logs is a list of
+  appends, closes, ticks, reads, sweeps, drops and starts on three logs of two runs,
+  with seals that fail and processes that die at a step of a seal; the answers, and
+  the index rows, the objects and the files after the last step, are compared
+  (`Conformance/Segments.lean`, `tests/lean/hub_scenarios.py`, 40 scenarios in
+  `tests/lean/hub_scenarios.jsonl`). A scenario of the queue scripts
   everything a queue does not decide: how each attempt ends and how long it takes,
   what a resume skips, what the runner defers, what a result's follow-up queues and
   what is cancelled, on a clock that only the scenario moves.
@@ -172,6 +186,11 @@ the Python package:
   ones on `WorkQueue`. `tests/lean/queue_scenarios.jsonl` holds 150 scenarios with
   what the specification reports for each, and `tests/test_lean_scenarios.py` plays
   them on the code: the two lists of events must be equal.
+
+A description leaves parts of its module out, and a fault in such a part is one
+that these comparisons do not see. `tests/test_hub_laws.py` therefore checks the
+laws of the hub's logs on the code alone, on the same random scenarios: each log
+reads as its relay sent it, and the durable lines are not lost.
 
 The `lean` job of `.github/workflows/ci.yml` builds the package, with every proof.
 It fails when a committed file is not what the specification gives now. It also
