@@ -2,6 +2,7 @@ import Lean.Data.Json
 import Contraagent.Dispatch.Task
 import Conformance.Queue
 import Conformance.Router
+import Conformance.Run
 
 /-!
 # `lake exe contraagent-lean`
@@ -34,6 +35,9 @@ def main (args : List String) : IO UInt32 := do
   | ["router"] =>
     playScenarios Conformance.Router.runScenario (← IO.getStdin)
     return 0
+  | ["resume"] =>
+    playScenarios Conformance.Run.runScenario (← IO.getStdin)
+    return 0
   | _ =>
-    IO.eprintln "usage: lake exe contraagent-lean vocabulary | queue < scenarios.jsonl | router < scenarios.jsonl"
+    IO.eprintln "usage: lake exe contraagent-lean vocabulary | (queue | router | resume) < scenarios.jsonl"
     return 2

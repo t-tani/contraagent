@@ -18,6 +18,7 @@ The modules are those of `src/contraagent/_internal/`.
 | `Contraagent/Dispatch/Task.lean` | `dispatch/task.py` | a task, its result, a time box, a deferral and the stop values |
 | `Contraagent/Dispatch/Queue.lean` | `dispatch/queue.py` | the work queue: what it accepts, what a pass starts and in which order, what it defers, retries and cancels, and how each task finishes |
 | `Contraagent/Routing/Router.lean` | `routing/router.py` | the failover breaker: the route the next task runs on, what a 429 moves, the probe of the primary and what closes the breaker |
+| `Contraagent/Execution/Run.lean` | `execution/run.py` | what a resume skips, given each key's last journal row, and why it runs a finished task again |
 
 A description holds the fields that its module decides by. What only travels with
 a task or a result is left out, and the first comment of each file says what.
@@ -44,6 +45,15 @@ force (`rateLimited_other_hop`); that after the task picked as the probe, every
 task is picked the hop in force until the cool-off has passed again
 (`pick_after_probe`); and that an exhausted chain stays exhausted.
 
+`Contraagent/Execution/Run/Skip.lean` proves, of a resume, that a task is skipped
+only when its key's last row is ok and not `partial`, holds the fingerprint the task
+is judged by, the task does not rerun on resume and its output reads
+(`resumeSkip_sound`); and that the history of a file that tasks fill in is that
+file's own: the rows of tasks that fill in another file change nothing in it
+(`leftDigests_own_file`). The digest of a fingerprint is asked of the surroundings,
+so the first says "the same fingerprint", and what that means for the task's work
+rests on SHA-256.
+
 ## How it is checked against the code
 
 `tests/test_lean.py` and `tests/test_lean_scenarios.py` run with the other tests of
@@ -55,11 +65,14 @@ the Python package:
   sides. `lake exe contraagent-lean vocabulary` prints them,
   `tests/lean/vocabulary.json` holds them, and the test compares them with the
   code's: the stop values of `dispatch/task.py`.
-- The work queue and the failover breaker answer what their specifications do. A
-  scenario of the breaker is a chain of routes and a list of calls of a `Router`,
-  each at a time the scenario gives (`Conformance/Router.lean`,
+- The work queue, the failover breaker and a resume answer what their
+  specifications do. A scenario of the breaker is a chain of routes and a list of
+  calls of a `Router`, each at a time the scenario gives (`Conformance/Router.lean`,
   `tests/lean/router_scenarios.py`, 100 scenarios in
-  `tests/lean/router_scenarios.jsonl`). A scenario of the queue scripts
+  `tests/lean/router_scenarios.jsonl`). A scenario of a resume is each key's last
+  journal row and the tasks the resume is asked about (`Conformance/Run.lean`,
+  `tests/lean/resume_scenarios.py`, 80 scenarios in
+  `tests/lean/resume_scenarios.jsonl`). A scenario of the queue scripts
   everything a queue does not decide: how each attempt ends and how long it takes,
   what a resume skips, what the runner defers, what a result's follow-up queues and
   what is cancelled, on a clock that only the scenario moves.

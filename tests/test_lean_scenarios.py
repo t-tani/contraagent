@@ -29,7 +29,7 @@ def _module(name: str) -> ModuleType:
 
 exe = _module("exe")
 #: What is specified, with the module of its scenarios.
-PARTS = {name: _module(f"{name}_scenarios") for name in ("queue", "router")}
+PARTS = {name: _module(f"{name}_scenarios") for name in ("queue", "router", "resume")}
 COMMITTED = {name: [json.loads(line) for line in part.FILE.read_text(encoding="utf-8").splitlines()] for name, part in PARTS.items()}
 CASES = [(name, number) for name, entries in COMMITTED.items() for number in range(len(entries))]
 
@@ -52,6 +52,7 @@ def rewrite(name: str) -> str:
 @pytest.mark.parametrize("name", PARTS)
 def test_the_committed_scenarios_are_the_generator_s(name: str):
     part = PARTS[name]
+    assert COMMITTED[name], f"{part.FILE.name} holds no scenario"
     made = json.loads(json.dumps(part.scenarios(part.SEED, part.COUNT)))  # as JSON holds them
     assert [entry["scenario"] for entry in COMMITTED[name]] == made, (
         f"{part.FILE.name} does not hold the scenarios of its generator; {rewrite(name)}"

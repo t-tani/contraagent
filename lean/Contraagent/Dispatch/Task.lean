@@ -70,10 +70,19 @@ structure Deferral where
   cause : DeferralCause
   deriving DecidableEq, Repr
 
+/-- Where a flow created a task (`Origin`): the keys of the results that had reached its
+flow call (`createdFrom`), and the keys of the tasks whose outputs it was given in its
+params (`givenFrom`). -/
+structure Origin where
+  createdFrom : List Key := []
+  givenFrom : List Key := []
+  deriving DecidableEq, Repr
+
 /-- One schedulable unit of work (`Task`). `id` is fresh for each task and names it in the
 queue's own bookkeeping; `key` is the identity of its work, which `after` names. `key` and
 `unit` are as the code leaves them once the task is built: neither is empty. `fingerprint`
-is empty for a task whose builder gives none. -/
+is empty for a task whose builder gives none, and `outside`, the digest of its outside
+state, for a task that declares none or before it is about to start. -/
 structure Task where
   kind : Kind
   unit : String
@@ -88,8 +97,10 @@ structure Task where
   attempt : Nat := 0
   id : String
   key : Key
+  origin : Option Origin := none
   fingerprint : String := ""
   fingerprintAtStart : Bool := false
+  outside : String := ""
   /-- A digest of each part of what the fingerprint covers, by the part's name. -/
   fingerprintParts : List (String × String) := []
   cancellable : Bool := false

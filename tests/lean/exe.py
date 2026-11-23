@@ -30,7 +30,15 @@ def specified(what: str, given: list[dict[str, Any]]) -> list[Any]:
     )
     if done.returncode != 0:
         raise RuntimeError(done.stderr)
-    return [json.loads(line) for line in done.stdout.splitlines()]
+    answers = [json.loads(line) for line in done.stdout.splitlines()]
+    if len(answers) != len(given):
+        raise RuntimeError(f"contraagent-lean {what} answered {len(answers)} of {len(given)} scenarios")
+    for number, answer in enumerate(answers):
+        # A scenario the specification could not play is a fault of the scenario or of the
+        # player, not a difference between the code and the specification.
+        if isinstance(answer, dict) and "error" in answer:
+            raise RuntimeError(f"contraagent-lean {what} could not play scenario {number}: {answer['error']}")
+    return answers
 
 
 def rewrite(file: Path, what: str, given: list[dict[str, Any]]) -> None:
