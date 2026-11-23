@@ -104,9 +104,13 @@ prune cutoff=<time> | removed runs=N transcripts=N segments=N blobs=N blob_bytes
 ```
 
 `contraagent hub prune` prunes once, with the same storage options as the hub.
-`--dry-run` lists what it would remove and removes nothing, so it is safe beside a
-running hub; without it, run it only while no hub with a retention uses the same
-storage. In compose, give it the hub's storage options:
+`--dry-run` lists what it would remove and changes nothing, so it is safe beside a
+running hub. It reads the sealed segments and their index, not the open segments
+in `--streams-dir`. Without `--dry-run`, run it only while no hub uses the same
+storage: it opens `--streams-dir` as a starting hub does, which recovers the open
+segments there, and it removes the segment objects that the index does not name,
+which a running hub may be writing. A hub that runs keeps its storage pruned with
+`--retain-days`. In compose, give the command the hub's storage options:
 
 ```
 docker compose run --rm hub prune --retain-days 30 --dry-run \

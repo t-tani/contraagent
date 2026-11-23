@@ -196,8 +196,10 @@ usage: contraagent hub prune [-h] [--store memory|postgres://...]
                              [--blob-grace-hours H] [--json]
 
 Remove the runs with no activity for N days from the hub's storage, once, and print what was
-removed. A run is kept while the heartbeats in the store report it live or unresponsive. Do not
-run it while a hub started with --retain-days uses the same storage: one process prunes at a time.
+removed. A run is kept while the heartbeats in the store report it live or unresponsive. Run it
+only while no hub uses the same storage: it opens --streams-dir as a starting hub does, and
+removes segment objects that a running hub may be writing. With --dry-run it changes nothing and
+reads the sealed segments only, so it is safe beside a running hub.
 
 options:
   -h, --help            show this help message and exit

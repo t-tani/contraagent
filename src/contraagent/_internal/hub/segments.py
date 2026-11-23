@@ -791,7 +791,9 @@ class SegmentedStreamLogs:
             hot.path.unlink(missing_ok=True)
 
     def sweep(self) -> list[str]:
-        """Delete every object that no index row references and no seal is writing; the keys deleted."""
+        """Delete every object that no index row references and no seal is writing; the keys
+        deleted. Only the seals of this process are known here: no other process may be
+        sealing into the same objects (a hub is one process)."""
         listed = self.objects.keys()
         deleted = []
         with self._keys_lock:
