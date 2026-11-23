@@ -105,8 +105,10 @@ for each claim name (`Reachable.started_once`); that a service whose start raise
 fails each task that claims its name, and starts nothing, until the cool-off has
 passed (`acquire_resting`); that a task starts no service once the run's end closed
 them (`hold_closed`); and that the run's end leaves no service up
-(`close_none_up`). The order of the stops, the last started first, is not proved:
-the scenarios below hold the code to it.
+(`close_none_up`). `Contraagent/Execution/Services/Order.lean` proves that the run's
+end stops the services in the reverse order of their starts: the stops it writes,
+the latest first, are the starts that went well, the earliest first
+(`Reachable.close_reverse`).
 
 `Contraagent/Execution/Run/Skip.lean` proves, of a resume, that a task is skipped
 only when its key's last row is ok and not `partial`, holds the fingerprint the task
