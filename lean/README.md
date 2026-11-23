@@ -20,6 +20,7 @@ The modules are those of `src/contraagent/_internal/`.
 | `Contraagent/Routing/Router.lean` | `routing/router.py` | the failover breaker: the route the next task runs on, what a 429 moves, the probe of the primary and what closes the breaker |
 | `Contraagent/Routing/Capacity.lean` | `routing/capacity.py` | a claim capacity sized by the host: how many tasks may hold a name, given the memory and cores one needs, what the running tasks hold and what the host reads |
 | `Contraagent/Routing/Pool.lean` | `routing/pool.py` | a credential pool: the member the next launch uses, in order or in a round robin, and how long a member rests after a 429 |
+| `Contraagent/Execution/Runner.lean` | `execution/runner.py` | one attempt of an agent task on its kind's failover chain: the hops it launches on, the hops it passes over because their credential rests, when it is deferred, which launch's result is its own; and whether a fresh attempt follows |
 | `Contraagent/Execution/Services.lean` | `execution/services.py` | the services of a run: when the service a claim name stands for starts, which tasks a start that raised fails and for how long, and what the run's end stops, in which order |
 | `Contraagent/Execution/Run.lean` | `execution/run.py` | what a resume skips, given each key's last journal row, and why it runs a finished task again |
 | `Contraagent/Pipeline/Graph.lean` | `pipeline/graph.py` | what the graph decides of a task call: its key, its output file and the tasks it waits for, or why the call is refused |
@@ -66,6 +67,21 @@ a pick gives does not cool down on the model and is not excluded (`pick_rested`)
 and that a member that answered 429 on a model is not picked for that model until
 its wait has passed (`pick_after_rateLimited`).
 
+`Contraagent/Execution/Runner/Ends.lean` proves that an attempt ends: on a chain
+with no two hops of one identity, its walk gives a result within twice the chain's
+hops and one more round, whatever its launches give, whichever credentials rest and
+whatever other tasks do to the breaker (`runWithFailover_ends`). Each round launches
+once at most, so that bounds the launches of an attempt. The chain of every router
+has no two hops of one identity (`chainOf_distinct`).
+`Contraagent/Execution/Runner/Deferred.lean` proves that an attempt ends deferred
+only when it launched nothing, having passed over every hop it could take, one of
+them resting on its quota (`runWithFailover_deferred`); and that `deferral`, which
+the queue asks before it starts a task, says what the attempt's first round would
+(`choose_deferral`). The first assumes that no launch ends with the stop `deferred`.
+`Contraagent/Execution/Runner/Attempts.lean` proves that a task gets one attempt
+and its kind's `retries` more at most, that it ends with a result, and that the
+journal gets no deferred attempt.
+
 `Contraagent/Execution/Services/Once.lean` proves, of a run's services, that in
 every state the run reaches, `services.jsonl` shows at most one start that went well
 for each claim name (`Reachable.started_once`); that a service whose start raised
@@ -102,7 +118,8 @@ the Python package:
   `tests/lean/vocabulary.json` holds them, and the test compares them with the
   code's: the stop values of `dispatch/task.py`.
 - The work queue, the failover breaker, a resume, the task graph, the host's room,
-  a credential pool and a run's services answer what their specifications do. A scenario of the
+  a credential pool, a run's services and the attempts of agent tasks answer what
+  their specifications do. A scenario of the
   breaker is a chain of routes and a list of
   calls of a `Router`, each at a time the scenario gives (`Conformance/Router.lean`,
   `tests/lean/router_scenarios.py`, 100 scenarios in
@@ -124,7 +141,15 @@ the Python package:
   the run, each with the clock's reading and what the start or the stop of each
   service does then; the answers and the lines of `services.jsonl` are compared
   (`Conformance/Services.lean`, `tests/lean/services_scenarios.py`, 40 scenarios
-  in `tests/lean/services_scenarios.jsonl`). A scenario of the queue scripts
+  in `tests/lean/services_scenarios.jsonl`). A scenario of attempts is a failover
+  chain and some tasks that run one after the other on its breaker, each with its
+  attempts' rounds: what a launch on each route gives, which routes rest, whether
+  the task is cancelled, and what other tasks do to the breaker meanwhile. It is
+  played on `RetryingRunner` and `AgentRunner` with coding agents that answer from
+  the script, and the results the journal gets, each task's result and the
+  breaker's switches are compared (`Conformance/Runner.lean`,
+  `tests/lean/attempt_scenarios.py`, 30 scenarios in
+  `tests/lean/attempt_scenarios.jsonl`). A scenario of the queue scripts
   everything a queue does not decide: how each attempt ends and how long it takes,
   what a resume skips, what the runner defers, what a result's follow-up queues and
   what is cancelled, on a clock that only the scenario moves.

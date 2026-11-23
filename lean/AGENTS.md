@@ -20,6 +20,7 @@ lake exe contraagent-lean graph        # the same for the task graph
 lake exe contraagent-lean capacity     # the same for the host's room
 lake exe contraagent-lean pool         # the same for a credential pool
 lake exe contraagent-lean services     # the same for a run's services
+lake exe contraagent-lean attempt      # the same for the attempts of agent tasks
 ```
 
 Run these at the repository's root:
@@ -34,6 +35,7 @@ uv run python tests/lean/graph_scenarios.py                      # rewrites test
 uv run python tests/lean/capacity_scenarios.py                   # rewrites tests/lean/capacity_scenarios.jsonl
 uv run python tests/lean/pool_scenarios.py                       # rewrites tests/lean/pool_scenarios.jsonl
 uv run python tests/lean/services_scenarios.py                   # rewrites tests/lean/services_scenarios.jsonl
+uv run python tests/lean/attempt_scenarios.py                    # rewrites tests/lean/attempt_scenarios.jsonl
 ```
 
 ## Files
@@ -112,4 +114,5 @@ uv run python tests/lean/graph_scenarios.py
 uv run python tests/lean/capacity_scenarios.py
 uv run python tests/lean/pool_scenarios.py
 uv run python tests/lean/services_scenarios.py
+uv run python tests/lean/attempt_scenarios.py
 ```
