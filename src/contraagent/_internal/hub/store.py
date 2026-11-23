@@ -146,7 +146,8 @@ class HubStore(Protocol):
 
 
 class BlobItem(NamedTuple):
-    """One blob as a listing gives it: its SHA-256, its size in bytes, and when it was stored."""
+    """One blob as a listing gives it: its SHA-256, its size in bytes, and when it was stored
+    or last renewed."""
 
     sha256: str
     size: int
@@ -154,13 +155,22 @@ class BlobItem(NamedTuple):
 
 
 class BlobStore(Protocol):
-    """File contents, named by their SHA-256."""
+    """File contents, named by their SHA-256.
+
+    A blob is dated (`BlobItem.modified`) when it is stored and each time it is renewed.
+    Retention removes a blob that no file ref names only once that date is old (`expire`),
+    so whoever is about to name a blob it did not store renews it first (`renew`): the blob
+    then stays for the grace, which is the time the file ref has to arrive."""
 
     def has(self, sha256: str) -> bool: ...
 
+    def renew(self, sha256: str) -> bool:
+        """Date the blob now, as one stored now. Whether it is held."""
+        ...
+
     def put(self, sha256: str, data: bytes) -> None:
         """Store `data`; `ValueError` when it does not hash to `sha256`. Storing a blob already
-        held changes nothing, its `modified` included."""
+        held renews it."""
         ...
 
     def get(self, sha256: str) -> bytes | None: ...
@@ -169,8 +179,10 @@ class BlobStore(Protocol):
         """Every blob held, in no particular order; `modified` is timezone-aware."""
         ...
 
-    def delete(self, sha256: str) -> None:
-        """Remove the blob; nothing happens when there is none."""
+    def expire(self, sha256: str, before: datetime) -> bool:
+        """Remove the blob when it is dated before `before`, by its date as it is now, not
+        as a listing gave it: a blob renewed since stays. Whether it was removed; nothing
+        happens when there is none."""
         ...
 
 
@@ -362,10 +374,18 @@ class MemoryBlobs:
         with self._lock:
             return sha256 in self._blobs
 
+    def renew(self, sha256: str) -> bool:
+        with self._lock:
+            got = self._blobs.get(sha256)
+            if got is None:
+                return False
+            self._blobs[sha256] = (got[0], self._clock())
+            return True
+
     def put(self, sha256: str, data: bytes) -> None:
         _check(sha256, data)
         with self._lock:
-            self._blobs.setdefault(sha256, (bytes(data), self._clock()))
+            self._blobs[sha256] = (bytes(data), self._clock())
 
     def get(self, sha256: str) -> bytes | None:
         with self._lock:
@@ -378,14 +398,19 @@ class MemoryBlobs:
         for sha, (data, at) in held:
             yield BlobItem(sha, len(data), datetime.fromtimestamp(at, UTC))
 
-    def delete(self, sha256: str) -> None:
+    def expire(self, sha256: str, before: datetime) -> bool:
         with self._lock:
-            self._blobs.pop(sha256, None)
+            got = self._blobs.get(sha256)
+            if got is None or datetime.fromtimestamp(got[1], UTC) >= before:
+                return False
+            del self._blobs[sha256]
+            return True
 
 
 class DirectoryBlobs:
     """A `BlobStore` in a directory: `<root>/<sha[:2]>/<sha>`, written atomically
-    (`write_document`)."""
+    (`write_document`) and dated by its modification time. `expire` looks at that time and
+    then removes the file, two calls apart: a blob renewed between them is removed."""
 
     def __init__(self, root: str | Path) -> None:
         self.root = Path(root)
@@ -398,11 +423,18 @@ class DirectoryBlobs:
     def has(self, sha256: str) -> bool:
         return self._path(sha256).is_file()
 
+    def renew(self, sha256: str) -> bool:
+        try:
+            os.utime(self._path(sha256))
+        except FileNotFoundError:
+            return False
+        return True
+
     def put(self, sha256: str, data: bytes) -> None:
         _check(sha256, data)
-        path = self._path(sha256)
-        if path.is_file():
+        if self.renew(sha256):
             return
+        path = self._path(sha256)
         path.parent.mkdir(parents=True, exist_ok=True)
         write_document(path, data)
 
@@ -428,5 +460,12 @@ class DirectoryBlobs:
                     continue
                 yield BlobItem(entry.name, st.st_size, datetime.fromtimestamp(st.st_mtime, UTC))
 
-    def delete(self, sha256: str) -> None:
-        self._path(sha256).unlink(missing_ok=True)
+    def expire(self, sha256: str, before: datetime) -> bool:
+        path = self._path(sha256)
+        try:
+            if datetime.fromtimestamp(path.stat().st_mtime, UTC) >= before:
+                return False
+            path.unlink()
+        except FileNotFoundError:
+            return False
+        return True

@@ -29,7 +29,7 @@ The modules are those of `src/contraagent/_internal/`.
 | `Contraagent/Pipeline/Graph.lean` | `pipeline/graph.py` | what the graph decides of a task call: its key, its output file and the tasks it waits for, or why the call is refused |
 | `Contraagent/Hub/Segments.lean` | `hub/segments.py` | the hub's copies of a log: which lines it holds and which are durable, when an open segment is sealed, the order of a seal's steps, what a start recovers from the files, the objects and the index, and what `sweep` and `drop` delete |
 | `Contraagent/Hub/Relay.lean` | `hub/relay.py` | the relay's shipping of a run's logs: the lines of each request, what it takes from the hub's answer as its progress, and when it sends the run again or stops |
-| `Contraagent/Hub/Core.lean` | `hub/core.py` | what the hub answers a request for a run its retention removed: the answer that stores nothing, or the run stored again |
+| `Contraagent/Hub/Core.lean` | `hub/core.py` | the hub's retention: which runs, transcripts, heartbeats and blobs a prune removes and what it reports; the blobs and the file refs while a prune runs beside the relays; and what the hub answers a request for a run its retention removed |
 
 A description holds the fields that its module decides by. What only travels with
 a task or a result is left out, and the first comment of each file says what.
@@ -184,6 +184,28 @@ relay finds no line lost and does not send the run again (`acceptChunk_kept`), a
 that the hub stores the run again exactly when a chunk brings a line past those it
 held (`answer_none_iff`).
 
+`Contraagent/Hub/Core/Kept.lean` proves, of a prune, that it removes a run only when
+the run's activity is older than the cutoff and the run is neither live nor
+unresponsive (`removes_iff`), so each of those runs stays, as does one with no
+activity time (`afterPrune_keeps_run`); that a blob stays when a file ref of a run
+kept names it (`afterPrune_keeps_referenced`) or when it was stored within the grace
+(`afterPrune_keeps_young`); that a heartbeat stays while it is not old, while its
+host is up, and while it reports an unresponsive run the hub holds
+(`afterPrune_keeps_heartbeat`); and that a dry run changes nothing and reports the
+same (`prune_dry`). `Contraagent/Hub/Core/Settled.lean` proves that a prune is
+complete: a second prune at the same time removes no run, no transcripts, no
+heartbeat and no blob (`afterPrune_settled`), in a hub that holds one run under each
+name. What a prune removes changes nothing in what it decided to keep.
+
+`Contraagent/Hub/Core/Blobs.lean` proves that every file ref names a blob the hub
+holds (`Reachable.refs_held`), after any steps of relays and prunes in any order and
+however long a prune takes. A relay that asks for a blob renews it, as storing it
+does, and a prune removes a blob only when it is still dated before the grace of the
+time the prune began. The theorem assumes that each file ref arrives within the
+grace of its relay's asking for the blob or storing it, and that the blob store
+looks at a blob's date and removes the blob in one step, which the store in memory
+does and the stores in a directory and in a bucket do in two calls.
+
 `Contraagent/Pipeline/Graph/Order.lean` proves, of every graph a flow builds
 (`Built`), that no two tasks have one key (`Built.keys_distinct`) and that each task
 waits for the latest earlier task of its output file, when there is one
@@ -204,8 +226,8 @@ the Python package:
   members of `Stop` in `backends/launch.py`.
 - The work queue, the flow driver, the failover breaker, a resume, the task graph,
   the host's room, a credential pool, the credential rests, a run's services, the
-  attempts of agent tasks, the hub's logs and the relay answer what their
-  specifications do. A scenario of the breaker is a chain of routes and a list of
+  attempts of agent tasks, the hub's logs, the relay and the hub's retention answer
+  what their specifications do. A scenario of the breaker is a chain of routes and a list of
   calls of a `Router`, each at a time the scenario gives (`Conformance/Router.lean`,
   `tests/lean/router_scenarios.py`, 100 scenarios in
   `tests/lean/router_scenarios.jsonl`). A scenario of a resume is each key's last
@@ -262,6 +284,18 @@ the Python package:
   compared (`Conformance/Flow.lean`, `tests/lean/flow_scenarios.py`, 30 scenarios
   in `tests/lean/flow_scenarios.jsonl`). Which call comes when is decided by asyncio
   and by the flow code, and the specification does not describe it. A scenario of
+  a prune is what a hub holds: runs with their activity and file refs, transcripts of
+  those runs and of run uids the hub no longer holds, heartbeats, blobs, and runs
+  pruned before, with times at the edge of the cutoff and of the grace. It is played
+  on `Hub.prune` over a hub in memory, and the report and what the hub holds after
+  are compared (`Conformance/Core.lean`, `tests/lean/prune_scenarios.py`, 70
+  scenarios in `tests/lean/prune_scenarios.jsonl`). A scenario of the blobs is a list
+  of steps at times the scenario gives: a relay asks for a blob, stores one or sends
+  a file ref, and a prune runs, with steps of relays that come after it read the file
+  refs and before it removes a blob; what each step answers, the blobs held with
+  their dates and the blobs that file refs name are compared
+  (`tests/lean/blobs_scenarios.py`, 150 scenarios in
+  `tests/lean/blobs_scenarios.jsonl`). A scenario of
   the queue scripts everything a queue does not decide: how each attempt ends and
   how long it takes, what a resume skips, what the runner defers, the task the
   runner gives as a task starts (for some tasks another task, of which the queue

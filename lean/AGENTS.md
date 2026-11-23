@@ -25,6 +25,8 @@ lake exe contraagent-lean attempt      # the same for the attempts of agent task
 lake exe contraagent-lean hub          # the same for the hub's logs
 lake exe contraagent-lean relay        # the same for the relay
 lake exe contraagent-lean flow         # the same for the flow driver
+lake exe contraagent-lean prune        # the same for the hub's retention
+lake exe contraagent-lean blobs        # the same for the hub's blobs while a prune runs beside the relays
 ```
 
 Run these at the repository's root:
@@ -44,6 +46,8 @@ uv run python tests/lean/attempt_scenarios.py                    # rewrites test
 uv run python tests/lean/hub_scenarios.py                        # rewrites tests/lean/hub_scenarios.jsonl
 uv run python tests/lean/relay_scenarios.py                      # rewrites tests/lean/relay_scenarios.jsonl
 uv run python tests/lean/flow_scenarios.py                       # rewrites tests/lean/flow_scenarios.jsonl
+uv run python tests/lean/prune_scenarios.py                      # rewrites tests/lean/prune_scenarios.jsonl
+uv run python tests/lean/blobs_scenarios.py                      # rewrites tests/lean/blobs_scenarios.jsonl
 ```
 
 ## Files
@@ -66,7 +70,8 @@ uv run python tests/lean/flow_scenarios.py                       # rewrites test
 
 A module is described when it decides which work runs, when, or whether it runs
 again: the schedulers, the flow driver, the task graph, resume, failover, capacity,
-the credential pools and rests, the services, and the hub's copies of a log. A
+the credential pools and rests, the services, the hub's copies of a log and what its
+retention removes. A
 module that reads an agent's output, checks a file against a schema, counts tokens
 or draws the monitor is not described.
 
@@ -127,6 +132,8 @@ uv run python tests/lean/attempt_scenarios.py
 uv run python tests/lean/hub_scenarios.py
 uv run python tests/lean/relay_scenarios.py
 uv run python tests/lean/flow_scenarios.py
+uv run python tests/lean/prune_scenarios.py
+uv run python tests/lean/blobs_scenarios.py
 ```
 
 A scenario of the flow driver holds the calls that a run of its flow made on the

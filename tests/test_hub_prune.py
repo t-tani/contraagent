@@ -9,7 +9,8 @@ pruned: the run's relay, which still holds it, does not bring it back, unless it
 import dataclasses
 import hashlib
 import threading
-from collections.abc import Callable, Iterator
+import time
+from collections.abc import Callable, Collection, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -198,6 +199,38 @@ def test_an_unreferenced_blob_stays_while_young_and_goes_when_old(hub, tmp_path)
     assert hub.prune(older_than=RETAIN, now=NOW + timedelta(days=2), blob_grace=timedelta(days=3)).blobs == []
 
 
+def test_a_blob_a_relay_asked_for_stays_while_its_file_ref_is_on_its_way(hub, tmp_path):
+    """A relay that finds the hub holds a blob sends a file ref without the content. The
+    blob may be old and named by no file ref yet: asking for it renews it, so a prune before
+    the file ref arrives keeps it, also when the relay asks while the prune is under way,
+    after the prune read the file refs."""
+    grace = timedelta(seconds=1.5)  # S3 dates an object to the second
+    asked, during, never = blob(hub, b"asked before the prune"), blob(hub, b"asked during the prune"), blob(hub, b"never asked")
+    dated = max(item.modified for item in hub.blobs.items())
+    while datetime.now(UTC) < dated + grace + timedelta(seconds=1.2):
+        time.sleep(0.05)
+    assert sorted(hub.prune(older_than=RETAIN, blob_grace=grace, dry_run=True).blobs) == sorted([asked, during, never])
+
+    assert hub.has_blob(asked)  # a relay is about to send a file ref of it
+    read = hub.store.referenced_blobs
+
+    def read_then_a_relay_asks(excluding: Collection[str] = ()) -> set[str]:
+        referenced = read(excluding)
+        assert hub.has_blob(during)
+        return referenced
+
+    hub.store.referenced_blobs = read_then_a_relay_asks  # type: ignore[method-assign]
+    try:
+        report = hub.prune(older_than=RETAIN, blob_grace=grace)
+    finally:
+        hub.store.referenced_blobs = read  # type: ignore[method-assign]
+    assert report.blobs == [never]
+    assert hub.blobs.has(asked) and hub.blobs.has(during) and not hub.blobs.has(never)
+    name = ship(hub, "new", NOW, files={"/w/a": asked, "/w/b": during})
+    got = hub.source().file(name, "/w/a"), hub.source().file(name, "/w/b")
+    assert [g.text if g is not None else None for g in got] == ["asked before the prune", "asked during the prune"]
+
+
 # --- heartbeats --------------------------------------------------------------------------
 
 
@@ -212,6 +245,20 @@ def test_old_heartbeats_go_unless_they_report_an_unresponsive_run(hub, tmp_path)
     # once the unresponsive run is removed by hand, its host's heartbeat goes too
     hub.store.delete_run("lost@lost-host")
     assert hub.prune(older_than=RETAIN, now=NOW).heartbeats == ["lost-host"]
+
+
+def test_the_heartbeat_of_a_host_that_is_up_stays_and_its_runs_stay_live(hub, tmp_path):
+    """A relay with a TTL longer than the retention: its heartbeat is old and its host is
+    still up, so the run it reports is live. A prune that removed the heartbeat would leave
+    the run neither live nor unresponsive, and the next prune would remove it."""
+    name = ship(hub, "busy", OLD, host="far")
+    runs = [RunLiveness(run=RunRef(host_id="far", run_id="busy", run_uid="uid-busy"), alive=True, snapshot={})]
+    ttl = (RETAIN + timedelta(days=20)) / timedelta(seconds=1)
+    hub.store.put_heartbeat(Heartbeat(host_id="far", sent_at=iso(OLD), interval_s=3, ttl_s=ttl, runs=runs), iso(OLD))
+    for _ in range(2):
+        report = hub.prune(older_than=RETAIN, now=NOW)
+        assert report.runs == [] and report.heartbeats == [] and report.kept_runs == {name: "live"}
+    assert set(hub.store.heartbeats()) == {"far"} and [e.name for e in hub.store.runs()] == [name]
 
 
 # --- a dry run ---------------------------------------------------------------------------

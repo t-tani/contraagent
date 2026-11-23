@@ -6,7 +6,9 @@ adding a factory (one that cannot run here skips itself)."""
 
 import hashlib
 import json
+import time
 from collections.abc import Callable, Iterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -219,9 +221,7 @@ def test_a_blob_is_stored_by_its_hash_and_refused_otherwise(blobs):
         blobs.put("../etc", data)
 
 
-def test_blobs_are_listed_with_their_size_and_age_and_deleted(blobs):
-    from datetime import UTC, datetime, timedelta
-
+def test_blobs_are_listed_with_their_size_and_age_and_expire(blobs):
     before = datetime.now(UTC) - timedelta(minutes=5)  # clock skew between the test and S3
     held = {hashlib.sha256(d).hexdigest(): d for d in (b"one", b"two two")}
     for sha, data in held.items():
@@ -232,19 +232,42 @@ def test_blobs_are_listed_with_their_size_and_age_and_deleted(blobs):
         assert item.size == len(held[sha])
         assert item.modified.tzinfo is not None and before < item.modified < datetime.now(UTC) + timedelta(minutes=5)
     first, second = sorted(held)
-    blobs.delete(first)
-    blobs.delete(first)  # again: nothing happens
+    later = datetime.now(UTC) + timedelta(days=1)
+    assert not blobs.expire(first, before)  # dated after `before`: it stays
+    assert blobs.has(first)
+    assert blobs.expire(first, later)
+    assert not blobs.expire(first, later)  # again: nothing happens
     assert not blobs.has(first) and blobs.get(first) is None and blobs.has(second)
     assert [item.sha256 for item in blobs.items()] == [second]
 
 
-def test_storing_a_held_blob_again_keeps_its_age(tmp_path):
-    clock = iter([100.0, 200.0])
+def test_a_blob_renewed_or_stored_again_is_dated_now(blobs):
+    """`expire` goes by the blob's date as it is now: a blob that was renewed, or stored
+    again, since a time is not dated before it."""
+    held = {hashlib.sha256(d).hexdigest(): d for d in (b"renewed", b"stored again", b"left")}
+    renewed, again, left = held
+    for sha, data in held.items():
+        blobs.put(sha, data)
+    cut = max(item.modified for item in blobs.items()) + timedelta(seconds=1)
+    while datetime.now(UTC) < cut + timedelta(milliseconds=200):  # S3 dates an object to the second
+        time.sleep(0.05)
+    assert blobs.renew(renewed)
+    blobs.put(again, held[again])
+    assert not blobs.renew("0" * 64)  # not held
+    assert not blobs.expire(renewed, cut) and not blobs.expire(again, cut) and blobs.expire(left, cut)
+    assert sorted(item.sha256 for item in blobs.items()) == sorted([renewed, again])
+    assert all(item.modified >= cut for item in blobs.items())
+
+
+def test_a_blob_in_memory_is_dated_by_its_clock():
+    clock = iter([100.0, 200.0, 300.0])
     blobs = MemoryBlobs(clock=lambda: next(clock))
     sha = hashlib.sha256(b"x").hexdigest()
     blobs.put(sha, b"x")
     blobs.put(sha, b"x")
-    assert [item.modified.timestamp() for item in blobs.items()] == [100.0]
+    assert [item.modified.timestamp() for item in blobs.items()] == [200.0]
+    assert blobs.renew(sha)
+    assert [item.modified.timestamp() for item in blobs.items()] == [300.0]
 
 
 # --- liveness --------------------------------------------------------------------------

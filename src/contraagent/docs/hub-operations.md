@@ -92,9 +92,15 @@ that variable in `.env`, 30 when unset, every run kept when empty) removes runs 
 last activity is older than N days, with everything the hub holds of them: records,
 transcripts (open segments, sealed segments, their index) and file references. It never
 removes a run that is live, a run whose host stopped reporting while it ran (the record
-of what happened), or a run with no activity time. File contents (blobs) no run
-references are removed a day after they were stored. Hosts not seen for N days lose
-their heartbeat. Without a retention the hub keeps everything.
+of what happened), or a run with no activity time. Hosts not seen for N days lose
+their heartbeat, but for a host the hub still counts as up: a relay with a `--ttl`
+longer than the retention keeps its runs live for that long. Without a retention the
+hub keeps everything.
+
+File contents (blobs) that no run references are removed a day after they were stored
+or last asked for. A relay that finds the hub already holds a file's content sends the
+file reference without the content, and its question dates the content again, so the
+content stays while the reference is on its way.
 
 A host may still hold a run that the hub removed. The hub remembers each run it
 removed, with the number of lines it held of each log, and the host's relay does not

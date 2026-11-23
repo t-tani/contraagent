@@ -123,7 +123,11 @@ class Hub:
         return HeartbeatAck(ttl_s=heartbeat.ttl_s)
 
     def has_blob(self, sha256: str) -> bool:
-        return self.blobs.has(sha256)
+        """Whether the hub holds the blob, for a relay that is about to send a file ref of
+        it. A held blob is renewed (`BlobStore.renew`): the relay sends the file ref without
+        the content, and retention keeps the blob for its grace from now, also while no
+        file ref names it yet."""
+        return self.blobs.renew(sha256)
 
     def put_blob(self, sha256: str, data: bytes) -> None:
         """Store a blob; `ValueError` when `data` does not hash to `sha256`."""
@@ -176,12 +180,18 @@ class Hub:
         * **Transcripts** of a run the hub no longer holds under their run uid (replaced by
           a new run uid, or left by a prune that failed between the two steps) are removed
           once their activity is old.
-        * **Heartbeats** older than `older_than` are removed, except one that reports an
-          unresponsive run the hub still holds.
+        * **Heartbeats** older than `older_than` are removed, except that of a host that is
+          up (within the heartbeat's TTL: the runs it reports are live by it) and one that
+          reports an unresponsive run the hub still holds.
         * **Blobs** are removed by mark and sweep: every blob is listed first, then the file
-          refs of the runs kept are read, then each blob none of them references is deleted
-          when it is older than `blob_grace`. A file ref that arrives between the reading
-          and the deleting and names an old blob already held loses its content.
+          refs of the runs kept are read, then each blob none of them references is removed
+          when it is still dated before `blob_grace` ago as it is removed
+          (`BlobStore.expire`). A relay that names a blob the hub already holds asks for it
+          first (`has_blob`), which renews the blob, so the blob stays while the file ref is
+          on its way, however long the prune takes. A file ref loses its content only when
+          it arrives more than `blob_grace` after its relay asked; or when its relay asks in
+          the moment between the blob store's look at the blob's date and its removal
+          (`DirectoryBlobs`, `S3Blobs`).
 
         Every step can be repeated: an exception (a lost connection, a crash) leaves what
         a second call completes, or orphan segment objects that `SegmentedStreamLogs.sweep`
@@ -239,9 +249,10 @@ class Hub:
             report.segments.extend(self.streams.drop(name, uid, dry_run=dry_run))
             report.transcripts.append((name, uid))
 
+        up = {host["host_id"] for host in liveness.hosts() if host["up"]}
         for host_id, (heartbeat, received_at) in sorted(self.store.heartbeats().items()):
             at = parse_iso(received_at)
-            if at is None or at >= cutoff:
+            if at is None or at >= cutoff or host_id in up:  # a host that is up keeps its runs live
                 continue
             if any(r.alive and r.run.name in unresponsive and r.run.name in held for r in heartbeat.runs):
                 report.kept_heartbeats[host_id] = "unresponsive run"
@@ -256,8 +267,8 @@ class Hub:
             for blob in old_blobs:
                 if blob.sha256 in referenced:
                     continue
-                if not dry_run:
-                    self.blobs.delete(blob.sha256)
+                if not dry_run and not self.blobs.expire(blob.sha256, now - blob_grace):
+                    continue  # renewed since it was listed: a relay asked for it, and its file ref is on its way
                 report.blobs.append(blob.sha256)
                 report.blob_bytes += blob.size
         return report
