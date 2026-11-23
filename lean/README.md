@@ -56,9 +56,16 @@ task, and it starts one only while every name the task claims has room. It assum
 that the task the runner gives as a task starts claims the same names
 (`QueueEnv.KeepsClaims`).
 
-The other properties of the queue (each task finishes once, no slot idles, the
-queue ends) are stated in the code's documentation and are not proved yet. The
-tests below hold the code to the description, on which they would be proved.
+`Contraagent/Dispatch/Queue/Ids.lean` proves that each task finishes once. In every
+state the queue reaches, the log shows each task finished once at most
+(`Reachable.finished_once`); and once nothing is queued, running or waiting to
+finish, every task the queue accepted has finished (`Reachable.accepted_finished`).
+It assumes that the task the runner gives as a task starts has the id of the task it
+was given (`QueueEnv.KeepsId`).
+
+The other properties of the queue (no slot idles, the queue ends) are stated in the
+code's documentation and are not proved yet. The tests below hold the code to the
+description, on which they would be proved.
 
 `Contraagent/Routing/Router/Breaker.lean` proves, of the breaker, that a 429 changes
 nothing when it comes from a launch on the primary that is no probe

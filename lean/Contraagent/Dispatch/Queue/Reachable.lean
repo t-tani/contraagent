@@ -16,10 +16,15 @@ def QueueEnv.KeepsKey (env : QueueEnv) : Prop :=
 def QueueEnv.KeepsAfter (env : QueueEnv) : Prop :=
   ∀ task, (env.starting task).after = task.after
 
+/-- The runner gives a task as it starts with the id it was given. -/
+def QueueEnv.KeepsId (env : QueueEnv) : Prop :=
+  ∀ task, (env.starting task).id = task.id
+
 /-- What is assumed of the runner: the task it gives as a task starts (`starting`) is the
-task it was given, its fingerprint completed. It has the same key and comes after the same
-tasks. -/
+task it was given, its fingerprint completed. It has the same id and the same key, and
+comes after the same tasks. -/
 structure QueueEnv.Keeps (env : QueueEnv) : Prop where
+  id : env.KeepsId
   key : env.KeepsKey
   after : env.KeepsAfter
 
