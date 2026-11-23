@@ -5,7 +5,7 @@ ones (environment, shared config and credentials files, instance roles). A blob'
 never changes, so small blobs that were read are kept in memory (`CACHE_BYTES` in all) and
 served from there by `get`.
 
-A blob is dated by the `LastModified` of its object, or of its mark when that is later: the
+A blob is dated by the `LastModified` of its object, or of its marker when that is later: the
 empty object `<prefix>/<sha[:2]>/<sha>.renewed`, which `renew` writes. A service is not
 asked to date an object again, which S3-compatible services do in different ways. `expire`
 asks for the two dates and then deletes, some requests apart: a blob renewed between them
@@ -39,8 +39,8 @@ def _absent(error: ClientError) -> bool:
     return error.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound")
 
 
-#: What follows a blob's key in the key of its mark (`S3Blobs.renew`).
-MARK = ".renewed"
+#: What follows a blob's key in the key of its marker (`S3Blobs.renew`).
+MARKER = ".renewed"
 
 
 class S3Blobs:
@@ -111,7 +111,7 @@ class S3Blobs:
         key = self._key(sha256)
         if not self.has(sha256):
             return False
-        self._client.put_object(Bucket=self.bucket, Key=key + MARK, Body=b"")
+        self._client.put_object(Bucket=self.bucket, Key=key + MARKER, Body=b"")
         return True
 
     def put(self, sha256: str, data: bytes) -> None:
@@ -136,39 +136,39 @@ class S3Blobs:
         return data
 
     def items(self) -> Iterator[BlobItem]:
-        """Every blob object under the prefix, dated by its `LastModified` or by its mark's
+        """Every blob object under the prefix, dated by its `LastModified` or by its marker's
         when that is later."""
         base = f"{self.prefix}/" if self.prefix else ""
         held: dict[str, tuple[int, datetime]] = {}
-        marked: dict[str, datetime] = {}
+        markers: dict[str, datetime] = {}
         for page in self._client.get_paginator("list_objects_v2").paginate(Bucket=self.bucket, Prefix=base):
             for obj in page.get("Contents", []):
                 rel = obj["Key"][len(base) :]
                 sub, _, name = rel.partition("/")
-                sha = name.removesuffix(MARK)
+                sha = name.removesuffix(MARKER)
                 if not (_is_hex_sha(sha) and sub == sha[:2]):
                     continue
                 if name == sha:
                     held[sha] = (int(obj["Size"]), obj["LastModified"])
                 else:
-                    marked[sha] = obj["LastModified"]
+                    markers[sha] = obj["LastModified"]
         for sha, (size, dated) in held.items():
-            yield BlobItem(sha, size, max(dated, marked.get(sha, dated)))
+            yield BlobItem(sha, size, max(dated, markers.get(sha, dated)))
 
     def expire(self, sha256: str, before: datetime) -> bool:
         key = self._key(sha256)
         dated = self._dated(key)
         if dated is None:
             return False
-        mark = self._dated(key + MARK)
+        marker = self._dated(key + MARKER)
         # A date asked of one object is to the second, rounded down: the second counts as later.
-        if max(dated, mark or dated) + timedelta(seconds=1) > before:
+        if max(dated, marker or dated) + timedelta(seconds=1) > before:
             return False
         with self._lock:
             data = self._cache.pop(sha256, None)
             if data is not None:
                 self._cached -= len(data)
         self._client.delete_object(Bucket=self.bucket, Key=key)
-        if mark is not None:
-            self._client.delete_object(Bucket=self.bucket, Key=key + MARK)
+        if marker is not None:
+            self._client.delete_object(Bucket=self.bucket, Key=key + MARKER)
         return True

@@ -70,7 +70,7 @@ def play(scenario: dict[str, Any]) -> dict[str, Any]:
         blobs.put(blob["sha"], blob["content"].encode())
     for name, was in scenario["pruned"]:  # a run the hub pruned before: stored, then pruned
         store.put_batch(RecordBatch(run=ref(name, was["runUid"])), iso(0))
-        store.prune_run(name, was["runUid"], dict(was["logs"]), iso(0))
+        assert store.prune_run(name, was["runUid"], dict(was["logs"]), iso(0), iso(0))
     for run in scenario["runs"]:
         info = {"run_id": run["name"].partition("@")[0], **({"finished_at": iso(0)} if run["finished"] else {})}
         store.put_batch(
@@ -154,7 +154,9 @@ def scenario(rng: random.Random) -> dict[str, Any]:
             received = rng.choice([cutoff - 300, cutoff - 1, cutoff, now - 20, now - 5])
             alive = [name for name in [*names, "gone@h9"] if rng.random() < 0.3]
             heartbeats.append({"host": host, "receivedAt": received, "ttl": rng.choice([12, 12, 30, 5000]), "alive": alive})
-    pruned = [[name, {"runUid": rng.choice(["u1", "u0"]), "logs": [[layout.JOURNAL, 2]]}] for name in others if rng.random() < 0.15]
+    # A name holds a run or the memory of one it pruned, not both.
+    gone = [name for name in others if name not in names]
+    pruned = [[name, {"runUid": rng.choice(["u1", "u0"]), "logs": [[layout.JOURNAL, 2]]}] for name in gone if rng.random() < 0.3]
     return {
         "now": now,
         "olderThan": older_than,

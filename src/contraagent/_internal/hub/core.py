@@ -14,8 +14,8 @@ The host of a pruned run may still hold the run, and its relay asks from time to
 many lines of each log the hub holds, to send the run again to a hub that lost lines. The
 hub remembers each run it pruned (`HubStore.pruned`) and answers such a request without
 storing the run again (`pruned_answer`). A request that brings a line the hub did not hold
-when it pruned the run shows the run active again: the hub forgets the prune and stores
-the run from its start, which the relay then sends.
+when it pruned the run shows the run active again: the hub stores it from its start, which
+the relay then sends, and no longer remembers the prune (`HubStore.put_batch`).
 """
 
 from __future__ import annotations
@@ -98,14 +98,16 @@ class Hub:
     def records(self, batch: RecordBatch) -> Accepted:
         received = now_iso("milliseconds")
         pruned = self.store.pruned(batch.run.name)
-        if pruned is not None:
-            held = pruned_answer(pruned, batch.logs) if pruned.run_uid == batch.run.run_uid else None
+        if pruned is not None and pruned.run_uid == batch.run.run_uid:
+            held = pruned_answer(pruned, batch.logs)
             if held is not None:
                 return Accepted(logs=held, durable=dict(held))
-            self.store.forget_pruned(batch.run.name)  # active again, or another run under the name
+        # Stored from here on: a pruned run that is active again, or another run under its
+        # name, is no longer remembered as pruned (`put_batch`). The run is dated before any
+        # of its lines is stored, a transcript's too, so that a prune under way leaves it.
         transcripts = [c for c in batch.logs if is_stream(c.log)]
         rest = batch.model_copy(update={"logs": [c for c in batch.logs if not is_stream(c.log)]})
-        accepted = self.store.put_batch(rest, received)
+        accepted = self.store.put_batch(rest, received, dated=any(c.lines for c in transcripts))
         logs = dict(accepted.logs)
         durable = {log: accepted.durable.get(log, n) for log, n in accepted.logs.items()}
         name, uid = batch.run.name, batch.run.run_uid
@@ -153,8 +155,10 @@ class Hub:
 
     # --- retention -------------------------------------------------------------------------
 
-    def _activity(self, name: str, uid: str) -> datetime | None:
-        times = [t for t in (parse_iso(self.store.activity(name)), parse_iso(self.streams.activity(name, uid))) if t]
+    def _activity(self, dated: str | None, name: str, uid: str) -> datetime | None:
+        """A run's activity: the later of when a batch last dated it (`dated`, the store's
+        `activity`) and when its transcripts last grew."""
+        times = [t for t in (parse_iso(dated), parse_iso(self.streams.activity(name, uid))) if t]
         return max(times) if times else None
 
     def prune(
@@ -170,9 +174,11 @@ class Hub:
         references; with `dry_run`, remove nothing and report the same.
 
         * **Runs.** An old run is removed whole: its records (`HubStore.prune_run`, only
-          while it still has the run uid read), with which the hub remembers it as pruned,
-          so that its relay does not send it again, and then its transcripts
-          (`StreamLogs.drop`: index rows, then segment objects, then open segment files).
+          while it still has the run uid and the activity read: a batch that arrives
+          meanwhile dates the run before it stores a line, and the run stays), with which
+          the hub remembers it as pruned, so that its relay does not send it again, and
+          then its transcripts (`StreamLogs.drop`: index rows, then segment objects, then
+          open segment files).
           Never removed:
           a live run, an unresponsive one (its host stopped reporting while it was alive:
           its records are the evidence; remove it by hand with `HubStore.delete_run`), and
@@ -211,7 +217,8 @@ class Hub:
         for entry in self.store.runs():
             name, uid = entry.name, entry.run_uid
             held[name] = uid
-            at = self._activity(name, uid)
+            dated = self.store.activity(name)
+            at = self._activity(dated, name, uid)
             if at is None:
                 log_.warning("run %s has no activity time: kept", name)
                 report.kept_runs[name] = "no activity"
@@ -223,16 +230,18 @@ class Hub:
                 continue
             # The records go first, with the memory of the prune in the same step: from then on
             # the run's relay is answered by it (`pruned_answer`), also when the transcripts
-            # are still to go. Their lines are counted before, for that answer.
+            # are still to go. Their lines are counted before, for that answer. The step
+            # removes the run only while it is dated as it was read: a batch that arrived
+            # since dated it before it stored a line, and the run stays, whole.
             removed = dry_run
             if not dry_run:
                 transcripts = {log: self.streams.count(name, uid, log) for log in self.streams.logs(name, uid)}
-                removed = self.store.prune_run(name, uid, transcripts, now.isoformat(timespec="milliseconds"))
-            segments = self.streams.drop(name, uid, dry_run=dry_run)
-            if removed:
-                log_.info("%s run %s (last activity %s)", "would remove" if dry_run else "removed", name, at.isoformat())
-                report.runs.append(name)
-            report.segments.extend(segments)
+                removed = self.store.prune_run(name, uid, transcripts, now.isoformat(timespec="milliseconds"), dated)
+            if not removed:
+                continue
+            log_.info("%s run %s (last activity %s)", "would remove" if dry_run else "removed", name, at.isoformat())
+            report.runs.append(name)
+            report.segments.extend(self.streams.drop(name, uid, dry_run=dry_run))
 
         for name, uid in sorted(self.streams.runs()):
             if held.get(name) == uid:

@@ -154,7 +154,7 @@ class PostgresHubStore:
 
     # --- writes ------------------------------------------------------------------------
 
-    def put_batch(self, batch: RecordBatch, received_at: str) -> Accepted:
+    def put_batch(self, batch: RecordBatch, received_at: str, *, dated: bool = False) -> Accepted:
         ref = batch.run
         held: dict[str, int] = {}
         with self._conn() as conn, conn.transaction():
@@ -162,10 +162,12 @@ class PostgresHubStore:
                 "INSERT INTO runs (name, run_uid, host_id, run_id) VALUES (%s, %s, %s, %s) ON CONFLICT (name) DO NOTHING RETURNING id",
                 (ref.name, ref.run_uid, ref.host_id, ref.run_id),
             ).fetchone()
-            changed = created is not None
+            changed = dated or created is not None
             row = conn.execute("SELECT id, run_uid FROM runs WHERE name = %s FOR UPDATE", (ref.name,)).fetchone()
             assert row is not None
             run, run_uid = row
+            # With the run's row held: a prune of the name waits, and is told the run is dated anew.
+            conn.execute("DELETE FROM pruned_runs WHERE name = %s", (ref.name,))
             if run_uid != ref.run_uid:
                 changed = True
                 conn.execute("DELETE FROM logs WHERE run = %s", (run,))
@@ -342,10 +344,10 @@ class PostgresHubStore:
                 cur = conn.execute("DELETE FROM runs WHERE name = %s AND run_uid = %s", (name, run_uid))
         return cur.rowcount > 0
 
-    def prune_run(self, name: str, run_uid: str, transcripts: dict[str, int], at: str) -> bool:
+    def prune_run(self, name: str, run_uid: str, transcripts: dict[str, int], at: str, activity: str | None) -> bool:
         with self._conn() as conn, conn.transaction():
-            row = conn.execute("SELECT id FROM runs WHERE name = %s AND run_uid = %s FOR UPDATE", (name, run_uid)).fetchone()
-            if row is None:
+            row = conn.execute("SELECT id, received_at FROM runs WHERE name = %s AND run_uid = %s FOR UPDATE", (name, run_uid)).fetchone()
+            if row is None or (row[1] or None) != activity:
                 return False
             held = conn.execute("SELECT log, lines FROM logs WHERE run = %s", (row[0],)).fetchall()
             conn.execute("DELETE FROM runs WHERE id = %s", (row[0],))
@@ -360,10 +362,6 @@ class PostgresHubStore:
         with self._conn() as conn:
             row = conn.execute("SELECT run_uid, pruned_at, logs FROM pruned_runs WHERE name = %s", (name,)).fetchone()
         return PrunedRun(row[0], row[1], {str(log): int(lines) for log, lines in row[2].items()}) if row else None
-
-    def forget_pruned(self, name: str) -> None:
-        with self._conn() as conn:
-            conn.execute("DELETE FROM pruned_runs WHERE name = %s", (name,))
 
     def delete_heartbeat(self, host_id: str) -> bool:
         with self._conn() as conn:

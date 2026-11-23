@@ -54,8 +54,12 @@ class PrunedRun(NamedTuple):
 class HubStore(Protocol):
     """The records of every host's runs."""
 
-    def put_batch(self, batch: RecordBatch, received_at: str) -> Accepted:
-        """Store a batch by the protocol's rules; how many lines of each log it named are held."""
+    def put_batch(self, batch: RecordBatch, received_at: str, *, dated: bool = False) -> Accepted:
+        """Store a batch by the protocol's rules; how many lines of each log it named are held.
+        The run is dated `received_at` (`activity`) when the batch changes what the store
+        holds of it, and with `dated` in any case: the batch brought lines that the store
+        does not keep (a transcript's). A name the store remembers a pruned run of (`pruned`)
+        is no longer remembered so: a name holds a run or the memory of one, not both."""
         ...
 
     def put_heartbeat(self, heartbeat: Heartbeat, received_at: str) -> None:
@@ -104,7 +108,8 @@ class HubStore(Protocol):
         ...
 
     def activity(self, name: str) -> str | None:
-        """When a batch last changed what the hub holds of the run (ISO 8601), or None."""
+        """When a batch last dated the run (`put_batch`): the `received_at` it was given, or
+        None."""
         ...
 
     def heartbeats(self) -> dict[str, tuple[Heartbeat, str]]:
@@ -117,19 +122,19 @@ class HubStore(Protocol):
         Whether a run was removed; removing an absent run does nothing."""
         ...
 
-    def prune_run(self, name: str, run_uid: str, transcripts: dict[str, int], at: str) -> bool:
-        """`delete_run(name, run_uid)`, and remember the run as pruned at `at` (`pruned`),
-        with how many lines of each log the store held and `transcripts`, the same for the
-        logs the store does not keep. Whether a run was removed; nothing is remembered of an
-        absent run."""
+    def prune_run(self, name: str, run_uid: str, transcripts: dict[str, int], at: str, activity: str | None) -> bool:
+        """Remove the run under `name` as `delete_run` does, and remember it as pruned at `at`
+        (`pruned`), with how many lines of each log the store held and `transcripts`, the
+        same for the logs the store does not keep; only while the run still has the uid
+        `run_uid` and the activity `activity`, which the caller read (`activity(name)`): a
+        run that a batch dated since stays. One step: no batch is stored between the look at
+        the run and its removal. Whether the run was removed; nothing is remembered of a run
+        that stays, or of an absent one."""
         ...
 
     def pruned(self, name: str) -> PrunedRun | None:
-        """The run last pruned under `name` (`prune_run`), or None."""
-        ...
-
-    def forget_pruned(self, name: str) -> None:
-        """Forget the run pruned under `name`: it is stored again, or the name holds another run."""
+        """The run pruned under `name` (`prune_run`) and not stored again since (`put_batch`),
+        or None."""
         ...
 
     def delete_heartbeat(self, host_id: str) -> bool:
@@ -224,13 +229,15 @@ class MemoryHubStore:
         self._heartbeats: dict[str, tuple[Heartbeat, str]] = {}
         self._lock = threading.Lock()
 
-    def put_batch(self, batch: RecordBatch, received_at: str) -> Accepted:
+    def put_batch(self, batch: RecordBatch, received_at: str, *, dated: bool = False) -> Accepted:
         ref = batch.run
         with self._lock:
+            self._pruned.pop(ref.name, None)
             run = self._runs.get(ref.name)
             changed = run is None or run.entry.run_uid != ref.run_uid
-            if run is None or changed:
+            if run is None or changed:  # a new run under the name
                 run = self._runs[ref.name] = _Run(ref.model_copy())
+            changed |= dated
             held: dict[str, int] = {}
             for chunk in batch.logs:
                 changed |= chunk.log not in run.logs
@@ -333,10 +340,10 @@ class MemoryHubStore:
             del self._runs[name]
             return True
 
-    def prune_run(self, name: str, run_uid: str, transcripts: dict[str, int], at: str) -> bool:
+    def prune_run(self, name: str, run_uid: str, transcripts: dict[str, int], at: str, activity: str | None) -> bool:
         with self._lock:
             run = self._runs.get(name)
-            if run is None or run.entry.run_uid != run_uid:
+            if run is None or run.entry.run_uid != run_uid or (run.received_at or None) != activity:
                 return False
             del self._runs[name]
             logs = {**transcripts, **{log: len(lines) for log, lines in run.logs.items()}}
@@ -346,10 +353,6 @@ class MemoryHubStore:
     def pruned(self, name: str) -> PrunedRun | None:
         with self._lock:
             return self._pruned.get(name)
-
-    def forget_pruned(self, name: str) -> None:
-        with self._lock:
-            self._pruned.pop(name, None)
 
     def delete_heartbeat(self, host_id: str) -> bool:
         with self._lock:

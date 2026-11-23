@@ -31,7 +31,7 @@ The modules are those of `src/contraagent/_internal/`.
 | `Contraagent/Pipeline/Graph.lean` | `pipeline/graph.py` | what the graph decides of a task call: its key, its output file and the tasks it waits for, or why the call is refused |
 | `Contraagent/Hub/Segments.lean` | `hub/segments.py` | the hub's copies of a log: which lines it holds and which are durable, when an open segment is sealed, the order of a seal's steps, what a start recovers from the files, the objects and the index, and what `sweep` and `drop` delete |
 | `Contraagent/Hub/Relay.lean` | `hub/relay.py` | the relay's shipping of a run's logs: the lines of each request, what it takes from the hub's answer as its progress, and when it sends the run again or stops |
-| `Contraagent/Hub/Core.lean` | `hub/core.py` | the hub's retention: which runs, transcripts, heartbeats and blobs a prune removes and what it reports; the blobs and the file refs while a prune runs beside the relays; and what the hub answers a request for a run its retention removed |
+| `Contraagent/Hub/Core.lean` | `hub/core.py` | the hub's retention: which runs, transcripts, heartbeats and blobs a prune removes and what it reports; the blobs and the file refs, and what the hub holds under one name, while a prune runs beside the relays; and what the hub answers a request for a run its retention removed |
 
 A description holds the fields that its module decides by. What only travels with
 a task or a result is left out, and the first comment of each file says what.
@@ -237,6 +237,14 @@ time the prune began. The theorem assumes that each file ref arrives within the
 grace of its relay's asking for the blob or storing it, and that the blob store
 looks at a blob's date and removes the blob in one step, which the store in memory
 does and the stores in a directory and in a bucket do in two calls.
+
+`Contraagent/Hub/Core/Dated.lean` proves that a prune takes no line that arrives
+while it runs. A request dates its run before it stores a line, and a prune removes
+a run only while the run is dated as the prune read it. So whenever no request is
+under way, the lines the relay was last told the hub holds are at most those the hub
+holds, or held when it pruned the run (`Reachable.accounted`), after any steps of
+requests and prunes in any order. The theorem assumes that a request stores its
+lines within the retention of dating the run.
 
 `Contraagent/Pipeline/Graph/Order.lean` proves, of every graph a flow builds
 (`Built`), that no two tasks have one key (`Built.keys_distinct`) and that each task

@@ -165,22 +165,38 @@ def test_delete_run_removes_everything_held_of_the_run(store):
 def test_prune_run_removes_the_run_and_remembers_how_much_of_it_was_held(store):
     store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=0, lines=["a", "b"]), LogChunk(log=layout.PLAN, offset=0, lines=[])), "t1")
     assert store.pruned("r1@h1") is None
-    assert not store.prune_run("r1@h1", "other", {}, "t2") and store.pruned("r1@h1") is None  # another run under the name
+    assert not store.prune_run("r1@h1", "other", {}, "t2", "t1") and store.pruned("r1@h1") is None  # another run under the name
     stream = layout.stream("k")
-    assert store.prune_run("r1@h1", "u1", {stream: 7}, "t2")
+    assert store.prune_run("r1@h1", "u1", {stream: 7}, "t2", "t1")
     assert store.entry("r1@h1") is None and store.count("r1@h1", layout.JOURNAL) == -1
     pruned = store.pruned("r1@h1")
     assert pruned is not None and (pruned.run_uid, pruned.at) == ("u1", "t2")
     assert pruned.logs == {layout.JOURNAL: 2, layout.PLAN: 0, stream: 7}
-    assert not store.prune_run("r1@h1", "u1", {}, "t3") and store.pruned("r1@h1") == pruned  # again: nothing to remove
-    # the run under the name once more, pruned once more: the later prune is the one remembered
+    assert not store.prune_run("r1@h1", "u1", {}, "t3", "t1") and store.pruned("r1@h1") == pruned  # again: nothing to remove
+    # the run under the name once more: it is no longer remembered as pruned
     store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=0, lines=["c"]), run=RunRef(host_id="h1", run_id="r1", run_uid="u9")), "t4")
-    assert store.prune_run("r1@h1", "u9", {}, "t5")
+    assert store.pruned("r1@h1") is None and store.entry("r1@h1") is not None
+    # pruned once more: the later prune is the one remembered
+    assert store.prune_run("r1@h1", "u9", {}, "t5", "t4")
     later = store.pruned("r1@h1")
     assert later is not None and (later.run_uid, later.at, later.logs) == ("u9", "t5", {layout.JOURNAL: 1})
-    store.forget_pruned("r1@h1")
-    store.forget_pruned("r1@h1")  # again: nothing to forget
-    assert store.pruned("r1@h1") is None
+
+
+def test_prune_run_leaves_a_run_that_a_batch_dated_since_its_activity_was_read(store):
+    """The caller read the run's activity, and a batch arrived before the prune: the run
+    stays, whole, and nothing is remembered of a prune. A batch that brings lines the store
+    does not keep dates the run too (`dated`)."""
+    store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=0, lines=["a"])), "t1")
+    read = store.activity("r1@h1")
+    store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=1, lines=["b"])), "t2")
+    assert not store.prune_run("r1@h1", "u1", {}, "t3", read)
+    assert store.lines("r1@h1", layout.JOURNAL) == (["a", "b"], 2) and store.pruned("r1@h1") is None
+    read = store.activity("r1@h1")
+    store.put_batch(batch(), "t4")  # nothing the store holds changes: the run is dated as it was
+    assert store.activity("r1@h1") == read == "t2"
+    store.put_batch(batch(), "t5", dated=True)  # a transcript's lines, which the store does not keep
+    assert store.activity("r1@h1") == "t5" and not store.prune_run("r1@h1", "u1", {}, "t6", read)
+    assert store.prune_run("r1@h1", "u1", {}, "t6", "t5")
 
 
 def test_delete_heartbeat_removes_the_hosts_heartbeat(store):

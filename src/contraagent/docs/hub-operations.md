@@ -102,6 +102,9 @@ or last asked for. A relay that finds the hub already holds a file's content sen
 file reference without the content, and its question dates the content again, so the
 content stays while the reference is on its way.
 
+A run that receives lines while the hub is removing it stays, whole: the removal goes
+by the run's activity at the moment it removes, not as it was read.
+
 A host may still hold a run that the hub removed. The hub remembers each run it
 removed, with the number of lines it held of each log, and the host's relay does not
 send that run again. When the run gets new lines, the relay sends it whole and the hub

@@ -335,6 +335,57 @@ def test_a_prune_during_ingest_loses_nothing(hub, tmp_path):
     assert hub.prune(older_than=RETAIN).runs == []
 
 
+@pytest.mark.parametrize("log", [layout.PLAN, OTHER])
+def test_a_run_that_a_batch_reaches_while_it_is_pruned_stays_whole(hub, tmp_path, log):
+    """A prune reads a run's activity, finds it old, and removes the run. A batch that
+    arrives between the two, of a record or of a transcript, dates the run before it stores
+    a line: the removal goes by the activity as it is then, and leaves the run. It removed
+    the run with the line, and remembered the run as pruned with the line counted, so the
+    relay was told the hub held a line that it did not."""
+    name = ship(hub, "old", OLD)
+    ref = RunRef(host_id="h1", run_id="old", run_uid="uid-old")
+    before = hub.streams.count(name, "uid-old", OTHER) if log == OTHER else 0
+    logs = hub.streams.logs
+
+    def a_batch_arrives_first(run: str, uid: str) -> list[str]:  # as the prune counts the run's transcripts
+        hub.streams.logs = logs  # type: ignore[method-assign]
+        accepted = hub.records(RecordBatch(run=ref, logs=[LogChunk(log=log, offset=before, lines=["new"])]))
+        assert accepted.logs[log] == before + 1
+        return logs(run, uid)
+
+    hub.streams.logs = a_batch_arrives_first  # type: ignore[method-assign]
+    report = hub.prune(older_than=RETAIN, now=NOW)
+    assert report.runs == [] and report.segments == [] and hub.store.pruned(name) is None
+    assert [e.name for e in hub.store.runs()] == [name]
+    assert hub.store.lines(name, layout.JOURNAL)[1] == 1 and hub.streams.count(name, "uid-old", LOG) == 200
+    held = hub.store.lines(name, log) if log == layout.PLAN else hub.streams.read(name, "uid-old", log, 0)
+    assert held[0][-1] == "new"
+    assert hub.prune(older_than=RETAIN, now=NOW).runs == []  # it is not old any more
+
+
+def test_a_batch_that_is_stored_after_its_run_was_pruned_leaves_no_memory_of_the_prune(hub, tmp_path):
+    """The hub finds no memory of a prune for a batch's run, the prune removes the run, and
+    the batch is stored. A name then held both a run, of that batch alone, and the memory of
+    the pruned one, by which the relay's next request was answered. Storing a batch ends
+    the memory: the relay is told how little the hub holds, and sends the run again."""
+    name = ship(hub, "old", OLD)
+    ref = RunRef(host_id="h1", run_id="old", run_uid="uid-old")
+    pruned = hub.store.pruned
+
+    def then_the_prune_runs(run: str):
+        hub.store.pruned = pruned  # type: ignore[method-assign]
+        found = pruned(run)
+        assert hub.prune(older_than=RETAIN, now=NOW).runs == [name]
+        return found
+
+    hub.store.pruned = then_the_prune_runs  # type: ignore[method-assign]
+    accepted = hub.records(RecordBatch(run=ref, logs=[LogChunk(log=layout.JOURNAL, offset=1, lines=["later"])]))
+    assert accepted.logs == {layout.JOURNAL: 0}  # fewer than the relay sent: it sends the run again
+    assert hub.store.pruned(name) is None and [e.name for e in hub.store.runs()] == [name]
+    again = hub.records(RecordBatch(run=ref, logs=[LogChunk(log=layout.JOURNAL, offset=0, lines=["first", "later"])]))
+    assert again.logs == {layout.JOURNAL: 2} and hub.store.lines(name, layout.JOURNAL) == (["first", "later"], 2)
+
+
 def test_appends_to_a_run_being_dropped_wait_and_start_anew(tmp_path):
     streams = SegmentedStreamLogs(tmp_path / "hot", MemorySegmentObjects(), MemorySegmentIndex(), block_bytes=256, background=False)
     errors: list[BaseException] = []

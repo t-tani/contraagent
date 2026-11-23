@@ -10,7 +10,10 @@ request of a run that retention removed (`pruned_answer`): whether the hub answe
 relay without storing the run again, and what it answers, or stores the run again.
 `BlobsState` is the blobs and the file refs while a prune runs beside the relays: a relay
 asks for a blob, stores one and sends a file ref (`has_blob`, `put_blob`, `records`), and
-the prune marks the blobs to remove and removes each (`mark`, `expire`).
+the prune marks the blobs to remove and removes each (`mark`, `expire`). `NameHeld` is what
+the hub holds under one name while a prune runs beside the requests of the name's run: a
+request dates the run and then stores its lines, and the prune removes the run only while
+it is dated as the prune read it (`HubStore.put_batch`, `HubStore.prune_run`).
 
 Left out: how the hub stores a request (`store`, `streams`) and serves the monitor; the
 segment objects a prune removes with a run's transcripts, which `Segments.lean` describes
@@ -97,7 +100,8 @@ structure HeldBlob where
 
 /-- What the hub holds, as a prune reads it, each list in the order its store lists it:
 runs by name, transcripts by name and run uid, heartbeats by host, blobs by SHA-256.
-`pruned`: the runs the hub remembers it pruned, by name. -/
+`pruned`: the runs the hub remembers it pruned, by name; a name holds a run or the memory
+of one, not both. -/
 structure Holdings where
   runs : List HeldRun := []
   transcripts : List HeldTranscripts := []
@@ -322,5 +326,47 @@ def expire (s : BlobsState) (old : Time) (sha : String) : BlobsState × Bool :=
   else ({ s with marked := s.marked.filter (· != sha) }, false)
 
 end BlobsState
+
+/-! ## One name, while a prune runs beside the requests of its run -/
+
+/-- What the hub holds under one name, of one log: nothing; a run, with the lines it holds
+and when a batch last dated it (`HubStore.activity`); or the memory of a run it pruned,
+with the lines it held then (`HubStore.pruned`). A name holds a run or the memory of one,
+not both. -/
+inductive NameHeld where
+  | nothing
+  | run (lines : Nat) (dated : Time)
+  | pruned (lines : Nat)
+  deriving DecidableEq, Repr
+
+namespace NameHeld
+
+/-- The lines the hub accounts for: those it holds, or those it held when it pruned the
+run. -/
+def lines : NameHeld → Nat
+  | .nothing => 0
+  | .run held _ => held
+  | .pruned held => held
+
+/-- A batch that brings lines is stored (`HubStore.put_batch`): its run is dated, before any
+of its lines is stored. A name that holds no run, or the memory of a pruned one, holds a
+run with no line from then on. -/
+def dateRun (now : Time) : NameHeld → NameHeld
+  | .run held _ => .run held now
+  | _ => .run 0 now
+
+/-- One line of the batch is stored. -/
+def storeLine : NameHeld → NameHeld
+  | .run held dated => .run (held + 1) dated
+  | other => other
+
+/-- A prune removes the run (`HubStore.prune_run`), only while the run is dated as the prune
+read it (`seen`), and remembers it with the lines the prune counted. A run that a batch
+dated since stays. With whether the run was removed. -/
+def pruneRun (seen : Time) (counted : Nat) : NameHeld → NameHeld × Bool
+  | .run held dated => if dated == seen then (.pruned counted, true) else (.run held dated, false)
+  | other => (other, false)
+
+end NameHeld
 
 end Contraagent
