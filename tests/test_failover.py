@@ -132,6 +132,77 @@ def test_a_failed_probe_keeps_the_fallback(tmp_path):
     assert [m for m, _ in a.seen] == ["m1", "m2"] and res.ok and router.active().model == "m2"
 
 
+def test_one_task_probes_the_primary_and_the_others_stay_on_the_fallback():
+    """Once the cool-off has passed, the first task picked a route is the probe. Until its
+    verdict the next tasks get the fallback: every one of them got the primary."""
+    router = chain(("claude", "m1"), ("claude", "m2"))
+    primary = router.routes[0]
+    router.rate_limited(primary)  # the breaker opens at 0: the first probe is due at 900
+    clock[0] = 1_000
+    assert [router.pick(probe=False).model for _ in range(2)] == ["m1", "m1"]  # a look takes no probe
+    assert router.pick().model == "m1"  # the probe
+    assert [router.pick().model for _ in range(3)] == ["m2", "m2", "m2"]
+    # No verdict comes (the probe's launch ended on another stop): the next cool-off brings another probe.
+    clock[0] = 1_900
+    assert [router.pick().model for _ in range(2)] == ["m1", "m2"]
+    # A refused probe pushes the next one out, and one that lands closes the breaker.
+    router.rate_limited(primary, started=1_900)
+    clock[0] = 1_900 + 1_799
+    assert router.pick().model == "m2"
+    clock[0] = 1_900 + 1_800
+    assert router.pick().model == "m1"
+    router.succeeded(primary, started=clock[0])
+    assert router.active().model == "m1" and router.pick().model == "m1"
+
+
+def test_the_429s_of_launches_begun_before_the_breaker_opened_are_no_failed_probes():
+    """Five tasks ran on the primary when its limit came. The first 429 opens the breaker,
+    and the other four say what it knows already: the first probe stays one cool-off away
+    (each of them doubled the wait, to two hours)."""
+    router = chain(("claude", "m1"), ("claude", "m2"))
+    primary = router.routes[0]
+    began = router.now()
+    clock[0] = 10
+    for _ in range(5):
+        router.rate_limited(primary, started=began)
+    clock[0] = 10 + 899
+    assert router.pick().model == "m2"
+    clock[0] = 10 + 900
+    assert router.pick().model == "m1"
+    assert router.history() == [("hop 1/2 claude/m1", "hop 2/2 claude/m2")]
+
+
+def test_a_429_on_a_hop_the_breaker_left_changes_nothing():
+    """A launch on hop 2 ends 429 after the breaker moved on to hop 3: the breaker stays
+    there, the probe stays due when it was, and no switch is recorded (it went back to hop
+    2, recorded the switch to hop 3 again, and started the cool-off again)."""
+    router = chain(("claude", "m1"), ("claude", "m2"), ("claude", "m3"))
+    primary, second, _ = router.routes
+    router.rate_limited(primary)
+    clock[0] = 100
+    router.rate_limited(second)  # the breaker is on hop 3; the probe is due at 1000
+    history = router.history()
+    clock[0] = 500
+    assert router.rate_limited(second) == "hop 3/3 claude/m3"
+    assert router.active().model == "m3" and router.history() == history
+    clock[0] = 999
+    assert router.pick().model == "m3"
+    clock[0] = 1_000
+    assert router.pick().model == "m1"
+
+
+def test_a_429_on_a_hop_a_task_reached_on_its_own_walk_leaves_the_breaker(tmp_path):
+    """A task that left hop 1 on another stop meets a 429 on hop 2. The breaker is on hop 1,
+    which no 429 came from, and stays there (it jumped to hop 3 for every task); the task
+    goes on to hop 3 (it launched on hop 2 again and again, and ended rate limited)."""
+    a = Agent("claude", lambda m: {"m1": Stop.API_ERROR, "m2": Stop.RATE_LIMITED}.get(m, Stop.COMPLETED))
+    router = chain(("claude", "m1"), ("claude", "m2"), ("claude", "m3"))
+    res = build(tmp_path, {"claude": a}, {"k": router}).run(Task("k", key="t1"))
+    assert [m for m, _ in a.seen] == ["m1", "m2", "m3"]
+    assert res.ok and res.route.startswith("hop 3/3") and [h.stop for h in res.hops] == ["api_error", "rate_limited", "completed"]
+    assert router.active().model == "m1" and router.history() == []
+
+
 def test_every_hop_refusing_is_an_error_not_a_stall(tmp_path):
     a = Agent("claude", lambda m: Stop.RATE_LIMITED)
     router = chain(("claude", "m1"), ("claude", "m2"))

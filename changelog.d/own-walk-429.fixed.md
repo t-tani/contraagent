@@ -1,0 +1,1 @@
+A task that failed over on a stop other than a rate limit and then met a 429 goes on to the next hop for a rate limit. It launched on the refusing hop again, as many times as the chain has hops, and ended `rate_limited`

@@ -1,0 +1,1 @@
+`Router.pick(probe=False)` looks at the route the next task would get without taking the probe on the primary, which `Router.pick()` now takes for the task it answers. `Router.rate_limited(started=)` takes the router's clock at the launch's start, as `Router.succeeded` does, so that a 429 of a launch that is not the probe leaves the breaker as it is
