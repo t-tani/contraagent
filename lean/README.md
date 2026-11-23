@@ -26,6 +26,7 @@ The modules are those of `src/contraagent/_internal/`.
 | `Contraagent/Execution/Run.lean` | `execution/run.py` | what a resume skips, given each key's last journal row, and why it runs a finished task again |
 | `Contraagent/Pipeline/Graph.lean` | `pipeline/graph.py` | what the graph decides of a task call: its key, its output file and the tasks it waits for, or why the call is refused |
 | `Contraagent/Hub/Segments.lean` | `hub/segments.py` | the hub's copies of a log: which lines it holds and which are durable, when an open segment is sealed, the order of a seal's steps, what a start recovers from the files, the objects and the index, and what `sweep` and `drop` delete |
+| `Contraagent/Hub/Relay.lean` | `hub/relay.py` | the relay's shipping of a run's logs: the lines of each request, what it takes from the hub's answer as its progress, and when it sends the run again or stops |
 
 A description holds the fields that its module decides by. What only travels with
 a task or a result is left out, and the first comment of each file says what.
@@ -117,6 +118,13 @@ index that lost its rows. A seal puts its object before it commits its row, and
 steps at which it may fail or the process may die, so every order of events a crash
 leaves is one of its states.
 
+`Contraagent/Hub/Relay/Prefix.lean` proves, of the relay, that every chunk of a
+request holds lines of its log from the chunk's offset on (`chunks_of_file`), so a
+hub that keeps every line once, in order, holds only first lines of the log
+(`hubTakes_prefix`): never a line the log does not have in that place. The relay
+takes as its progress what the hub says it holds (`acceptChunk_exact`), so its next
+chunk starts where the hub's copy ends.
+
 `Contraagent/Pipeline/Graph/Order.lean` proves, of every graph a flow builds
 (`Built`), that no two tasks have one key (`Built.keys_distinct`) and that each task
 waits for the latest earlier task of its output file, when there is one
@@ -136,7 +144,7 @@ the Python package:
   code's: the stop values of `dispatch/task.py`.
 - The work queue, the failover breaker, a resume, the task graph, the host's room,
   a credential pool, the credential rests, a run's services, the attempts of agent
-  tasks and the hub's logs answer what their specifications do. A scenario of the
+  tasks, the hub's logs and the relay answer what their specifications do. A scenario of the
   breaker is a chain of routes and a list of
   calls of a `Router`, each at a time the scenario gives (`Conformance/Router.lean`,
   `tests/lean/router_scenarios.py`, 100 scenarios in
@@ -177,7 +185,12 @@ the Python package:
   with seals that fail and processes that die at a step of a seal; the answers, and
   the index rows, the objects and the files after the last step, are compared
   (`Conformance/Segments.lean`, `tests/lean/hub_scenarios.py`, 40 scenarios in
-  `tests/lean/hub_scenarios.jsonl`). A scenario of the queue scripts
+  `tests/lean/hub_scenarios.jsonl`). A scenario of the relay is one run's logs
+  that grow, passes of the relay, and a hub that loses lines; it is played on `Relay`
+  over a run directory with a hub that keeps every line once, and the requests of
+  each pass, the relay's progress and the hub's lines are compared
+  (`Conformance/Relay.lean`, `tests/lean/relay_scenarios.py`, 60 scenarios in
+  `tests/lean/relay_scenarios.jsonl`). A scenario of the queue scripts
   everything a queue does not decide: how each attempt ends and how long it takes,
   what a resume skips, what the runner defers, what a result's follow-up queues and
   what is cancelled, on a clock that only the scenario moves.
@@ -189,8 +202,9 @@ the Python package:
 
 A description leaves parts of its module out, and a fault in such a part is one
 that these comparisons do not see. `tests/test_hub_laws.py` therefore checks the
-laws of the hub's logs on the code alone, on the same random scenarios: each log
-reads as its relay sent it, and the durable lines are not lost.
+laws of the hub's logs and of the relay on the code alone, on the same random
+scenarios: each log reads as its relay sent it, the durable lines are not lost, and
+the hub holds every line after the relay asked what it holds.
 
 The `lean` job of `.github/workflows/ci.yml` builds the package, with every proof.
 It fails when a committed file is not what the specification gives now. It also

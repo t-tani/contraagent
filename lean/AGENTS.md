@@ -23,6 +23,7 @@ lake exe contraagent-lean rests        # the same for the credential rests
 lake exe contraagent-lean services     # the same for a run's services
 lake exe contraagent-lean attempt      # the same for the attempts of agent tasks
 lake exe contraagent-lean hub          # the same for the hub's logs
+lake exe contraagent-lean relay        # the same for the relay
 ```
 
 Run these at the repository's root:
@@ -40,6 +41,7 @@ uv run python tests/lean/rests_scenarios.py                      # rewrites test
 uv run python tests/lean/services_scenarios.py                   # rewrites tests/lean/services_scenarios.jsonl
 uv run python tests/lean/attempt_scenarios.py                    # rewrites tests/lean/attempt_scenarios.jsonl
 uv run python tests/lean/hub_scenarios.py                        # rewrites tests/lean/hub_scenarios.jsonl
+uv run python tests/lean/relay_scenarios.py                      # rewrites tests/lean/relay_scenarios.jsonl
 ```
 
 ## Files
@@ -121,4 +123,5 @@ uv run python tests/lean/rests_scenarios.py
 uv run python tests/lean/services_scenarios.py
 uv run python tests/lean/attempt_scenarios.py
 uv run python tests/lean/hub_scenarios.py
+uv run python tests/lean/relay_scenarios.py
 ```
