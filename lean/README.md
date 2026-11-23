@@ -200,9 +200,10 @@ the Python package:
   the index rows, the objects and the files after the last step, are compared
   (`Conformance/Segments.lean`, `tests/lean/hub_scenarios.py`, 40 scenarios in
   `tests/lean/hub_scenarios.jsonl`). A scenario of the relay is one run's logs
-  that grow, passes of the relay, and a hub that loses lines; it is played on `Relay`
-  over a run directory with a hub that keeps every line once, and the requests of
-  each pass, the relay's progress and the hub's lines are compared
+  that grow, passes of the relay, a hub that loses lines or prunes the run, a relay
+  that starts again without its progress, and a new run in the same directory; it
+  is played on `Relay` over a run directory and a `Hub` in memory, and the requests
+  of each pass, the relay's progress and the hub's lines are compared
   (`Conformance/Relay.lean`, `tests/lean/relay_scenarios.py`, 60 scenarios in
   `tests/lean/relay_scenarios.jsonl`). A scenario of the queue scripts
   everything a queue does not decide: how each attempt ends and how long it takes,
@@ -218,7 +219,7 @@ A description leaves parts of its module out, and a fault in such a part is one
 that these comparisons do not see. `tests/test_hub_laws.py` therefore checks the
 laws of the hub's logs and of the relay on the code alone, on the same random
 scenarios: each log reads as its relay sent it, the durable lines are not lost, and
-the hub holds every line after the relay asked what it holds.
+the hub holds every line of a run that grew once the relay asked what it holds.
 
 The `lean` job of `.github/workflows/ci.yml` builds the package, with every proof.
 It fails when a committed file is not what the specification gives now. It also

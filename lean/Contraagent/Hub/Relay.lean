@@ -96,7 +96,9 @@ structure ShipWalk where
 /-- Ship one run (`_ship`): requests until there is nothing to send or the hub took no
 line of the last one, with the hub and the progress after, and the requests made, in
 order. When the hub holds fewer lines than the relay sent before, the run is sent again
-from what the hub holds, its documents and files too, once. `answer` gives what the hub
+from what the hub holds, its documents and files too, once, and the next request asks
+what the hub holds of every log. A hub that holds fewer lines again after that ends the
+walk: the next pass goes on. `answer` gives what the hub
 is after a request and how many lines of each log the request names it holds then;
 `fuel`: the requests at most. -/
 def ship {σ : Type} (batchLines : Nat) (files : RunFiles) (answer : σ → RelayRequest → σ × List (String × Nat)) :
@@ -112,8 +114,9 @@ def ship {σ : Type} (batchLines : Nat) (files : RunFiles) (answer : σ → Rela
       let held : RunProgress := if documents then { progress with documents := true } else progress
       let taken := held.accept files chunks answered.2
       if taken.2 && !walk.resent then
-        ship batchLines files answer fuel { whole := true, probe := false, resent := true } answered.1
+        ship batchLines files answer fuel { whole := true, probe := true, resent := true } answered.1
           { taken.1 with documents := false } (sent ++ [request])
+      else if taken.2 && !walk.probe then (answered.1, taken.1, sent ++ [request])
       else if !documents && taken.1.logs == held.logs then (answered.1, taken.1, sent ++ [request])
       else
         ship batchLines files answer fuel { whole := false, probe := false, resent := walk.resent } answered.1

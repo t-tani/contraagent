@@ -8,8 +8,9 @@ holds, the durable lines are among the lines held, and they are no fewer than be
 the run was dropped or the index lost its rows. After the last step, every index row has its
 object.
 
-The relay, with logs that grow and a hub that loses lines: after a pass at which the relay
-asks the hub what it holds, the hub holds every line of every log."""
+The relay and the hub, with logs that grow, a hub that loses lines or prunes the run, and a
+relay that starts again without its progress: once the run has a new line and the relay asks
+the hub what it holds, the hub holds every line of every log."""
 
 from __future__ import annotations
 
@@ -67,13 +68,16 @@ def test_a_log_reads_as_its_relay_sent_it_whatever_fails_or_dies():
         assert set(shown["kept"]["rows"]) <= set(shown["kept"]["objects"]), number
 
 
-def test_the_hub_holds_every_line_after_the_relay_asked_what_it_holds():
+def test_the_hub_holds_every_line_of_a_run_that_grew_after_the_relay_asked_what_it_holds():
+    """Whatever the hub lost or pruned and whatever the relay forgot: once the run has a new
+    line and the relay asks what the hub holds, the hub holds every line of every log."""
     for number, scenario in enumerate(relay.scenarios(20261124, 120)):
         grown = dict.fromkeys(relay.LOGS, 0)
         for step in scenario["steps"]:
             if step["op"] == "grow":
                 grown[step["log"]] += len(step["lines"])
         late = max(step["now"] for step in scenario["steps"]) + scenario["resyncS"]
-        asks = {"op": "pass", "now": late, "log": relay.LOGS[0], "lines": [], "keep": 0}
-        shown = relay.play({**scenario, "steps": [*scenario["steps"], asks]})
+        last = {"now": late, "log": relay.LOGS[0], "lines": ['{"last": true}'], "keep": 0}
+        grown[relay.LOGS[0]] += 1
+        shown = relay.play({**scenario, "steps": [*scenario["steps"], {**last, "op": "grow"}, {**last, "op": "pass", "lines": []}]})
         assert shown["hub"] == grown == shown["progress"], number
