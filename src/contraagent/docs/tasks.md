@@ -982,8 +982,10 @@ task's processes take is the memory that the processes in its coding agents'
 process groups do not share with other processes. A Python task runs inside the
 run's own process, and a process can leave its agent's group, so what they take
 counts as other programs' memory while the task's `memory_mb` stays held. The cores allow at most the
-usable cores divided by `cores`. While no task holds the name, one starts anyway,
-so a run always goes on even on a host short of memory. A larger `memory_mb` than a
+usable cores divided by `cores`, and one task where that is none. While no running task
+holds memory by a `PerTask` claim, one starts whatever the memory, so a run always goes
+on even on a host short of memory. The memory is the host's: the tasks of every
+`PerTask` name share it, also the names that one pattern matches. A larger `memory_mb` than a
 task takes holds back other tasks. A waiting task starts as soon as a task ends or
 the memory frees, while the others still run.
 

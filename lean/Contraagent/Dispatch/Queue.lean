@@ -13,7 +13,7 @@ The queue's own record is a `QueueState`; what it reports is added to `QueueStat
 
 Left out: the threads tasks run on (a task that ends is the step `done`), the waits of
 the loop, the summary, the notes of a callback that raised, and a `ClaimCapacity` whose
-answer changes as tasks start within one pass (`QueueEnv.capacity` answers for the pass).
+answer changes as tasks start within one pass (`QueueEnv.capacity` answers for the step).
 The bottom level is the code's on tasks whose `after` has no cycle, and on a task that
 names its own key; on a longer cycle the code's value depends on the order it meets the
 tasks, and no task of such a cycle ever starts.
@@ -38,10 +38,20 @@ structure QueueConfig where
   overdueS : Duration := 600
   deriving Repr
 
+/-- How many running tasks may hold a claimed name (an entry of `claim_capacity`): a number,
+or what a `ClaimCapacity` answers when it is asked, given how many hold the name now. -/
+inductive Capacity where
+  | number (n : Nat)
+  | asked (allowed : Nat → Nat)
+
+def Capacity.allowed : Capacity → Nat → Nat
+  | .number n, _ => n
+  | .asked allowed, held => allowed held
+
 /-- The answers of the queue's callbacks, as they are during one step.
 
-`kindCap`: `runner.config(task).max_concurrent`. `capacity name held`: how many running
-tasks may hold `name` when `held` do (`claim_capacity`). `skip`: whether a resume skips the
+`kindCap`: `runner.config(task).max_concurrent`. `capacity name`: the capacity of `name`
+(`claim_capacity`; the number 1 when no entry names it). `skip`: whether a resume skips the
 task. `starting`: the task as it starts, its fingerprint completed. `deferral`: why the
 runner cannot launch the task now. `estimate`: the task's expected time, when it carries
 none. `finishChance task left after`: the chance, in percent, that the task and the work
@@ -49,7 +59,7 @@ after it end within `left`. `followUp`: the tasks a result's follow-up queues. `
 many results one drain finishes at most; the code's drain has no bound. -/
 structure QueueEnv where
   kindCap : Task → Option Nat
-  capacity : String → Nat → Nat
+  capacity : String → Capacity
   skip : Task → Bool
   starting : Task → Task
   deferral : Task → Option Deferral
@@ -209,20 +219,26 @@ def free (env : QueueEnv) (s : QueueState) (task : Task) : Bool :=
   (match env.kindCap task with
     | some cap => decide (s.runningOf task.kind < cap)
     | none => true)
-    && task.claims.all fun name => decide (s.held name < env.capacity name (s.held name))
+    && task.claims.all fun name => decide (s.held name < (env.capacity name).allowed (s.held name))
 
-/-- It could start with nothing else running (`_possible`). -/
+/-- It could start with nothing else running (`_possible`): no cap of 0 and no capacity
+that is the number 0 stands in its way. A capacity that is asked is none: what it answers
+while other tasks run says nothing of then. -/
 def possible (env : QueueEnv) (task : Task) : Bool :=
   (match env.kindCap task with
     | some cap => decide (cap > 0)
     | none => true)
-    && task.claims.all fun name => decide (env.capacity name 0 > 0)
+    && task.claims.all fun name =>
+      match env.capacity name with
+      | .number n => decide (n > 0)
+      | .asked _ => true
 
 /-- Whether starting `task` takes what `head` still needs (`_takes`): the last place on a
 name both claim, or the last place under their kind's cap. -/
 def takes (env : QueueEnv) (s : QueueState) (task head : Task) : Bool :=
   (task.claims.any fun name =>
-      head.claims.contains name && decide (s.held name + 1 ≥ env.capacity name (s.held name)))
+      head.claims.contains name
+        && decide (s.held name + 1 ≥ (env.capacity name).allowed (s.held name)))
     || match env.kindCap head with
       | some cap => task.kind == head.kind && decide (s.runningOf head.kind + 1 ≥ cap)
       | none => false

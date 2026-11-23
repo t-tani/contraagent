@@ -105,7 +105,7 @@ def Scenario.task? (sc : Scenario) (id : String) : Option Task :=
 
 def Scenario.env (sc : Scenario) : QueueEnv :=
   { kindCap := fun task => sc.kindCaps.lookup task.kind,
-    capacity := fun name _ => (sc.claimCapacity.lookup name).getD 1,
+    capacity := fun name => .number ((sc.claimCapacity.lookup name).getD 1),
     skip := fun task => sc.skip.contains task.key,
     starting := fun task => task,
     deferral := fun task =>

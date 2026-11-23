@@ -141,7 +141,8 @@ class PerTask:
     `memory_mb` is the most memory the task takes, its coding agent and every process
     it starts included. Each time the queue tries to start a task that claims the name,
     the task may start when the memory holds it and fewer tasks hold the name than the
-    usable cores divided by `cores`; while no task holds the name one may start anyway,
+    usable cores divided by `cores`. One may start anyway while no running task holds
+    memory by a `PerTask` claim (the memory) and while no task holds the name (the cores),
     so a run always goes on. Each running task with a `PerTask` claim holds its
     `memory_mb` (of all its `PerTask` names, added up) until it ends, or what its
     processes take when that is more. The memory holds a new task when two conditions
@@ -154,8 +155,8 @@ class PerTask:
     agents' process groups do not share with other processes; a Python task runs inside
     this interpreter, and a process can leave its agent's group, so what they take counts
     as other work's while the task's `memory_mb` stays held. A `memory_mb` larger than a task takes holds back
-    other tasks. A pattern with a `PerTask` sizes each name it matches on its own: one
-    name, claimed by every such task, shares one limit.
+    other tasks. A pattern with a `PerTask` counts the cores for each name it matches on
+    its own; the memory is the host's, shared by every `PerTask` name.
     """
 
     memory_mb: int | None = None

@@ -529,9 +529,11 @@ class WorkQueue:
         return not any(self._held.get(name, 0) >= self.capacity(name) for name in set(task.claims))
 
     def _possible(self, task: Task) -> bool:
-        """It could start with nothing else running: no capacity of 0 stands in its way."""
+        """It could start with nothing else running: no cap or capacity of 0 stands in its
+        way. A capacity worked out when it is asked (`ClaimCapacity`) is none: what it is
+        now, while other tasks run, says nothing of then."""
         cap = self.runner.config(task).max_concurrent
-        return (cap is None or cap > 0) and all(self._capacity(name, 0) > 0 for name in task.claims)
+        return (cap is None or cap > 0) and all(entry > 0 for name in task.claims if isinstance(entry := self._entry(name), int))
 
     def _takes(self, task: Task, head: Task) -> bool:
         """Whether starting `task` takes what `head` still needs: the last place on a name

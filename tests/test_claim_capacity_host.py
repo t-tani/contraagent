@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -290,13 +291,52 @@ def test_the_queue_starts_a_holder_once_memory_frees_while_the_others_still_run(
     assert room.tasks == {}  # the queue told it of each end
 
 
-def test_a_pattern_sizes_each_name_on_its_own_and_the_guard_sees_room():
-    q = WorkQueue(Holders([0]), claim_capacity=sized({"index:*": PerTask(memory_mb=1000)}, host([0])))
-    q._held = {"index:a": 1}
+def test_the_names_of_a_pattern_share_the_host_s_memory_and_the_guard_sees_room():
+    """A pattern gives each name a count of its own, and the memory is the host's: while a
+    task of one name runs and no memory is left, the first task of another name waits (it
+    started, since nothing held its name, and took memory the host did not have)."""
+    mem = [1000]
+    room = host(mem)
+    q = WorkQueue(Holders(mem), claim_capacity=sized({"index:*": PerTask(memory_mb=1000)}, room))
+    assert q.capacity("index:a") == 1  # nothing sized by the host runs: one starts
+    q._occupy(Task("serve", key="a", claims=("index:a",)))
+    mem[0] = 0
+    room.refresh()
     assert q.capacity("index:a") == 1
-    assert q.capacity("index:b") == 1  # its own capacity: nothing holds it
+    assert q.capacity("index:b") == 0  # nothing holds the name, and the host has no room
+    assert not q._free(Task("serve", key="b", claims=("index:b",)))
     assert not q._free(Task("serve", key="c", claims=("index:a",)))
-    assert q._possible(Task("serve", key="c", claims=("index:a",)))  # alone, it could start
+    # The guard keeps a place for a task the host will hold once memory frees.
+    assert q._possible(Task("serve", key="b", claims=("index:b",)))
+
+
+def test_tasks_of_two_host_sized_names_do_not_take_more_than_the_memory():
+    """`build` and `test` each need the whole memory. One of each is queued: they run one
+    after the other (they ran together, each the first of its name)."""
+    running: list[str] = []
+    together: list[tuple[str, ...]] = []
+    lock = threading.Lock()
+
+    class Recording:
+        def config(self, task: Task) -> SimpleNamespace:
+            return SimpleNamespace(max_concurrent=None)
+
+        def run(self, task: Task) -> TaskResult:
+            with lock:
+                running.append(task.key)
+                together.append(tuple(running))
+            time.sleep(0.05)
+            with lock:
+                running.remove(task.key)
+            return TaskResult(task=task, ok=True, stop="completed")
+
+    room = HostCapacity(mem_available_mb=lambda: 0 if room.tasks else 4000, usage_mb=lambda keys: {}, cores=64)
+    caps = sized({"build": PerTask(memory_mb=4000), "test": PerTask(memory_mb=4000)}, room)
+    q = WorkQueue(Recording(), max_concurrent=4, claim_capacity=caps)
+    q.add(Task("build", key="b", claims=("build",)))
+    q.add(Task("test", key="t", claims=("test",)))
+    summary = q.run()
+    assert summary["ok"] == 2 and sorted(together) == [("b",), ("t",)]
 
 
 # --- declared ---------------------------------------------------------------------------
