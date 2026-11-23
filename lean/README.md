@@ -17,6 +17,7 @@ The modules are those of `src/contraagent/_internal/`.
 | `Contraagent/Dispatch/Records.lean` | `dispatch/records.py` | the cause of a deferral |
 | `Contraagent/Dispatch/Task.lean` | `dispatch/task.py` | a task, its result, a time box, a deferral and the stop values |
 | `Contraagent/Dispatch/Queue.lean` | `dispatch/queue.py` | the work queue: what it accepts, what a pass starts and in which order, what it defers, retries and cancels, and how each task finishes |
+| `Contraagent/Routing/Router.lean` | `routing/router.py` | the failover breaker: the route the next task runs on, what a 429 moves, the probe of the primary and what closes the breaker |
 
 A description holds the fields that its module decides by. What only travels with
 a task or a result is left out, and the first comment of each file says what.
@@ -36,10 +37,17 @@ claim capacity is not passed, each task finishes once, no slot idles) are stated
 in the code's documentation and are not proved yet. The tests below hold the code
 to the description, on which they would be proved.
 
+`Contraagent/Routing/Router/Breaker.lean` proves, of the breaker, that a 429 changes
+nothing when it comes from a launch on the primary that is no probe
+(`rateLimited_no_probe`) or from a hop that is neither the primary nor the hop in
+force (`rateLimited_other_hop`); that after the task picked as the probe, every
+task is picked the hop in force until the cool-off has passed again
+(`pick_after_probe`); and that an exhausted chain stays exhausted.
+
 ## How it is checked against the code
 
-`tests/test_lean.py` and `tests/test_lean_queue.py` run with the other tests of the
-Python package:
+`tests/test_lean.py` and `tests/test_lean_scenarios.py` run with the other tests of
+the Python package:
 
 - Each Lean file is named after a module that exists, and the Lean imports follow
   the layers of `_internal`.
@@ -47,19 +55,24 @@ Python package:
   sides. `lake exe contraagent-lean vocabulary` prints them,
   `tests/lean/vocabulary.json` holds them, and the test compares them with the
   code's: the stop values of `dispatch/task.py`.
-- The work queue reports what its specification does. A scenario scripts
+- The work queue and the failover breaker answer what their specifications do. A
+  scenario of the breaker is a chain of routes and a list of calls of a `Router`,
+  each at a time the scenario gives (`Conformance/Router.lean`,
+  `tests/lean/router_scenarios.py`, 100 scenarios in
+  `tests/lean/router_scenarios.jsonl`). A scenario of the queue scripts
   everything a queue does not decide: how each attempt ends and how long it takes,
   what a resume skips, what the runner defers, what a result's follow-up queues and
   what is cancelled, on a clock that only the scenario moves.
   `lake exe contraagent-lean queue` plays scenarios on the specification
   (`Conformance/Queue.lean`), and `tests/lean/queue_scenarios.py` plays the same
   ones on `WorkQueue`. `tests/lean/queue_scenarios.jsonl` holds 150 scenarios with
-  what the specification reports for each, and the test plays them on the code:
-  the two lists of events must be equal.
+  what the specification reports for each, and `tests/test_lean_scenarios.py` plays
+  them on the code: the two lists of events must be equal.
 
 The `lean` job of `.github/workflows/ci.yml` builds the package, with every proof.
 It fails when a committed file is not what the specification gives now. It also
-plays 400 scenarios made for that run on both sides (`uv run pytest -m lean`).
+plays 400 scenarios of each kind, made for that run, on both sides
+(`uv run pytest -m lean`).
 
 A scenario's tasks never wait for each other: where `after` has a cycle, the
 queue's bottom level depends on the order in which the code meets the tasks, and

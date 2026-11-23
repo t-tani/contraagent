@@ -37,7 +37,7 @@ the test names it. Rewrite it with:
 | the codex version | `uv run python tests/fixtures/codex/record.py` (spends a fraction of a cent), then `tests/test_codex_wire.py` |
 | the Claude Code version | `uv run python tests/fixtures/claude/record.py` (spends a fraction of a cent), then `tests/test_claude_wire.py` |
 | the agy version | `uv run python tests/fixtures/agy/record.py` (spends a little of the Google login's quota), then `tests/test_agy_wire.py` |
-| the Lean description of the work queue (`lean/Contraagent/Dispatch/Queue.lean`), or the scenarios' generator | `uv run python tests/lean/queue_scenarios.py` (`tests/lean/queue_scenarios.jsonl`; needs Lean), then `tests/test_lean_queue.py` |
+| the Lean description of the work queue or of the failover breaker (`lean/Contraagent/Dispatch/Queue.lean`, `lean/Contraagent/Routing/Router.lean`), or a generator of scenarios | `uv run python tests/lean/queue_scenarios.py` or `tests/lean/router_scenarios.py` (`tests/lean/*_scenarios.jsonl`; needs Lean), then `tests/test_lean_scenarios.py` |
 | a name the Lean specification shares with the code (a stop value) | `lake exe contraagent-lean vocabulary > ../tests/lean/vocabulary.json` in `lean/`; `tests/test_lean.py` reads it |
 
 Release checks: `uv run pyright --verifytypes contraagent --ignoreexternal` (no unknown

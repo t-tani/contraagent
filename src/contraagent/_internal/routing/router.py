@@ -379,7 +379,8 @@ class Router:
                 return
             if route is not None and route.identity == self.routes[0].identity and self._index != 0:
                 n = len(self.routes)
-                self._switches.append((self.routes[0].label(self._index, n), self.routes[0].label(1, n) + " (primary recovered)"))
+                here = self.routes[self._index].label(self._index + 1, n)
+                self._switches.append((here, self.routes[0].label(1, n) + " (primary recovered)"))
                 self._index = 0
                 self._probing = None
                 self._interval = self.probe_interval_s

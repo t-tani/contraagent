@@ -7,16 +7,14 @@ not decide; `lean/Conformance/Queue.lean` has its fields and the rules of its vi
 `play` plays one on `WorkQueue` and returns what the queue reported, as the specification
 writes it (`lake exe contraagent-lean queue`). `tests/lean/queue_scenarios.jsonl` holds
 scenarios (`scenarios`) with what the specification reports for each;
-`tests/test_lean_queue.py` plays them on the code.
+`tests/test_lean_scenarios.py` plays them on the code.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
-import os
+import importlib.util
 import random
-import subprocess
 import threading
 from pathlib import Path
 from types import SimpleNamespace
@@ -27,12 +25,9 @@ from contraagent import DeferralCause, Task, TaskResult
 from contraagent._internal.dispatch.task import TimeBox
 from contraagent.engine import Deferral, WorkQueue
 
-ROOT = Path(__file__).resolve().parents[2]
 FILE = Path(__file__).with_name("queue_scenarios.jsonl")
-
-#: Where elan keeps the Lean it installed: the home of the user running this, read before a
-#: test is given an empty home of its own, where elan would install Lean again.
-ELAN_HOME = os.environ.get("ELAN_HOME") or str(Path.home() / ".elan")
+#: What `lake exe contraagent-lean` is asked to play.
+WHAT = "queue"
 #: Where the clock starts (`Conformance.startAt`).
 START_AT = 1000
 #: The scenarios of the committed file: `scenarios(SEED, COUNT)`.
@@ -305,29 +300,13 @@ def scenarios(seed: int, count: int) -> list[dict[str, Any]]:
     return [scenario(rng) for _ in range(count)]
 
 
-def specified(given: list[dict[str, Any]]) -> list[Any]:
-    """What the Lean specification reports for each of `given` (`lake exe contraagent-lean queue`)."""
-    text = "".join(json.dumps(sc, separators=(",", ":")) + "\n" for sc in given)
-    done = subprocess.run(
-        ["lake", "exe", "contraagent-lean", "queue"],
-        cwd=ROOT / "lean",
-        input=text,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        env={**os.environ, "ELAN_HOME": ELAN_HOME},
-    )
-    if done.returncode != 0:
-        raise RuntimeError(done.stderr)
-    return [json.loads(line) for line in done.stdout.splitlines()]
-
-
-def main() -> None:
-    given = scenarios(SEED, COUNT)
-    played = zip(given, specified(given), strict=True)
-    lines = [json.dumps({"scenario": sc, "events": events}, separators=(",", ":")) for sc, events in played]
-    FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+def _exe() -> Any:
+    spec = importlib.util.spec_from_file_location("lean_exe", Path(__file__).with_name("exe.py"))
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 if __name__ == "__main__":
-    main()
+    _exe().rewrite(FILE, WHAT, scenarios(SEED, COUNT))

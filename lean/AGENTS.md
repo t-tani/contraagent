@@ -14,14 +14,16 @@ names. Run these in `lean/`:
 lake build --wfail                     # every file and every proof; a warning fails it, so a `sorry` does
 lake exe contraagent-lean vocabulary   # the names shared with the code, as tests/lean/vocabulary.json holds them
 lake exe contraagent-lean queue        # plays the scenarios of the work queue given on its input, one JSON line each
+lake exe contraagent-lean router       # the same for the failover breaker
 ```
 
 Run these at the repository's root:
 
 ```
-uv run pytest tests/test_lean.py tests/test_lean_queue.py   # needs no Lean: the files' names, the shared names, the committed scenarios
-uv run pytest -m lean -n0                                    # needs Lean: the committed files are current, and fresh scenarios agree
-uv run python tests/lean/queue_scenarios.py                  # rewrites tests/lean/queue_scenarios.jsonl
+uv run pytest tests/test_lean.py tests/test_lean_scenarios.py   # needs no Lean: the files' names, the shared names, the committed scenarios
+uv run pytest -m lean -n0                                        # needs Lean: the committed files are current, and fresh scenarios agree
+uv run python tests/lean/queue_scenarios.py                      # rewrites tests/lean/queue_scenarios.jsonl
+uv run python tests/lean/router_scenarios.py                     # rewrites tests/lean/router_scenarios.jsonl
 ```
 
 ## Files
@@ -87,10 +89,11 @@ too: the committed scenarios fail on the code until both agree. Decide which of 
 two is right before changing either, and do not make the player of a scenario, on
 either side, hide a difference.
 
-After changing a name that both sides share, the description of the queue, or the
-scenarios' generator, rewrite the committed files:
+After changing a name that both sides share, a description that scenarios play, or
+a generator of scenarios, rewrite the committed files:
 
 ```
 lake exe contraagent-lean vocabulary > ../tests/lean/vocabulary.json   # in lean/
 uv run python tests/lean/queue_scenarios.py                            # at the root
+uv run python tests/lean/router_scenarios.py
 ```

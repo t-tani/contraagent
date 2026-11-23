@@ -99,7 +99,10 @@ def test_half_open_probe_returns_to_the_primary_when_it_recovers(tmp_path):
     res = runner.run(Task("k", key="t3"))
     assert [m for m, _ in a.seen] == ["m1"] and res.route.startswith("hop 1/2")  # one task probes, lands
     assert router.active().model == "m1"  # breaker closed for good
-    assert any("primary recovered" in b for _, b in router.history())
+    assert router.history() == [
+        ("hop 1/2 claude/m1", "hop 2/2 claude/m2"),
+        ("hop 2/2 claude/m2", "hop 1/2 claude/m1 (primary recovered)"),  # from the hop it was on (it said hop 1/2 claude/m1)
+    ]
 
 
 def test_a_success_begun_before_the_breaker_opened_does_not_close_it():
