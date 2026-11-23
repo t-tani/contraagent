@@ -480,6 +480,19 @@ def test_the_block_cache_drops_the_least_recently_used_block():
     assert cache.hits == 3 and cache.misses == 2
 
 
+def test_a_run_dropped_and_sent_again_reads_its_new_lines(tmp_path):
+    """A segment's object key names other lines once its run was dropped and sent again. A
+    read gave the blocks it had cached under that key before the drop."""
+    logs = make(tmp_path)
+    logs.append(NAME, UID, LOG, 0, ["old 0", "old 1"], "t")
+    logs.close(NAME, UID, LOG)
+    assert logs.read(NAME, UID, LOG, 0) == (["old 0", "old 1"], 2)  # its block is cached
+    logs.drop(NAME, UID)
+    logs.append(NAME, UID, LOG, 0, ["new 0", "new 1", "new 2"], "t")
+    logs.close(NAME, UID, LOG)
+    assert logs.read(NAME, UID, LOG, 0) == (["new 0", "new 1", "new 2"], 3)
+
+
 def test_count_reads_no_data(tmp_path):
     objects = CountingObjects(MemorySegmentObjects())
     logs = make(tmp_path, objects)
