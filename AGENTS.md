@@ -17,6 +17,8 @@ uv run pytest -m e2e          # the hub and relays as processes over Postgres an
 CONTRAAGENT_LIVE=1 uv run pytest -m live   # real coding agents; spends tokens
 (cd lean && lake build --wfail)            # the Lean specification, every proof (elan installs Lean)
 uv run pytest -m lean -n0                  # the code against the Lean specification on fresh scenarios (needs Lean)
+CONTRAAGENT_TRACE=<folder> uv run pytest   # notes what every queue of the tests reports; then, with Lean:
+uv run python tests/lean/trace.py <folder> # checks it against what the specification proves of the queue
 ```
 
 A committed file that a test compares against goes stale when its source changes;

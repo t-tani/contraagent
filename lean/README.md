@@ -342,6 +342,19 @@ the Python package:
   what the specification reports for each, and `tests/test_lean_scenarios.py` plays
   them on the code: the two lists of events must be equal.
 
+A scenario plays a module one step at a time, on a clock that the scenario moves.
+A run has threads, processes and the real clock. `tests/lean/trace.py` therefore
+notes what a `WorkQueue` reports while it runs as it does in a run, and
+`lake exe contraagent-lean trace` checks that log against the conclusions of the
+theorems about the queue (`Conformance/Trace.lean`): no task starts before the
+tasks it comes after finished, no task finishes twice, a queue that ran to its end
+finished every task it accepted, and the tasks the log shows running stay within
+the queue's size, the capacity of each claim name and one task for each key.
+`tests/test_lean_traces.py` does so for queues that run random tasks on threads.
+With `CONTRAAGENT_TRACE=<folder>`, a test session notes every queue of its process,
+whichever tests it runs, and `uv run python tests/lean/trace.py <folder>` checks
+them; a session of every test notes about 1500 queues.
+
 A description leaves parts of its module out, and a fault in such a part is one
 that these comparisons do not see. `tests/test_hub_laws.py` therefore checks the
 laws of the hub's logs and of the relay on the code alone, on the same random

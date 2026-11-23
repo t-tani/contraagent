@@ -46,14 +46,38 @@ def pytest_collection_modifyitems(config, items) -> None:
                 item.add_marker(pytest.mark.xdist_group(name))
 
 
+#: What notes the queues of this process, with `CONTRAAGENT_TRACE` (`tests/lean/trace.py`).
+_traces: list = []
+
+
+def pytest_sessionstart(session) -> None:
+    """With `CONTRAAGENT_TRACE=<folder>`, note what every `WorkQueue` of this process reports
+    while the tests run, for `tests/lean/trace.py` to check against the Lean specification."""
+    if os.environ.get("CONTRAAGENT_TRACE"):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("lean_trace", Path(__file__).parent / "lean" / "trace.py")
+        assert spec is not None and spec.loader is not None
+        trace = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(trace)
+        recorder = trace.Recorder()
+        recorder.__enter__()
+        _traces.extend([trace, recorder])
+
+
 def pytest_sessionfinish(session) -> None:
     """Each process removes the Postgres and RustFS containers it started (`hub_services`);
-    under pytest-xdist the workers share theirs, and the controller removes those."""
+    under pytest-xdist the workers share theirs, and the controller removes those. A
+    process that noted its queues writes them (`CONTRAAGENT_TRACE`)."""
     from hub_services import stop_all, stop_shared
 
     stop_all()
     if not hasattr(session.config, "workerinput"):
         stop_shared(os.getpid())
+    if _traces:
+        trace, recorder = _traces
+        recorder.__exit__()
+        trace.write(recorder.traces, Path(os.environ["CONTRAAGENT_TRACE"]))
 
 
 #: The home directory of the user running the tests, before any test is given its own.

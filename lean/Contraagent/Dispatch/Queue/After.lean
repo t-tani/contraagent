@@ -35,6 +35,16 @@ def StartsAfter : List QueueEvent → Prop
       | .start task _ _ _ => ∀ key ∈ task.after, key ∈ finishedKeys earlier
       | _ => True) ∧ StartsAfter earlier
 
+/-- Whether a log has it can be worked out: a log that a run recorded is checked so. -/
+instance StartsAfter.decidable : (log : List QueueEvent) → Decidable (StartsAfter log)
+  | [] => isTrue trivial
+  | event :: earlier =>
+    have : Decidable (StartsAfter earlier) := StartsAfter.decidable earlier
+    match event with
+    | .start task _ _ _ => inferInstanceAs (Decidable ((∀ key ∈ task.after, key ∈ finishedKeys earlier) ∧ StartsAfter earlier))
+    | .queued _ | .duplicateKeyRefused _ | .retry _ _ _ | .throttle _ _ | .deferred _ _ | .result _ _ | .ended _ _
+    | .finished _ => inferInstanceAs (Decidable (True ∧ StartsAfter earlier))
+
 /-- What the queue keeps: its log shows no task starting before the tasks it comes after
 finished, and every key it holds as done is of a task the log shows finished. -/
 def AfterDone (s : QueueState) : Prop :=

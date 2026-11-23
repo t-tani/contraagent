@@ -28,13 +28,16 @@ lake exe contraagent-lean flow         # the same for the flow driver
 lake exe contraagent-lean prune        # the same for the hub's retention
 lake exe contraagent-lean blobs        # the same for the hub's blobs while a prune runs beside the relays
 lake exe contraagent-lean logs         # the same for a run's log
+lake exe contraagent-lean trace        # checks the logs of queues that ran, one JSON line each, against what is proved of the queue
 ```
 
 Run these at the repository's root:
 
 ```
 uv run pytest tests/test_lean.py tests/test_lean_scenarios.py   # needs no Lean: the files' names, the shared names, the committed scenarios
-uv run pytest -m lean -n0                                        # needs Lean: the committed files are current, and fresh scenarios agree
+uv run pytest -m lean -n0                                        # needs Lean: the committed files are current, fresh scenarios agree, and queues on threads report what is proved
+CONTRAAGENT_TRACE=<folder> uv run pytest ...                     # notes what every queue of the test process reports; any tests, also -m e2e and -m live
+uv run python tests/lean/trace.py <folder>                       # needs Lean: checks what was noted against what is proved of the queue
 uv run python tests/lean/queue_scenarios.py                      # rewrites tests/lean/queue_scenarios.jsonl
 uv run python tests/lean/router_scenarios.py                     # rewrites tests/lean/router_scenarios.jsonl
 uv run python tests/lean/resume_scenarios.py                     # rewrites tests/lean/resume_scenarios.jsonl
