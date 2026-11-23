@@ -822,8 +822,8 @@ class Run:
     # --- queue callbacks ---------------------------------------------------
 
     def _journal_queue_result(self, res: TaskResult, attempt: int) -> None:
-        """Journal what no runner journals: a Python task's attempts, and a task the queue
-        cancelled before it launched (attempt 0)."""
+        """Journal what no runner journals: a Python task's attempts, and the queue's own
+        result of a task it cancelled while the task was queued (attempt 0)."""
         if res.task.fn is not None or attempt == 0:
             self.record_attempt(res)
 

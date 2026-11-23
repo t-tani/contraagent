@@ -129,7 +129,8 @@ cause as data (`on_event("deferred", task, reason=, cause=)`, a `DeferralCause`)
 
 `cancel(key)` cancels a task (`FlowDriver` calls it for a `Task.cancellable` task no flow
 call waits for any longer): one queued finishes `cancelled` at once, without launching,
-its result given to `on_result` as attempt 0 since no attempt ran. For one running, the
+its result given to `on_result` as attempt 0: the result is the queue's own, not an
+attempt's. For one running, the
 queue calls the runner's `cancel(task)` when it has one, as it asks `deferral` and
 `starting`: the runner stops what it can (an agent task's launch) and returns its
 result, `cancelled` or the one the task ended with first; the queue does not retry it.
@@ -222,7 +223,9 @@ class FinishChance(Protocol):
 
 class OnResult(Protocol):
     """`on_result(result, attempt)`: every attempt's result, a retried one included;
-    `attempt` counts from 1; 0 for a task cancelled before it launched (`WorkQueue.cancel`)."""
+    `attempt` counts from 1. 0 marks a result that is no attempt's but the queue's own: that
+    of a queued task it cancelled (`WorkQueue.cancel`), also one that waited for its retry
+    after an attempt."""
 
     def __call__(self, result: TaskResult, attempt: int, /) -> None: ...
 
