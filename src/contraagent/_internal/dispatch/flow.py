@@ -141,7 +141,7 @@ Rules:
   `asyncio.Event` nobody sets, a `Queue` nobody fills): `settle` closes it, its `error`
   a RuntimeError that names where it waits.
 * `finish()` cancels every flow call still running once the queue has run (recorded
-  `closed`), and every other Task on the flow loop.
+  `closed`), in the order of their creation, and every other Task on the flow loop.
 * An unawaited task is one the flow code created and never used: no flow call awaited
   it (`wait`), no task waits for it (`Task.after`), and no flow call returned it
   (`holds`). It runs all the same: this is information, never an error. A top flow
@@ -718,6 +718,11 @@ class FlowDriver:
         for call in self.calls.values():
             if call.state == "running":
                 call._closing = True
+        # The flow calls in the order of their creation, so that a run closes them in the same
+        # order each time; then any Task left, in the order of the event loop's set.
+        for call in list(self.calls.values()):
+            if call.task is not None and not call.task.done():
+                call.task.cancel()
         for task in asyncio.all_tasks(self._loop):
             task.cancel()
         self._loop.close_asyncgens()

@@ -652,6 +652,29 @@ def test_flow_code_closes_an_async_generator_it_left_open():
     assert driver.calls["0"].state == "returned" and closed == ["closed"]
 
 
+def test_the_flow_calls_that_still_run_at_the_end_are_closed_in_the_order_they_were_created():
+    closed: list[int] = []
+
+    async def one(d, n):
+        try:
+            await d.wait(f"t{n:02}")
+        except asyncio.CancelledError:
+            closed.append(n)
+            raise
+
+    async def top(d):
+        await asyncio.gather(*[one(d, n) for n in range(40)])
+
+    driver = make()
+    board = Board()
+    with driver.driving():
+        driver.start(top(driver))
+        driver.attach(board)  # type: ignore[arg-type]
+        assert driver.settle_here()
+        driver.finish_here()
+    assert closed == list(range(40))  # not in the order of the event loop's set of Tasks
+
+
 def test_a_flow_loop_runs_on_a_thread_of_its_own_too():
     found: list[Any] = []
 
