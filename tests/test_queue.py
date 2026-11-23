@@ -416,6 +416,36 @@ def test_a_task_after_a_rested_one_launches_when_the_pass_met_it_first():
     assert seen == {"write": "deferred", "report": "completed"} and summary["deferred"] == ["write"]
 
 
+def test_the_queue_takes_only_the_fingerprint_of_the_task_a_runner_gives_as_it_starts():
+    """A runner's `starting` gives the task with its fingerprint completed. One that gives
+    another task (another id, key, kind, claims and dependencies) does not change the task
+    the queue holds: that one starts, with the fingerprint given."""
+
+    class Other(Runner):
+        def __init__(self) -> None:
+            super().__init__()
+            self.ran: list[Task] = []
+
+        def starting(self, task: Task) -> Task:
+            parts = {"outside": "o1"}
+            return Task("b", key="elsewhere", after=("never",), claims=("held",), fingerprint="f1", outside="o1", fingerprint_parts=parts)
+
+        def run(self, task: Task) -> TaskResult:
+            self.ran.append(task)
+            return super().run(task)
+
+    runner = Other()
+    q = WorkQueue(runner)
+    task = Task("a", key="write", claims=("x",), fingerprint_at_start=True)
+    q.add(task)
+    q.add(Task("a", key="next", after=("write",)))
+    summary = q.run()
+    assert [t.key for t in runner.ran] == ["write", "next"] and summary["ok"] == 2
+    started = runner.ran[0]
+    assert (started.id, started.kind, started.claims, started.after) == (task.id, "a", ("x",), ())
+    assert (started.fingerprint, started.outside, started.fingerprint_parts) == ("f1", "o1", {"outside": "o1"})
+
+
 def test_a_resume_skips_a_task_after_one_a_rest_deferred_in_the_same_pass():
     """The deferral of `write` marks its key done, so the resume skips `fill`, which the
     pass has not met yet: the pass goes on to `other` (it raised ValueError at `fill`, no

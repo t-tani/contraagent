@@ -1,5 +1,6 @@
 import Lean.Data.Json
 import Contraagent.Dispatch.Task
+import Contraagent.Backends.Launch
 import Conformance.Queue
 import Conformance.Router
 import Conformance.Run
@@ -22,7 +23,8 @@ What the tests of the Python package read of the specification.
 /-- The names the specification shares with the code, as `tests/lean/vocabulary.json` holds
 them. -/
 def vocabulary : Lean.Json :=
-  Lean.Json.mkObj [("stops", Lean.toJson Contraagent.Stop.named)]
+  Lean.Json.mkObj
+    [("stops", Lean.toJson Contraagent.Stop.named), ("launchStops", Lean.toJson Contraagent.launchStops)]
 
 /-- Play each line of the standard input, a scenario, and print what the specification
 answers, one line for each. -/

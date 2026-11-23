@@ -8,9 +8,8 @@ only keys of tasks that the log shows finished earlier. `AfterDone` adds that ev
 queue holds as done is one of those. Every function of `Queue.lean` keeps it, so it holds
 in every state the queue reaches (`Reachable.starts_after`).
 
-A task finishes with any result: `after` orders tasks, and says nothing of success. The
-assumption is about the runner: the task it gives as a task starts comes after the tasks
-the one it was given comes after (`QueueEnv.KeepsAfter`).
+A task finishes with any result: `after` orders tasks, and says nothing of success. A
+task as it starts comes after the tasks it came after (`QueueEnv.started_after`).
 -/
 
 namespace Contraagent
@@ -293,7 +292,7 @@ theorem deps_done_of_startable (now : Time) (s : QueueState) (e : QueueEntry)
 
 /-- Going down the order keeps it: a task starts only when the keys it comes after are
 done. -/
-theorem afterDone_sweep (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsAfter) (now : Time)
+theorem afterDone_sweep (cfg : QueueConfig) (env : QueueEnv) (now : Time)
     (late : List (String × Deferral)) :
     ∀ (order : List QueueEntry) (w : Sweep) (s : QueueState),
       AfterDone s → AfterDone (sweep cfg env now late order w s) := by
@@ -327,15 +326,15 @@ theorem afterDone_sweep (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsA
                   intro key mem
                   apply deps
                   split at mem
-                  · rw [keeps found.task] at mem
+                  · rw [env.started_after found.task] at mem
                     exact mem
                   · exact mem
 
-theorem afterDone_pass (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsAfter) (now : Time)
+theorem afterDone_pass (cfg : QueueConfig) (env : QueueEnv) (now : Time)
     (s : QueueState) (h : AfterDone s) : AfterDone (pass cfg env now s) := by
   unfold pass
   dsimp only
-  exact afterDone_sweep cfg env keeps now _ _ _ _
+  exact afterDone_sweep cfg env now _ _ _ _
     (afterDone_markReady now _ (afterDone_deferClosed cfg env now s h))
 
 theorem afterDone_countThrottle (cfg : QueueConfig) (now : Time) (task : Task) (stop : Stop)
@@ -379,12 +378,12 @@ theorem Reachable.afterDone {cfg : QueueConfig} {s : QueueState} (reached : Reac
     AfterDone s := by
   induction reached with
   | start => exact ⟨trivial, fun key mem => by simp at mem⟩
-  | added env _ s task _ ih => exact afterDone_add env s task ih
-  | extended env _ s tasks _ ih => exact afterDone_extend env tasks s ih
-  | cancelled env _ s key _ ih => exact afterDone_cancel env s key ih
-  | passed env keeps now s _ ih => exact afterDone_pass _ env keeps.after now s ih
-  | ended env _ now s id outcome waitS _ ih => exact afterDone_done _ env now s id outcome waitS ih
-  | gaveUp env _ s _ ih => exact afterDone_giveUp env s ih
+  | added env s task _ ih => exact afterDone_add env s task ih
+  | extended env s tasks _ ih => exact afterDone_extend env tasks s ih
+  | cancelled env s key _ ih => exact afterDone_cancel env s key ih
+  | passed env now s _ ih => exact afterDone_pass _ env now s ih
+  | ended env now s id outcome waitS _ ih => exact afterDone_done _ env now s id outcome waitS ih
+  | gaveUp env s _ ih => exact afterDone_giveUp env s ih
 
 /-- A start that a log shows, with everything it shows before it: the keys the task comes
 after are of tasks that finished before. -/

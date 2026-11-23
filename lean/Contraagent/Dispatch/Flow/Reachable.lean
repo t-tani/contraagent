@@ -4,8 +4,9 @@ import Contraagent.Dispatch.Flow
 # The records a driver reaches
 
 `Reachable` holds of the driver's record after any calls, in any order, from the empty
-record. One assumption is about the calls: a Task that flow code creates is created in a
-flow call the driver holds, which is the flow call whose code runs (`_make_task`).
+record. A Task is created under a flow call only when the driver holds that flow call: the
+driver numbers a Task under the flow call whose code runs when that is one of its own, and
+as a top flow call otherwise (`_make_task`).
 -/
 
 namespace Contraagent

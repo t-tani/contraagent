@@ -858,6 +858,8 @@ class FlowDriver:
         parent = _call.get()
         if nxt is not None and nxt.top:
             parent = None
+        if parent is not None and self.calls.get(parent.id) is not parent:
+            parent = None  # a flow call of another driver is no parent here: a top flow call
         if parent is not None:
             self._record(parent)
         code = _code(coro)

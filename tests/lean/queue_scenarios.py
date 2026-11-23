@@ -16,6 +16,7 @@ import asyncio
 import importlib.util
 import random
 import threading
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -79,6 +80,7 @@ def _play(sc: dict[str, Any], clock: Clock) -> list[list[Any]]:
     kind_caps, estimates = dict(sc["kindCaps"]), dict(sc["estimates"])
     follow_ups, outcomes, durations, cancels = dict(sc["followUps"]), dict(sc["outcomes"]), dict(sc["durations"]), dict(sc["cancels"])
     skip, rests = set(sc["skip"]), set(sc["rests"])
+    starts, skip_prints = dict(sc["starts"]), set(sc["skipPrints"])
     events: list[list[Any]] = []
     finished: list[str] = []
     ends_at: list[tuple[str, float]] = []  # the running tasks, in the order they started
@@ -93,6 +95,19 @@ def _play(sc: dict[str, Any], clock: Clock) -> list[list[Any]]:
 
         def deferral(self, task: Task) -> Deferral | None:
             return Deferral("its credential rests", DeferralCause(cause="rest")) if task.key in rests else None
+
+        def starting(self, task: Task) -> Task:
+            given = starts.get(task.id)
+            if given is None:
+                return task
+            return replace(
+                task,
+                id=given["id"],
+                key=given["key"],
+                after=tuple(given["after"]),
+                claims=tuple(given["claims"]),
+                fingerprint=given["fingerprint"],
+            )
 
         def run(self, task: Task) -> TaskResult:
             if not gates[task.id].wait(timeout=60):
@@ -194,7 +209,7 @@ def _play(sc: dict[str, Any], clock: Clock) -> list[list[Any]]:
         retry_wait_s=sc["retryWaitS"],
         claim_capacity=dict(sc["claimCapacity"]),
         estimate=lambda task: estimates.get(task.kind),
-        skip=lambda task: task.key in skip,
+        skip=lambda task: task.key in skip or task.fingerprint in skip_prints,
     )
     for i in sc["initial"]:
         q.add(tasks[i])
@@ -205,7 +220,9 @@ def _play(sc: dict[str, Any], clock: Clock) -> list[list[Any]]:
 def scenario(rng: random.Random) -> dict[str, Any]:
     """A random scenario: up to eight tasks at the start and the follow-ups of some, with
     dependencies, claims, a kind under a cap, keys in flight twice, a resume's skips, rests,
-    failed and throttled attempts, cancels, and deadlines."""
+    failed and throttled attempts, cancels, and deadlines. For some tasks whose fingerprint
+    is complete as they start, the runner gives a fingerprint then, which a resume may skip,
+    and for some of those it gives another task: another id, key, dependencies and claims."""
     n = rng.randint(1, 8)
     total = n + rng.randint(0, 4)
     box = rng.random() < 0.5
@@ -270,6 +287,18 @@ def scenario(rng: random.Random) -> dict[str, Any]:
     for s in specs:
         if rng.random() < 0.08:
             cancels[s["id"]] = [rng.choice(keys)]
+    starts: dict[str, dict[str, Any]] = {}
+    for s in specs:
+        if s["fingerprintAtStart"] and rng.random() < 0.6:
+            given = {"id": s["id"], "key": s["key"], "after": s["after"], "claims": s["claims"]}
+            if rng.random() < 0.4:  # a runner that gives another task
+                given = {
+                    "id": rng.choice([*[other["id"] for other in specs], "elsewhere"]),
+                    "key": rng.choice([*keys, "elsewhere"]),
+                    "after": [key for key in [*keys, "never-queued"] if rng.random() < 0.2],
+                    "claims": rng.sample(["x", "y"], rng.choice([0, 1, 2])),
+                }
+            starts[s["id"]] = {**given, "fingerprint": rng.choice(["f0", "f1"])}
     return {
         "maxConcurrent": rng.randint(1, 4),
         "deadlineS": deadline,
@@ -292,6 +321,8 @@ def scenario(rng: random.Random) -> dict[str, Any]:
         "outcomes": sorted(outcomes.items()),
         "durations": [[s["id"], rng.choice([0, 1, 3, 10])] for s in specs],
         "cancels": sorted(cancels.items()),
+        "starts": sorted(starts.items()),
+        "skipPrints": ["f1"] if rng.random() < 0.4 else [],
     }
 
 

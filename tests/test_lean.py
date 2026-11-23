@@ -8,6 +8,7 @@ import tomllib
 from pathlib import Path
 
 import contraagent._internal.dispatch.task as task_module
+from contraagent._internal.backends.launch import Stop
 
 ROOT = Path(__file__).resolve().parents[1]
 SPECIFICATION = ROOT / "lean" / "Contraagent"
@@ -69,3 +70,21 @@ def test_the_stop_values_are_those_task_py_names():
         "dispatch/task.py differ; after changing the Lean file, rewrite tests/lean/vocabulary.json in lean/: "
         "lake exe contraagent-lean vocabulary > ../tests/lean/vocabulary.json"
     )
+
+
+def test_the_stops_of_a_launch_are_those_launch_py_names():
+    vocabulary = json.loads(VOCABULARY.read_text(encoding="utf-8"))
+    assert vocabulary["launchStops"] == [stop.value for stop in Stop], (
+        "the stops of a launch in lean/Contraagent/Backends/Launch.lean (`launchStops`) and the members of `Stop` in "
+        "backends/launch.py differ; after changing the Lean file, rewrite tests/lean/vocabulary.json in lean/: "
+        "lake exe contraagent-lean vocabulary > ../tests/lean/vocabulary.json"
+    )
+
+
+def test_no_launch_ends_with_a_stop_of_a_task_that_was_not_launched():
+    """What the specification proves of `launchStops` (`launchStops_not_own`), of the code's
+    own names: a result with one of these stops is of a task nothing launched for, which
+    the runners and the queue rely on (a deferred result is not journaled, and its task is
+    not counted as attempted)."""
+    not_launched = {task_module.STOP_DEFERRED, task_module.STOP_SKIPPED, task_module.STOP_CANCELLED, task_module.STOP_DUPLICATE_KEY}
+    assert not not_launched & {stop.value for stop in Stop}

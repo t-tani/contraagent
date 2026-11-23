@@ -125,7 +125,8 @@ say why a task cannot launch now (`.deferral(task)`, a `Deferral` or None): the
 queue asks it just before it would start the task, and defers the task instead.
 For a task with `fingerprint_at_start`, the queue then asks the runner for the task
 as it starts (`.starting(task)`, the same task with its fingerprint completed) and
-starts, or skips, that one.
+starts, or skips, the task with that fingerprint: of the task the runner gives, it takes
+`fingerprint`, `outside` and `fingerprint_parts`, and nothing else.
 A runner that finds the same once the task has started returns a `deferred`
 result, finished as a deferral too. A deferral is reported with its reason and its
 cause as data (`on_event("deferred", task, reason=, cause=)`, a `DeferralCause`).
@@ -148,6 +149,7 @@ import time
 from collections import deque
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from typing import Any, Protocol
 
 from contraagent._internal.dispatch.entry import run_sync
@@ -849,13 +851,17 @@ class WorkQueue:
             return None
 
     def _starting(self, task: Task) -> Task:
-        """The task as it starts, from the runner (`starting`), if it gives one: its
-        fingerprint completed. One that raises leaves the task as it was, and says so."""
+        """The task as it starts: `task` with the fingerprint, the outside state's digest and
+        the fingerprint's parts of the task the runner gives (`starting`), if it gives one.
+        Nothing else of what the runner gives is taken, so the task that starts has the id,
+        the key, the dependencies and the claims the queue holds it by. A hook that raises
+        leaves the task as it was, and says so."""
         ask = getattr(self.runner, "starting", None)
         if ask is None:
             return task
         try:
-            return ask(task)
+            given = ask(task)
+            return replace(task, fingerprint=given.fingerprint, outside=given.outside, fingerprint_parts=given.fingerprint_parts)
         except Exception as exc:  # a broken hook must not stop the queue
             self.on_event("note", task, starting_failed=repr(exc)[:200])
             return task

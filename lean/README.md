@@ -18,6 +18,7 @@ The modules are those of `src/contraagent/_internal/`.
 | `Contraagent/Dispatch/Task.lean` | `dispatch/task.py` | a task, its result, a time box, a deferral and the stop values |
 | `Contraagent/Dispatch/Queue.lean` | `dispatch/queue.py` | the work queue: what it accepts, what a pass starts and in which order, what it defers, retries and cancels, and how each task finishes |
 | `Contraagent/Dispatch/Flow.lean` | `dispatch/flow.py` | the flow driver's record: the numbers of each flow call, which task it gives the queue and when, the order in which it gives results to the flow code, how a flow call ends, which task it cancels, and when it closes the flow calls that nothing will answer |
+| `Contraagent/Backends/Launch.lean` | `backends/launch.py` | the stops a launch of a coding agent ends with |
 | `Contraagent/Routing/Router.lean` | `routing/router.py` | the failover breaker: the route the next task runs on, what a 429 moves, the probe of the primary and what closes the breaker |
 | `Contraagent/Routing/Capacity.lean` | `routing/capacity.py` | a claim capacity sized by the host: how many tasks may hold a name, given the memory and cores one needs, what the running tasks hold and what the host reads |
 | `Contraagent/Routing/Pool.lean` | `routing/pool.py` | a credential pool: the member the next launch uses, in order or in a round robin, and how long a member rests after a 429 |
@@ -39,30 +40,26 @@ a task or a result is left out, and the first comment of each file says what.
 or running at once (`Reachable.keys_distinct`, `Reachable.running_keys_distinct`).
 It holds in every state the queue reaches (`Reachable`): from the empty queue, by
 any sequence of what the queue is told (`add`, `extend`, `cancel`), passes, ends of
-tasks and `giveUp`, at any times and with any answers of the callbacks. The proof
-assumes one thing of the runner: the task it gives as a task starts has the key of
-the task it was given (`QueueEnv.KeepsKey`).
+tasks and `giveUp`, at any times and with any answers of the callbacks. The proofs
+about the queue assume nothing of its runner. Of the task a runner gives as a task
+starts, the queue takes only the fingerprint (`QueueEnv.started`), so the task that
+starts has the id, the key, the dependencies and the claims the queue held it by
+(`Queue/Reachable.lean`, which also holds the reachable states).
 
 `Contraagent/Dispatch/Queue/After.lean` proves that no task starts before the tasks
 it comes after have finished (`Reachable.starts_after`): wherever the queue's log
 shows a task starting, each key the task names in `after` is of a task that the log
-shows finished before, with any result. It assumes that the task the runner gives
-as a task starts comes after the same tasks (`QueueEnv.KeepsAfter`).
-`Queue/Reachable.lean` holds these assumptions and the reachable states.
+shows finished before, with any result.
 
 `Contraagent/Dispatch/Queue/Capacity.lean` proves that a claim capacity is not
 passed: while the capacity of a claim name is the number `n` at every pass, at most
 `n` running tasks hold the name (`ReachableWithin.capacity`). Only a pass starts a
-task, and it starts one only while every name the task claims has room. It assumes
-that the task the runner gives as a task starts claims the same names
-(`QueueEnv.KeepsClaims`).
+task, and it starts one only while every name the task claims has room.
 
 `Contraagent/Dispatch/Queue/Ids.lean` proves that each task finishes once. In every
 state the queue reaches, the log shows each task finished once at most
 (`Reachable.finished_once`); and once nothing is queued, running or waiting to
 finish, every task the queue accepted has finished (`Reachable.accepted_finished`).
-It assumes that the task the runner gives as a task starts has the id of the task it
-was given (`QueueEnv.KeepsId`).
 
 `Contraagent/Dispatch/Queue/Idle.lean` proves that no slot idles. The queue's log
 only grows, so a pass that reports nothing started and deferred nothing; when a slot
@@ -89,9 +86,9 @@ queue (`Reachable.cancels_sent`). And when the driver closes the flow calls that
 nothing will answer, no flow call waits for a task, and every task the driver queued
 has given its result (`Reachable.stuck_waits_for_no_task`): what it closes waits for
 something that no task answers. These hold of every record the driver reaches
-(`Flow/Reachable.lean`): from the empty record, by any calls in any order. They
-assume that a Task that flow code creates is created in a flow call the driver
-holds.
+(`Flow/Reachable.lean`): from the empty record, by any calls in any order. A Task
+is created under a flow call only when the driver holds that flow call, which the
+driver checks as it numbers the Task.
 
 `Contraagent/Dispatch/Flow/Calls.lean` proves that each flow call has numbers of its
 own (`Reachable.calls_distinct`), and its id is those numbers joined by dots; that
@@ -137,7 +134,10 @@ has no two hops of one identity (`chainOf_distinct`).
 only when it launched nothing, having passed over every hop it could take, one of
 them resting on its quota (`runWithFailover_deferred`); and that `deferral`, which
 the queue asks before it starts a task, says what the attempt's first round would
-(`choose_deferral`). The first assumes that no launch ends with the stop `deferred`.
+(`choose_deferral`). The first holds of launches that end with a stop of a launch
+or as a partial result, and `Contraagent/Backends/Launch/Own.lean` proves that none
+of those stops is one of a task that was not launched: `deferred`, `skipped`,
+`cancelled` or `duplicate_key` (`launchStops_not_own`).
 `Contraagent/Execution/Runner/Attempts.lean` proves that a task gets one attempt
 and its kind's `retries` more at most, that it ends with a result, and that the
 journal gets no deferred attempt.
@@ -200,7 +200,8 @@ the Python package:
 - The names that the specification shares with the code are the same on both
   sides. `lake exe contraagent-lean vocabulary` prints them,
   `tests/lean/vocabulary.json` holds them, and the test compares them with the
-  code's: the stop values of `dispatch/task.py`.
+  code's: the stop values of `dispatch/task.py`, and the stops of a launch, the
+  members of `Stop` in `backends/launch.py`.
 - The work queue, the flow driver, the failover breaker, a resume, the task graph,
   the host's room, a credential pool, the credential rests, a run's services, the
   attempts of agent tasks, the hub's logs and the relay answer what their
@@ -261,10 +262,11 @@ the Python package:
   compared (`Conformance/Flow.lean`, `tests/lean/flow_scenarios.py`, 30 scenarios
   in `tests/lean/flow_scenarios.jsonl`). Which call comes when is decided by asyncio
   and by the flow code, and the specification does not describe it. A scenario of
-  the queue scripts
-  everything a queue does not decide: how each attempt ends and how long it takes,
-  what a resume skips, what the runner defers, what a result's follow-up queues and
-  what is cancelled, on a clock that only the scenario moves.
+  the queue scripts everything a queue does not decide: how each attempt ends and
+  how long it takes, what a resume skips, what the runner defers, the task the
+  runner gives as a task starts (for some tasks another task, of which the queue
+  takes the fingerprint only), what a result's follow-up queues and what is
+  cancelled, on a clock that only the scenario moves.
   `lake exe contraagent-lean queue` plays scenarios on the specification
   (`Conformance/Queue.lean`), and `tests/lean/queue_scenarios.py` plays the same
   ones on `WorkQueue`. `tests/lean/queue_scenarios.jsonl` holds 150 scenarios with

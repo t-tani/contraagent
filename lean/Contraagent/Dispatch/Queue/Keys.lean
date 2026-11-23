@@ -9,8 +9,8 @@ waiting to finish, and that its key is then among `QueueState.inflight`. Every f
 of `Queue.lean` keeps it, so no two tasks of one key ever run at once
 (`running_keys_distinct`).
 
-The one assumption is about the runner: the task it gives as a task starts
-(`QueueEnv.starting`) has the key of the task it was given (`QueueEnv.KeepsKey`).
+A task as it starts has the key the queue held it by (`QueueEnv.started_key`): of the
+task the runner gives then, the queue takes only the fingerprint.
 -/
 
 namespace Contraagent
@@ -131,7 +131,7 @@ theorem keysOnce_dequeue_push {s : QueueState} {limbo : List Task} (h : KeysOnce
     omega
 
 /-- `skip` asked about queued tasks keeps the keys once. -/
-theorem keysOnce_skipStartable (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Task) :
+theorem keysOnce_skipStartable (env : QueueEnv) (limbo : List Task) :
     ∀ (ids : List String) (s : QueueState), KeysOnce s limbo → KeysOnce (skipStartable env s ids) limbo := by
   intro ids
   induction ids with
@@ -151,7 +151,7 @@ theorem keysOnce_skipStartable (env : QueueEnv) (keeps : env.KeepsKey) (limbo : 
         split
         · apply ih
           rw [← ide]
-          exact keysOnce_dequeue_push h e mem _ 0 (keeps e.task)
+          exact keysOnce_dequeue_push h e mem _ 0 (env.started_key e.task)
         · apply ih
           intro key
           have := h key
@@ -160,7 +160,7 @@ theorem keysOnce_skipStartable (env : QueueEnv) (keeps : env.KeepsKey) (limbo : 
       · exact ih s h
 
 /-- Queueing one task keeps the keys once: a task whose key is in flight is refused. -/
-theorem keysOnce_addCore (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Task)
+theorem keysOnce_addCore (env : QueueEnv) (limbo : List Task)
     (s : QueueState) (task : Task) (h : KeysOnce s limbo) :
     KeysOnce (addCore env s task).1 limbo := by
   unfold addCore
@@ -184,7 +184,7 @@ theorem keysOnce_addCore (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List T
         · have ne : (task.key == key) = false := by simpa using fun e => hk e.symm
           simp [hk, ne] at base ⊢
           omega
-      · apply keysOnce_skipStartable env keeps
+      · apply keysOnce_skipStartable env
         intro key
         have base := h key
         simp only [keyCount, flightBound, QueueState.report, List.countP_append, List.countP_cons,
@@ -200,7 +200,7 @@ theorem keysOnce_addCore (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List T
 
 /-- Queueing follow-up work keeps the keys once: a refused task's result is no task's of
 its key. -/
-theorem keysOnce_extendCore (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Task) :
+theorem keysOnce_extendCore (env : QueueEnv) (limbo : List Task) :
     ∀ (tasks : List Task) (s : QueueState), KeysOnce s limbo → KeysOnce (extendCore env s tasks) limbo := by
   intro tasks
   induction tasks with
@@ -210,7 +210,7 @@ theorem keysOnce_extendCore (env : QueueEnv) (keeps : env.KeepsKey) (limbo : Lis
     unfold extendCore
     split
     · exact ih s h
-    · have added := keysOnce_addCore env keeps limbo s task h
+    · have added := keysOnce_addCore env limbo s task h
       split
       · rename_i s' heq
         rw [heq] at added
@@ -271,7 +271,7 @@ theorem keysOnce_pop {s s1 : QueueState} {limbo : List Task} (p : Settling) (res
 
 /-- Closing one task keeps the keys once: its key leaves those in flight, and what its
 follow-ups queue and what a resume then skips keep them once. -/
-theorem keysOnce_finishOne (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Task)
+theorem keysOnce_finishOne (env : QueueEnv) (limbo : List Task)
     (s : QueueState) (p : Settling) (rest : List Settling)
     (h : KeysOnce { s with settling := p :: rest } limbo) :
     KeysOnce (finishOne env { s with settling := rest } p) limbo := by
@@ -285,12 +285,12 @@ theorem keysOnce_finishOne (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List
     apply popped <;> simp only [reportEnd, markDone, QueueState.report] <;> repeat' split
     all_goals first | rfl | simp_all
   split
-  · exact keysOnce_extendCore env keeps limbo _ _ ended
-  · apply keysOnce_skipStartable env keeps
-    exact keysOnce_extendCore env keeps limbo _ _ ended
+  · exact keysOnce_extendCore env limbo _ _ ended
+  · apply keysOnce_skipStartable env
+    exact keysOnce_extendCore env limbo _ _ ended
 
 /-- Finishing the results that wait keeps the keys once. -/
-theorem keysOnce_drain (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Task) :
+theorem keysOnce_drain (env : QueueEnv) (limbo : List Task) :
     ∀ (fuel : Nat) (s : QueueState), KeysOnce s limbo → KeysOnce (drain env fuel s) limbo := by
   intro fuel
   induction fuel with
@@ -302,19 +302,19 @@ theorem keysOnce_drain (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Tas
     · exact h
     · rename_i p rest heq
       apply ih
-      exact keysOnce_finishOne env keeps limbo s p rest (h.congr rfl rfl heq.symm rfl)
+      exact keysOnce_finishOne env limbo s p rest (h.congr rfl rfl heq.symm rfl)
 
-theorem keysOnce_settle (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Task) (s : QueueState)
+theorem keysOnce_settle (env : QueueEnv) (limbo : List Task) (s : QueueState)
     (result : TaskResult) (attempt : Nat) (h : KeysOnce (s.push result attempt) limbo) :
     KeysOnce (settle env s result attempt) limbo :=
-  keysOnce_drain env keeps limbo _ _ h
+  keysOnce_drain env limbo _ _ h
 
 /-- Deferring a task that was taken out of the queue keeps the keys once. -/
-theorem keysOnce_defer (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Task) (s : QueueState)
+theorem keysOnce_defer (env : QueueEnv) (limbo : List Task) (s : QueueState)
     (task : Task) (why : Deferral) (h : KeysOnce s (task :: limbo)) :
     KeysOnce (defer env s task why) limbo := by
   unfold defer
-  apply keysOnce_settle env keeps
+  apply keysOnce_settle env
   apply keysOnce_push
   intro key
   have base := h key
@@ -325,7 +325,7 @@ theorem keysOnce_defer (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Tas
   show keyCount key s + _ + _ ≤ flightBound s key
   omega
 
-theorem keysOnce_deferEach (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Task) :
+theorem keysOnce_deferEach (env : QueueEnv) (limbo : List Task) :
     ∀ (tasks : List (Task × Deferral)) (s : QueueState),
       KeysOnce s (tasks.map (·.1) ++ limbo) → KeysOnce (deferEach env s tasks) limbo := by
   intro tasks
@@ -339,7 +339,7 @@ theorem keysOnce_deferEach (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List
     obtain ⟨task, why⟩ := tw
     unfold deferEach
     apply ih
-    apply keysOnce_defer env keeps
+    apply keysOnce_defer env
     simpa using h
 
 /-! ## Taking several tasks out of the queue -/
@@ -398,11 +398,11 @@ theorem foldl_dequeue (tasks : List (Task × Deferral)) :
 
 /-- Taking the tasks a selection makes of the queue's entries out of the queue and
 deferring each keeps the keys once. -/
-theorem keysOnce_deferAll (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Task) (s : QueueState)
+theorem keysOnce_deferAll (env : QueueEnv) (limbo : List Task) (s : QueueState)
     (f : QueueEntry → Option (Task × Deferral)) (hf : ∀ e tw, f e = some tw → tw.1 = e.task)
     (h : KeysOnce s limbo) : KeysOnce (deferAll env s (s.queued.filterMap f)) limbo := by
   unfold deferAll
-  apply keysOnce_deferEach env keeps
+  apply keysOnce_deferEach env
   rw [foldl_dequeue]
   intro key
   have base := h key
@@ -504,16 +504,16 @@ theorem keysOnce_limbo_run {s : QueueState} {limbo : List Task} (task : Task) (e
   simp only [keyCount, flightBound, List.countP_cons, List.countP_append, List.countP_nil, same] at base ⊢
   omega
 
-theorem keysOnce_add (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Task) (s : QueueState)
+theorem keysOnce_add (env : QueueEnv) (limbo : List Task) (s : QueueState)
     (task : Task) (h : KeysOnce s limbo) : KeysOnce (add env s task).1 limbo := by
-  have added := keysOnce_addCore env keeps limbo s task h
+  have added := keysOnce_addCore env limbo s task h
   unfold add
   cases res : addCore env s task with
   | mk s' accepted =>
     rw [res] at added
-    exact keysOnce_drain env keeps limbo _ _ added
+    exact keysOnce_drain env limbo _ _ added
 
-theorem keysOnce_extend (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Task) :
+theorem keysOnce_extend (env : QueueEnv) (limbo : List Task) :
     ∀ (tasks : List Task) (s : QueueState), KeysOnce s limbo → KeysOnce (extend env s tasks) limbo := by
   intro tasks
   induction tasks with
@@ -523,7 +523,7 @@ theorem keysOnce_extend (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Ta
     unfold extend
     split
     · exact ih s h
-    · have added := keysOnce_add env keeps limbo s task h
+    · have added := keysOnce_add env limbo s task h
       split
       · rename_i s' heq
         rw [heq] at added
@@ -532,7 +532,7 @@ theorem keysOnce_extend (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Ta
         rw [heq] at added
         have added : KeysOnce s' limbo := added
         apply ih
-        apply keysOnce_settle env keeps
+        apply keysOnce_settle env
         apply keysOnce_push
         intro key
         have := added key
@@ -540,13 +540,13 @@ theorem keysOnce_extend (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Ta
           simp [pushed, TaskResult.duplicateKey]
         omega
 
-theorem keysOnce_cancel (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Task) (s : QueueState)
+theorem keysOnce_cancel (env : QueueEnv) (limbo : List Task) (s : QueueState)
     (key : Key) (h : KeysOnce s limbo) : KeysOnce (cancel env s key).1 limbo := by
   unfold cancel
   split
   · rename_i e found
     have mem : e ∈ s.queued := List.mem_of_find?_eq_some found
-    apply keysOnce_settle env keeps
+    apply keysOnce_settle env
     exact (keysOnce_dequeue_push h e mem (TaskResult.cancelled e.task) e.attempt rfl).congr rfl rfl rfl rfl
   · split
     · intro k
@@ -563,11 +563,11 @@ theorem keysOnce_markReady (now : Time) (limbo : List Task) (s : QueueState) (h 
   rw [keyCount_map_queued key s _ (by intro q; split <;> rfl)]
   exact this
 
-theorem keysOnce_deferClosed (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsKey) (now : Time)
+theorem keysOnce_deferClosed (cfg : QueueConfig) (env : QueueEnv) (now : Time)
     (limbo : List Task) (s : QueueState) (h : KeysOnce s limbo) :
     KeysOnce (deferClosed cfg env now s) limbo := by
   unfold deferClosed
-  apply keysOnce_deferAll env keeps limbo s _ _ h
+  apply keysOnce_deferAll env limbo s _ _ h
   intro e tw eq
   simp at eq
   obtain ⟨why, _, rfl⟩ := eq
@@ -575,7 +575,7 @@ theorem keysOnce_deferClosed (cfg : QueueConfig) (env : QueueEnv) (keeps : env.K
 
 /-- Going down the order keeps the keys once: a task that starts leaves the queue as it
 joins those that run, with the key it had. -/
-theorem keysOnce_sweep (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsKey) (now : Time)
+theorem keysOnce_sweep (cfg : QueueConfig) (env : QueueEnv) (now : Time)
     (late : List (String × Deferral)) (limbo : List Task) :
     ∀ (order : List QueueEntry) (w : Sweep) (s : QueueState),
       KeysOnce s limbo → KeysOnce (sweep cfg env now late order w s) limbo := by
@@ -588,7 +588,7 @@ theorem keysOnce_sweep (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsKe
     split
     · split
       · dsimp only
-        apply keysOnce_deferAll env keeps limbo s _ _ h
+        apply keysOnce_deferAll env limbo s _ _ h
         intro q tw eq
         split at eq
         · simp at eq
@@ -604,20 +604,20 @@ theorem keysOnce_sweep (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsKe
         all_goals first
           | exact ih _ s h
           | (apply ih
-             apply keysOnce_defer env keeps
+             apply keysOnce_defer env
              exact keysOnce_dequeue_limbo h found mem)
           | (apply ih
              refine (keysOnce_limbo_run found.task _ ?_ (keysOnce_dequeue_limbo h found mem)).congr rfl rfl rfl rfl
-             first | exact keeps found.task | rfl)
+             first | exact env.started_key found.task | rfl)
 
-theorem keysOnce_pass (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsKey) (now : Time)
+theorem keysOnce_pass (cfg : QueueConfig) (env : QueueEnv) (now : Time)
     (limbo : List Task) (s : QueueState) (h : KeysOnce s limbo) :
     KeysOnce (pass cfg env now s) limbo := by
   unfold pass
   dsimp only
-  apply keysOnce_sweep cfg env keeps
+  apply keysOnce_sweep cfg env
   apply keysOnce_markReady
-  exact keysOnce_deferClosed cfg env keeps now limbo s h
+  exact keysOnce_deferClosed cfg env now limbo s h
 
 theorem keysOnce_of_report {s : QueueState} {limbo : List Task} (event : QueueEvent)
     (h : KeysOnce s limbo) : KeysOnce (s.report event) limbo :=
@@ -634,7 +634,7 @@ theorem keysOnce_countThrottle (cfg : QueueConfig) (now : Time) (task : Task) (s
 
 /-- A task's end keeps the keys once: it leaves those that run, and its result waits to
 finish or it is queued again. -/
-theorem keysOnce_done (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsKey) (now : Time)
+theorem keysOnce_done (cfg : QueueConfig) (env : QueueEnv) (now : Time)
     (limbo : List Task) (s : QueueState) (id : String) (outcome : Outcome) (waitS : Duration)
     (h : KeysOnce s limbo) : KeysOnce (done cfg env now s id outcome waitS) limbo := by
   unfold done
@@ -647,7 +647,7 @@ theorem keysOnce_done (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsKey
     rw [ide] at out
     dsimp only
     split
-    · apply keysOnce_settle env keeps
+    · apply keysOnce_settle env
       refine keysOnce_limbo_push e.task _ _ ?_ ?_
       · rfl
       · exact keysOnce_of_report _ out
@@ -657,7 +657,7 @@ theorem keysOnce_done (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsKey
         · apply keysOnce_of_report
           apply keysOnce_countThrottle
           exact keysOnce_of_report _ out
-      · apply keysOnce_settle env keeps
+      · apply keysOnce_settle env
         refine keysOnce_limbo_push e.task _ _ ?_ ?_
         · rfl
         · apply keysOnce_countThrottle
@@ -669,17 +669,17 @@ theorem map_eq_filterMap_some {α β : Type} (f : α → β) (l : List α) :
   | nil => rfl
   | cons a l ih => simp only [List.map_cons, List.filterMap_cons, ih]
 
-theorem keysOnce_giveUp (env : QueueEnv) (keeps : env.KeepsKey) (limbo : List Task) (s : QueueState)
+theorem keysOnce_giveUp (env : QueueEnv) (limbo : List Task) (s : QueueState)
     (h : KeysOnce s limbo) : KeysOnce (giveUp env s) limbo := by
   unfold giveUp
   dsimp only
   split
   · rw [map_eq_filterMap_some]
-    apply keysOnce_deferAll env keeps limbo s _ _ h
+    apply keysOnce_deferAll env limbo s _ _ h
     intro e tw eq
     simp at eq
     rw [← eq]
-  · apply keysOnce_deferAll env keeps limbo s _ _ h
+  · apply keysOnce_deferAll env limbo s _ _ h
     intro e tw eq
     repeat' split at eq
     all_goals simp at eq
@@ -697,12 +697,12 @@ theorem Reachable.keysOnce {cfg : QueueConfig} {s : QueueState} (reached : Reach
     KeysOnce s [] := by
   induction reached with
   | start => exact keysOnce_start
-  | added env keeps s task _ ih => exact keysOnce_add env keeps.key [] s task ih
-  | extended env keeps s tasks _ ih => exact keysOnce_extend env keeps.key [] tasks s ih
-  | cancelled env keeps s key _ ih => exact keysOnce_cancel env keeps.key [] s key ih
-  | passed env keeps now s _ ih => exact keysOnce_pass _ env keeps.key now [] s ih
-  | ended env keeps now s id outcome waitS _ ih => exact keysOnce_done _ env keeps.key now [] s id outcome waitS ih
-  | gaveUp env keeps s _ ih => exact keysOnce_giveUp env keeps.key [] s ih
+  | added env s task _ ih => exact keysOnce_add env [] s task ih
+  | extended env s tasks _ ih => exact keysOnce_extend env [] tasks s ih
+  | cancelled env s key _ ih => exact keysOnce_cancel env [] s key ih
+  | passed env now s _ ih => exact keysOnce_pass _ env now [] s ih
+  | ended env now s id outcome waitS _ ih => exact keysOnce_done _ env now [] s id outcome waitS ih
+  | gaveUp env s _ ih => exact keysOnce_giveUp env [] s ih
 
 theorem nodup_of_countP_le_one (l : List Key) (h : ∀ key, l.countP (· == key) ≤ 1) : l.Nodup := by
   induction l with

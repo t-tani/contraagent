@@ -12,8 +12,7 @@ queue was never given; and it is at least the times the log shows the task accep
 (`Reachable.finished_once`), and once nothing is queued, running or waiting to finish,
 every task the queue accepted has finished (`Reachable.accepted_finished`).
 
-The assumption is about the runner: the task it gives as a task starts has the id of the
-task it was given (`QueueEnv.KeepsId`).
+A task as it starts has the id the queue held it by (`QueueEnv.started_id`).
 -/
 
 namespace Contraagent
@@ -197,7 +196,7 @@ theorem idsOnce_dequeue_push {s : QueueState} {limbo : List Task} (h : IdsOnce s
     omega
 
 /-- `skip` asked about queued tasks keeps the ids once. -/
-theorem idsOnce_skipStartable (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Task) :
+theorem idsOnce_skipStartable (env : QueueEnv) (limbo : List Task) :
     ∀ (ids : List String) (s : QueueState), IdsOnce s limbo → IdsOnce (skipStartable env s ids) limbo := by
   intro ids
   induction ids with
@@ -217,7 +216,7 @@ theorem idsOnce_skipStartable (env : QueueEnv) (keeps : env.KeepsId) (limbo : Li
         split
         · apply ih
           rw [← ide]
-          exact idsOnce_dequeue_push h e mem _ 0 (keeps e.task)
+          exact idsOnce_dequeue_push h e mem _ 0 (env.started_id e.task)
         · apply ih
           intro other
           have := h other
@@ -236,7 +235,7 @@ theorem idsOnce_fresh {s : QueueState} {limbo : List Task} (h : IdsOnce s limbo)
 
 /-- Queueing one task keeps the ids once: its id is given now, and it is held once when it
 is accepted. -/
-theorem idsOnce_addCore (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Task)
+theorem idsOnce_addCore (env : QueueEnv) (limbo : List Task)
     (s : QueueState) (task : Task) (h : IdsOnce s limbo) :
     IdsOnce (addCore env s task).1 limbo := by
   unfold addCore
@@ -270,7 +269,7 @@ theorem idsOnce_addCore (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Tas
         · have ne : (task.id == id) = false := by simpa using fun e => hk e.symm
           simp [hk, ne] at lower upper ⊢
           omega
-      · apply idsOnce_skipStartable env keeps
+      · apply idsOnce_skipStartable env
         intro id
         obtain ⟨lower, upper⟩ := h id
         simp only [idCount, knownBound, finishedOf, acceptedOf, QueueState.report, List.countP_append, List.countP_cons,
@@ -319,7 +318,7 @@ theorem idsOnce_refused {s : QueueState} {limbo : List Task} (h : IdsOnce s limb
 
 /-- Queueing follow-up work keeps the ids once: a refused task's result waits to finish,
 once. -/
-theorem idsOnce_extendCore (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Task) :
+theorem idsOnce_extendCore (env : QueueEnv) (limbo : List Task) :
     ∀ (tasks : List Task) (s : QueueState), IdsOnce s limbo → IdsOnce (extendCore env s tasks) limbo := by
   intro tasks
   induction tasks with
@@ -331,7 +330,7 @@ theorem idsOnce_extendCore (env : QueueEnv) (keeps : env.KeepsId) (limbo : List 
     · exact ih s h
     · rename_i unknown
       have fresh : s.known.contains task.id = false := by simpa using unknown
-      have added := idsOnce_addCore env keeps limbo s task h
+      have added := idsOnce_addCore env limbo s task h
       split
       · rename_i s' heq
         rw [heq] at added
@@ -370,7 +369,7 @@ theorem reportEnd_finished (s : QueueState) (p : Settling) (id : String) :
 
 /-- Closing one task keeps the ids once: it is no longer held and the log shows it
 finished, and what its follow-ups queue and what a resume then skips keep them once. -/
-theorem idsOnce_finishOne (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Task)
+theorem idsOnce_finishOne (env : QueueEnv) (limbo : List Task)
     (s : QueueState) (p : Settling) (rest : List Settling)
     (h : IdsOnce { s with settling := p :: rest } limbo) :
     IdsOnce (finishOne env { s with settling := rest } p) limbo := by
@@ -397,12 +396,12 @@ theorem idsOnce_finishOne (env : QueueEnv) (keeps : env.KeepsId) (limbo : List T
     · intro id
       rw [reportEnd_finished, ml]
   split
-  · exact idsOnce_extendCore env keeps limbo _ _ ended
-  · apply idsOnce_skipStartable env keeps
-    exact idsOnce_extendCore env keeps limbo _ _ ended
+  · exact idsOnce_extendCore env limbo _ _ ended
+  · apply idsOnce_skipStartable env
+    exact idsOnce_extendCore env limbo _ _ ended
 
 /-- Finishing the results that wait keeps the ids once. -/
-theorem idsOnce_drain (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Task) :
+theorem idsOnce_drain (env : QueueEnv) (limbo : List Task) :
     ∀ (fuel : Nat) (s : QueueState), IdsOnce s limbo → IdsOnce (drain env fuel s) limbo := by
   intro fuel
   induction fuel with
@@ -414,12 +413,12 @@ theorem idsOnce_drain (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Task)
     · exact h
     · rename_i p rest heq
       apply ih
-      exact idsOnce_finishOne env keeps limbo s p rest (h.congr rfl rfl heq.symm rfl (fun _ => rfl) (fun _ => rfl))
+      exact idsOnce_finishOne env limbo s p rest (h.congr rfl rfl heq.symm rfl (fun _ => rfl) (fun _ => rfl))
 
-theorem idsOnce_settle (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Task) (s : QueueState)
+theorem idsOnce_settle (env : QueueEnv) (limbo : List Task) (s : QueueState)
     (result : TaskResult) (attempt : Nat) (h : IdsOnce (s.push result attempt) limbo) :
     IdsOnce (settle env s result attempt) limbo :=
-  idsOnce_drain env keeps limbo _ _ h
+  idsOnce_drain env limbo _ _ h
 
 /-- The result of a task that was taken out, among those that wait. -/
 theorem idsOnce_limbo_push {s : QueueState} {limbo : List Task} (task : Task) (result : TaskResult)
@@ -433,14 +432,14 @@ theorem idsOnce_limbo_push {s : QueueState} {limbo : List Task} (task : Task) (r
   omega
 
 /-- Deferring a task that was taken out of the queue keeps the ids once. -/
-theorem idsOnce_defer (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Task) (s : QueueState)
+theorem idsOnce_defer (env : QueueEnv) (limbo : List Task) (s : QueueState)
     (task : Task) (why : Deferral) (h : IdsOnce s (task :: limbo)) :
     IdsOnce (defer env s task why) limbo := by
   unfold defer
-  apply idsOnce_settle env keeps
+  apply idsOnce_settle env
   exact idsOnce_limbo_push task _ 0 rfl (idsOnce_of_report _ rfl h)
 
-theorem idsOnce_deferEach (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Task) :
+theorem idsOnce_deferEach (env : QueueEnv) (limbo : List Task) :
     ∀ (tasks : List (Task × Deferral)) (s : QueueState),
       IdsOnce s (tasks.map (·.1) ++ limbo) → IdsOnce (deferEach env s tasks) limbo := by
   intro tasks
@@ -454,7 +453,7 @@ theorem idsOnce_deferEach (env : QueueEnv) (keeps : env.KeepsId) (limbo : List T
     obtain ⟨task, why⟩ := tw
     unfold deferEach
     apply ih
-    apply idsOnce_defer env keeps
+    apply idsOnce_defer env
     simpa using h
 
 /-! ## Taking several tasks out of the queue -/
@@ -480,11 +479,11 @@ theorem countP_filterMap_le_id (f : QueueEntry → Option (Task × Deferral)) (s
 
 /-- Taking the tasks a selection makes of the queue's entries out of the queue and
 deferring each keeps the ids once. -/
-theorem idsOnce_deferAll (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Task) (s : QueueState)
+theorem idsOnce_deferAll (env : QueueEnv) (limbo : List Task) (s : QueueState)
     (f : QueueEntry → Option (Task × Deferral)) (hf : ∀ e tw, f e = some tw → tw.1 = e.task)
     (h : IdsOnce s limbo) : IdsOnce (deferAll env s (s.queued.filterMap f)) limbo := by
   unfold deferAll
-  apply idsOnce_deferEach env keeps
+  apply idsOnce_deferEach env
   rw [foldl_dequeue]
   intro id
   obtain ⟨lower, upper⟩ := h id
@@ -582,14 +581,14 @@ theorem idsOnce_limbo_run {s : QueueState} {limbo : List Task} (task : Task) (en
   simp only [idCount, knownBound, List.countP_cons, List.countP_append, List.countP_nil, same] at base ⊢
   omega
 
-theorem idsOnce_add (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Task) (s : QueueState)
+theorem idsOnce_add (env : QueueEnv) (limbo : List Task) (s : QueueState)
     (task : Task) (h : IdsOnce s limbo) : IdsOnce (add env s task).1 limbo := by
-  have added := idsOnce_addCore env keeps limbo s task h
+  have added := idsOnce_addCore env limbo s task h
   unfold add
   cases res : addCore env s task with
   | mk s' accepted =>
     rw [res] at added
-    exact idsOnce_drain env keeps limbo _ _ added
+    exact idsOnce_drain env limbo _ _ added
 
 /-- A task refused for its key, of an id the queue was not given, counted as taken out:
 its result is still to wait to finish. -/
@@ -610,7 +609,7 @@ theorem idsOnce_refused_limbo {s : QueueState} {limbo : List Task} (h : IdsOnce 
     simp [hk, ne] at lower upper ⊢
     omega
 
-theorem idsOnce_extend (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Task) :
+theorem idsOnce_extend (env : QueueEnv) (limbo : List Task) :
     ∀ (tasks : List Task) (s : QueueState), IdsOnce s limbo → IdsOnce (extend env s tasks) limbo := by
   intro tasks
   induction tasks with
@@ -624,7 +623,7 @@ theorem idsOnce_extend (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Task
       have fresh : s.known.contains task.id = false := by simpa using unknown
       split
       · rename_i s' heq
-        have added := idsOnce_add env keeps limbo s task h
+        have added := idsOnce_add env limbo s task h
         rw [heq] at added
         exact ih s' added
       · rename_i s' heq
@@ -635,18 +634,18 @@ theorem idsOnce_extend (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Task
           simp only [Prod.mk.injEq] at heq
           have core := addCore_refused env s task fresh heq.2
           rw [← heq.1, core]
-          exact idsOnce_drain env keeps _ _ _ (idsOnce_refused_limbo h task (by simpa using fresh))
+          exact idsOnce_drain env _ _ _ (idsOnce_refused_limbo h task (by simpa using fresh))
         apply ih
-        apply idsOnce_settle env keeps
+        apply idsOnce_settle env
         exact idsOnce_limbo_push task _ 0 rfl refused
 
-theorem idsOnce_cancel (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Task) (s : QueueState)
+theorem idsOnce_cancel (env : QueueEnv) (limbo : List Task) (s : QueueState)
     (key : Key) (h : IdsOnce s limbo) : IdsOnce (cancel env s key).1 limbo := by
   unfold cancel
   split
   · rename_i e found
     have mem : e ∈ s.queued := List.mem_of_find?_eq_some found
-    apply idsOnce_settle env keeps
+    apply idsOnce_settle env
     exact idsOnce_limbo_push e.task _ e.attempt rfl (idsOnce_of_report _ rfl (idsOnce_dequeue_limbo h e mem))
   · split
     · intro id
@@ -663,11 +662,11 @@ theorem idsOnce_markReady (now : Time) (limbo : List Task) (s : QueueState) (h :
   rw [idCount_map_queued id s _ (by intro q; split <;> rfl)]
   exact this
 
-theorem idsOnce_deferClosed (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsId) (now : Time)
+theorem idsOnce_deferClosed (cfg : QueueConfig) (env : QueueEnv) (now : Time)
     (limbo : List Task) (s : QueueState) (h : IdsOnce s limbo) :
     IdsOnce (deferClosed cfg env now s) limbo := by
   unfold deferClosed
-  apply idsOnce_deferAll env keeps limbo s _ _ h
+  apply idsOnce_deferAll env limbo s _ _ h
   intro e tw eq
   simp at eq
   obtain ⟨why, _, rfl⟩ := eq
@@ -675,7 +674,7 @@ theorem idsOnce_deferClosed (cfg : QueueConfig) (env : QueueEnv) (keeps : env.Ke
 
 /-- Going down the order keeps the ids once: a task that starts leaves the queue as it
 joins those that run, with the id it had. -/
-theorem idsOnce_sweep (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsId) (now : Time)
+theorem idsOnce_sweep (cfg : QueueConfig) (env : QueueEnv) (now : Time)
     (late : List (String × Deferral)) (limbo : List Task) :
     ∀ (order : List QueueEntry) (w : Sweep) (s : QueueState),
       IdsOnce s limbo → IdsOnce (sweep cfg env now late order w s) limbo := by
@@ -688,7 +687,7 @@ theorem idsOnce_sweep (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsId)
     split
     · split
       · dsimp only
-        apply idsOnce_deferAll env keeps limbo s _ _ h
+        apply idsOnce_deferAll env limbo s _ _ h
         intro q tw eq
         split at eq
         · simp at eq
@@ -704,20 +703,20 @@ theorem idsOnce_sweep (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsId)
         all_goals first
           | exact ih _ s h
           | (apply ih
-             apply idsOnce_defer env keeps
+             apply idsOnce_defer env
              exact idsOnce_dequeue_limbo h found mem)
           | (apply ih
              refine idsOnce_limbo_run found.task _ ?_ (idsOnce_of_report _ rfl (idsOnce_dequeue_limbo h found mem))
-             first | exact keeps found.task | rfl)
+             first | exact env.started_id found.task | rfl)
 
-theorem idsOnce_pass (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsId) (now : Time)
+theorem idsOnce_pass (cfg : QueueConfig) (env : QueueEnv) (now : Time)
     (limbo : List Task) (s : QueueState) (h : IdsOnce s limbo) :
     IdsOnce (pass cfg env now s) limbo := by
   unfold pass
   dsimp only
-  apply idsOnce_sweep cfg env keeps
+  apply idsOnce_sweep cfg env
   apply idsOnce_markReady
-  exact idsOnce_deferClosed cfg env keeps now limbo s h
+  exact idsOnce_deferClosed cfg env now limbo s h
 
 theorem idsOnce_countThrottle (cfg : QueueConfig) (now : Time) (task : Task) (stop : Stop)
     {s : QueueState} {limbo : List Task} (h : IdsOnce s limbo) :
@@ -732,7 +731,7 @@ theorem idsOnce_countThrottle (cfg : QueueConfig) (now : Time) (task : Task) (st
 
 /-- A task's end keeps the ids once: it leaves those that run, and its result waits to
 finish or it is queued again. -/
-theorem idsOnce_done (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsId) (now : Time)
+theorem idsOnce_done (cfg : QueueConfig) (env : QueueEnv) (now : Time)
     (limbo : List Task) (s : QueueState) (id : String) (outcome : Outcome) (waitS : Duration)
     (h : IdsOnce s limbo) : IdsOnce (done cfg env now s id outcome waitS) limbo := by
   unfold done
@@ -745,7 +744,7 @@ theorem idsOnce_done (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsId) 
     rw [ide] at out
     dsimp only
     split
-    · apply idsOnce_settle env keeps
+    · apply idsOnce_settle env
       refine idsOnce_limbo_push e.task _ _ ?_ ?_
       · rfl
       · exact idsOnce_of_report _ rfl out
@@ -755,23 +754,23 @@ theorem idsOnce_done (cfg : QueueConfig) (env : QueueEnv) (keeps : env.KeepsId) 
         · apply idsOnce_of_report _ rfl
           apply idsOnce_countThrottle
           exact idsOnce_of_report _ rfl out
-      · apply idsOnce_settle env keeps
+      · apply idsOnce_settle env
         refine idsOnce_limbo_push e.task _ _ ?_ ?_
         · rfl
         · apply idsOnce_countThrottle
           exact idsOnce_of_report _ rfl out
 
-theorem idsOnce_giveUp (env : QueueEnv) (keeps : env.KeepsId) (limbo : List Task) (s : QueueState)
+theorem idsOnce_giveUp (env : QueueEnv) (limbo : List Task) (s : QueueState)
     (h : IdsOnce s limbo) : IdsOnce (giveUp env s) limbo := by
   unfold giveUp
   dsimp only
   split
   · rw [map_eq_filterMap_some]
-    apply idsOnce_deferAll env keeps limbo s _ _ h
+    apply idsOnce_deferAll env limbo s _ _ h
     intro e tw eq
     simp at eq
     rw [← eq]
-  · apply idsOnce_deferAll env keeps limbo s _ _ h
+  · apply idsOnce_deferAll env limbo s _ _ h
     intro e tw eq
     repeat' split at eq
     all_goals simp at eq
@@ -785,12 +784,12 @@ theorem Reachable.idsOnce {cfg : QueueConfig} {s : QueueState} (reached : Reacha
     IdsOnce s [] := by
   induction reached with
   | start => intro id; simp [idCount, knownBound, finishedOf, acceptedOf]
-  | added env keeps s task _ ih => exact idsOnce_add env keeps.id [] s task ih
-  | extended env keeps s tasks _ ih => exact idsOnce_extend env keeps.id [] tasks s ih
-  | cancelled env keeps s key _ ih => exact idsOnce_cancel env keeps.id [] s key ih
-  | passed env keeps now s _ ih => exact idsOnce_pass _ env keeps.id now [] s ih
-  | ended env keeps now s id outcome waitS _ ih => exact idsOnce_done _ env keeps.id now [] s id outcome waitS ih
-  | gaveUp env keeps s _ ih => exact idsOnce_giveUp env keeps.id [] s ih
+  | added env s task _ ih => exact idsOnce_add env [] s task ih
+  | extended env s tasks _ ih => exact idsOnce_extend env [] tasks s ih
+  | cancelled env s key _ ih => exact idsOnce_cancel env [] s key ih
+  | passed env now s _ ih => exact idsOnce_pass _ env now [] s ih
+  | ended env now s id outcome waitS _ ih => exact idsOnce_done _ env now [] s id outcome waitS ih
+  | gaveUp env s _ ih => exact idsOnce_giveUp env [] s ih
 
 /-- No task finishes twice: in every state the queue reaches, the log shows each task
 finished once at most. -/

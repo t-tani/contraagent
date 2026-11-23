@@ -247,7 +247,7 @@ theorem moves_skipStartable (env : QueueEnv) (now : Time) : ∀ (ids : List Stri
       split
       · dsimp only
         split
-        · have step := moves_dequeue_push now s e mem (TaskResult.skipped (env.starting e.task)) 0
+        · have step := moves_dequeue_push now s e mem (TaskResult.skipped (env.started e.task)) 0
           rw [ide] at step
           exact (step.trans (ih _)).weaken (Nat.le_refl _)
         · have step : Drops now s { s with queued := s.queued.map fun q =>

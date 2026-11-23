@@ -51,11 +51,23 @@ structure ScenarioOutcome where
   cause : Option String
   deriving FromJson
 
+/-- What the runner gives as a task starts: a fingerprint, and the id, the key, the
+dependencies and the claims of the task it gives, which may be another's. -/
+structure ScenarioStart where
+  id : String
+  key : String
+  after : List String
+  claims : List String
+  fingerprint : String
+  deriving FromJson
+
 /-- `deadlineS`: the run's own deadline, counted from the start; `none`: no deadline.
 `claimCapacity`, `kindCaps`, `estimates` (by kind), `followUps` (by the id of the task
 whose result it follows), `outcomes` (by id, one for each attempt; `completed` beyond
 them), `durations` (by id; 1 when not given) and `cancels` (by the id of the task whose
-finish it follows: the keys to cancel before the next pass) are lists of pairs. -/
+finish it follows: the keys to cancel before the next pass) and `starts` (by id: what the
+runner gives as the task starts) are lists of pairs. `skipPrints`: the fingerprints a resume
+skips. -/
 structure Scenario where
   maxConcurrent : Nat
   deadlineS : Option Int
@@ -78,6 +90,8 @@ structure Scenario where
   outcomes : List (String × List ScenarioOutcome)
   durations : List (String × Int)
   cancels : List (String × List String)
+  starts : List (String × ScenarioStart)
+  skipPrints : List String
   deriving FromJson
 
 /-- Where the clock starts, as the tests' clock does. -/
@@ -106,8 +120,13 @@ def Scenario.task? (sc : Scenario) (id : String) : Option Task :=
 def Scenario.env (sc : Scenario) : QueueEnv :=
   { kindCap := fun task => sc.kindCaps.lookup task.kind,
     capacity := fun name => .number ((sc.claimCapacity.lookup name).getD 1),
-    skip := fun task => sc.skip.contains task.key,
-    starting := fun task => task,
+    skip := fun task => sc.skip.contains task.key || sc.skipPrints.contains task.fingerprint,
+    starting := fun task =>
+      match sc.starts.lookup task.id with
+      | some given =>
+        { task with id := given.id, key := given.key, after := given.after, claims := given.claims,
+                    fingerprint := given.fingerprint }
+      | none => task,
     deferral := fun task =>
       if sc.rests.contains task.key then some { cause := { cause := "rest" } } else none,
     estimate := fun task => sc.estimates.lookup task.kind,

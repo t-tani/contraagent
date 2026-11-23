@@ -52,7 +52,8 @@ def Capacity.allowed : Capacity → Nat → Nat
 
 `kindCap`: `runner.config(task).max_concurrent`. `capacity name`: the capacity of `name`
 (`claim_capacity`; the number 1 when no entry names it). `skip`: whether a resume skips the
-task. `starting`: the task as it starts, its fingerprint completed. `deferral`: why the
+task. `starting`: the task the runner gives as a task starts, its fingerprint completed,
+of which the queue takes the fingerprint (`started`). `deferral`: why the
 runner cannot launch the task now. `estimate`: the task's expected time, when it carries
 none. `finishChance task left after`: the chance, in percent, that the task and the work
 after it end within `left`. `followUp`: the tasks a result's follow-up queues. `fuel`: how
@@ -67,6 +68,15 @@ structure QueueEnv where
   finishChance : Task → Duration → Duration → Option Nat
   followUp : TaskResult → List Task
   fuel : Nat
+
+/-- The task as it starts (`_starting`): the task the queue holds, with the fingerprint, the
+outside state's digest and the fingerprint's parts of the task the runner gives. Nothing
+else of what the runner gives is taken. -/
+def QueueEnv.started (env : QueueEnv) (task : Task) : Task :=
+  { task with
+    fingerprint := (env.starting task).fingerprint
+    outside := (env.starting task).outside
+    fingerprintParts := (env.starting task).fingerprintParts }
 
 /-- A task in the queue or running, with what the queue keeps for it. `seq`: its place in
 the order of arrival. `attempt`: the attempts started so far. `asked`: `skip` was asked
@@ -354,7 +364,7 @@ def skipStartable (env : QueueEnv) (s : QueueState) : List String → QueueState
     | some e =>
       if e.task.fingerprintAtStart ∧ ¬ e.asked ∧ e.attempt = 0
           ∧ e.task.after.all (s.doneKeys.contains ·) then
-        let started := env.starting e.task
+        let started := env.started e.task
         if env.skip started then
           skipStartable env ((s.dequeue id).push (TaskResult.skipped started) 0) rest
         else
@@ -523,7 +533,7 @@ def sweep (cfg : QueueConfig) (env : QueueEnv) (now : Time) (late : List (String
           match env.deferral e.task with
           | some why => sweep cfg env now late rest w (defer env (s.dequeue e.task.id) e.task why)
           | none =>
-            let task := if e.task.fingerprintAtStart then env.starting e.task else e.task
+            let task := if e.task.fingerprintAtStart then env.started e.task else e.task
             let attempt := e.attempt + 1
             let s := s.dequeue e.task.id
             let s := s.report (.start task attempt (s.running.length + 1) (slots cfg now s))

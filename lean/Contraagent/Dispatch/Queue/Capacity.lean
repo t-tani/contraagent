@@ -7,16 +7,10 @@ Of the description of the work queue: while the capacity of a claim name is the 
 at every pass, at most `n` running tasks hold the name (`ReachableWithin.capacity`). Only a
 pass starts a task, and it starts one only while every name the task claims has room
 (`free`); everything else the queue does leaves the running tasks as they are, or ends one.
-
-The assumption is about the runner: the task it gives as a task starts claims the names of
-the task it was given (`QueueEnv.KeepsClaims`).
+A task as it starts claims the names of the task the queue held (`QueueEnv.started_claims`).
 -/
 
 namespace Contraagent
-
-/-- The runner gives a task as it starts with the claims it was given. -/
-def QueueEnv.KeepsClaims (env : QueueEnv) : Prop :=
-  ∀ task, (env.starting task).claims = task.claims
 
 namespace QueueState
 
@@ -154,7 +148,7 @@ theorem start_within (env : QueueEnv) (s s' : QueueState) (found entry : QueueEn
     omega
 
 /-- Going down the order keeps a name within its capacity. -/
-theorem sweep_held (cfg : QueueConfig) (env : QueueEnv) (claims : env.KeepsClaims) (now : Time)
+theorem sweep_held (cfg : QueueConfig) (env : QueueEnv) (now : Time)
     (late : List (String × Deferral)) (name : String) (n : Nat) (cap : env.capacity name = .number n) :
     ∀ (order : List QueueEntry) (w : Sweep) (s : QueueState),
       s.held name ≤ n → (sweep cfg env now late order w s).held name ≤ n := by
@@ -181,14 +175,14 @@ theorem sweep_held (cfg : QueueConfig) (env : QueueEnv) (claims : env.KeepsClaim
              exact h)
           | (apply ih
              refine start_within env s _ found _ name n cap (Decidable.of_not_not ‹_›) ?_ rfl h
-             first | exact claims found.task | rfl)
+             first | exact env.started_claims found.task | rfl)
 
-theorem pass_held (cfg : QueueConfig) (env : QueueEnv) (claims : env.KeepsClaims) (now : Time) (s : QueueState)
+theorem pass_held (cfg : QueueConfig) (env : QueueEnv) (now : Time) (s : QueueState)
     (name : String) (n : Nat) (cap : env.capacity name = .number n) (within : s.held name ≤ n) :
     (pass cfg env now s).held name ≤ n := by
   unfold pass
   dsimp only
-  apply sweep_held cfg env claims now _ name n cap
+  apply sweep_held cfg env now _ name n cap
   have same : (markReady now (deferClosed cfg env now s)).running = s.running := deferAll_running env s _
   rw [QueueState.held_of_running same]
   exact within
@@ -274,7 +268,7 @@ theorem giveUp_running (env : QueueEnv) (s : QueueState) : (giveUp env s).runnin
   split <;> exact deferAll_running env s _
 
 /-- The states a queue reaches while the capacity of `name` is the number `n` at every
-pass, and the runner gives a task as it starts with the claims it was given. -/
+pass. -/
 inductive ReachableWithin (cfg : QueueConfig) (name : String) (n : Nat) : QueueState → Prop where
   | start : ReachableWithin cfg name n {}
   | added (env : QueueEnv) (s : QueueState) (task : Task) :
@@ -283,7 +277,7 @@ inductive ReachableWithin (cfg : QueueConfig) (name : String) (n : Nat) : QueueS
       ReachableWithin cfg name n s → ReachableWithin cfg name n (extend env s tasks)
   | cancelled (env : QueueEnv) (s : QueueState) (key : Key) :
       ReachableWithin cfg name n s → ReachableWithin cfg name n (cancel env s key).1
-  | passed (env : QueueEnv) (claims : env.KeepsClaims) (cap : env.capacity name = .number n) (now : Time)
+  | passed (env : QueueEnv) (cap : env.capacity name = .number n) (now : Time)
       (s : QueueState) : ReachableWithin cfg name n s → ReachableWithin cfg name n (pass cfg env now s)
   | ended (env : QueueEnv) (now : Time) (s : QueueState) (id : String) (outcome : Outcome) (waitS : Duration) :
       ReachableWithin cfg name n s → ReachableWithin cfg name n (done cfg env now s id outcome waitS)
@@ -299,7 +293,7 @@ theorem ReachableWithin.capacity {cfg : QueueConfig} {name : String} {n : Nat} {
   | added env s task _ ih => rw [QueueState.held_of_running (add_running env s task)]; exact ih
   | extended env s tasks _ ih => rw [QueueState.held_of_running (extend_running env tasks s)]; exact ih
   | cancelled env s key _ ih => rw [cancel_held]; exact ih
-  | passed env claims cap now s _ ih => exact pass_held cfg env claims now s name n cap ih
+  | passed env cap now s _ ih => exact pass_held cfg env now s name n cap ih
   | ended env now s id outcome waitS _ ih => exact Nat.le_trans (done_held cfg env now s id outcome waitS name) ih
   | gaveUp env s _ ih => rw [QueueState.held_of_running (giveUp_running env s)]; exact ih
 

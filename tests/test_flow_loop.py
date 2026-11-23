@@ -19,6 +19,7 @@ from typing import Any
 
 import pytest
 
+import contraagent._internal.dispatch.flow as flow_module
 from contraagent import Task, TaskResult
 from contraagent._internal.dispatch import result_or_raise
 from contraagent._internal.dispatch.flowloop import FlowLoop
@@ -673,6 +674,30 @@ def test_the_flow_calls_that_still_run_at_the_end_are_closed_in_the_order_they_w
         assert driver.settle_here()
         driver.finish_here()
     assert closed == list(range(40))  # not in the order of the event loop's set of Tasks
+
+
+def test_a_task_created_under_a_flow_call_of_another_driver_is_a_top_flow_call():
+    """A driver numbers a Task under the flow call whose code runs only when it holds that
+    flow call."""
+
+    async def nothing():
+        return 1
+
+    first, second = make(), make()
+    with first.driving():
+        call = first.start(nothing())
+        first.settle_here()
+        first.finish_here()
+    with second.driving():
+        token = flow_module._call.set(call)  # the context holds a flow call of the first driver
+        try:
+            second._loop.create_task(nothing())
+        finally:
+            flow_module._call.reset(token)
+        second.settle_here()
+        second.finish_here()
+    assert list(second.calls) == ["0"] and second.calls["0"].parent is None
+    assert second.calls["0"].state == "returned" and not second.alive()
 
 
 def test_a_flow_loop_runs_on_a_thread_of_its_own_too():

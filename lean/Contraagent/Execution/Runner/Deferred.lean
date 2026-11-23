@@ -1,12 +1,14 @@
 import Contraagent.Execution.Runner
+import Contraagent.Backends.Launch.Own
 
 /-!
 # A deferred attempt launched nothing
 
 Of the description of an attempt's walk: an attempt ends deferred only before its first
 launch, with every hop it could take passed over and one of them resting on its quota
-(`runWithFailover_deferred`). The assumption is about the coding agents: no launch ends
-with the stop `deferred`, which is a task's own.
+(`runWithFailover_deferred`). It holds of launches that end with a stop of a launch
+(`launchStops`, the members of `Stop` in `backends/launch.py`) or as a partial result: none
+of those is `deferred`, which is a task's own.
 
 `deferral`, which the queue asks before it starts a task, says the same as the attempt's
 first round would (`choose_deferral`): a task the queue starts after `deferral` gave none
@@ -234,13 +236,25 @@ theorem walk_deferred (cfg : RouterConfig) (outside : Nat → HopOutside)
         obtain ⟨launching₂, ran⟩ := cfg.landed_launching _ w₁ w₂ route s₁ s₂ launching₁ (stops _ route) went
         exact absurd (ih w₂ s₂ s' result launching₂ ended deferred).1 ran
 
+/-- The stops the result of one launch on one hop has (`_run_as`): the launch's own, or
+`partial` for a launch stopped for its time whose outputs passed every check. -/
+def hopStops : List Stop :=
+  Stop.partial :: launchStops
+
+theorem hopStops_not_deferred {stop : Stop} (launched : stop ∈ hopStops) : stop ≠ Stop.deferred := by
+  rcases List.mem_cons.mp launched with eq | launch
+  · rw [eq]; decide
+  · exact launchStops_not_deferred launch
+
 /-- An attempt ends deferred only when it launched nothing: it passed over every hop it
-could take, and one of them rests on its quota. The assumption: no launch ends with the
-stop `deferred`. -/
+could take, and one of them rests on its quota. Each launch ends with a stop of a launch,
+or as a partial result (`hopStops`). -/
 theorem runWithFailover_deferred (cfg : RouterConfig) (outside : Nat → HopOutside) (s s' : RouterState)
-    (result : AttemptResult) (stops : ∀ round route, ((outside round).launch route).stop ≠ Stop.deferred)
+    (result : AttemptResult) (launches : ∀ round route, ((outside round).launch route).stop ∈ hopStops)
     (ended : cfg.runWithFailover outside s = (s', some result)) (deferred : result.stop = Stop.deferred) :
     result.hops = [] ∧ quotaRest result.skippedHops = true := by
+  have stops : ∀ round route, ((outside round).launch route).stop ≠ Stop.deferred :=
+    fun round route => hopStops_not_deferred (launches round route)
   have launching : ({} : Walk).Launching := by
     refine ⟨?_, ?_⟩
     · intro held is; cases is
