@@ -49,9 +49,10 @@ structure RouterConfig where
   deriving Repr
 
 /-- The chain of a router built from a primary and its fallbacks: a fallback with the
-primary's identity is no hop of its own. -/
+identity of the primary, or of a fallback before it, is no hop of its own. -/
 def chainOf (primary : Route) (fallbacks : List Route) : List Route :=
-  primary :: fallbacks.filter (·.identity != primary.identity)
+  (primary :: fallbacks).foldl
+    (fun chain route => if chain.any (·.identity == route.identity) then chain else chain ++ [route]) []
 
 /-- The breaker's record. `index`: the hop in force. `probeAt`: when the next probe of the
 primary is due. `interval`: the cool-off before a probe, which a failed probe doubles.

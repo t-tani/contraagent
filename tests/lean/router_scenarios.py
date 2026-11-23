@@ -81,6 +81,9 @@ def scenario(rng: random.Random) -> dict[str, Any]:
     if rng.random() < 0.2:  # the primary again, as a fallback: no hop of its own
         routes.append({**routes[0], "stops": []})
         fallbacks.insert(rng.randint(0, len(fallbacks)), len(routes) - 1)
+    if n > 1 and rng.random() < 0.2:  # a fallback again, for other stops: no hop of its own
+        routes.append({**routes[rng.randrange(1, n)], "stops": ["timeout"]})
+        fallbacks.insert(rng.randint(0, len(fallbacks)), len(routes) - 1)
     routes.append({"agent": "pi", "model": "elsewhere", "credential": "", "stops": []})  # of no chain
     probe = rng.choice([10, 900])
     now = 0

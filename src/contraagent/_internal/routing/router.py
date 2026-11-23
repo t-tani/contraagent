@@ -200,9 +200,13 @@ class Router:
         max_probe_interval_s: float = 7200.0,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        # A fallback identical to the primary is a no-op hop: drop it here
-        # rather than discovering it as a wasted 1800s launch.
-        self.routes: tuple[Route, ...] = (primary,) + tuple(f for f in fallbacks if f.identity != primary.identity)
+        # A fallback identical to the primary or to a fallback before it is a no-op hop: drop
+        # it here rather than discovering it as a wasted 1800s launch. A walk goes on from a
+        # hop by its identity, so it would never get past a hop that repeats an earlier one.
+        chain: dict[tuple[str, str, str], Route] = {primary.identity: primary}
+        for fallback in fallbacks:
+            chain.setdefault(fallback.identity, fallback)
+        self.routes: tuple[Route, ...] = tuple(chain.values())
         self.primary = primary
         self.probe_interval_s = probe_interval_s
         self.max_probe_interval_s = max_probe_interval_s

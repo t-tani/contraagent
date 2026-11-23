@@ -1,0 +1,1 @@
+A `Router` built with a fallback that repeats an earlier fallback drops the repeat, as it drops a fallback that repeats the primary. A task that failed on the repeated hop launched on it again without end

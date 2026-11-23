@@ -76,6 +76,16 @@ def test_rate_limit_walks_the_chain_and_the_breaker_stays_open(tmp_path):
     assert [b for _, b in router.history()][-1].startswith("hop 3/3")
 
 
+def test_a_fallback_that_repeats_an_earlier_hop_is_no_hop_of_its_own(tmp_path):
+    """A walk goes on from a hop by its identity: past a hop that repeated an earlier one it
+    came back to that hop, and the task launched there without end."""
+    a = Agent("claude", lambda m: Stop.ERROR)
+    router = Router(Route("claude", "m1"), (Route("claude", "m2"), Route("claude", "m2", stops=("error",)), Route("claude", "m1")))
+    assert [str(r) for r in router.routes] == ["claude/m1", "claude/m2"]
+    res = build(tmp_path, {"claude": a}, {"k": router}).run(Task("k", key="t1"))
+    assert res.stop == "error" and [h.route for h in res.hops] == ["hop 1/2 claude/m1", "hop 2/2 claude/m2"]
+
+
 def test_an_attempt_counts_the_time_of_every_hop(tmp_path):
     """A model switch after a rate limit still spent the time before it."""
     a = Agent("claude", lambda m: Stop.RATE_LIMITED if m == "m1" else Stop.COMPLETED)
