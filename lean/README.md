@@ -48,10 +48,16 @@ shows finished before, with any result. It assumes that the task the runner give
 as a task starts comes after the same tasks (`QueueEnv.KeepsAfter`).
 `Queue/Reachable.lean` holds these assumptions and the reachable states.
 
-The other properties of the queue (a claim capacity is not passed, each task
-finishes once, no slot idles, the queue ends) are stated in the code's
-documentation and are not proved yet. The tests below hold the code to the
-description, on which they would be proved.
+`Contraagent/Dispatch/Queue/Capacity.lean` proves that a claim capacity is not
+passed: while the capacity of a claim name is the number `n` at every pass, at most
+`n` running tasks hold the name (`ReachableWithin.capacity`). Only a pass starts a
+task, and it starts one only while every name the task claims has room. It assumes
+that the task the runner gives as a task starts claims the same names
+(`QueueEnv.KeepsClaims`).
+
+The other properties of the queue (each task finishes once, no slot idles, the
+queue ends) are stated in the code's documentation and are not proved yet. The
+tests below hold the code to the description, on which they would be proved.
 
 `Contraagent/Routing/Router/Breaker.lean` proves, of the breaker, that a 429 changes
 nothing when it comes from a launch on the primary that is no probe
