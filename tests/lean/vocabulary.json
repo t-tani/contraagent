@@ -1,0 +1,11 @@
+{"stops":
+ ["completed",
+  "error",
+  "skipped",
+  "launch_failed",
+  "invalid_input",
+  "invalid_output",
+  "deferred",
+  "duplicate_key",
+  "partial",
+  "cancelled"]}

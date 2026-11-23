@@ -130,3 +130,19 @@ jobs:
       # The documentation site's tests are site.yml's, which gates no merge or release.
       - run: pnpm e2e
         working-directory: web
+
+  lean:
+    name: Lean specification (proofs, committed vocabulary)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      # Installs the Lean of lean/lean-toolchain and builds every file of the package.
+      # A warning fails the build, so a proof left open (`sorry`) does.
+      - uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: lean
+          build-args: "--wfail"
+      # tests/lean/vocabulary.json is committed, and the Python tests compare it with
+      # the code on every runner: it must be what the specification says now.
+      - run: lake exe contraagent-lean vocabulary | diff - ../tests/lean/vocabulary.json
+        working-directory: lean

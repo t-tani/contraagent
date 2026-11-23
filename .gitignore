@@ -21,3 +21,5 @@ src/contraagent/docs/examples/hub/secrets/*
 !src/contraagent/docs/examples/hub/secrets/*.example
 src/contraagent/docs/examples/hub/*.whl
 .import_linter_cache/
+# what `lake build` writes
+lean/.lake/
