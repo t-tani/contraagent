@@ -237,7 +237,9 @@ attempt are, and a resume runs it again when the flow creates it.
 
 Cancellation is for work whose answer is no longer needed when nobody waits for
 it: several probes of one change, of which the first blocking finding settles the
-review.
+review. Only a flow call that waits counts. One that holds the task's call and
+waits for it later does not: when the flow call that created the task is closed
+before that wait begins, the task is cancelled, and the wait raises `TaskFailed`.
 
 ::code{file="examples/cancel/flow.py" from="async def ask("}
 
