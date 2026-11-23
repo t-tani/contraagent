@@ -72,7 +72,12 @@ are words of the glossary, so they name nothing of the specification itself.
 - No proof is left open, and no axiom is added: no `sorry`, no `axiom`, no
   `native_decide`. What the specification assumes of its surroundings (a runner, a
   clock, a digest that does not collide) is a hypothesis of each theorem that needs
-  it.
+  it. A file of theorems ends with `#guard_msgs in #print axioms` on its main
+  theorem, so the build fails when the theorem comes to rest on another axiom.
+- A property that must hold in every state is proved for each function of the
+  description, and then for every state the functions reach (`Reachable` in
+  `Dispatch/Queue/Keys.lean`). State it with counts and `≤` where it can be:
+  `omega` then closes each case once `simp` has named the counts.
 - The package depends on Lean's core library and `Std` only.
 
 ## Changing a described module

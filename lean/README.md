@@ -21,6 +21,21 @@ The modules are those of `src/contraagent/_internal/`.
 A description holds the fields that its module decides by. What only travels with
 a task or a result is left out, and the first comment of each file says what.
 
+## What is proved
+
+`Contraagent/Dispatch/Queue/Keys.lean` proves that no two tasks of one key are queued
+or running at once (`Reachable.keys_distinct`, `Reachable.running_keys_distinct`).
+It holds in every state the queue reaches (`Reachable`): from the empty queue, by
+any sequence of what the queue is told (`add`, `extend`, `cancel`), passes, ends of
+tasks and `giveUp`, at any times and with any answers of the callbacks. The proof
+assumes one thing of the runner: the task it gives as a task starts has the key of
+the task it was given (`QueueEnv.KeepsKey`).
+
+The other properties of the queue (a task starts after the tasks it comes after, a
+claim capacity is not passed, each task finishes once, no slot idles) are stated
+in the code's documentation and are not proved yet. The tests below hold the code
+to the description, on which they would be proved.
+
 ## How it is checked against the code
 
 `tests/test_lean.py` and `tests/test_lean_queue.py` run with the other tests of the

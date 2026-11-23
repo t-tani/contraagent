@@ -539,6 +539,19 @@ def pass (cfg : QueueConfig) (env : QueueEnv) (now : Time) (s : QueueState) : Qu
 
 /-! ## A task ends -/
 
+/-- Count a result toward the throttle (a part of `_on_done`): the second result in a row
+whose stop is one to throttle on halves the slots for `throttleS`, unless they are halved
+already; a result with any other stop ends the row. -/
+def countThrottle (cfg : QueueConfig) (now : Time) (task : Task) (stop : Stop) (s : QueueState) :
+    QueueState :=
+  if cfg.throttleOn.contains stop then
+    let s := { s with consecThrottled := s.consecThrottled + 1 }
+    if s.consecThrottled ≥ 2 ∧ ¬ throttled now s then
+      let s := { s with throttledUntil := some (now + cfg.throttleS) }
+      s.report (.throttle task (slots cfg now s))
+    else s
+  else { s with consecThrottled := 0 }
+
 /-- A running task ends with `outcome` (`_on_done`), at `now`. A `deferred` outcome
 finishes as a deferral. Else the result is recorded, two throttled results in a row halve
 the slots for `throttleS`, and the task is queued again, first, after `waitS`, when its
@@ -556,15 +569,7 @@ def done (cfg : QueueConfig) (env : QueueEnv) (now : Time) (s : QueueState) (id 
     if outcome.stop == Stop.deferred then
       settle env (s.report (.deferred e.task outcome.cause)) result e.attempt
     else
-      let s := s.report (.result result e.attempt)
-      let s :=
-        if cfg.throttleOn.contains outcome.stop then
-          let s := { s with consecThrottled := s.consecThrottled + 1 }
-          if s.consecThrottled ≥ 2 ∧ ¬ throttled now s then
-            let s := { s with throttledUntil := some (now + cfg.throttleS) }
-            s.report (.throttle e.task (slots cfg now s))
-          else s
-        else { s with consecThrottled := 0 }
+      let s := countThrottle cfg now e.task outcome.stop (s.report (.result result e.attempt))
       let pastADeadline := (boxes cfg e.task).any fun box => decide (now ≥ box.deadlineAt)
       if cfg.retryOn.contains outcome.stop ∧ outcome.retryable ∧ e.attempt < 2 ∧ ¬ pastADeadline
           ∧ ¬ e.cancelled then
