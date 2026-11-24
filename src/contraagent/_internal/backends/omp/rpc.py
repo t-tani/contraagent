@@ -40,6 +40,7 @@ from contraagent._internal.backends.omp.backend import (
 from contraagent._internal.backends.omp.wire import TraceReader
 from contraagent._internal.backends.process import STOPPED, LaunchError, spawn_error, stop_requested
 from contraagent._internal.backends.refusal import FAILED_STOPS, Signals
+from contraagent._internal.backends.transcript import Transcript
 from contraagent._internal.backends.wire import EventFold, LimitsWatch, positive_int
 from contraagent._internal.platform.commands import commands
 from contraagent._internal.platform.groups import KILL_AFTER_S, REAP_S, groups
@@ -259,22 +260,19 @@ class OmpRpcBackend(OmpBackend):
         assert proc.stdout is not None and proc.stderr is not None
         stdout, errout = proc.stdout, proc.stderr
         frames: queue.Queue = queue.Queue()
+        # This backend drives its own process, not `run_process`, so it writes the
+        # transcript itself. Made here: a failure is reported to this thread's run.
+        transcript = Transcript(launch)
 
         def read() -> None:
             try:
                 for line in stdout:
-                    # This backend drives its own process, not `run_process`, so it writes
-                    # the stream file itself.
-                    if launch.stream_path is not None:
-                        try:
-                            with open(launch.stream_path, "a", encoding="utf-8", newline="\n") as f:
-                                f.write(line)
-                        except OSError:
-                            pass
+                    transcript.write(line.encode("utf-8", errors="replace"))
                     frames.put(("line", line))
             except (OSError, ValueError):
                 pass
             finally:
+                transcript.close()
                 frames.put(("eof", ""))
 
         def drain() -> None:

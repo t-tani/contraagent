@@ -34,11 +34,17 @@ def lastRows : List JournalRow → List JournalRow
   | [] => []
   | row :: rest => if rest.any (·.key == row.key) then lastRows rest else row :: lastRows rest
 
+/-- The rows a resume reads of the journal as it finds it (`Journal.read`): none when there
+is no journal, and nothing when it cannot be read, where the run stops (`Found.read`). -/
+def foundRows (format : RowFormat) (found : Found) : Option (List JournalRow) :=
+  found.read.map (·.filterMap format.parse)
+
 /-- The keys of the tasks that were in flight when the run's process ended and whose
 attempt left no row (`unfinished_keys`). `markers`: the in-flight markers the run left,
 each with its task's key and how many rows the journal held when the task started. A marker
 is of an attempt that did not finish when the journal holds no row of its key from that
-place on. -/
+place on. A marker that does not read still names its task by its file, and is given as
+one placed after every row (`rows.length`): its attempt may have begun after any of them. -/
 def unfinishedKeys (rows : List JournalRow) (markers : List (Key × Nat)) : List Key :=
   (markers.filter fun marker => !(rows.drop marker.2).any (·.key == marker.1)).map (·.1)
 

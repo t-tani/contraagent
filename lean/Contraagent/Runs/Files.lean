@@ -2,9 +2,10 @@
 # A run's logs
 
 What `append_lines` of `src/contraagent/_internal/runs/files.py` writes to a log, and
-which lines its readers read (`read_lines`, `read_rows`). A log is a file of lines, each
+which lines its readers read (`read_lines`, `read_log`). A log is a file of lines, each
 ended by a newline. A write may be cut: a full disk or a host that lost power leaves the
-first bytes of what was written, and a last line with no newline.
+first bytes of what was written, and a last line with no newline. A reader that rests on
+a log (`read_log`) may find no file, or a file it cannot read.
 
 Left out: documents (`write_document`), which are replaced whole; reading by byte offset
 and by blocks; the text of a line (a line here is its bytes); and the lock that keeps the
@@ -52,5 +53,21 @@ def read (log : Log) : List Line :=
   log.lines
 
 end Log
+
+/-- A log as a reader finds it (`read_log`): no file, a file it cannot read (a disk that
+fails to read it, a folder in its place), or a file. -/
+inductive Found where
+  | absent
+  | unreadable
+  | present (log : Log)
+  deriving DecidableEq, Repr
+
+/-- What a reader that rests on a log reads of it (`read_log`): the complete lines of the
+file, none when there is no file, and nothing when the file cannot be read, where the read
+raises. What cannot be read is not known to be empty. -/
+def Found.read : Found → Option (List Line)
+  | .absent => some []
+  | .unreadable => none
+  | .present log => some log.read
 
 end Contraagent

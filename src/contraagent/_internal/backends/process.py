@@ -17,7 +17,6 @@ import contextlib
 import contextvars
 import errno
 import json
-import logging
 import os
 import queue
 import subprocess
@@ -25,15 +24,16 @@ import sys
 import threading
 import time
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Protocol
 
 from contraagent._internal.backends import live_processes
 from contraagent._internal.backends.launch import STDIN_THRESHOLD, Launch, Stop
+from contraagent._internal.backends.transcript import Transcript
 from contraagent._internal.errors import ContraagentError
 from contraagent._internal.platform.commands import commands
 from contraagent._internal.platform.groups import KILL_AFTER_S, REAP_S, groups
-
-_logger = logging.getLogger(__name__)
+from contraagent._internal.runs import failures, layout
 
 # How much of a (possibly very large, stdin-fed) prompt the launch marker
 # records. The monitor renders it collapsed, so a generous cap still reads
@@ -193,7 +193,7 @@ def _terminate(proc: subprocess.Popen) -> None:
         live_processes.unregister(proc)
 
 
-def write_launch_marker(argv: list[str], launch: Launch) -> None:
+def write_launch_marker(argv: list[str], launch: Launch, transcript: Transcript | None = None) -> None:
     """Record one invocation's as-is command line + submitted prompt at the
     head of its stream append, so the monitor can split a looped task's
     single stream file into per-invocation tabs and show, for each, the
@@ -204,8 +204,8 @@ def write_launch_marker(argv: list[str], launch: Launch) -> None:
     Best-effort: a looped task appends every round to the same
     `stream_path`, and each `run_process` call writes exactly one marker at
     its own append's head. The write never fails the launch — a stream file
-    is a convenience transcript, not load-bearing — so an error is a warning
-    of this module's logger.
+    is a convenience transcript, not load-bearing — so an error is reported
+    (`runs.failures`). `transcript`: the launch's, when the caller writes on to it.
     """
     if launch.stream_path is None:
         return
@@ -220,10 +220,14 @@ def write_launch_marker(argv: list[str], launch: Launch) -> None:
         }
         if len(prompt) > _MARKER_PROMPT_CAP:
             marker["prompt_truncated"] = len(prompt) - _MARKER_PROMPT_CAP
-        with open(launch.stream_path, "ab") as f:
-            f.write((json.dumps(marker, ensure_ascii=False) + "\n").encode("utf-8"))
-    except Exception as exc:  # a failed marker must never break a launch
-        _logger.warning("[error] %s: launch marker not written: %r", launch.stream_path, exc)
+        line = (json.dumps(marker, ensure_ascii=False) + "\n").encode("utf-8")
+    except Exception as exc:  # a marker that cannot be made must never break a launch
+        failures.reporter()(layout.STREAMS, exc, launch.label, Path(launch.stream_path))
+        return
+    out = transcript if transcript is not None else Transcript(launch)
+    out.write(line)
+    if transcript is None:
+        out.close()
 
 
 def run_process(
@@ -297,7 +301,8 @@ def _supervise(
     # prompt, before any of the child's own output lands. Written once per
     # run_process call, so a looped task's shared stream file carries one
     # marker per round -- the monitor's per-invocation boundary.
-    write_launch_marker(argv, launch)
+    transcript = Transcript(launch)
+    write_launch_marker(argv, launch, transcript)
     if via_stdin(launch):
         threading.Thread(target=_feed, args=(proc.stdin, launch.prompt if stdin_text is None else stdin_text), daemon=True).start()
     stderr_buf: list[str] = []
@@ -317,9 +322,6 @@ def _supervise(
     out: list[bytes] = []
     pending: list[bytes] = []  # sink-only: the unterminated tail line, never written to disk
     killed: Stop | None = None
-    # Unbuffered so each chunk is on disk as soon as it is read: the monitor
-    # tails this file while the agent runs.
-    stream = open(launch.stream_path, "ab", buffering=0) if launch.stream_path is not None else None
     mark = _stop_mark.get()
     stopped = False  # its task was cancelled: the group is stopped below
     try:
@@ -352,8 +354,8 @@ def _supervise(
                 break
             last_line = time.monotonic()
             out.append(chunk)
-            if stream is not None:
-                stream.write(chunk)
+            # Unbuffered, so that the monitor tails the transcript while the agent runs.
+            transcript.write(chunk)
             if sink is not None:
                 killed = _feed_sink(sink, pending, chunk)
                 if killed is not None:
@@ -368,8 +370,7 @@ def _supervise(
             except subprocess.TimeoutExpired:
                 killed = Stop.TIMEOUT
     finally:
-        if stream is not None:
-            stream.close()
+        transcript.close()
         if killed is not None or proc.poll() is None:
             _terminate(proc)
     exit_code = proc.returncode

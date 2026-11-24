@@ -73,6 +73,7 @@ and with `record_missing` it counts as missing. A `~n` key never plays one of it
 
 from __future__ import annotations
 
+import contextlib
 import glob
 import hashlib
 import json
@@ -91,6 +92,7 @@ from contraagent._internal.backends import backend_class, known_agents
 from contraagent._internal.backends.base import Backend, ModelChains
 from contraagent._internal.backends.credentials import Credential, CredentialBinding
 from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
+from contraagent._internal.backends.transcript import Transcript
 from contraagent._internal.contracts.contract import OutputContract, Stamp
 from contraagent._internal.dispatch.records import Played, SafetyStop
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_matches, kind_name
@@ -827,9 +829,11 @@ class Replay:
                 part = (files / attempt["stream"]).read_bytes()
             except OSError:
                 part = b""
-            launch.stream_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(launch.stream_path, "ab") as f:
-                f.write(part)
+            with contextlib.suppress(OSError):  # the write below reports a folder that is not there
+                launch.stream_path.parent.mkdir(parents=True, exist_ok=True)
+            transcript = Transcript(launch)
+            transcript.write(part)
+            transcript.close()
         recorded = dict(attempt.get("launch") or {})
         notes = self._notes(playing, task, attempt)
         tail = str(recorded.get("stderr_tail") or "")

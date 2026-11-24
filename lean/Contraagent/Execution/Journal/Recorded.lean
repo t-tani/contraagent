@@ -17,12 +17,16 @@ cut may have left with a line that is no row.
 - A row that was appended whole is read after any appends that follow, cut or not, and
   whatever a cut write left before it (`recorded_read`): the task is judged by that row or
   by a later one of its key, and is not run again for a line that a crash left.
+- A journal that cannot be read gives no rows to skip by: only a journal that is not there,
+  or one whose lines are no rows, reads as empty (`foundRows_nil`).
 - A task whose attempt the run's end cut is not skipped (`unfinished_not_skipped`). The
   attempt left its in-flight marker, which holds how many rows the journal held when the
   task started, and no row of the task's key from that place on. The task's last row is
   then of an earlier attempt, and its output file may hold what the cut attempt wrote. A
   marker whose attempt left a row says nothing (`unfinishedKeys_row`): the run ended
-  between the row and the marker's removal, and the task is judged by the row.
+  between the row and the marker's removal, and the task is judged by the row. A marker
+  that does not read, given as placed after every row, makes its task one of these
+  (`unfinishedKeys_after_every_row`).
 -/
 
 namespace Contraagent
@@ -111,6 +115,24 @@ theorem unfinishedKeys_row (rows : List JournalRow) (markers : List (Key × Nat)
   refine ⟨marker.2, mem, fun row at_ => ?_⟩
   simp only [Bool.not_eq_true', List.any_eq_false, beq_iff_eq] at none
   exact none row at_
+
+/-- A marker placed after every row, as one that does not read is, makes its task
+unfinished. -/
+theorem unfinishedKeys_after_every_row (rows : List JournalRow) (markers : List (Key × Nat)) (key : Key)
+    (marked : (key, rows.length) ∈ markers) : key ∈ unfinishedKeys rows markers := by
+  refine List.mem_map.mpr ⟨(key, rows.length), List.mem_filter.mpr ⟨marked, ?_⟩, rfl⟩
+  simp
+
+/-- A journal that is read as empty is not there, or holds no line that is a row: one that
+cannot be read is not taken for empty. -/
+theorem foundRows_nil (format : RowFormat) (found : Found) (none_read : foundRows format found = some []) :
+    found = .absent ∨ ∃ log, found = .present log ∧ journalRows format log = [] := by
+  cases found with
+  | absent => exact .inl rfl
+  | unreadable => simp [foundRows, Found.read] at none_read
+  | present log =>
+    simp only [foundRows, Found.read, Option.map_some, Option.some.injEq] at none_read
+    exact .inr ⟨log, rfl, none_read⟩
 
 /-- info: 'Contraagent.unfinished_not_skipped' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

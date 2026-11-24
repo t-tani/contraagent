@@ -270,7 +270,9 @@ runs as `_lambda_`.
 A run id that already holds a run is refused (`RunExists`) unless it is resumed
 (`resume=True`, `--resume`): the flow runs again, and every task whose key's last
 journal row is ok with the same fingerprint is skipped, its output read from the
-run directory. Another run id starts a new run. A run directory a newer
+run directory. Another run id starts a new run. A run whose journal or `run.json`
+[cannot be read](#when-a-record-cannot-be-read-or-written) is not resumed and not
+started again. A run directory a newer
 contraagent wrote, of a run format this one does not read (`run.json` `format`), is
 not resumed (`RunFormatError`; [Compatibility](compatibility.md#run-formats-and-schemas)). A task's fingerprint is a digest
 of what it is given and what it observes:
@@ -324,7 +326,8 @@ A task that was running when the run's process ended has no journal row of that
 attempt, and its output file may hold what the attempt wrote before it ended. A
 resume runs such a task again, also when an earlier attempt of it finished with the
 same fingerprint: the run keeps a marker of each running task, and a marker that is
-still there with no journal row since says the attempt did not finish.
+still there with no journal row since says the attempt did not finish. A marker that
+does not read still names its task, which then runs again.
 
 A task that fills in another task's file (`output_of`) left its own output in the
 file, so a resume cannot see in the file what the task found there. The journal
@@ -421,9 +424,9 @@ from** run `docs`:
   are as they are now, as on a resume. Transcripts and launches stay in the earlier run
   directory. The earlier run is only read, with its lock held while the new run copies
   it; nothing in it changes.
-- A run that does not exist, one of a run format this release does not read, or one
-  that another process drives is refused (`EarlierRunError`), before anything is
-  written. So is `--resume-from` with `--resume`, with `--replay`, or naming the run
+- A run that does not exist, one whose journal or `run.json` cannot be read, one of a
+  run format this release does not read, or one that another process drives is refused
+  (`EarlierRunError`), before anything is written. So is `--resume-from` with `--resume`, with `--replay`, or naming the run
   id itself.
 
 A replay is not this: it plays a task's recording by its key, also for a task whose
@@ -441,6 +444,40 @@ the run id, the resume (`--resume`, `--resume-from`), the preflight and the stub
 `scopes`, `enrichers`, `backends`, `log`), and `env`, `max_concurrent`, `cwd`, a
 credential override and the queue's options, need a program like this one; its
 docstring lists them.
+
+### When a record cannot be read or written
+
+A resume rests on the journal, on `run.json` and, where a pipeline keeps one, on the
+cursor. contraagent takes one of them for empty only when the file is absent:
+
+- A journal or a `run.json` that cannot be read (an I/O error, no permission) raises
+  `ContraagentError`, and so does a `run.json` that is empty or is not a JSON object.
+  When that happens as the run starts, no task runs and the file stays as it is.
+  `resume_from` refuses such an earlier run with `EarlierRunError`.
+- A journal line that does not read is a warning line of the run's log, with its line
+  number. A resume runs again a task whose last row it was.
+- A `cursor.json` that is empty or does not parse raises `ValueError` from
+  `CursorStore`, and one that cannot be read raises `OSError`.
+
+A line that was cut short as it was written, by a full disk or a killed process, costs
+that line only: the next append starts a line of its own.
+
+A journal row is on disk before the run goes on, and the output of an ok task is on
+disk before its row, so a power loss does not leave a row that says ok for an output
+that was lost. The marker of a running task is on disk before the task starts.
+`run.json` and `cursor.json` are on disk when they are written. The other records and
+the files a task changes in its working directory are left to the operating system to
+write. A file system that has no flush gets none.
+
+A journal row that cannot be written does not stop the tasks: the run goes on to its
+end, then raises, and a resume runs that task again. A task whose marker cannot be
+written does not start. It ends with stop `launch_failed`, which the queue retries
+once by default, and a resume runs it. A record that only the monitor reads never
+fails a task or a run. These are the plan, the flow calls, the deferrals, the rests,
+the service events, the launches, the transcripts, the contract records and the
+definitions, and the removal of a marker as its task ends. Each failed write is a
+warning line and a count in `RunReport.summary["record_failures"]`. A transcript that
+fails ends for that launch, and its coding agent works on to its end.
 
 ## Flows that depend on results
 

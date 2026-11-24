@@ -4,9 +4,11 @@ and on the Lean specification.
     uv run python tests/lean/logs_scenarios.py     # rewrites tests/lean/logs_scenarios.jsonl
 
 A scenario is a list of appends to one log, each with its rows and, when its write is cut,
-how many of its bytes reach the file; `lean/Conformance/Files.lean` has the fields. `play`
-plays one on a file, where a cut write fails as on a full disk, and returns the complete
-lines of the log and the line with no end (`lake exe contraagent-lean logs`).
+how many of its bytes reach the file, and how a reader then finds the log: as it is, gone,
+or a file it cannot read; `lean/Conformance/Files.lean` has the fields. `play` plays one on
+a file, where a cut write fails as on a full disk, and returns the complete lines of the log
+and the line with no end, and what `read_log` gives of the log as found
+(`lake exe contraagent-lean logs`).
 `tests/lean/logs_scenarios.jsonl` holds scenarios (`scenarios`) with what the specification
 answers for each; `tests/test_lean_scenarios.py` plays them on the code.
 """
@@ -15,13 +17,14 @@ from __future__ import annotations
 
 import errno
 import importlib.util
+import json
 import os
 import random
 import tempfile
 from pathlib import Path
 from typing import Any
 
-from contraagent._internal.runs.files import append_lines, last_line, read_lines
+from contraagent._internal.runs.files import append_lines, last_line, read_lines, read_log
 
 FILE = Path(__file__).with_name("logs_scenarios.jsonl")
 #: What `lake exe contraagent-lean` is asked to play.
@@ -67,7 +70,18 @@ def play(scenario: dict[str, Any]) -> dict[str, Any]:
         lines, count = read_lines(path)
         assert count == len(lines) and last_line(path) == (lines[-1] if lines else None)
         raw = path.read_bytes()
-        return {"lines": lines, "tail": raw[raw.rfind(b"\n") + 1 :].decode()}
+        if scenario["found"] != "present":
+            path.unlink()
+        if scenario["found"] == "unreadable":
+            path.mkdir()  # a folder in its place: opening it fails, on every OS
+        try:
+            log = read_log(path)
+        except OSError:
+            read = None
+        else:
+            rows = [json.dumps(row, separators=(",", ":")) for row in log.rows]
+            read = {"rows": rows, "unread": log.unread, "cutShort": log.cut_short}
+        return {"lines": lines, "tail": raw[raw.rfind(b"\n") + 1 :].decode(), "read": read}
 
 
 def scenario(rng: random.Random) -> dict[str, Any]:
@@ -78,7 +92,7 @@ def scenario(rng: random.Random) -> dict[str, Any]:
         rows = [rng.choice(ROWS) for _ in range(rng.randint(0, 3))]
         size = sum(len(row) + 1 for row in rows) + 1
         steps.append({"rows": rows, "written": rng.randint(0, size) if rng.random() < 0.45 else None})
-    return {"steps": steps}
+    return {"steps": steps, "found": rng.choices(["present", "absent", "unreadable"], [8, 1, 1])[0]}
 
 
 def scenarios(seed: int, count: int) -> list[dict[str, Any]]:

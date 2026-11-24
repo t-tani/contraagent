@@ -8,14 +8,16 @@ Layers, bottom up (each imports only the ones above it in this list):
 * `errors`      `ContraagentError`, the base of every error raised on purpose
 * `platform/`   the host, on Linux, macOS and Windows alike: its processes (`processes`),
                 a child in a group of its own (`groups`), a file lock (`locks`), a file
-                replaced while others read it (`sharing`), and the line and variables that name a live agent process's run and task
+                replaced while others read it (`sharing`), a file put on disk (`flushing`),
+                and the line and variables that name a live agent process's run and task
                 (`telemetry`, `envvars`); leaf modules, importing nothing else of the package
 * `commandline` the parts every command's arguments share; a leaf module
 * `public`      how a public module publishes what it re-exports
 * `docs`        the documentation installed with the package (`contraagent/docs/`): its
                 topics and the examples they quote; `contraagent docs`
 * `runs/`       run records: the layout of a run directory, the one writer of a document
-                and of a log line, the readers of complete lines, the times records hold;
+                and of a log line, the report of one that cannot be written (`failures`),
+                the readers of complete lines, the times records hold;
                 `RunSource` (where runs are read from) and `Liveness`
 * `dispatch/`   the domain-free `Task`/`TaskResult` envelope and the schedulers:
                 `WorkQueue` (claims, caps, retry, throttle, deadline, bottom level, priority)

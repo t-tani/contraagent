@@ -8,7 +8,9 @@ read-modify-write.
 
 The file is `schemas.Cursor`'s only home: every write constructs or
 mutates a `Cursor` (validated on construction and on every assignment)
-before it is serialized.
+before it is serialized, and is on disk when the mutation returns. A
+cursor is started afresh only when the file is absent: one that is empty,
+does not parse or cannot be read raises, and stays as it is.
 
 Back-guard: advancing to an already-completed stage or step would walk the
 cursor backward and leave a later one sitting in `completed` — a
@@ -79,7 +81,7 @@ class CursorStore:
     def _save(self, cursor: Cursor) -> None:
         """Written whole (`write_document`): a concurrent reader never sees a half-written file."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        write_document(self.path, cursor.model_dump_json(indent=2) + "\n")
+        write_document(self.path, cursor.model_dump_json(indent=2) + "\n", fsync=True)
 
     @contextlib.contextmanager
     def _locked(self):
@@ -108,11 +110,17 @@ class CursorStore:
             return None
 
     def load(self) -> Cursor:
-        """The cursor, or a fresh one when none exists yet. A malformed file raises."""
-        text = read_document(self.path) if self.path.is_file() else ""
-        if text.strip():
+        """The cursor, or a fresh one when none exists yet. An empty or malformed file
+        raises (`ValueError`), and so does one that cannot be read (`OSError`)."""
+        try:
+            text = read_document(self.path)
+        except FileNotFoundError:
+            return Cursor(schema_version=CURSOR_SCHEMA_VERSION, run=self.run, updated_at=now())
+        try:
             return Cursor.model_validate_json(text)
-        return Cursor(schema_version=CURSOR_SCHEMA_VERSION, run=self.run, updated_at=now())
+        except ValueError as exc:
+            exc.add_note(f"{self.path.as_posix()} does not read as a cursor: restore it, or remove it to start the cursor afresh")
+            raise
 
     # --- mutations ---------------------------------------------------------
 
