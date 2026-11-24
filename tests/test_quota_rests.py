@@ -158,6 +158,25 @@ def test_a_rule_that_gives_an_end_rests_the_credential_to_then_and_is_not_asked_
     assert [e for e, _ in events] == ["start", "end"]
 
 
+def test_a_rule_s_end_that_has_passed_rests_nothing(tmp_path):
+    """A rule that judges the same reading the same way gives the same end after that end:
+    the rest is over then. The credential rested on, to the reading's reset."""
+    clock = [NOW]
+    hour = NOW + timedelta(hours=1)
+    events: list[str] = []
+    r = CredentialRests(
+        config(tmp_path).credentials(), lambda cred, rd: ("pace", hour), now=lambda: clock[0], on_change=lambda e, rest: events.append(e)
+    )
+    r.observe(reading("sub-b", five=10, week=20))  # stands for two hours
+    assert r.rests("sub-b")[0].until == iso(hour)
+    clock[0] = hour - timedelta(seconds=1)
+    assert r.reason("sub-b") == "sub-b rests: pace"
+    for minutes in (60, 61, 90, 119, 121):
+        clock[0] = NOW + timedelta(minutes=minutes)
+        assert r.rests("sub-b") == []
+    assert events == ["start", "end"]
+
+
 def test_a_rule_that_gives_no_end_keeps_the_reading_s_end(tmp_path):
     r = CredentialRests(config(tmp_path).credentials(), lambda cred, rd: ("pace", None), now=lambda: NOW)
     r.observe(reading("sub-b", five=10))

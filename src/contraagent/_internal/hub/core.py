@@ -9,17 +9,25 @@ the task's transcript is closed (it will not grow, and may be sealed).
 
 `Hub.prune` is the hub's retention: it removes old runs, the transcripts of runs the hub no
 longer holds, heartbeats of hosts long gone, and blobs no file ref references.
+
+The host of a pruned run may still hold the run, and its relay asks from time to time how
+many lines of each log the hub holds, to send the run again to a hub that lost lines. The
+hub remembers each run it pruned (`HubStore.pruned`) and answers such a request without
+storing the run again (`pruned_answer`). A request that brings a line the hub did not hold
+when it pruned the run shows the run active again: the hub stores it from its start, which
+the relay then sends, and no longer remembers the prune (`HubStore.put_batch`).
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from contraagent._internal.hub.protocol import Accepted, Heartbeat, HeartbeatAck, LogChunk, RecordBatch
 from contraagent._internal.hub.source import HeartbeatLiveness, HubSource
-from contraagent._internal.hub.store import BlobStore, HubStore
+from contraagent._internal.hub.store import BlobStore, HubStore, PrunedRun
 from contraagent._internal.hub.streams import MemoryStreamLogs, StreamLogs, is_stream
 from contraagent._internal.runs import layout, times
 from contraagent._internal.runs.files import iter_rows
@@ -65,6 +73,20 @@ def _ended_tasks(chunk: LogChunk) -> set[str]:
     return {key for row in iter_rows(chunk.lines) if isinstance(key := row.get("key"), str) and key}
 
 
+def pruned_answer(pruned: PrunedRun, chunks: Sequence[LogChunk]) -> dict[str, int] | None:
+    """What the hub answers a request for a run it pruned, without storing it: for each log
+    the request names, the lines the hub held when it pruned the run, or the chunk's offset
+    when that is more, so that the relay finds no line lost. None when a chunk brings a line
+    past those the hub held: the run is active again, and is stored."""
+    held: dict[str, int] = {}
+    for chunk in chunks:
+        was = pruned.logs.get(chunk.log, 0)
+        if chunk.lines and chunk.offset + len(chunk.lines) > was:
+            return None
+        held[chunk.log] = max(was, chunk.offset)
+    return held
+
+
 class Hub:
     """Receives relays' batches, heartbeats and blobs, and serves the monitor over them."""
 
@@ -75,9 +97,17 @@ class Hub:
 
     def records(self, batch: RecordBatch) -> Accepted:
         received = now_iso("milliseconds")
+        pruned = self.store.pruned(batch.run.name)
+        if pruned is not None and pruned.run_uid == batch.run.run_uid:
+            held = pruned_answer(pruned, batch.logs)
+            if held is not None:
+                return Accepted(logs=held, durable=dict(held))
+        # Stored from here on: a pruned run that is active again, or another run under its
+        # name, is no longer remembered as pruned (`put_batch`). The run is dated before any
+        # of its lines is stored, a transcript's too, so that a prune under way leaves it.
         transcripts = [c for c in batch.logs if is_stream(c.log)]
         rest = batch.model_copy(update={"logs": [c for c in batch.logs if not is_stream(c.log)]})
-        accepted = self.store.put_batch(rest, received)
+        accepted = self.store.put_batch(rest, received, dated=any(c.lines for c in transcripts))
         logs = dict(accepted.logs)
         durable = {log: accepted.durable.get(log, n) for log, n in accepted.logs.items()}
         name, uid = batch.run.name, batch.run.run_uid
@@ -95,7 +125,11 @@ class Hub:
         return HeartbeatAck(ttl_s=heartbeat.ttl_s)
 
     def has_blob(self, sha256: str) -> bool:
-        return self.blobs.has(sha256)
+        """Whether the hub holds the blob, for a relay that is about to send a file ref of
+        it. A held blob is renewed (`BlobStore.renew`): the relay sends the file ref without
+        the content, and retention keeps the blob for its grace from now, also while no
+        file ref names it yet."""
+        return self.blobs.renew(sha256)
 
     def put_blob(self, sha256: str, data: bytes) -> None:
         """Store a blob; `ValueError` when `data` does not hash to `sha256`."""
@@ -121,8 +155,10 @@ class Hub:
 
     # --- retention -------------------------------------------------------------------------
 
-    def _activity(self, name: str, uid: str) -> datetime | None:
-        times = [t for t in (parse_iso(self.store.activity(name)), parse_iso(self.streams.activity(name, uid))) if t]
+    def _activity(self, dated: str | None, name: str, uid: str) -> datetime | None:
+        """A run's activity: the later of when a batch last dated it (`dated`, the store's
+        `activity`) and when its transcripts last grew."""
+        times = [t for t in (parse_iso(dated), parse_iso(self.streams.activity(name, uid))) if t]
         return max(times) if times else None
 
     def prune(
@@ -137,21 +173,31 @@ class Hub:
         than `older_than` before `now` (default: the current time), and what nothing
         references; with `dry_run`, remove nothing and report the same.
 
-        * **Runs.** An old run is removed whole: its transcripts (`StreamLogs.drop`: index
-          rows, then segment objects, then open segment files) and then its records
-          (`HubStore.delete_run`, only while it still has the run uid read). Never removed:
+        * **Runs.** An old run is removed whole: its records (`HubStore.prune_run`, only
+          while it still has the run uid and the activity read: a batch that arrives
+          meanwhile dates the run before it stores a line, and the run stays), with which
+          the hub remembers it as pruned, so that its relay does not send it again, and
+          then its transcripts (`StreamLogs.drop`: index rows, then segment objects, then
+          open segment files).
+          Never removed:
           a live run, an unresponsive one (its host stopped reporting while it was alive:
           its records are the evidence; remove it by hand with `HubStore.delete_run`), and
           one with no activity time at all (logged).
         * **Transcripts** of a run the hub no longer holds under their run uid (replaced by
           a new run uid, or left by a prune that failed between the two steps) are removed
           once their activity is old.
-        * **Heartbeats** older than `older_than` are removed, except one that reports an
-          unresponsive run the hub still holds.
+        * **Heartbeats** older than `older_than` are removed, except that of a host that is
+          up (within the heartbeat's TTL: the runs it reports are live by it) and one that
+          reports an unresponsive run the hub still holds.
         * **Blobs** are removed by mark and sweep: every blob is listed first, then the file
-          refs of the runs kept are read, then each blob none of them references is deleted
-          when it is older than `blob_grace`. A file ref that arrives between the reading
-          and the deleting and names an old blob already held loses its content.
+          refs of the runs kept are read, then each blob none of them references is removed
+          when it is still dated before `blob_grace` ago as it is removed
+          (`BlobStore.expire`). A relay that names a blob the hub already holds asks for it
+          first (`has_blob`), which renews the blob, so the blob stays while the file ref is
+          on its way, however long the prune takes. A file ref loses its content only when
+          it arrives more than `blob_grace` after its relay asked; or when its relay asks in
+          the moment between the blob store's look at the blob's date and its removal
+          (`DirectoryBlobs`, `S3Blobs`).
 
         Every step can be repeated: an exception (a lost connection, a crash) leaves what
         a second call completes, or orphan segment objects that `SegmentedStreamLogs.sweep`
@@ -171,7 +217,8 @@ class Hub:
         for entry in self.store.runs():
             name, uid = entry.name, entry.run_uid
             held[name] = uid
-            at = self._activity(name, uid)
+            dated = self.store.activity(name)
+            at = self._activity(dated, name, uid)
             if at is None:
                 log_.warning("run %s has no activity time: kept", name)
                 report.kept_runs[name] = "no activity"
@@ -181,11 +228,20 @@ class Hub:
             if name in live or name in unresponsive:
                 report.kept_runs[name] = "live" if name in live else "unresponsive"
                 continue
-            segments = self.streams.drop(name, uid, dry_run=dry_run)
-            if dry_run or self.store.delete_run(name, uid):
-                log_.info("%s run %s (last activity %s)", "would remove" if dry_run else "removed", name, at.isoformat())
-                report.runs.append(name)
-            report.segments.extend(segments)
+            # The records go first, with the memory of the prune in the same step: from then on
+            # the run's relay is answered by it (`pruned_answer`), also when the transcripts
+            # are still to go. Their lines are counted before, for that answer. The step
+            # removes the run only while it is dated as it was read: a batch that arrived
+            # since dated it before it stored a line, and the run stays, whole.
+            removed = dry_run
+            if not dry_run:
+                transcripts = {log: self.streams.count(name, uid, log) for log in self.streams.logs(name, uid)}
+                removed = self.store.prune_run(name, uid, transcripts, now.isoformat(timespec="milliseconds"), dated)
+            if not removed:
+                continue
+            log_.info("%s run %s (last activity %s)", "would remove" if dry_run else "removed", name, at.isoformat())
+            report.runs.append(name)
+            report.segments.extend(self.streams.drop(name, uid, dry_run=dry_run))
 
         for name, uid in sorted(self.streams.runs()):
             if held.get(name) == uid:
@@ -202,9 +258,10 @@ class Hub:
             report.segments.extend(self.streams.drop(name, uid, dry_run=dry_run))
             report.transcripts.append((name, uid))
 
+        up = {host["host_id"] for host in liveness.hosts() if host["up"]}
         for host_id, (heartbeat, received_at) in sorted(self.store.heartbeats().items()):
             at = parse_iso(received_at)
-            if at is None or at >= cutoff:
+            if at is None or at >= cutoff or host_id in up:  # a host that is up keeps its runs live
                 continue
             if any(r.alive and r.run.name in unresponsive and r.run.name in held for r in heartbeat.runs):
                 report.kept_heartbeats[host_id] = "unresponsive run"
@@ -219,8 +276,8 @@ class Hub:
             for blob in old_blobs:
                 if blob.sha256 in referenced:
                     continue
-                if not dry_run:
-                    self.blobs.delete(blob.sha256)
+                if not dry_run and not self.blobs.expire(blob.sha256, now - blob_grace):
+                    continue  # renewed since it was listed: a relay asked for it, and its file ref is on its way
                 report.blobs.append(blob.sha256)
                 report.blob_bytes += blob.size
         return report

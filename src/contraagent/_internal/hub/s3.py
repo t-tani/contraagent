@@ -4,6 +4,13 @@ Each blob is the object `<prefix>/<sha[:2]>/<sha>`. The credentials are the stan
 ones (environment, shared config and credentials files, instance roles). A blob's content
 never changes, so small blobs that were read are kept in memory (`CACHE_BYTES` in all) and
 served from there by `get`.
+
+A blob is dated by the `LastModified` of its object, or of its marker when that is later: the
+empty object `<prefix>/<sha[:2]>/<sha>.renewed`, which `renew` writes. A service is not
+asked to date an object again, which S3-compatible services do in different ways. `expire`
+asks for the two dates and then deletes, some requests apart: a blob renewed between them
+is removed. The dates it is given are to the second, so a blob dated within the second
+before the time it is given stays.
 """
 
 from __future__ import annotations
@@ -11,6 +18,7 @@ from __future__ import annotations
 import threading
 from collections import OrderedDict
 from collections.abc import Iterator
+from datetime import datetime, timedelta
 from urllib.parse import parse_qs, urlparse
 
 import boto3
@@ -29,6 +37,10 @@ def _is_hex_sha(sha256: str) -> bool:
 
 def _absent(error: ClientError) -> bool:
     return error.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound")
+
+
+#: What follows a blob's key in the key of its marker (`S3Blobs.renew`).
+MARKER = ".renewed"
 
 
 class S3Blobs:
@@ -86,9 +98,25 @@ class S3Blobs:
             raise
         return True
 
+    def _dated(self, key: str) -> datetime | None:
+        """When the object of `key` was written, or None when there is none."""
+        try:
+            return self._client.head_object(Bucket=self.bucket, Key=key)["LastModified"]
+        except ClientError as e:
+            if _absent(e):
+                return None
+            raise
+
+    def renew(self, sha256: str) -> bool:
+        key = self._key(sha256)
+        if not self.has(sha256):
+            return False
+        self._client.put_object(Bucket=self.bucket, Key=key + MARKER, Body=b"")
+        return True
+
     def put(self, sha256: str, data: bytes) -> None:
         _check(sha256, data)
-        if self.has(sha256):
+        if self.renew(sha256):
             return
         self._client.put_object(Bucket=self.bucket, Key=self._key(sha256), Body=bytes(data))
 
@@ -108,19 +136,39 @@ class S3Blobs:
         return data
 
     def items(self) -> Iterator[BlobItem]:
-        """Every blob object under the prefix, dated by its `LastModified`."""
+        """Every blob object under the prefix, dated by its `LastModified` or by its marker's
+        when that is later."""
         base = f"{self.prefix}/" if self.prefix else ""
+        held: dict[str, tuple[int, datetime]] = {}
+        markers: dict[str, datetime] = {}
         for page in self._client.get_paginator("list_objects_v2").paginate(Bucket=self.bucket, Prefix=base):
             for obj in page.get("Contents", []):
                 rel = obj["Key"][len(base) :]
-                sub, _, sha = rel.partition("/")
-                if _is_hex_sha(sha) and sub == sha[:2]:
-                    yield BlobItem(sha, int(obj["Size"]), obj["LastModified"])
+                sub, _, name = rel.partition("/")
+                sha = name.removesuffix(MARKER)
+                if not (_is_hex_sha(sha) and sub == sha[:2]):
+                    continue
+                if name == sha:
+                    held[sha] = (int(obj["Size"]), obj["LastModified"])
+                else:
+                    markers[sha] = obj["LastModified"]
+        for sha, (size, dated) in held.items():
+            yield BlobItem(sha, size, max(dated, markers.get(sha, dated)))
 
-    def delete(self, sha256: str) -> None:
+    def expire(self, sha256: str, before: datetime) -> bool:
         key = self._key(sha256)
+        dated = self._dated(key)
+        if dated is None:
+            return False
+        marker = self._dated(key + MARKER)
+        # A date asked of one object is to the second, rounded down: the second counts as later.
+        if max(dated, marker or dated) + timedelta(seconds=1) > before:
+            return False
         with self._lock:
             data = self._cache.pop(sha256, None)
             if data is not None:
                 self._cached -= len(data)
         self._client.delete_object(Bucket=self.bucket, Key=key)
+        if marker is not None:
+            self._client.delete_object(Bucket=self.bucket, Key=key + MARKER)
+        return True

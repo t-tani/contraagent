@@ -19,7 +19,12 @@ task. Recovery is a half-open probe: once the provider's own stated
 cool-off has elapsed, one task goes back to the primary; a success closes
 the breaker for good, a 429 re-opens it and pushes the next probe out.
 Providers that state no cool-off fall back to `probe_interval_s`, and each
-further failure on the fallback widens that gap.
+further failed probe widens that gap.
+
+Only the hop in force and the probe move the breaker. A 429 of a launch on
+the primary that is not the probe (it began before the breaker opened), on a
+hop the breaker already left, or on a hop a task reached on its own walk says
+nothing the breaker does not know, and changes nothing.
 
 Exhausted means exhausted: with no route left, `pick()` returns None and
 the caller lets the 429 surface as an error, which is the honest outcome
@@ -195,9 +200,13 @@ class Router:
         max_probe_interval_s: float = 7200.0,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        # A fallback identical to the primary is a no-op hop: drop it here
-        # rather than discovering it as a wasted 1800s launch.
-        self.routes: tuple[Route, ...] = (primary,) + tuple(f for f in fallbacks if f.identity != primary.identity)
+        # A fallback identical to the primary or to a fallback before it is a no-op hop: drop
+        # it here rather than discovering it as a wasted 1800s launch. A walk goes on from a
+        # hop by its identity, so it would never get past a hop that repeats an earlier one.
+        chain: dict[tuple[str, str, str], Route] = {primary.identity: primary}
+        for fallback in fallbacks:
+            chain.setdefault(fallback.identity, fallback)
+        self.routes: tuple[Route, ...] = tuple(chain.values())
         self.primary = primary
         self.probe_interval_s = probe_interval_s
         self.max_probe_interval_s = max_probe_interval_s
@@ -210,6 +219,8 @@ class Router:
         # When the breaker last moved off a hop (`clock` time): a launch that began
         # before it says nothing about whether the limit has passed.
         self._opened_at = float("-inf")
+        # When the probe on the primary was picked (`clock` time); None while no probe is out.
+        self._probing: float | None = None
         self._switches: list[tuple[str, str]] = []
 
     def on_credential(self, credential: str) -> Router:
@@ -275,20 +286,29 @@ class Router:
 
     # --- selection -------------------------------------------------------
 
-    def pick(self) -> Route | None:
+    def pick(self, *, probe: bool = True) -> Route | None:
         """The route the next task should run on, or None when exhausted.
 
         While the breaker is open on a fallback and the cool-off has
-        elapsed, this returns the primary — that single task is the probe.
-        If it 429s, `rate_limited` re-opens the breaker; if it lands, the
-        run is back on the primary for good.
+        elapsed, this returns the primary — that single task is the probe,
+        and the tasks picked a route after it get the fallback. If it 429s,
+        `rate_limited` re-opens the breaker; if it lands, the run is back on
+        the primary for good. When its launch ends on another stop, no
+        verdict comes, and the next cool-off brings another probe.
+
+        `probe=False` only looks: the route a task picked one now would get,
+        with no probe taken.
         """
         with self._lock:
             if self._exhausted:
                 return None
             if self._index == 0:
                 return self.routes[0]
-            if self._clock() >= self._probe_at:
+            now = self._clock()
+            if now >= self._probe_at:
+                if probe:
+                    self._probing = now
+                    self._probe_at = now + self._interval
                 return self.routes[0]
             return self.routes[self._index]
 
@@ -300,7 +320,8 @@ class Router:
             return self.routes[self._index]
 
     def now(self) -> float:
-        """The router's clock: pass it as `started` to `succeeded` for a launch begun now."""
+        """The router's clock: pass it as `started` to `succeeded` and `rate_limited` for a
+        launch begun now."""
         return self._clock()
 
     @property
@@ -310,35 +331,46 @@ class Router:
 
     # --- transitions -----------------------------------------------------
 
-    def rate_limited(self, route: Route | None, retry_after_s: float | None = None) -> str:
+    def rate_limited(self, route: Route | None, retry_after_s: float | None = None, started: float | None = None) -> str:
         """Record a 429 on `route`; return the route the next task uses.
 
-        A 429 on the primary opens the breaker to fallback[0]. A 429 on a
-        fallback that was only being probed means the primary is still
-        down: stay on the fallback, never bounce back to a route we just
-        learned is refusing. Otherwise advance one hop, or exhaust.
+        A 429 on the primary opens the breaker to the next hop for a rate limit. While it
+        is open, a 429 on the primary is the probe's: the primary is still down, so the
+        breaker holds its hop and the next probe waits longer. A 429 on the hop in force
+        moves the breaker one hop on, or exhausts it. `route` None stands for the hop in
+        force.
+
+        A 429 on any other hop, one the breaker already left or one a task reached on its
+        own walk, changes nothing. Neither does one on the primary of a launch that is not
+        the probe: with `started` (`now()` when the launch began), one that began before
+        the probe was picked, as every launch did that ran on the primary when the breaker
+        opened.
         """
         now = self._clock()
         with self._lock:
-            probing = self._index != 0 and route is not None and route.identity == self.routes[0].identity
-            if probing and self._index > 0:
+            n = len(self.routes)
+            idx = self._index if route is None else self._index_of(route)
+            if self._exhausted:
+                return ""
+            if idx == 0 and self._index != 0:
+                if started is not None and (self._probing is None or started < self._probing):
+                    return self.routes[self._index].label(self._index + 1, n)
                 # The half-open probe failed. Hold the current hop and
                 # schedule the next attempt; do not consume a fallback.
+                self._probing = None
                 self._probe_at = now + self._next_interval(retry_after_s)
                 return str(self.routes[self._index])
-            if route is not None and route.identity != self.routes[0].identity:
-                # A fallback also refused: keep walking the chain.
-                idx = self._index_of(route)
-                self._index = self._index if idx is None else idx
-            nxt = next((i for i in range(self._index + 1, len(self.routes)) if self.routes[i].takes(Stop.RATE_LIMITED.value)), None)
+            if idx is not None and idx != self._index:
+                return self.routes[self._index].label(self._index + 1, n)
+            nxt = next((i for i in range(self._index + 1, n) if self.routes[i].takes(Stop.RATE_LIMITED.value)), None)
             if nxt is None:
                 self._exhausted = True
                 return ""
             here, self._index = self._index, nxt
             self._opened_at = now
+            self._probing = None
             self._interval = self.probe_interval_s
             self._probe_at = now + self._interval
-            n = len(self.routes)
             self._switches.append((self.routes[here].label(here + 1, n), self.routes[self._index].label(self._index + 1, n)))
             return self.routes[self._index].label(self._index + 1, n)
 
@@ -351,8 +383,10 @@ class Router:
                 return
             if route is not None and route.identity == self.routes[0].identity and self._index != 0:
                 n = len(self.routes)
-                self._switches.append((self.routes[0].label(self._index, n), self.routes[0].label(1, n) + " (primary recovered)"))
+                here = self.routes[self._index].label(self._index + 1, n)
+                self._switches.append((here, self.routes[0].label(1, n) + " (primary recovered)"))
                 self._index = 0
+                self._probing = None
                 self._interval = self.probe_interval_s
                 self._probe_at = 0.0
             elif self._index == 0:

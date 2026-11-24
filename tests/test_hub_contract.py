@@ -6,7 +6,9 @@ adding a factory (one that cannot run here skips itself)."""
 
 import hashlib
 import json
+import time
 from collections.abc import Callable, Iterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -160,6 +162,43 @@ def test_delete_run_removes_everything_held_of_the_run(store):
     assert store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=0, lines=["a", "b"])), "t3").logs == {layout.JOURNAL: 2}
 
 
+def test_prune_run_removes_the_run_and_remembers_how_much_of_it_was_held(store):
+    store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=0, lines=["a", "b"]), LogChunk(log=layout.PLAN, offset=0, lines=[])), "t1")
+    assert store.pruned("r1@h1") is None
+    assert not store.prune_run("r1@h1", "other", {}, "t2", "t1") and store.pruned("r1@h1") is None  # another run under the name
+    stream = layout.stream("k")
+    assert store.prune_run("r1@h1", "u1", {stream: 7}, "t2", "t1")
+    assert store.entry("r1@h1") is None and store.count("r1@h1", layout.JOURNAL) == -1
+    pruned = store.pruned("r1@h1")
+    assert pruned is not None and (pruned.run_uid, pruned.at) == ("u1", "t2")
+    assert pruned.logs == {layout.JOURNAL: 2, layout.PLAN: 0, stream: 7}
+    assert not store.prune_run("r1@h1", "u1", {}, "t3", "t1") and store.pruned("r1@h1") == pruned  # again: nothing to remove
+    # the run under the name once more: it is no longer remembered as pruned
+    store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=0, lines=["c"]), run=RunRef(host_id="h1", run_id="r1", run_uid="u9")), "t4")
+    assert store.pruned("r1@h1") is None and store.entry("r1@h1") is not None
+    # pruned once more: the later prune is the one remembered
+    assert store.prune_run("r1@h1", "u9", {}, "t5", "t4")
+    later = store.pruned("r1@h1")
+    assert later is not None and (later.run_uid, later.at, later.logs) == ("u9", "t5", {layout.JOURNAL: 1})
+
+
+def test_prune_run_leaves_a_run_that_a_batch_dated_since_its_activity_was_read(store):
+    """The caller read the run's activity, and a batch arrived before the prune: the run
+    stays, whole, and nothing is remembered of a prune. A batch that brings lines the store
+    does not keep dates the run too (`dated`)."""
+    store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=0, lines=["a"])), "t1")
+    read = store.activity("r1@h1")
+    store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=1, lines=["b"])), "t2")
+    assert not store.prune_run("r1@h1", "u1", {}, "t3", read)
+    assert store.lines("r1@h1", layout.JOURNAL) == (["a", "b"], 2) and store.pruned("r1@h1") is None
+    read = store.activity("r1@h1")
+    store.put_batch(batch(), "t4")  # nothing the store holds changes: the run is dated as it was
+    assert store.activity("r1@h1") == read == "t2"
+    store.put_batch(batch(), "t5", dated=True)  # a transcript's lines, which the store does not keep
+    assert store.activity("r1@h1") == "t5" and not store.prune_run("r1@h1", "u1", {}, "t6", read)
+    assert store.prune_run("r1@h1", "u1", {}, "t6", "t5")
+
+
 def test_delete_heartbeat_removes_the_hosts_heartbeat(store):
     store.put_heartbeat(Heartbeat(host_id="h1", sent_at="s1", interval_s=3, ttl_s=12), "t1")
     store.put_heartbeat(Heartbeat(host_id="h2", sent_at="s1", interval_s=3, ttl_s=12), "t1")
@@ -198,9 +237,7 @@ def test_a_blob_is_stored_by_its_hash_and_refused_otherwise(blobs):
         blobs.put("../etc", data)
 
 
-def test_blobs_are_listed_with_their_size_and_age_and_deleted(blobs):
-    from datetime import UTC, datetime, timedelta
-
+def test_blobs_are_listed_with_their_size_and_age_and_expire(blobs):
     before = datetime.now(UTC) - timedelta(minutes=5)  # clock skew between the test and S3
     held = {hashlib.sha256(d).hexdigest(): d for d in (b"one", b"two two")}
     for sha, data in held.items():
@@ -211,19 +248,42 @@ def test_blobs_are_listed_with_their_size_and_age_and_deleted(blobs):
         assert item.size == len(held[sha])
         assert item.modified.tzinfo is not None and before < item.modified < datetime.now(UTC) + timedelta(minutes=5)
     first, second = sorted(held)
-    blobs.delete(first)
-    blobs.delete(first)  # again: nothing happens
+    later = datetime.now(UTC) + timedelta(days=1)
+    assert not blobs.expire(first, before)  # dated after `before`: it stays
+    assert blobs.has(first)
+    assert blobs.expire(first, later)
+    assert not blobs.expire(first, later)  # again: nothing happens
     assert not blobs.has(first) and blobs.get(first) is None and blobs.has(second)
     assert [item.sha256 for item in blobs.items()] == [second]
 
 
-def test_storing_a_held_blob_again_keeps_its_age(tmp_path):
-    clock = iter([100.0, 200.0])
+def test_a_blob_renewed_or_stored_again_is_dated_now(blobs):
+    """`expire` goes by the blob's date as it is now: a blob that was renewed, or stored
+    again, since a time is not dated before it."""
+    held = {hashlib.sha256(d).hexdigest(): d for d in (b"renewed", b"stored again", b"left")}
+    renewed, again, left = held
+    for sha, data in held.items():
+        blobs.put(sha, data)
+    cut = max(item.modified for item in blobs.items()) + timedelta(seconds=1)
+    while datetime.now(UTC) < cut + timedelta(milliseconds=200):  # S3 dates an object to the second
+        time.sleep(0.05)
+    assert blobs.renew(renewed)
+    blobs.put(again, held[again])
+    assert not blobs.renew("0" * 64)  # not held
+    assert not blobs.expire(renewed, cut) and not blobs.expire(again, cut) and blobs.expire(left, cut)
+    assert sorted(item.sha256 for item in blobs.items()) == sorted([renewed, again])
+    assert all(item.modified >= cut for item in blobs.items())
+
+
+def test_a_blob_in_memory_is_dated_by_its_clock():
+    clock = iter([100.0, 200.0, 300.0])
     blobs = MemoryBlobs(clock=lambda: next(clock))
     sha = hashlib.sha256(b"x").hexdigest()
     blobs.put(sha, b"x")
     blobs.put(sha, b"x")
-    assert [item.modified.timestamp() for item in blobs.items()] == [100.0]
+    assert [item.modified.timestamp() for item in blobs.items()] == [200.0]
+    assert blobs.renew(sha)
+    assert [item.modified.timestamp() for item in blobs.items()] == [300.0]
 
 
 # --- liveness --------------------------------------------------------------------------

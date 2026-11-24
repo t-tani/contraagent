@@ -7,7 +7,7 @@ import logging
 import os
 import shutil
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import httpx2
@@ -283,6 +283,45 @@ def test_a_hub_that_lost_everything_is_sent_every_run_again(runs):
     r.clock = lambda: T0 + 61
     assert r.pass_once()
     assert_same_views(hub, runs)
+
+
+def test_a_hub_that_lost_one_log_is_asked_about_the_others_at_once(runs):
+    """The relay learns that the hub lost lines when it sends a new line of one log. It asks
+    about every log then, and does not wait for the time it asks by itself."""
+    hub = new_hub()
+    r = relay(DirectClient(hub), runs, resync_s=3600)
+    assert r.pass_once()
+    hub.store = MemoryHubStore()  # the hub lost its records; the relay asked a moment ago
+    with open(first(runs) / layout.JOURNAL, "a", newline="\n") as f:
+        f.write(json.dumps(json.loads((first(runs) / layout.JOURNAL).read_text().splitlines()[-1])) + "\n")
+    assert r.pass_once()
+    assert_same_views(hub, runs)
+
+
+def test_a_run_the_hub_pruned_is_not_sent_again_until_it_grows(runs):
+    """The host still holds a run that the hub's retention removed. Its relay asked what the
+    hub held, took the answer for lost lines, and sent the run again: the hub then held it
+    for another retention, and so on."""
+    hub = new_hub()
+    rec = Recording(DirectClient(hub))
+    clock = [T0]
+    r = relay(rec, runs, clock=lambda: clock[0], resync_s=60)
+    assert r.pass_once()
+    in_forty_days = datetime.now().astimezone() + timedelta(days=40)
+    assert hub.prune(older_than=timedelta(days=30), now=in_forty_days).runs == ["analyse@h1"]
+    for _ in range(3):  # each time the relay asks what the hub holds
+        rec.clear()
+        clock[0] += 61
+        assert r.pass_once()
+        assert rec.lines() == [] and rec.documents() == [] and rec.files() == []
+        assert hub.store.entry("analyse@h1") is None and hub.streams.runs() == set()
+    # The run goes on: the hub holds it whole again.
+    stream = a_stream(first(runs))
+    with open(stream, "a", newline="\n") as f:
+        f.write('{"type": "x"}\n')
+    assert r.pass_once()
+    assert_same_views(hub, runs)
+    assert hub.store.pruned("analyse@h1") is None
 
 
 def test_an_unavailable_hub_does_not_stop_the_relay(runs, caplog):

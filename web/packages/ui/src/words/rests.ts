@@ -64,6 +64,10 @@ export function deferredText(cause: DeferralCause | null | undefined, recorded =
       );
     case 'dependency_not_queued':
       return msg('An earlier task was never scheduled');
+    case 'no_capacity':
+      return msg('Its capacity is set to 0');
+    case 'dependency_cycle':
+      return msg('Its earlier tasks wait for each other');
     case 'dependency_deferred':
       return msg('An earlier task was not run');
     case 'rest': {

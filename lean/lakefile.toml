@@ -1,0 +1,22 @@
+name = "contraagent"
+defaultTargets = ["Contraagent", "Conformance", "contraagent-lean"]
+
+[leanOptions]
+autoImplicit = false
+
+# The specification. Every file under Contraagent/ is a module of the library and is built,
+# whether another file imports it or not: no proof is left unchecked.
+[[lean_lib]]
+name = "Contraagent"
+globs = ["Contraagent.+"]
+
+# What plays a scenario on the specification, for the tests that play the same scenario on
+# the code.
+[[lean_lib]]
+name = "Conformance"
+globs = ["Conformance.+"]
+
+# What the tests of the Python package read of the specification (Main.lean).
+[[lean_exe]]
+name = "contraagent-lean"
+root = "Main"

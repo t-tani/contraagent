@@ -203,7 +203,7 @@ def test_hub_prune_dry_run_prints_the_report_and_changes_nothing(populated, caps
     assert "dry run: nothing removed" in out.out
     assert "Would remove: runs" in out.out and names["old"] in out.out
     assert f"{names['live']} (live)" in out.out
-    assert "one process prunes at a time" in out.err
+    assert out.err == ""  # nothing to warn of: a dry run is safe beside a running hub
     assert sorted(e.name for e in store.runs()) == sorted(names.values())
     assert blobs.has(sha)
 
@@ -211,7 +211,9 @@ def test_hub_prune_dry_run_prints_the_report_and_changes_nothing(populated, caps
 def test_hub_prune_removes_old_runs_and_prints_json(populated, capsys):
     store, blobs, names, sha, argv = populated
     assert cli_main(["hub", "prune", "--retain-days", "30", "--json", *argv]) == 0
-    report = json.loads(capsys.readouterr().out)
+    out = capsys.readouterr()
+    assert "only while no hub uses the same storage" in out.err
+    report = json.loads(out.out)
     assert report["dry_run"] is False and report["runs"] == [names["old"]]
     assert report["kept_runs"] == {names["live"]: "live"} and report["blobs"] == [sha]
     assert sorted(e.name for e in store.runs()) == sorted([names["recent"], names["live"]])
@@ -296,3 +298,32 @@ def test_hub_prune_over_a_streams_dir_keeps_transcripts_on_a_dry_run_and_removes
     assert report["runs"] == [names["old"]] and report["segments"]
     after = files()
     assert not any("old%40h1" in f or "old@h1" in f for f in after) and any("recent" in f for f in after)
+
+
+def test_a_dry_run_leaves_the_open_segments_of_a_running_hub_alone(populated, tmp_path, capsys):
+    """A hub is in the middle of an append: one open segment ends in a line with no newline
+    yet, and another holds no whole line. A dry run beside it reads the sealed segments and
+    changes no file (it opened the hub's directory as a starting hub does, cut the first
+    file's last line and deleted the second file)."""
+    pytest.importorskip("zstandard")
+    store, _, names, _, argv = populated
+    hot = tmp_path / "hot"
+    streams = server.open_streams(str(hot), None, "memory", background=False)
+    uid = store.entry(names["recent"]).run_uid  # type: ignore[union-attr]
+    streams.append(names["recent"], uid, layout.stream("summarize-a"), 0, ["a", "b"], iso(RECENT))
+    streams.close(names["recent"], uid, layout.stream("summarize-a"))
+    streams.append(names["recent"], uid, layout.stream("summarize-b"), 0, ["whole"], iso(RECENT))
+    streams.append(names["recent"], uid, layout.stream("summarize-c"), 0, ["x"], iso(RECENT))
+    open_files = sorted(p for p in hot.rglob("*.jsonl") if p.is_file() and "segments" not in p.relative_to(hot).parts)
+    assert len(open_files) == 2
+    with open(open_files[0], "ab") as f:
+        f.write(b'{"half": ')  # the hub has written part of a line
+    open_files[1].write_bytes(b'{"half": ')  # and, in the other, part of its first line
+
+    def content() -> dict[str, bytes]:
+        return {str(p.relative_to(hot)): p.read_bytes() for p in hot.rglob("*") if p.is_file()}
+
+    before = content()
+    assert cli_main(["hub", "prune", "--retain-days", "30", "--dry-run", "--streams-dir", str(hot), *argv]) == 0
+    assert content() == before
+    streams.shutdown()  # type: ignore[attr-defined]

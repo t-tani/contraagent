@@ -26,7 +26,11 @@ it shares with others, and memory a task holds outside its agents' groups (insid
 interpreter, as a Python task's; in a process that left its agent's group and tree) is
 `other` while the task's declaration stays reserved too.
 
-`cores` caps the name at the usable cores divided by it.
+`cores` caps the name at the usable cores divided by it, and at one where that is none.
+
+While no running task holds memory, one starts whatever the memory, so a run goes on on a
+host short of memory. The memory is the host's, so that holds for the host and not for each
+name: the first task of a name waits like any other while a task that holds memory runs.
 """
 
 from __future__ import annotations
@@ -98,6 +102,10 @@ class HostCapacity:
         room = min(self.baseline_mb - other - held, free - (held - taken))
         return max(0, room) // memory_mb
 
+    def holds_memory(self) -> bool:
+        """Whether a running task holds memory: one with a `PerTask` name that gives `memory_mb`."""
+        return any(declared for declared, _ in self.tasks.values())
+
     def started(self, key: str, need: PerTask) -> None:
         if not self.tasks and not (self._reading is not None and self._reading[2]):
             self._reading = None
@@ -131,11 +139,12 @@ class _Sized:
         if self.need.memory_mb:
             more = self.host.more(self.need.memory_mb)
             if more != sys.maxsize:
-                limits.append(held + more)
+                # The memory is the host's, whatever the name: one task starts over it only
+                # while no running task holds memory, so the run goes on.
+                limits.append(held + (more if self.host.holds_memory() else max(more, 1)))
         if self.need.cores:
-            limits.append(self.host.cores // self.need.cores)
-        allowed = min(limits) if limits else sys.maxsize
-        return max(allowed, 1) if held == 0 else allowed
+            limits.append(max(self.host.cores // self.need.cores, 1))  # one holds the name anyway
+        return min(limits) if limits else sys.maxsize
 
     def refresh(self) -> None:
         self.host.refresh()

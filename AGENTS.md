@@ -1,9 +1,11 @@
 # contraagent
 
 `contraagent` runs coding-agent CLIs (`claude -p`, `omp -p`, Codex, opencode, pi, agy)
-as typed, supervised tasks: a Python package (`src/contraagent/`) and a web monitor
-(`web/`). This file is for agents changing contraagent itself. Before changing
-anything under `web/`, read `web/AGENTS.md`.
+as typed, supervised tasks: a Python package (`src/contraagent/`), a web monitor
+(`web/`) and a Lean specification of some of the package's modules (`lean/`). This
+file is for agents changing contraagent itself. Before changing anything under
+`web/`, read `web/AGENTS.md`. Before changing anything under `lean/`, or a module
+that `lean/README.md` lists as described, read `lean/AGENTS.md`.
 
 ## Commands
 
@@ -13,6 +15,10 @@ uv run pyright                # 0 errors, 0 warnings
 uv run pytest                 # parallel (xdist, at most 6 workers; -n0 for one); runs lint-imports too
 uv run pytest -m e2e          # the hub and relays as processes over Postgres and RustFS (docker)
 CONTRAAGENT_LIVE=1 uv run pytest -m live   # real coding agents; spends tokens
+(cd lean && lake build --wfail)            # the Lean specification, every proof (elan installs Lean)
+uv run pytest -m lean -n0                  # the code against the Lean specification on fresh scenarios (needs Lean)
+CONTRAAGENT_TRACE=<folder> uv run pytest   # notes what every queue of the tests reports; then, with Lean:
+uv run python tests/lean/trace.py <folder> # checks it against what the specification proves of the queue
 ```
 
 A committed file that a test compares against goes stale when its source changes;
@@ -33,6 +39,8 @@ the test names it. Rewrite it with:
 | the codex version | `uv run python tests/fixtures/codex/record.py` (spends a fraction of a cent), then `tests/test_codex_wire.py` |
 | the Claude Code version | `uv run python tests/fixtures/claude/record.py` (spends a fraction of a cent), then `tests/test_claude_wire.py` |
 | the agy version | `uv run python tests/fixtures/agy/record.py` (spends a little of the Google login's quota), then `tests/test_agy_wire.py` |
+| a Lean description that scenarios play (`lean/Contraagent/Runs/Files.lean`, `Dispatch/Queue.lean`, `Dispatch/Flow.lean`, `Routing/Router.lean`, `Routing/Capacity.lean`, `Routing/Pool.lean`, `Routing/Quota.lean`, `Execution/Run.lean`, `Execution/Journal.lean`, `Execution/Runner.lean`, `Execution/Services.lean`, `Pipeline/Graph.lean`, `Hub/Segments.lean`, `Hub/Relay.lean`, `Hub/Core.lean`), or a generator of scenarios | `uv run python tests/lean/<part>_scenarios.py` for that part (`queue`, `flow`, `router`, `capacity`, `pool`, `rests`, `resume`, `attempt`, `services`, `graph`, `hub`, `relay`, `prune`, `blobs`, `logs`; `tests/lean/*_scenarios.jsonl`; needs Lean), then `tests/test_lean_scenarios.py` |
+| a name the Lean specification shares with the code (a stop value of a task or of a launch) | `lake exe contraagent-lean vocabulary > ../tests/lean/vocabulary.json` in `lean/`; `tests/test_lean.py` reads it |
 
 Release checks: `uv run pyright --verifytypes contraagent --ignoreexternal` (no unknown
 type outside `contraagent.docs`), `uv run griffe check --search src contraagent --against

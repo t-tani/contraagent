@@ -429,10 +429,8 @@ def apply_preflight(
         if len(kept) == len(routes):
             out[kind] = router
             continue
-        new = Router(kept[0], tuple(kept[1:]))
-        for frm, to in router.history():
-            new.history().append((frm, to))
-        out[kind] = new
+        # Before the run's first launch: the breaker has moved nowhere, so it starts anew.
+        out[kind] = new = Router(kept[0], tuple(kept[1:]), router.probe_interval_s, router.max_probe_interval_s)
         rebuilt.setdefault(new.chain(), []).append(kind_name(kind))
     # Every kind that shared the global chain shares the trimmed one too,
     # so sixteen identical lines would say less than one.

@@ -1,0 +1,1 @@
+Of the task a runner gives as a task starts (`starting(task)`), `WorkQueue` takes `fingerprint`, `outside` and `fingerprint_parts` only. The task that starts keeps the id, the key, the dependencies and the claims the queue holds it by; the queue started whatever task the runner gave, under whatever key

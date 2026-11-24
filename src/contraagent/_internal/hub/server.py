@@ -36,8 +36,10 @@ import hmac
 import json
 import logging
 import os
+import shutil
 import signal
 import sys
+import tempfile
 import threading
 import zlib
 from collections.abc import Callable, Iterable, Mapping
@@ -770,7 +772,9 @@ def _prune_arguments(ap: argparse.ArgumentParser) -> None:
     ap.description = (
         "Remove the runs with no activity for N days from the hub's storage, once, and print what was removed. "
         "A run is kept while the heartbeats in the store report it live or unresponsive. "
-        "Do not run it while a hub started with --retain-days uses the same storage: one process prunes at a time."
+        "Run it only while no hub uses the same storage: it opens --streams-dir as a starting hub does, and removes "
+        "segment objects that a running hub may be writing. With --dry-run it changes nothing and reads the sealed "
+        "segments only, so it is safe beside a running hub."
     )
     _storage_args(ap)
     _retain_arg(ap, f"remove runs with no activity for N days (default: ${RETENTION_ENV}; one of the two is required)")
@@ -791,22 +795,30 @@ def prune(args: argparse.Namespace) -> int:
     if days is None:
         raise UsageError(f"--retain-days N (or ${RETENTION_ENV}) is required")
     setup_logging()
-    sys.stderr.write(
-        "contraagent hub prune: run it only while no hub started with --retain-days uses the same storage; one process prunes at a time\n"
-    )
+    if not args.dry_run:
+        sys.stderr.write("contraagent hub prune: run it only while no hub uses the same storage\n")
+    scratch: str | None = None
     try:
-        # No background seals and, for a dry run, no sweep: a dry run deletes nothing.
-        streams = (
-            open_streams(args.streams_dir, args.segments, args.store, sweep=not args.dry_run, background=False)
-            if args.streams_dir is not None or args.segments is not None
-            else MemoryStreamLogs()
-        )
+        streams: StreamLogs = MemoryStreamLogs()
+        if args.dry_run and args.streams_dir is not None:
+            # A dry run reads the sealed segments and their index. It does not open --streams-dir:
+            # opening it recovers the open segments there (a line with no end is cut, a file
+            # with no whole line is deleted), and a running hub may be writing them.
+            scratch = tempfile.mkdtemp(prefix="contraagent-hub-prune-")
+            segments = args.segments or str(Path(args.streams_dir) / "segments")
+            streams = open_streams(scratch, segments, args.store, sweep=False, background=False)
+        elif args.streams_dir is not None or args.segments is not None:
+            streams = open_streams(args.streams_dir, args.segments, args.store, background=False)  # no background seals
         hub = Hub(open_store(args.store), open_blobs(args.blobs), streams=streams)
     except (OSError, ValueError) as exc:
+        if scratch is not None:
+            shutil.rmtree(scratch, ignore_errors=True)
         raise CommandError(str(exc)) from None
     try:
         report = hub.prune(older_than=timedelta(days=days), blob_grace=timedelta(hours=args.blob_grace_hours), dry_run=args.dry_run)
     finally:
         hub.close()
+        if scratch is not None:
+            shutil.rmtree(scratch, ignore_errors=True)
     sys.stdout.write(report_json(report) + "\n" if args.json else report_table(report))
     return 0

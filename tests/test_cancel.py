@@ -45,6 +45,11 @@ def gate(unit: str) -> None:
     raise RuntimeError(f"{unit} is closed")
 
 
+@python_task
+def first(unit: str) -> str:
+    return unit
+
+
 # --- options ---------------------------------------------------------------------------------
 
 
@@ -231,6 +236,46 @@ def test_a_task_a_live_flow_call_waits_for_is_not_cancelled(tmp_path):
     report = pipeline(tmp_path, agent).run(flow)
     assert report.value == "q"
     assert report.results["probe-q"].stop == "completed" and report.cancelled == []
+
+
+def test_a_flow_call_that_waits_only_later_finds_the_task_cancelled(tmp_path):
+    """The rule counts the flow calls that wait, not those that hold the task's call: `watcher`
+    has it and waits for another task first, one that starts only after the gate has failed,
+    so nothing waits for `probe-q` when its creator is closed. It is cancelled, and the later
+    wait raises `TaskFailed`."""
+    shared = []
+
+    async def maker(gated):
+        shared.append(pending := probe.options(cancellable=True, after=[gated])("q"))
+        await pending
+
+    async def fails(gated):
+        await gated
+
+    async def watcher(gated):
+        while not shared:
+            await asyncio.sleep(0)
+        await first.options(after=[gated])("other")
+        try:
+            return (await shared[0]).text
+        except TaskFailed as failed:
+            return f"failed: {failed.result.stop}"
+
+    async def flow():
+        gated = gate("door")
+        watching = asyncio.create_task(watcher(gated))
+        try:
+            async with asyncio.TaskGroup() as group:
+                group.create_task(maker(gated))
+                group.create_task(fails(gated))
+        except* TaskFailed:
+            pass
+        return await watching
+
+    agent = StubAgent({"probe": answered})
+    report = pipeline(tmp_path, agent).run(flow)
+    assert report.value == "failed: cancelled" and agent.launches == []
+    assert [result.task.key for result in report.cancelled] == ["probe-q"]
 
 
 def test_a_running_python_task_runs_to_its_end_when_it_is_cancelled(tmp_path, monkeypatch):

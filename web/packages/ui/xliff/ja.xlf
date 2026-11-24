@@ -3376,6 +3376,14 @@
   <source>Settings</source>
   <target>設定</target>
 </trans-unit>
+<trans-unit id="s7095d3096f39cb12">
+  <source>Its capacity is set to 0</source>
+  <target>同時実行の上限が 0 になっている</target>
+</trans-unit>
+<trans-unit id="s705d002e683de29a">
+  <source>Its earlier tasks wait for each other</source>
+  <target>依存先タスクが互いを待っている</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

@@ -42,9 +42,12 @@ JSON file kept next to the runs directory (`<runs-dir>.relay.json`), never insid
 so a restarted relay continues where it stopped. The hub stays the authority:
 `Accepted.logs` corrects the relay's offsets, and when the hub holds fewer lines than the
 relay sent before (a hub that lost data, or a new hub) the relay sends the run again
-from what the hub holds, documents and files included. On its first pass, after an
-outage, and every `resync_s` seconds, the relay's first request for each run names each
-log it sent before, with no lines, so the hub says what it holds.
+from what the hub holds, documents and files included, and first asks what the hub holds
+of every log. On its first pass, after an outage, and every `resync_s` seconds, the
+relay's first request for each run names each log it sent before, with no lines, so the
+hub says what it holds. A hub that removed a run by its retention answers as if it held
+the run, so the relay does not send it again; when the run grows, the hub answers that it
+holds none of it, and the relay sends it whole (`core.pruned_answer`).
 
 When the hub does not take a request (`client.HubUnavailable`) the pass stops; the relay
 logs it once per outage and waits longer each time (`Relay.delay`, up to
@@ -376,16 +379,21 @@ class Relay:
                     prog.documents[name] = sha
             prog.files.update(pending.file_stats)
             before = {k: tuple(v) for k, v in prog.logs.items()}
-            lost = self._accept(run, prog, pending, accepted) and not resent
+            fewer = self._accept(run, prog, pending, accepted)
+            lost = fewer and not resent
             if lost:
                 _logger.info("run %s: the hub holds less than it took before; sending the run again", run)
                 prog.documents.clear()
                 prog.files.clear()
                 resent = True
+            elif fewer and not probe:
+                # Fewer lines again, after the hub said what it holds of every log: it loses
+                # lines as they arrive, or answers by turns. The next pass goes on from here.
+                break
             elif not (pending.documents or pending.files) and before == {k: tuple(v) for k, v in prog.logs.items()}:
                 break  # the hub took no line of this request: the next pass tries again
             whole = lost
-            probe = False
+            probe = lost  # a hub that lost lines of one log is asked about the others at once
 
     def _documents(self, run: str, prog: RunProgress, pending: _Pending) -> None:
         present = set()
@@ -515,9 +523,11 @@ class Relay:
                 ref = RunRef(host_id=self.host_id, run_id=run, run_uid=prog.run_uid)
                 accepted: Accepted = self._call(self.client.send_records, RecordBatch(run=ref, logs=pending.chunks))
                 if self._accept(run, prog, pending, accepted):
-                    # The hub lost data: the next pass sends the run's documents and files again.
+                    # The hub lost data: the next pass sends the run's documents and files again,
+                    # and asks what the hub holds of every log.
                     prog.documents.clear()
                     prog.files.clear()
+                    self._next_resync = 0.0
             except HubUnavailable as exc:
                 self._failed(exc)
                 return False

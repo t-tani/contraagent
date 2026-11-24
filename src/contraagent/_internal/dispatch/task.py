@@ -278,7 +278,9 @@ class Deferral:
     """Why a task is not launched: `reason` in one line (logs, the CLI), and `cause`, the
     same as data for a reader that words it itself (the monitor): a `DeferralCause`.
     The queue's own causes: `deadline`, `grace_window` (past the deadline's grace window),
-    `cannot_finish` (`need_s`, `left_s`) and `dependency_not_queued`; the first three name
+    `cannot_finish` (`need_s`, `left_s`), `dependency_not_queued` (a task it comes after
+    was never queued), `no_capacity` (a claim capacity or its kind's cap is 0) and
+    `dependency_cycle` (the tasks it comes after wait for each other, or for it); the first three name
     the time box's `flow_call` when the deadline is one's (`TimeBox`), not the run's. A
     runner adds its own (`rest`: its credential rests, `CredentialRests`)."""
 

@@ -31,7 +31,10 @@ is numbered:
   raises `ValueError` at the second: `.options(key=)` tells them apart;
 * one output file, one writer: two kinds whose `output_name` templates name one
   file, or a task given a file another task writes (but by `output_of`), raise
-  `ValueError` when the flow reaches the second (`layout`, `add`);
+  `ValueError` when the flow reaches the second (`layout`, `add`). A task that fills
+  in a file (`output_of`) waits for the latest task that writes or fills it, so the
+  tasks of one file run one after the other; a task given a file that a task created
+  before it already fills in raises too, since nothing would order the two;
 * each frame of its flow path carries the loops around its call site with
   their passes (`loops.py`); a pass of a `while` loop past its bound (its
   function's `@max_passes(n)`, else the run's `max_passes`) raises
@@ -304,6 +307,21 @@ class Node:
 _NUMBERED = re.compile(r"~[0-9]+$")
 
 
+def _stem_and_suffix(name: str) -> tuple[str, str]:
+    """A file name as its stem and its suffix: the suffix is the name from its last dot on,
+    and a name whose only such dot is its first or its last character has none. `pathlib`
+    reads a name that starts with dots (the file of a unit `..`) in another way from Python
+    3.14 on, and a task's output file is the same file under every Python."""
+    dot = name.rfind(".")
+    return (name[:dot], name[dot:]) if 0 < dot < len(name) - 1 else (name, "")
+
+
+def _unnumbered(name: str) -> str:
+    """An output file's name without the `~n` of the n-th task under one key."""
+    stem, suffix = _stem_and_suffix(name)
+    return _NUMBERED.sub("", stem) + suffix
+
+
 def _writes_output(spec: Any) -> bool:
     """An agent task with an output, or a Python task that returns one: a task with an output file."""
     return spec.output_format is not None and (spec.executor == "agent" or spec.output_schema is not None)
@@ -366,6 +384,7 @@ class Graph:
         self._items: dict[str, set[str]] = {}
         self._layouts: dict[str, str] = {}  # output_name with its kind filled in -> the kind
         self._writers: dict[Path, str] = {}  # output file -> the key of the task it is given to
+        self._fillers: dict[Path, str] = {}  # output file -> the key of the first task that fills it in (output_of)
 
     @contextlib.contextmanager
     def building(self) -> Iterator[Graph]:
@@ -385,7 +404,7 @@ class Graph:
         path = self._filled(other, name, base)
         for node in reversed(self.nodes):
             p = node.output_path
-            if node.spec.kind == other.kind and p is not None and p.with_name(_NUMBERED.sub("", p.stem) + p.suffix) == path:
+            if node.spec.kind == other.kind and p is not None and p.with_name(_unnumbered(p.name)) == path:
                 path = p
                 break
         writer = next((node.key for node in reversed(self.nodes) if node.output_path == path), None)
@@ -469,11 +488,18 @@ class Graph:
                 else:
                     out = self._filled(spec, name, base)
                     if n > 1:
-                        out = out.with_name(f"{out.stem}~{n}{out.suffix}")
+                        stem, suffix = _stem_and_suffix(out.name)
+                        out = out.with_name(f"{stem}~{n}{suffix}")
                     if (taken := self._writers.get(out)) is not None:
                         raise ValueError(
                             f"tasks {taken!r} and {key!r} would both write {out.relative_to(self.out_dir.parent).as_posix()}: "
                             "put {unit} or {key} in output_name, or give one of them output_of="
+                        )
+                    if (filler := self._fillers.get(out)) is not None:
+                        # No order between the two: the filler came first, so it does not wait for this task.
+                        raise ValueError(
+                            f"task {key!r} would write {out.relative_to(self.out_dir.parent).as_posix()}, which task {filler!r} "
+                            "already fills in (output_of): call the task that writes a file before the tasks that fill it in"
                         )
             self._bases[base] = (call_id, n)
             deps = [(a.key if isinstance(a, Pending) else str(a)) for a in after]
@@ -509,6 +535,8 @@ class Graph:
             self._by_key[key] = node
             if out is not None and getattr(spec, "output_of", None) is None:
                 self._writers[out] = key
+            elif out is not None:
+                self._fillers.setdefault(out, key)
             if self.driver is not None:
                 self.driver.add(self.task_of(node))
             return Pending._of(node, self)
@@ -547,6 +575,14 @@ class Graph:
         if node is None or node.output_path is None or getattr(node.spec, "output_of", None) is None:
             return ""
         return _file_digest(node.output_path)
+
+    def filled_file(self, task: Task) -> str:
+        """For a task that fills in another task's file (`output_of`): that file, as its path
+        under the run directory (journal `output_of_file`); empty for any other task."""
+        node = self._by_key.get(task.key)
+        if node is None or node.output_path is None or getattr(node.spec, "output_of", None) is None:
+            return ""
+        return node.output_path.relative_to(self.out_dir.parent).as_posix()
 
     def refusal(self, task: Task) -> str:
         """Why `task` cannot run, as it is about to: its outside state could not be worked

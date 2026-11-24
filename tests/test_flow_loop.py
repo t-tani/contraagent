@@ -15,10 +15,12 @@ import random
 import sys
 import threading
 import time
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
+import contraagent._internal.dispatch.flow as flow_module
 from contraagent import Task, TaskResult
 from contraagent._internal.dispatch import result_or_raise
 from contraagent._internal.dispatch.flowloop import FlowLoop
@@ -650,6 +652,117 @@ def test_flow_code_closes_an_async_generator_it_left_open():
 
     driver, _ = run(top)
     assert driver.calls["0"].state == "returned" and closed == ["closed"]
+
+
+def test_the_flow_calls_that_still_run_at_the_end_are_closed_in_the_order_they_were_created():
+    closed: list[int] = []
+
+    async def one(d, n):
+        try:
+            await d.wait(f"t{n:02}")
+        except asyncio.CancelledError:
+            closed.append(n)
+            raise
+
+    async def top(d):
+        await asyncio.gather(*[one(d, n) for n in range(40)])
+
+    driver = make()
+    board = Board()
+    with driver.driving():
+        driver.start(top(driver))
+        driver.attach(board)  # type: ignore[arg-type]
+        assert driver.settle_here()
+        driver.finish_here()
+    assert closed == list(range(40))  # not in the order of the event loop's set of Tasks
+
+
+def test_a_task_created_under_a_flow_call_of_another_driver_is_a_top_flow_call():
+    """A driver numbers a Task under the flow call whose code runs only when it holds that
+    flow call."""
+
+    async def nothing():
+        return 1
+
+    first, second = make(), make()
+    with first.driving():
+        call = first.start(nothing())
+        first.settle_here()
+        first.finish_here()
+    with second.driving():
+        token = flow_module._call.set(call)  # the context holds a flow call of the first driver
+        try:
+            second._loop.create_task(nothing())
+        finally:
+            flow_module._call.reset(token)
+        second.settle_here()
+        second.finish_here()
+    assert list(second.calls) == ["0"] and second.calls["0"].parent is None
+    assert second.calls["0"].state == "returned" and not second.alive()
+
+
+class Completes:
+    """A runner whose tasks complete at once."""
+
+    def __init__(self) -> None:
+        self.ran: list[str] = []
+
+    def config(self, task: Task) -> Any:
+        return SimpleNamespace(max_concurrent=None)
+
+    def run(self, task: Task) -> TaskResult:
+        self.ran.append(task.key)
+        return TaskResult(task=task, ok=True, stop="completed")
+
+
+def test_flow_code_that_goes_on_waiting_after_it_was_cancelled_does_not_keep_the_run_from_ending():
+    """A retry loop that catches the cancellation too catches that of a flow call that waits
+    for what nothing will answer, and waits again. The run ended only at its deadline, or
+    never: the flow call was cancelled at every pass of the queue. It is cancelled once, and
+    ended `closed` when it still waits."""
+    cancelled: list[str] = []
+
+    async def flow(d):
+        await d.wait(Task("a", key="first"))
+        while True:
+            try:
+                await asyncio.Event().wait()  # nobody sets it
+            except (Exception, asyncio.CancelledError) as error:
+                cancelled.append(type(error).__name__)
+
+    driver = FlowDriver(answer=result_or_raise)
+    runner = Completes()
+    ended = threading.Event()
+
+    def run() -> None:
+        driver.run(WorkQueue(runner), flow(driver))
+        ended.set()
+
+    threading.Thread(target=run, daemon=True).start()
+    assert ended.wait(20), "the run did not end"
+    call = driver.calls["0"]
+    assert call.state == "closed" and "for what nothing will answer" in str(call.error)
+    assert runner.ran == ["first"] and cancelled[0] == "CancelledError"
+
+
+def test_flow_code_that_creates_a_task_after_it_was_cancelled_gets_its_answer():
+    """Flow code may go on after the cancellation and create a task: the flow call is not
+    ended while that task is to give its result. It ends `closed`, as a flow call the driver
+    cancelled does, whatever it returns."""
+
+    async def flow(d):
+        await d.wait(Task("a", key="first"))
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            pass
+        return (await d.wait(Task("a", key="second"))).stop
+
+    driver = FlowDriver(answer=result_or_raise)
+    runner = Completes()
+    driver.run(WorkQueue(runner), flow(driver))
+    assert runner.ran == ["first", "second"]
+    assert driver.calls["0"].state == "closed" and driver.done["second"].stop == "completed"
 
 
 def test_a_flow_loop_runs_on_a_thread_of_its_own_too():

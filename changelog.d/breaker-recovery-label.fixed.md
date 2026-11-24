@@ -1,0 +1,1 @@
+`Router.history()` names the hop the breaker was on when the primary recovered. It named the primary route under that hop's number less one, a hop that does not exist (`hop 2/3 claude/m1` after a recovery from `hop 3/3 omp/m3`)

@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any
 
 from contraagent._internal.errors import ContraagentError
+from contraagent._internal.execution.journal import unfinished_keys
 from contraagent._internal.platform.locks import locks
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import read_document, read_rows, write_document
@@ -62,6 +63,8 @@ class EarlierRun:
         self._lock_fd = self._hold(Path(runs_dir) / f"{run_id}.lock")
         try:
             rows = read_rows(self.dir / layout.JOURNAL)
+            #: The tasks an attempt of which began in the earlier run and did not finish.
+            self.unfinished: frozenset[str] = unfinished_keys(self.dir)
         except BaseException:
             self.release()
             raise

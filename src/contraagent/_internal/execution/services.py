@@ -66,9 +66,9 @@ class Service(Protocol):
 
     It is called with the name a task claims, so a service declared under a pattern
     (`db:*`) starts one service for each name it matches (`db:alpha`, `db:beta`). It is
-    entered on the worker thread of the task that starts it and exited on whichever
-    thread stops it: the worker thread of the last task that held it, a timer's thread,
-    or the run's own."""
+    entered on the worker thread of the task that starts it, and exited when the run
+    ends, on the thread that ends it (`Services.close`): the run's own, or the one that
+    handles the signal that stops the run."""
 
     def __call__(self, name: str, /) -> AbstractContextManager[str | None]: ...
 

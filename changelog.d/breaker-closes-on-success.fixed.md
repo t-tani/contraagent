@@ -1,0 +1,1 @@
+Only a launch that ended well closes the failover breaker. A probe of the primary that a signal from outside ended, or that ran as another credential than the one chosen, closed it too, and the tasks after it launched on a primary that may still have been rate limited

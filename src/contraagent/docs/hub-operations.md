@@ -92,9 +92,23 @@ that variable in `.env`, 30 when unset, every run kept when empty) removes runs 
 last activity is older than N days, with everything the hub holds of them: records,
 transcripts (open segments, sealed segments, their index) and file references. It never
 removes a run that is live, a run whose host stopped reporting while it ran (the record
-of what happened), or a run with no activity time. File contents (blobs) no run
-references are removed a day after they were stored. Hosts not seen for N days lose
-their heartbeat. Without a retention the hub keeps everything.
+of what happened), or a run with no activity time. Hosts not seen for N days lose
+their heartbeat, but for a host the hub still counts as up: a relay with a `--ttl`
+longer than the retention keeps its runs live for that long. Without a retention the
+hub keeps everything.
+
+File contents (blobs) that no run references are removed a day after they were stored
+or last asked for. A relay that finds the hub already holds a file's content sends the
+file reference without the content, and its question dates the content again, so the
+content stays while the reference is on its way.
+
+A run that receives lines while the hub is removing it stays, whole: the removal goes
+by the run's activity at the moment it removes, not as it was read.
+
+A host may still hold a run that the hub removed. The hub remembers each run it
+removed, with the number of lines it held of each log, and the host's relay does not
+send that run again. When the run gets new lines, the relay sends it whole and the hub
+holds it again. The hub keeps this record of a removed run: it is one small row.
 
 The hub prunes five minutes after it starts and then every `--prune-every` hours (24, or
 1 for a retention under 7 days), and logs one line per round:
@@ -104,9 +118,13 @@ prune cutoff=<time> | removed runs=N transcripts=N segments=N blobs=N blob_bytes
 ```
 
 `contraagent hub prune` prunes once, with the same storage options as the hub.
-`--dry-run` lists what it would remove and removes nothing, so it is safe beside a
-running hub; without it, run it only while no hub with a retention uses the same
-storage. In compose, give it the hub's storage options:
+`--dry-run` lists what it would remove and changes nothing, so it is safe beside a
+running hub. It reads the sealed segments and their index, not the open segments
+in `--streams-dir`. Without `--dry-run`, run it only while no hub uses the same
+storage: it opens `--streams-dir` as a starting hub does, which recovers the open
+segments there, and it removes the segment objects that the index does not name,
+which a running hub may be writing. A hub that runs keeps its storage pruned with
+`--retain-days`. In compose, give the command the hub's storage options:
 
 ```
 docker compose run --rm hub prune --retain-days 30 --dry-run \

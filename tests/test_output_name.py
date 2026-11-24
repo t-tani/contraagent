@@ -9,6 +9,7 @@ import pytest
 from pydantic import BaseModel
 
 from contraagent import Pipeline, PipelineConfig, agent_task, python_task
+from contraagent._internal.pipeline.graph import Graph, _stem_and_suffix
 from contraagent.testing import StubAgent
 
 
@@ -116,6 +117,39 @@ def test_output_of_writes_the_other_kinds_file_whatever_its_template(tmp_path):
     assert paths["start-a"] == paths["grow-a"] == out / "a/start.json"
     assert paths["grow-b"] == out / "b/start.json"
     assert json.loads((out / "a/start.json").read_text()) == {"text": "grow-a"}
+
+
+def test_the_second_task_of_a_unit_that_starts_with_dots_keeps_its_file_s_suffix(tmp_path):
+    """`pathlib` reads the suffix of a name that starts with dots in another way from Python
+    3.14 on: the second task's file was `...json~2` there, and `..~2.json` before."""
+    graph = Graph(tmp_path / "out")
+    with graph.building():
+        for unit in ("..", "..", ".a", ".a", "a.b", "a.b"):
+            reports(unit)
+    assert [node.output_path.name for node in graph.nodes if node.output_path is not None] == [
+        "...json",
+        "..~2.json",
+        ".a.json",
+        ".a~2.json",
+        "a.b.json",
+        "a.b~2.json",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("name", "parts"),
+    [
+        ("a.json", ("a", ".json")),
+        ("...json", ("..", ".json")),
+        (".a.json", (".a", ".json")),
+        (".json", (".json", "")),
+        ("a.", ("a.", "")),
+        ("a", ("a", "")),
+        ("a.b~2.json", ("a.b~2", ".json")),
+    ],
+)
+def test_a_file_name_is_split_at_its_last_dot(name, parts):
+    assert _stem_and_suffix(name) == parts
 
 
 def test_two_kinds_whose_templates_name_one_file_raise_at_the_second(tmp_path):

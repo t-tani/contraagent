@@ -1,24 +1,26 @@
 """`Hub.prune`, the hub's retention: old runs go whole (records, transcripts' index rows,
 segment objects and open segment files), live, unresponsive and recent runs stay, blobs go
 by mark and sweep after their grace period, old heartbeats go; a dry run reports the same
-and changes nothing; every step can be repeated after a crash.
+and changes nothing; every step can be repeated after a crash. The hub remembers a run it
+pruned: the run's relay, which still holds it, does not bring it back, unless it grows.
 
 `HUBS` lists the stores under test: everything in memory, and Postgres with S3 (RustFS)."""
 
 import dataclasses
 import hashlib
 import threading
-from collections.abc import Callable, Iterator
+import time
+from collections.abc import Callable, Collection, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
-from contraagent._internal.hub.core import Hub
+from contraagent._internal.hub.core import Hub, pruned_answer
 from contraagent._internal.hub.protocol import DocumentPut, FileRef, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
 from contraagent._internal.hub.segment_objects import MemorySegmentObjects, S3SegmentObjects
 from contraagent._internal.hub.segments import MemorySegmentIndex, PostgresSegmentIndex, SegmentedStreamLogs
-from contraagent._internal.hub.store import MemoryBlobs, MemoryHubStore
+from contraagent._internal.hub.store import MemoryBlobs, MemoryHubStore, PrunedRun
 from contraagent._internal.runs import layout
 from hub_services import (
     hub_services,  # noqa: F401  # the fixture that gives a test the services' credentials
@@ -197,6 +199,38 @@ def test_an_unreferenced_blob_stays_while_young_and_goes_when_old(hub, tmp_path)
     assert hub.prune(older_than=RETAIN, now=NOW + timedelta(days=2), blob_grace=timedelta(days=3)).blobs == []
 
 
+def test_a_blob_a_relay_asked_for_stays_while_its_file_ref_is_on_its_way(hub, tmp_path):
+    """A relay that finds the hub holds a blob sends a file ref without the content. The
+    blob may be old and named by no file ref yet: asking for it renews it, so a prune before
+    the file ref arrives keeps it, also when the relay asks while the prune is under way,
+    after the prune read the file refs."""
+    grace = timedelta(seconds=1.5)  # S3 dates an object to the second
+    asked, during, never = blob(hub, b"asked before the prune"), blob(hub, b"asked during the prune"), blob(hub, b"never asked")
+    dated = max(item.modified for item in hub.blobs.items())
+    while datetime.now(UTC) < dated + grace + timedelta(seconds=1.2):
+        time.sleep(0.05)
+    assert sorted(hub.prune(older_than=RETAIN, blob_grace=grace, dry_run=True).blobs) == sorted([asked, during, never])
+
+    assert hub.has_blob(asked)  # a relay is about to send a file ref of it
+    read = hub.store.referenced_blobs
+
+    def read_then_a_relay_asks(excluding: Collection[str] = ()) -> set[str]:
+        referenced = read(excluding)
+        assert hub.has_blob(during)
+        return referenced
+
+    hub.store.referenced_blobs = read_then_a_relay_asks  # type: ignore[method-assign]
+    try:
+        report = hub.prune(older_than=RETAIN, blob_grace=grace)
+    finally:
+        hub.store.referenced_blobs = read  # type: ignore[method-assign]
+    assert report.blobs == [never]
+    assert hub.blobs.has(asked) and hub.blobs.has(during) and not hub.blobs.has(never)
+    name = ship(hub, "new", NOW, files={"/w/a": asked, "/w/b": during})
+    got = hub.source().file(name, "/w/a"), hub.source().file(name, "/w/b")
+    assert [g.text if g is not None else None for g in got] == ["asked before the prune", "asked during the prune"]
+
+
 # --- heartbeats --------------------------------------------------------------------------
 
 
@@ -211,6 +245,20 @@ def test_old_heartbeats_go_unless_they_report_an_unresponsive_run(hub, tmp_path)
     # once the unresponsive run is removed by hand, its host's heartbeat goes too
     hub.store.delete_run("lost@lost-host")
     assert hub.prune(older_than=RETAIN, now=NOW).heartbeats == ["lost-host"]
+
+
+def test_the_heartbeat_of_a_host_that_is_up_stays_and_its_runs_stay_live(hub, tmp_path):
+    """A relay with a TTL longer than the retention: its heartbeat is old and its host is
+    still up, so the run it reports is live. A prune that removed the heartbeat would leave
+    the run neither live nor unresponsive, and the next prune would remove it."""
+    name = ship(hub, "busy", OLD, host="far")
+    runs = [RunLiveness(run=RunRef(host_id="far", run_id="busy", run_uid="uid-busy"), alive=True, snapshot={})]
+    ttl = (RETAIN + timedelta(days=20)) / timedelta(seconds=1)
+    hub.store.put_heartbeat(Heartbeat(host_id="far", sent_at=iso(OLD), interval_s=3, ttl_s=ttl, runs=runs), iso(OLD))
+    for _ in range(2):
+        report = hub.prune(older_than=RETAIN, now=NOW)
+        assert report.runs == [] and report.heartbeats == [] and report.kept_runs == {name: "live"}
+    assert set(hub.store.heartbeats()) == {"far"} and [e.name for e in hub.store.runs()] == [name]
 
 
 # --- a dry run ---------------------------------------------------------------------------
@@ -287,6 +335,57 @@ def test_a_prune_during_ingest_loses_nothing(hub, tmp_path):
     assert hub.prune(older_than=RETAIN).runs == []
 
 
+@pytest.mark.parametrize("log", [layout.PLAN, OTHER])
+def test_a_run_that_a_batch_reaches_while_it_is_pruned_stays_whole(hub, tmp_path, log):
+    """A prune reads a run's activity, finds it old, and removes the run. A batch that
+    arrives between the two, of a record or of a transcript, dates the run before it stores
+    a line: the removal goes by the activity as it is then, and leaves the run. It removed
+    the run with the line, and remembered the run as pruned with the line counted, so the
+    relay was told the hub held a line that it did not."""
+    name = ship(hub, "old", OLD)
+    ref = RunRef(host_id="h1", run_id="old", run_uid="uid-old")
+    before = hub.streams.count(name, "uid-old", OTHER) if log == OTHER else 0
+    logs = hub.streams.logs
+
+    def a_batch_arrives_first(run: str, uid: str) -> list[str]:  # as the prune counts the run's transcripts
+        hub.streams.logs = logs  # type: ignore[method-assign]
+        accepted = hub.records(RecordBatch(run=ref, logs=[LogChunk(log=log, offset=before, lines=["new"])]))
+        assert accepted.logs[log] == before + 1
+        return logs(run, uid)
+
+    hub.streams.logs = a_batch_arrives_first  # type: ignore[method-assign]
+    report = hub.prune(older_than=RETAIN, now=NOW)
+    assert report.runs == [] and report.segments == [] and hub.store.pruned(name) is None
+    assert [e.name for e in hub.store.runs()] == [name]
+    assert hub.store.lines(name, layout.JOURNAL)[1] == 1 and hub.streams.count(name, "uid-old", LOG) == 200
+    held = hub.store.lines(name, log) if log == layout.PLAN else hub.streams.read(name, "uid-old", log, 0)
+    assert held[0][-1] == "new"
+    assert hub.prune(older_than=RETAIN, now=NOW).runs == []  # it is not old any more
+
+
+def test_a_batch_that_is_stored_after_its_run_was_pruned_leaves_no_memory_of_the_prune(hub, tmp_path):
+    """The hub finds no memory of a prune for a batch's run, the prune removes the run, and
+    the batch is stored. A name then held both a run, of that batch alone, and the memory of
+    the pruned one, by which the relay's next request was answered. Storing a batch ends
+    the memory: the relay is told how little the hub holds, and sends the run again."""
+    name = ship(hub, "old", OLD)
+    ref = RunRef(host_id="h1", run_id="old", run_uid="uid-old")
+    pruned = hub.store.pruned
+
+    def then_the_prune_runs(run: str):
+        hub.store.pruned = pruned  # type: ignore[method-assign]
+        found = pruned(run)
+        assert hub.prune(older_than=RETAIN, now=NOW).runs == [name]
+        return found
+
+    hub.store.pruned = then_the_prune_runs  # type: ignore[method-assign]
+    accepted = hub.records(RecordBatch(run=ref, logs=[LogChunk(log=layout.JOURNAL, offset=1, lines=["later"])]))
+    assert accepted.logs == {layout.JOURNAL: 0}  # fewer than the relay sent: it sends the run again
+    assert hub.store.pruned(name) is None and [e.name for e in hub.store.runs()] == [name]
+    again = hub.records(RecordBatch(run=ref, logs=[LogChunk(log=layout.JOURNAL, offset=0, lines=["first", "later"])]))
+    assert again.logs == {layout.JOURNAL: 2} and hub.store.lines(name, layout.JOURNAL) == (["first", "later"], 2)
+
+
 def test_appends_to_a_run_being_dropped_wait_and_start_anew(tmp_path):
     streams = SegmentedStreamLogs(tmp_path / "hot", MemorySegmentObjects(), MemorySegmentIndex(), block_bytes=256, background=False)
     errors: list[BaseException] = []
@@ -325,7 +424,7 @@ class CrashAfterIndexDrop(MemorySegmentIndex):
             raise RuntimeError("crash after the index delete")
 
 
-def test_a_crash_after_the_index_delete_is_completed_by_a_second_prune(tmp_path):
+def test_a_crash_after_the_index_delete_leaves_a_pruned_run_and_objects_for_the_sweep(tmp_path):
     index = CrashAfterIndexDrop()
     streams = SegmentedStreamLogs(tmp_path / "hot", MemorySegmentObjects(), index, block_bytes=1024, background=False)
     hub = Hub(MemoryHubStore(), MemoryBlobs(), streams=streams)
@@ -333,13 +432,98 @@ def test_a_crash_after_the_index_delete_is_completed_by_a_second_prune(tmp_path)
     sealed = objects_of(hub, old)
     with pytest.raises(RuntimeError):
         hub.prune(older_than=RETAIN, now=NOW)
-    # the index rows are gone, so no reader follows one to an object; the records and objects remain
+    # The records went first, with the memory of the prune: the run's relay is answered by it.
+    assert hub.store.entry(old) is None and hub.store.pruned(old) is not None
+    # the index rows are gone, so no reader follows one to an object; the objects remain
     assert index.segments(old, "uid-old", LOG) == [] and objects_of(hub, old) == sealed
-    assert hub.store.entry(old) is not None
     index.crash = False
+    assert hub.prune(older_than=RETAIN, now=NOW).runs == []  # nothing more to remove
+    assert streams.sweep() == sealed and objects_of(hub, old) == []
+
+
+def test_a_crash_before_the_transcripts_go_is_completed_by_a_second_prune(tmp_path):
+    class Down(SegmentedStreamLogs):
+        down = True
+
+        def drop(self, name, uid, *, dry_run=False):
+            if self.down and not dry_run:
+                raise RuntimeError("crash before the transcripts go")
+            return super().drop(name, uid, dry_run=dry_run)
+
+    streams = Down(tmp_path / "hot", MemorySegmentObjects(), MemorySegmentIndex(), block_bytes=1024, background=False)
+    hub = Hub(MemoryHubStore(), MemoryBlobs(), streams=streams)
+    old = ship(hub, "old", OLD)
+    sealed = objects_of(hub, old)
+    with pytest.raises(RuntimeError):
+        hub.prune(older_than=RETAIN, now=NOW)
+    assert hub.store.entry(old) is None and objects_of(hub, old) == sealed
+    streams.down = False
     report = hub.prune(older_than=RETAIN, now=NOW)
-    assert report.runs == [old] and report.segments == sealed
-    assert objects_of(hub, old) == [] and hub.store.entry(old) is None
+    assert report.runs == [] and report.transcripts == [(old, "uid-old")] and report.segments == sealed
+    assert objects_of(hub, old) == []
+
+
+# --- a pruned run and its relay ----------------------------------------------------------
+
+
+def probe(hub: Hub, run_id: str, offsets: dict[str, int], lines: dict[str, list[str]] | None = None, uid: str | None = None):
+    """What the hub answers the relay of `run_id` that names each log of `offsets` from that
+    line on, with the lines of `lines`."""
+    ref = RunRef(host_id="h1", run_id=run_id, run_uid=uid or f"uid-{run_id}")
+    chunks = [LogChunk(log=log, offset=at, lines=(lines or {}).get(log, [])) for log, at in offsets.items()]
+    return hub.records(RecordBatch(run=ref, logs=chunks))
+
+
+def test_a_pruned_run_is_not_stored_again_when_its_relay_asks_what_the_hub_holds(hub, tmp_path):
+    """The host of a pruned run still holds it, and its relay asks how many lines the hub
+    holds. The hub answered none, the relay sent the run again, and the hub held it for
+    another retention."""
+    old = ship(hub, "old", OLD)
+    assert hub.prune(older_than=RETAIN, now=NOW).runs == [old]
+    pruned = hub.store.pruned(old)
+    assert pruned is not None and pruned.run_uid == "uid-old" and pruned.logs == {layout.JOURNAL: 1, LOG: 200, OTHER: 1}
+    asked = probe(hub, "old", {layout.JOURNAL: 1, LOG: 200, OTHER: 1})
+    assert asked.logs == {layout.JOURNAL: 1, LOG: 200, OTHER: 1}  # as the relay has it: nothing to send
+    assert hub.store.entry(old) is None and hub.streams.logs(old, "uid-old") == []
+    assert hub.prune(older_than=RETAIN, now=NOW).runs == []
+
+
+def test_a_relay_that_lost_its_progress_does_not_bring_a_pruned_run_back(hub, tmp_path):
+    old = ship(hub, "old", OLD)
+    hub.prune(older_than=RETAIN, now=NOW)
+    # It sends the run from its start: the hub says how far it held it, and takes no line.
+    sent = probe(hub, "old", {layout.JOURNAL: 0, LOG: 0}, {layout.JOURNAL: ['{"key": "summarize-a", "ok": true}'], LOG: ["x"] * 50})
+    assert sent.logs == {layout.JOURNAL: 1, LOG: 200}
+    assert hub.store.entry(old) is None and hub.store.pruned(old) is not None
+
+
+def test_a_pruned_run_that_grows_is_stored_again_from_its_start(hub, tmp_path):
+    old = ship(hub, "old", OLD)
+    hub.prune(older_than=RETAIN, now=NOW)
+    grown = probe(hub, "old", {layout.JOURNAL: 1}, {layout.JOURNAL: ['{"key": "summarize-b", "ok": true}']})
+    assert grown.logs == {layout.JOURNAL: 0}  # the hub holds none of it: the relay sends it all
+    assert hub.store.pruned(old) is None and hub.store.entry(old) is not None
+    again = probe(hub, "old", {layout.JOURNAL: 0}, {layout.JOURNAL: ["{}", "{}"]})
+    assert again.logs == {layout.JOURNAL: 2}
+
+
+def test_another_run_under_a_pruned_run_s_name_is_stored(hub, tmp_path):
+    old = ship(hub, "old", OLD)
+    hub.prune(older_than=RETAIN, now=NOW)
+    new = probe(hub, "old", {layout.JOURNAL: 0}, uid="uid-new")
+    assert new.logs == {layout.JOURNAL: 0}
+    entry = hub.store.entry(old)
+    assert entry is not None and entry.run_uid == "uid-new" and hub.store.pruned(old) is None
+
+
+def test_a_log_the_pruned_run_s_record_does_not_count_is_answered_as_the_relay_has_it():
+    """A chunk with no line is no new line, whatever its offset: the hub agrees with it."""
+    pruned = PrunedRun("u", "t", {"journal.jsonl": 3})
+    asks = [LogChunk(log="journal.jsonl", offset=5, lines=[]), LogChunk(log="streams/a.stream.jsonl", offset=7, lines=[])]
+    assert pruned_answer(pruned, asks) == {"journal.jsonl": 5, "streams/a.stream.jsonl": 7}
+    assert pruned_answer(pruned, [LogChunk(log="journal.jsonl", offset=0, lines=["a", "b", "c"])]) == {"journal.jsonl": 3}
+    assert pruned_answer(pruned, [LogChunk(log="journal.jsonl", offset=2, lines=["c", "d"])]) is None
+    assert pruned_answer(pruned, [LogChunk(log="streams/a.stream.jsonl", offset=0, lines=["new"])]) is None
 
 
 def test_objects_left_by_a_crash_are_deleted_by_the_segment_sweep(tmp_path):

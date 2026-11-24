@@ -1,0 +1,1 @@
+A resumed run no longer stops with `ValueError: list.remove(x): x not in list`. It did when a task was deferred as it would start (a rest), and the resume then skipped a task after it that waits for its fingerprint until it starts (an `output_of` task, or one with outside state), in the same pass of the queue

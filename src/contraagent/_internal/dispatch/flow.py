@@ -139,9 +139,12 @@ Rules:
 * A flow call that still waits once the flows are quiescent, while no task the driver
   queued is still to give its result, waits for what nothing will answer (an
   `asyncio.Event` nobody sets, a `Queue` nobody fills): `settle` closes it, its `error`
-  a RuntimeError that names where it waits.
+  a RuntimeError that names where it waits. Its code is cancelled (CancelledError). Code
+  that catches the cancellation and waits again for what nothing will answer does not
+  keep the run from ending: the flow call is recorded `closed` all the same, and its
+  code does not run again.
 * `finish()` cancels every flow call still running once the queue has run (recorded
-  `closed`), and every other Task on the flow loop.
+  `closed`), in the order of their creation, and every other Task on the flow loop.
 * An unawaited task is one the flow code created and never used: no flow call awaited
   it (`wait`), no task waits for it (`Task.after`), and no flow call returned it
   (`holds`). It runs all the same: this is information, never an error. A top flow
@@ -462,6 +465,8 @@ class FlowDriver:
         self._creators: dict[str, FlowCall] = {}
         # The keys to cancel as the queue is attached: closed before it was.
         self._to_cancel: list[str] = []
+        #: The flow calls the latest `_close_stuck` cancelled, for `_end_stuck`.
+        self._stuck: list[FlowCall] = []
         # What `answer` raised at an await, by id (kept alive): a task's outcome, not a flow call's own.
         self._outcomes: dict[int, BaseException] = {}
         # The flow calls that ended `raised` with an exception of flow code's own, the first
@@ -606,6 +611,7 @@ class FlowDriver:
         await self._drained()
         if self._close_stuck():
             await self._drained()
+            self._end_stuck()
         return self._running > 0
 
     def settle_here(self) -> bool:
@@ -614,6 +620,7 @@ class FlowDriver:
         self._run_flows()
         if self._close_stuck():
             self._run_flows()
+            self._end_stuck()
         return self._running > 0
 
     def alive(self) -> bool:
@@ -707,17 +714,37 @@ class FlowDriver:
         close every flow call still running: nothing will answer any of them. Whether it did."""
         if not self._running or self._loop.ready() or self._results or self._replayed or self._open:
             return False
+        self._stuck = []
         for call in self.calls.values():
             if call.state == "running" and call.task is not None and not call.task.done():
                 call._closing = True
                 call._stopped = RuntimeError(_waits_forever(call))
                 call.task.cancel()
+                self._stuck.append(call)
         return True
+
+    def _end_stuck(self) -> None:
+        """End the flow calls that `_close_stuck` cancelled and that still run, once the
+        flows are quiescent again and still nothing will answer them: their code went on
+        after the cancellation, and waits again. They end `closed` here, whatever their code
+        does, so that a run ends. One whose code went on to create a task is not ended:
+        the task will answer it."""
+        stuck, self._stuck = self._stuck, []
+        if self._loop.ready() or self._results or self._replayed or self._open:
+            return
+        for call in stuck:
+            if call.state == "running":
+                self._end(call, "closed", error=call._stopped)
 
     def _cancel_rest(self) -> None:
         for call in self.calls.values():
             if call.state == "running":
                 call._closing = True
+        # The flow calls in the order of their creation, so that a run closes them in the same
+        # order each time; then any Task left, in the order of the event loop's set.
+        for call in list(self.calls.values()):
+            if call.task is not None and not call.task.done():
+                call.task.cancel()
         for task in asyncio.all_tasks(self._loop):
             task.cancel()
         self._loop.close_asyncgens()
@@ -853,6 +880,8 @@ class FlowDriver:
         parent = _call.get()
         if nxt is not None and nxt.top:
             parent = None
+        if parent is not None and self.calls.get(parent.id) is not parent:
+            parent = None  # a flow call of another driver is no parent here: a top flow call
         if parent is not None:
             self._record(parent)
         code = _code(coro)

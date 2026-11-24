@@ -4,7 +4,9 @@ appended whole and read by complete lines; one file name per task key; one time 
 from __future__ import annotations
 
 import ast
+import errno
 import json
+import os
 import threading
 from pathlib import Path
 
@@ -183,6 +185,56 @@ def test_a_line_breaks_at_a_newline_only(tmp_path):
 
 def test_rows_skip_a_torn_line_and_a_value_that_is_not_an_object():
     assert parse_rows(['{"a": 1}', '{"a": 2', "[1, 2]", "3", '{"b": 3}']) == [{"a": 1}, {"b": 3}]
+
+
+def cut_write(monkeypatch, written: int) -> None:
+    """The next write to a file takes `written` bytes and then fails, as on a full disk."""
+    real = os.write
+
+    def write(fd: int, data) -> int:
+        monkeypatch.setattr(os, "write", real)
+        if written:
+            real(fd, bytes(data)[:written])
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(os, "write", write)
+
+
+def test_an_append_after_a_write_that_was_cut_starts_on_a_line_of_its_own(tmp_path, monkeypatch):
+    """A write that was cut leaves a line with no newline. The next append must not go on
+    in that line: its first row would be read with the cut one, as one line that does not
+    parse, and a resume would run that row's task again."""
+    path = tmp_path / "journal.jsonl"
+    append_lines(path, ['{"key": "a"}'])
+    cut_write(monkeypatch, 9)
+    with pytest.raises(OSError):
+        append_lines(path, ['{"key": "b"}', '{"key": "lost"}'])
+    assert path.read_bytes() == b'{"key": "a"}\n{"key": "'
+    assert read_rows(path) == [{"key": "a"}]
+    append_lines(path, ['{"key": "c"}', '{"key": "d"}'])
+    assert read_rows(path) == [{"key": "a"}, {"key": "c"}, {"key": "d"}]
+    assert read_lines(path) == (['{"key": "a"}', '{"key": "', '{"key": "c"}', '{"key": "d"}'], 4)
+    append_lines(path, ['{"key": "e"}'])  # the log ends with a newline again: nothing is added
+    assert path.read_bytes().endswith(b'{"key": "d"}\n{"key": "e"}\n')
+
+
+def test_a_row_whose_newline_was_cut_is_read_once_the_next_append_ends_it(tmp_path, monkeypatch):
+    path = tmp_path / "journal.jsonl"
+    cut_write(monkeypatch, len('{"key": "a"}'))
+    with pytest.raises(OSError):
+        append_lines(path, ['{"key": "a"}'])
+    assert read_rows(path) == []  # no newline yet: the line may still be being written
+    append_lines(path, ['{"key": "b"}'])
+    assert read_rows(path) == [{"key": "a"}, {"key": "b"}]
+
+
+def test_a_write_cut_before_its_first_byte_changes_nothing(tmp_path, monkeypatch):
+    path = tmp_path / "journal.jsonl"
+    path.write_bytes(b'{"key": "a"}\n{"key": ')
+    cut_write(monkeypatch, 0)
+    with pytest.raises(OSError):
+        append_lines(path, ['{"key": "b"}'])
+    assert path.read_bytes() == b'{"key": "a"}\n{"key": '
 
 
 def test_appended_lines_are_never_split_by_another_writer(tmp_path):

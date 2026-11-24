@@ -4,6 +4,7 @@ skips a matching task only when its output still reads under its output schema."
 
 import json
 
+import pytest
 from pydantic import BaseModel
 
 from contraagent import Pipeline, agent_task
@@ -116,6 +117,61 @@ def test_an_output_that_no_longer_reads_runs_its_task_again(tmp_path):
     rep = pipeline(tmp_path, agent).run(passing_on(), run_id="r", resume=True)
     assert rep.ok and keys(agent) == ["write-u"]  # it writes the same output again: check-u is skipped
     assert reruns(rep) == {"write-u": "its output no longer reads under its output schema"}
+
+
+class Dies(Agent):
+    """A stub whose `write` writes its output, and whose process then ends: the attempt
+    leaves no journal row."""
+
+    def run(self, launch):
+        result = super().run(launch)
+        if self.launches[-1].kind == "write":
+            raise KeyboardInterrupt
+        return result
+
+
+def test_a_task_whose_attempt_the_run_s_end_cut_runs_again(tmp_path):
+    """`write` finished in the first attempt of the run. Its output is then no longer read,
+    so the resume runs it again, and the run's process ends while it runs, after it wrote an
+    output that reads. Its last journal row is still the first attempt's, with the same
+    fingerprint: the next resume skipped it, on an output no finished attempt had left."""
+    agent = Agent()
+    first = pipeline(tmp_path, agent).run(passing_on(), run_id="r")
+    assert first.ok
+    out, marker = first.run_dir / "out/write/u.json", first.run_dir / "inflight/write-u.json"
+    out.write_text("{}")
+    dying = Dies()
+    dying.text = "what the attempt wrote before the run ended"
+    with pytest.raises(KeyboardInterrupt):
+        pipeline(tmp_path, dying).run(passing_on(), run_id="r", resume=True)
+    assert json.loads(out.read_text())["text"] == dying.text and marker.is_file()
+    rows = [json.loads(line) for line in (first.run_dir / "journal.jsonl").read_text().splitlines()]
+    assert [r["key"] for r in rows] == ["write-u", "check-u"]  # the attempt left no row
+
+    # A resume that does not reach the task leaves it to the next one.
+    assert pipeline(tmp_path, agent).run(lambda: None, run_id="r", resume=True).ok and marker.is_file()
+
+    agent.launches.clear()
+    rep = pipeline(tmp_path, agent).run(passing_on(), run_id="r", resume=True)
+    assert rep.ok and keys(agent) == ["write-u"]  # it writes the first output again: check-u is skipped
+    assert reruns(rep) == {"write-u": "an attempt after its last finished one did not finish"}
+    assert json.loads(out.read_text())["text"] == "first" and not marker.exists()
+    agent.launches.clear()
+    assert pipeline(tmp_path, agent).run(passing_on(), run_id="r", resume=True).ok and agent.launches == []
+
+
+def test_a_task_whose_row_was_written_before_the_run_ended_is_skipped(tmp_path):
+    """The run's process ends after an attempt's journal row and before its in-flight marker
+    is removed: the attempt finished, and the task is not run again."""
+    agent = Agent()
+    first = pipeline(tmp_path, agent).run(passing_on(), run_id="r")
+    assert first.ok
+    marker = first.run_dir / "inflight/write-u.json"
+    marker.parent.mkdir(exist_ok=True)
+    marker.write_text(json.dumps({"key": "write-u", "journal_rows": 0}))  # the journal held no row when it started
+    agent.launches.clear()
+    rep = pipeline(tmp_path, agent).run(passing_on(), run_id="r", resume=True)
+    assert rep.ok and agent.launches == [] and not marker.exists()
 
 
 def test_an_unchanged_run_resumes_with_nothing_launched(tmp_path):

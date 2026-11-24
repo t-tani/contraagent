@@ -91,6 +91,47 @@ def _segment(seg: str) -> str:
     return out
 
 
+_WILD = re.compile(r"[*?\[]")
+
+
+def _names_meet(a: str, b: str) -> bool:
+    """Whether two segments of glob patterns may match one name. Exact when one of them has
+    no wildcard; two with wildcards are taken to meet unless their fixed starts or their
+    fixed ends differ."""
+    wild_a, wild_b = _WILD.search(a), _WILD.search(b)
+    if wild_a is None and wild_b is None:
+        return a == b
+    if wild_a is None or wild_b is None:
+        fixed, pattern = (a, b) if wild_a is None else (b, a)
+        return re.fullmatch(_segment(pattern), fixed) is not None
+    head_a, head_b = a[: wild_a.start()], b[: wild_b.start()]
+    tail_a, tail_b = re.split(r"[*?\]]", a)[-1], re.split(r"[*?\]]", b)[-1]
+    return (head_a.startswith(head_b) or head_b.startswith(head_a)) and (tail_a.endswith(tail_b) or tail_b.endswith(tail_a))
+
+
+def _paths_meet(a: Sequence[str], b: Sequence[str]) -> bool:
+    if not a or not b:
+        return True  # the one that ended matched a path the other is under: it covers everything there
+    if a[0] == "**":
+        return _paths_meet(a[1:], b) or _paths_meet(a, b[1:])
+    if b[0] == "**":
+        return _paths_meet(a, b[1:]) or _paths_meet(a[1:], b)
+    return _names_meet(a[0], b[0]) and _paths_meet(a[1:], b[1:])
+
+
+def may_overlap(a: Sequence[str], b: Sequence[str]) -> tuple[str, str] | None:
+    """A pattern of `a` and one of `b` that may cover one path (two tasks' `changes`
+    patterns, filled in, relative to one working directory); None when no two do. A pattern
+    that matches a directory covers everything under it, so a path above another overlaps
+    it. The answer errs toward an overlap: two wildcards are taken to match one name unless
+    their fixed ends differ, and what the `!` patterns leave out is not taken off."""
+    for pa in split(a)[0]:
+        for pb in split(b)[0]:
+            if _paths_meet(pa.replace("\\", "/").strip("/").split("/"), pb.replace("\\", "/").strip("/").split("/")):
+                return pa, pb
+    return None
+
+
 def matcher(patterns: Sequence[str]) -> Callable[[str], bool]:
     """Whether one of `patterns` (`Path.glob` patterns, with no `!`) matches a POSIX path
     relative to the working directory: the path itself, not a directory it is under."""

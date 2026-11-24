@@ -20,7 +20,7 @@ import sys
 import sysconfig
 import tempfile
 import traceback
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import GeneratorType
@@ -38,6 +38,7 @@ from contraagent._internal.dispatch.flow import FlowDriver, generator_flow_error
 from contraagent._internal.dispatch.queue import claim_entry
 from contraagent._internal.dispatch.task import kind_name
 from contraagent._internal.errors import ContraagentError, did_you_mean
+from contraagent._internal.execution.changes import may_overlap
 from contraagent._internal.execution.pipeline_files import writing_into
 from contraagent._internal.execution.services import env_clashes
 from contraagent._internal.pipeline.adapter import SpecAdapter
@@ -172,7 +173,7 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     report.add("plugins", _plugin_errors(agent_specs) + _mcp_errors(pipeline, graph, Path(tmp)))
     _check_services(pipeline.services, graph, [*specs.values(), *found], report)
     _check_task_tables(pipeline, specs, report)
-    _check_routing(pipeline, agent_specs, report, [n for n in graph.nodes if n.credential or n.cwd is not None])
+    _check_routing(pipeline, agent_specs, report, graph.nodes)
     return report
 
 
@@ -465,10 +466,12 @@ def _plugin_errors(specs: dict[str, Any]) -> list[str]:
     return errs
 
 
-def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckReport, calls: list[Node]) -> None:
-    """The routing plan of `specs`, and the credential and the working directory each of
-    `calls` names (the `credential` and `cwd` of its call options): a credential that does
-    not exist, or a route of its kind that cannot carry the call in its directory."""
+def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckReport, nodes: list[Node]) -> None:
+    """The routing plan of `specs`, and the credential and the working directory each task
+    call of `nodes` names (the `credential` and `cwd` of its call options): a credential
+    that does not exist, or a route of its kind that cannot carry the call in its
+    directory. With the plan's kinds, the tasks whose changes may overlap (`_changes_warnings`)."""
+    calls = [n for n in nodes if n.credential or n.cwd is not None]
     if not specs:
         return
     with _warnings_of("contraagent") as warnings:
@@ -513,6 +516,7 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
             if rc.keep_failed_changes and kind in specs and not specs[kind].changes
         ],
     )
+    report.warnings += _changes_warnings(pipeline, nodes, plan.configs)
     report.warnings += [
         f"routing: {kind}: safety_stop_failover = {list(rc.safety_stop_failover)} moves a launch to its next hop, "
         f"and the kind has no failover chain; give it [[tasks.{kind}.fallbacks]]"
@@ -525,6 +529,54 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
         if backend is not None and backend.binary and shutil.which(backend.binary, path=backend.base_path()) is None:
             report.warnings.append(f"routing: {agent}: {backend.binary} is not on PATH; its launches would fail")
     _check_models(pipeline, plan, report)
+
+
+def _changes_warnings(pipeline: Pipeline, nodes: list[Node], configs: Mapping[str, Any]) -> list[str]:
+    """The tasks whose `changes` patterns may cover the same files and that may run at once:
+    in one working directory, neither after the other, with no claim they share that one
+    task holds at a time, and not of one kind that runs one task at a time. One line for
+    each pair of kinds, with the first two such tasks and their patterns."""
+    by_key = {n.key: n for n in nodes}
+    capacity = pipeline.queue_options.get("claim_capacity") or {}
+    earlier: dict[str, set[str]] = {}
+
+    def before(key: str) -> set[str]:
+        """Every key the task of `key` comes after, directly or through other tasks."""
+        if key not in earlier:
+            earlier[key] = found = set()
+            todo = list(by_key[key].after) if key in by_key else []
+            while todo:
+                dep = todo.pop()
+                if dep not in found:
+                    found.add(dep)
+                    todo += by_key[dep].after if dep in by_key else ()
+        return earlier[key]
+
+    def apart(a: Node, b: Node) -> bool:
+        if a.key in before(b.key) or b.key in before(a.key):
+            return True
+        if a.spec.kind == b.spec.kind and getattr(configs.get(a.spec.kind), "max_concurrent", None) == 1:
+            return True
+        shared = set(a.claims) & set(b.claims)
+        return any((entry := claim_entry(capacity, name)) is None or entry == 1 for name in shared)
+
+    found: dict[frozenset[str], list[tuple[str, str, str, str]]] = {}
+    changing = [n for n in nodes if n.changes]
+    for i, a in enumerate(changing):
+        for b in changing[i + 1 :]:
+            if a.cwd != b.cwd or apart(a, b):
+                continue
+            both = may_overlap(a.changes, b.changes)
+            if both is not None:
+                found.setdefault(frozenset((a.spec.kind, b.spec.kind)), []).append((a.key, b.key, *both))
+    return [
+        f"{one} and {other}{f' (and {len(pairs) - 1} more such pairs)' if len(pairs) > 1 else ''} may run at once, and "
+        f"their changes patterns {pa!r} and {pb!r} may cover the same files: a failed attempt of one would remove the files "
+        "the other created meanwhile. Put {unit} in the pattern, or keep the tasks apart with after= or a claim they share "
+        "(contraagent docs tasks)"
+        for pairs in found.values()
+        for one, other, pa, pb in pairs[:1]
+    ]
 
 
 def _call_credentials(calls: list[Node]) -> dict[str, dict[str, list[str]]]:

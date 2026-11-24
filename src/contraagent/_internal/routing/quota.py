@@ -28,7 +28,8 @@ an API key) never rests here: only its 429s and budgets stop it.
 
 A rest by the quota rule lasts until the time the rule gives with its reason
 (`("over the daily pace", tomorrow_17_jst)`): the credential rests to then, and the rule
-is not asked again before it. A rule that gives a reason alone rests the credential while
+is not asked again before it. A time that has passed rests nothing. A rule that gives a
+reason alone rests the credential while
 the reading it judged stands: until the earliest reset among that reading's windows
 (or, for a window that names none, its length after `observed_at`). Nothing launches on
 a resting credential, so no newer reading arrives; past that time the stale reading no
@@ -83,7 +84,8 @@ class QuotaRule(Protocol):
     latest `QuotaReading` its coding agent reported for it. It returns None when the
     credential may launch; a reason (`"5-hour usage past 85%"`) when it rests now, until
     the reading stops standing (the earliest reset among its windows); or the reason and the
-    `datetime` the rest ends (one with no time zone is UTC). A resting credential is not
+    `datetime` the rest ends (one with no time zone is UTC; one that has passed rests
+    nothing). A resting credential is not
     launched on: its tasks take the next hop of their failover chain, or are deferred."""
 
     def __call__(self, credential: str, reading: QuotaReading, /) -> str | tuple[str, datetime] | None: ...
@@ -290,12 +292,13 @@ class CredentialRests:
                 if ends is None or self._now() < ends:
                     ruled = self.rule(name, reading)
                     said, given = ruled if isinstance(ruled, tuple) else (ruled, None)
-                    if said:
-                        given = _aware(given) if given is not None else None
+                    given = _aware(given) if given is not None else None
+                    # A rest whose end has passed is over: the credential does not rest by it.
+                    if said and (given is None or self._now() < given):
                         end = given or ends
                         until = end.isoformat() if end is not None else ""
                         rest = Rest(credential=name, rule=str(said), until=until, account=reading.account, reading=reading_of(reading))
-                        if given is not None and self._now() < given:
+                        if given is not None:
                             with self._lock:
                                 self._ruled[key] = (rest, given)
         event: tuple[str, Rest] | None = None

@@ -441,7 +441,7 @@ class AgentRunner:
         if router is None:
             why = self._rest(task, None)
             return _rest_deferral([SkippedHop(**r.to_dict()) for r in why]) if _quota_rest(why) else None
-        route = router.pick()
+        route = router.pick(probe=False)  # a look: the task launches nothing here
         if route is None:  # every hop rate limited: the launch says so
             return None
         skipped: list[SkippedHop] = []
@@ -661,7 +661,8 @@ class AgentRunner:
                 pinned, walk = nxt_route, stop
                 continue
             if result.stop != Stop.RATE_LIMITED:
-                router.succeeded(route, started=started)
+                if result.ok:  # a launch a signal ended, or one as another credential, says nothing of the route
+                    router.succeeded(route, started=started)
                 return replace(result, route=label, reason=f"{prior_reason}; ran on {label}" if prior_reason else result.reason)
             hops += 1
             nxt = router.rate_limited(
@@ -671,7 +672,19 @@ class AgentRunner:
                     if result.launch_result is not None and result.launch_result.quota_refusal is not None
                     else None
                 ),
+                started=started,
             )
+            if pinned is not None:
+                # On its own walk the task goes on by itself: the breaker moves on a 429 of
+                # the hop it is on, and that is not this task's hop.
+                nxt_route = router.next_route_after(route, Stop.RATE_LIMITED.value)
+                if nxt_route is None:
+                    return self._own(replace(result, route=label, reason=f"rate limited on {label}; no hop left after it"), ran)
+                prior_reason = f"rate limited on {label}; failing over to {router.label_of(nxt_route)}"
+                _logger.warning(f"[switch] {task.key}: {prior_reason}")
+                last = replace(result, reason=prior_reason)
+                pinned, walk = nxt_route, Stop.RATE_LIMITED.value
+                continue
             if not nxt or hops >= len(router.routes):
                 reason = f"rate limited on {label} and {nxt}" if nxt else f"rate limited on {label}; no hop left of {len(router.routes)}"
                 return replace(result, route=label, reason=reason)

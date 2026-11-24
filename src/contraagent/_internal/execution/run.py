@@ -16,7 +16,8 @@ import os
 import sys
 import threading
 import uuid
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -47,7 +48,7 @@ from contraagent._internal.execution import teardown as _teardown
 from contraagent._internal.execution.adapter import TaskAdapter
 from contraagent._internal.execution.cursor import CursorStore
 from contraagent._internal.execution.estimates import JournalEstimates, recent_runs
-from contraagent._internal.execution.journal import Journal
+from contraagent._internal.execution.journal import Journal, unfinished_keys
 from contraagent._internal.execution.pipeline_files import writing_into
 from contraagent._internal.execution.python_tasks import PythonTaskRunner
 from contraagent._internal.execution.runner import AgentRunner
@@ -81,6 +82,10 @@ UNREAD = "its output no longer reads under its output schema"
 #: file is not as the task, or a task after it that fills it in, left it.
 REFILL = "the file it fills in (output_of) is not as the earlier attempts left it"
 
+#: Why a resume runs a task again whose journal row matches it, when an attempt of it began
+#: after that row and the run ended before the attempt did (`journal.unfinished_keys`).
+UNFINISHED = "an attempt after its last finished one did not finish"
+
 #: How the rerun reason of a divergence starts (`rerun_reason`).
 DIVERGENCE = "divergence"
 
@@ -94,20 +99,24 @@ def finished_before(row: dict[str, Any] | None, task: Task, fingerprint: str | N
     return bool(row.get("ok")) and row.get("fingerprint", "") == (task.fingerprint if fingerprint is None else fingerprint)
 
 
-def _left_by(rows: Iterable[Mapping[str, Any]]) -> dict[str, set[str]]:
-    """For the tasks that fill in another task's file (`output_of`): each digest a file had
-    before such a task started, with the digests the task left it with."""
-    out: dict[str, set[str]] = {}
+def _left_by(rows: Iterable[Mapping[str, Any]]) -> dict[tuple[str, str], set[str]]:
+    """For the tasks that fill in another task's file (`output_of`): each file (journal
+    `output_of_file`) and digest it had before such a task started, with the digests the
+    task left it with. A file's history is its own: another file may hold the same content."""
+    out: dict[tuple[str, str], set[str]] = {}
     for row in rows:
         parts = row.get("fingerprint_parts") or {}
         if "output_of" in parts and row.get("output_of_after"):
-            out.setdefault(str(parts["output_of"]), set()).add(str(row["output_of_after"]))
+            file = str(row.get("output_of_file") or "")
+            out.setdefault((file, str(parts["output_of"])), set()).add(str(row["output_of_after"]))
     return out
 
 
-def _as_left(row: Mapping[str, Any], now: str, left_by: Mapping[str, set[str]]) -> bool:
+def _as_left(row: Mapping[str, Any], now: str, left_by: Mapping[tuple[str, str], set[str]]) -> bool:
     """Whether a file that a task fills in (`output_of`), whose digest is `now`, is as the
-    task's last attempt (`row`) left it, or as a task after it that fills it in left it."""
+    task's last attempt (`row`) left it, or as a task after it that fills the same file in
+    left it."""
+    file = str(row.get("output_of_file") or "")
     first = str(row.get("output_of_after") or "")
     seen: set[str] = set()
     todo = [first] if first else []
@@ -118,7 +127,7 @@ def _as_left(row: Mapping[str, Any], now: str, left_by: Mapping[str, set[str]]) 
         if digest == now:
             return True
         seen.add(digest)
-        todo.extend(left_by.get(digest, ()))
+        todo.extend(left_by.get((file, digest), ()))
     return False
 
 
@@ -127,6 +136,7 @@ def resume_skip(
     reruns: dict[str, str] | None = None,
     reads: Callable[[Task], bool] | None = None,
     warn: Callable[[str], None] | None = None,
+    unfinished: Collection[str] = (),
 ) -> Callable[[Task], bool]:
     """What a resume skips, given each key's last journal row: a task `finished_before`.
     A task given the output of a task whose last result was `partial` is skipped only when
@@ -143,7 +153,12 @@ def resume_skip(
     when it is as the task's last attempt left it, or as a task after it that fills it in
     left it (journal `output_of_after`), the part is the one its journal row recorded,
     the digest of the file before the task started. A file that is not (changed by hand,
-    or written again by a task before it) runs the task again (`REFILL`)."""
+    or written again by a task before it) runs the task again (`REFILL`).
+
+    `unfinished`: the keys of the tasks an attempt of which began after their last row and
+    did not finish (`journal.unfinished_keys`). Such a task runs again (`UNFINISHED`): its
+    row is of an earlier attempt, and its output file may hold what the later one wrote
+    before the run ended."""
     skipped: set[str] = set()
     left_by = _left_by(last.values())
 
@@ -151,25 +166,30 @@ def resume_skip(
         row = last.get(task.key)
         fingerprint = None
         refill = False
+        judged = task  # the task as its row is compared with
         if row is not None and "output_of" in task.fingerprint_parts:
             recorded = (row.get("fingerprint_parts") or {}).get("output_of")
             if recorded is not None and _as_left(row, task.fingerprint_parts["output_of"], left_by):
                 parts = {**task.fingerprint_parts, "output_of": str(recorded)}
                 fingerprint = fingerprint_of(task.kind, task.unit, task.key, parts)
+                judged = replace(task, fingerprint_parts=parts)  # the file is as left: that part did not change
             else:
                 refill = True
         finished = not refill and finished_before(row, task, fingerprint)
-        unread = finished and reads is not None and not reads(task)
-        if finished and not unread:
+        cut = finished and task.key in unfinished
+        unread = finished and not cut and reads is not None and not reads(task)
+        if finished and not cut and not unread:
             skipped.add(task.key)
             return True
         if row is not None and row.get("ok") and reruns is not None:
-            if unread:
+            if cut:
+                why = UNFINISHED
+            elif unread:
                 why = UNREAD
             elif refill and not task.rerun_on_resume and row.get("stop") != STOP_PARTIAL:
                 why = REFILL
             else:
-                why = rerun_reason(row, task, skipped)
+                why = rerun_reason(row, judged, skipped)
             reruns[task.key] = why
             if warn is not None and why.startswith(DIVERGENCE):
                 warn(f"[resume] {task.key}: {why}")
@@ -369,6 +389,9 @@ class Run:
                 self.close()
                 raise
         self._check_format()
+        # The tasks an attempt of which began in an earlier attempt of this run and did not
+        # finish (`unfinished_keys`): a resume runs them again.
+        self._unfinished: frozenset[str] = unfinished_keys(self.dir)
         if lock:
             self._clear_inflight()
         write_document(
@@ -407,9 +430,13 @@ class Run:
 
     def _clear_inflight(self) -> None:
         """Remove the in-flight markers an earlier attempt of this run left: with the run
-        lock held, no other process runs a task of it."""
+        lock held, no other process runs a task of it. The marker of a task whose attempt
+        did not finish (`_unfinished`) stays until the task starts again, which writes it
+        anew: a resume that does not reach the task leaves the next one to run it again."""
+        keep = {layout.task_entry(layout.INFLIGHT, key) for key in self._unfinished}
         for path in (self.dir / layout.INFLIGHT).glob("*.json"):
-            path.unlink(missing_ok=True)
+            if path.relative_to(self.dir).as_posix() not in keep:
+                path.unlink(missing_ok=True)
 
     def _refuse_existing(self) -> None:
         rows = len(read_rows(self.dir / layout.JOURNAL))
@@ -537,7 +564,7 @@ class Run:
     def record_taken_over(self, result: TaskResult, earlier: Mapping[str, Any], run_id: str) -> None:
         """Journal a task this run took over from run `run_id`, which it resumes from: the row
         of its skipped result, with the fingerprint, its parts, the outside state and the
-        digest of the file it fills in (`output_of_after`) of `earlier`, that run's last row
+        digest of the file it fills in and that file (`output_of_after`, `output_of_file`) of `earlier`, that run's last row
         of the task, and `resumed_from`. A row that cannot be written is said as
         `record_attempt` says it."""
         key = result.task.key
@@ -548,6 +575,7 @@ class Run:
                     "fingerprint_parts": dict(earlier.get("fingerprint_parts") or {}),
                     "outside": str(earlier.get("outside") or ""),
                     "output_of_after": str(earlier.get("output_of_after") or ""),
+                    "output_of_file": str(earlier.get("output_of_file") or ""),
                     "resumed_from": run_id,
                 }
             )
@@ -758,7 +786,12 @@ class Run:
         is sized by this host and the memory its tasks' agents hold.
         """
         if skip is None and resume:
-            skip = resume_skip(self.journal.last_rows(), self.journal.reruns, warn=lambda line: self._log(logging.WARNING, line))
+            skip = resume_skip(
+                self.journal.last_rows(),
+                self.journal.reruns,
+                warn=lambda line: self._log(logging.WARNING, line),
+                unfinished=self._unfinished,
+            )
         q = WorkQueue(
             runner,
             follow_up=follow_up,
@@ -817,8 +850,8 @@ class Run:
     # --- queue callbacks ---------------------------------------------------
 
     def _journal_queue_result(self, res: TaskResult, attempt: int) -> None:
-        """Journal what no runner journals: a Python task's attempts, and a task the queue
-        cancelled before it launched (attempt 0)."""
+        """Journal what no runner journals: a Python task's attempts, and the queue's own
+        result of a task it cancelled while the task was queued (attempt 0)."""
         if res.task.fn is not None or attempt == 0:
             self.record_attempt(res)
 
@@ -992,6 +1025,7 @@ class Run:
                     "claims": list(task.claims),
                     "executor": task.executor,
                     "started_at": now_iso(),
+                    "journal_rows": self.journal.count(),
                     "pid": os.getpid(),
                     "start_ticks": processes.start_ticks(os.getpid()),
                 }

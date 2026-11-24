@@ -18,7 +18,8 @@ listed in a `SegmentIndex`; the open one is a file on the hub's local disk.
   its log (a log the index does not hold continues from line 0); one that starts past
   that end is first joined by any objects of the log the index lacks, and dropped when
   still not contiguous (the relay resends from `held`). Files that follow one another
-  are sealed but the last, which stays open.
+  are sealed but the last, which stays open. The logs are recovered in the order of their
+  names, so that a start does the same on the same files.
 * **Read.** Pages are bounded as `runs.source.page` bounds them. Sealed lines come
   through the block table with one ranged read per segment a page touches (normally
   one), and decompressed blocks are kept in an LRU of `cache_bytes`; open lines are read
@@ -53,7 +54,7 @@ import threading
 import time
 import weakref
 from collections import OrderedDict
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Hashable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
@@ -366,22 +367,24 @@ def rebuild_index(objects: SegmentObjects, index: SegmentIndex) -> int:
 
 
 class BlockCache:
-    """Decompressed blocks of sealed segments by (object key, block number), least recently
-    used first out once they pass `max_bytes` (each counts its uncompressed size). Sealed
-    blocks never change, so an entry is never stale. Safe across threads."""
+    """Decompressed blocks of sealed segments by (segment, block number), least recently
+    used first out once they pass `max_bytes` (each counts its uncompressed size). A sealed
+    segment's blocks never change, so an entry is never stale; the segment is named by
+    `_Sealed.cache_key`, since an object key names other lines once its run was dropped and
+    sent again. Safe across threads."""
 
     def __init__(self, max_bytes: int = CACHE_BYTES) -> None:
         self.max_bytes = max_bytes
         self.bytes = 0
         self.hits = 0
         self.misses = 0
-        self._blocks: OrderedDict[tuple[str, int], tuple[list[str], int]] = OrderedDict()
+        self._blocks: OrderedDict[tuple[Hashable, int], tuple[list[str], int]] = OrderedDict()
         self._lock = threading.Lock()
 
     def __len__(self) -> int:
         return len(self._blocks)
 
-    def get(self, key: tuple[str, int]) -> list[str] | None:
+    def get(self, key: tuple[Hashable, int]) -> list[str] | None:
         with self._lock:
             got = self._blocks.get(key)
             if got is None:
@@ -391,7 +394,7 @@ class BlockCache:
             self._blocks.move_to_end(key)
             return got[0]
 
-    def put(self, key: tuple[str, int], lines: list[str], size: int) -> None:
+    def put(self, key: tuple[Hashable, int], lines: list[str], size: int) -> None:
         if size > self.max_bytes:
             return
         with self._lock:
@@ -408,14 +411,18 @@ class BlockCache:
 
 
 class _Sealed:
-    """A sealed segment with its block table unpacked."""
+    """A sealed segment with its block table unpacked. `drops`: how many drops the hub had
+    run when the segment came into memory."""
 
-    __slots__ = ("first_line", "line_count", "key", "blocks", "firsts", "sizes")
+    __slots__ = ("first_line", "line_count", "key", "cache_key", "blocks", "firsts", "sizes")
 
-    def __init__(self, segment: Segment) -> None:
+    def __init__(self, segment: Segment, drops: int) -> None:
         self.first_line = segment.first_line
         self.line_count = segment.line_count
         self.key = segment.key
+        #: What its blocks are cached under. Its object's key alone would not do: a log
+        #: that was dropped and is sent again seals other lines under the same keys.
+        self.cache_key = (segment.key, drops)
         self.blocks = fmt.unpack_blocks(segment.blocks)
         self.firsts = [b.first_line for b in self.blocks]
         self.sizes = [b.size for b in self.blocks]
@@ -540,11 +547,11 @@ class _Log:
         return True
 
 
-def _contiguous(segments: Sequence[Segment]) -> list[_Sealed]:
+def _contiguous(segments: Sequence[Segment], drops: int) -> list[_Sealed]:
     out: list[_Sealed] = []
     for segment in segments:
         if segment.first_line == (out[-1].end if out else 0) and segment.line_count > 0:
-            out.append(_Sealed(segment))
+            out.append(_Sealed(segment, drops))
     return out
 
 
@@ -644,7 +651,7 @@ class SegmentedStreamLogs:
                 drops = self._drops
             if st is not None:
                 return st
-            sealed = _contiguous(self.index.segments(*key))
+            sealed = _contiguous(self.index.segments(*key), drops)
             if not sealed and not create:
                 return None
             with self._lock:
@@ -780,7 +787,9 @@ class SegmentedStreamLogs:
         finally:
             with self._keys_lock:
                 self._inflight.discard(objkey)
-        sealed = _Sealed(segment)
+        with self._lock:
+            drops = self._drops
+        sealed = _Sealed(segment, drops)
         with st.lock:
             st.sealing.remove(hot)
             st.sealed.append(sealed)
@@ -791,7 +800,9 @@ class SegmentedStreamLogs:
             hot.path.unlink(missing_ok=True)
 
     def sweep(self) -> list[str]:
-        """Delete every object that no index row references and no seal is writing; the keys deleted."""
+        """Delete every object that no index row references and no seal is writing; the keys
+        deleted. Only the seals of this process are known here: no other process may be
+        sealing into the same objects (a hub is one process)."""
         listed = self.objects.keys()
         deleted = []
         with self._keys_lock:
@@ -883,7 +894,7 @@ class SegmentedStreamLogs:
             q_name, q_uid, q_log = path.parts[-4:-1]
             found.setdefault((unquote(q_name), unquote(q_uid), unquote(q_log)), []).append((int(path.stem), path))
         now = self.clock()
-        for key, files in found.items():
+        for key, files in sorted(found.items()):  # in the order of their names, not of the directory's listing
             files.sort()
             st = self._get(key, create=True)
             assert st is not None
@@ -919,7 +930,7 @@ class SegmentedStreamLogs:
             if segment is None or segment.line_count == 0:
                 return
             self.index.add(segment, None)
-            sealed = _Sealed(segment)
+            sealed = _Sealed(segment, self._drops)
             st.sealed.append(sealed)
             st.durable = st.count = sealed.end
 
@@ -988,7 +999,7 @@ class SegmentedStreamLogs:
         got: dict[int, list[str]] = {}
         missing = []
         for i in range(b0, b1 + 1):
-            cached = self.cache.get((s.key, i))
+            cached = self.cache.get((s.cache_key, i))
             if cached is None:
                 missing.append(i)
             else:
@@ -1000,7 +1011,7 @@ class SegmentedStreamLogs:
                 b = s.blocks[i]
                 if i not in got:
                     block = fmt.decode(data[b.offset - lo.offset : b.offset - lo.offset + b.compressed])
-                    self.cache.put((s.key, i), block, b.size)
+                    self.cache.put((s.cache_key, i), block, b.size)
                     got[i] = block
         out: list[str] = []
         for i in range(b0, b1 + 1):

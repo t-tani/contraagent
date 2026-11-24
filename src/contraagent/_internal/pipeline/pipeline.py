@@ -681,6 +681,7 @@ class Pipeline:
             )
             graph.driver = driver
             run.journal.filled_after = graph.filled_after
+            run.journal.filled_file = graph.filled_file
 
             def follow_up(result: TaskResult) -> list[Task]:
                 graph.record(result)
@@ -788,6 +789,7 @@ class Pipeline:
                             run.journal.reruns,
                             graph.output_reads,
                             warn=lambda line: run.progress(line, warning=True),
+                            unfinished=earlier.unfinished if earlier is not None else run._unfinished,
                         )
                         if resume or earlier is not None
                         else None,

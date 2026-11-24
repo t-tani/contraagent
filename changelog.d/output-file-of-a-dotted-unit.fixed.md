@@ -1,0 +1,1 @@
+The output file of the second task of one key keeps its suffix when the unit starts with dots, on every Python. On Python 3.14, where `pathlib` reads such a name's suffix in another way, the file of the second task of unit `..` was `...json~2`, and `..~2.json` on the Pythons before

@@ -22,13 +22,15 @@ ready when:
 The schedule is a greedy list schedule: whenever a slot is free, the first
 task in the order that can start, starts. Its invariant: **no slot idles while a
 task can start** (ready, as above, and not held back by the starvation guard,
-below). Graham's bound, within 2 - 1/m of the best makespan, holds for any order
+below), whenever the queue waits. A pass that finishes a task without a launch
+(a deferral) is followed by another at once, since a task after it can start
+then. Graham's bound, within 2 - 1/m of the best makespan, holds for any order
 that keeps it, and only for one that does. A deadline defers a task only when
 other work takes the slot it would have had (below). The order:
 
-* by bottom level, highest first: a task's estimate plus the longer of its
-  known dependents' path and its `tail_s` (`_blevel`), so long remaining chains
-  start first;
+* by bottom level, highest first: a task's estimate plus the longer of the
+  path through the queued tasks after it and its `tail_s` (`_blevel`), so long
+  remaining chains start first;
 * tasks of equal bottom level by `Task.priority`, highest first, then by
   arrival. Priority only breaks ties: it never moves a task before one of a
   larger bottom level, an overdue task, or a task in a time box's endgame;
@@ -86,7 +88,10 @@ work. A task it does not skip is given again as it starts when it starts.
 Every task the queue accepts finishes exactly once, through `follow_up`: with
 its last attempt's result, as `skipped`, or as `deferred` (not launched by the
 deadline or the grace window, or with no way to launch; `ok` False, not passed
-to `on_result`). A follow-up task `add()` refuses finishes as `duplicate_key`,
+to `on_result`). A task has no way to launch when nothing runs, no pass starts
+it, and it names a dependency that was never queued, finds a capacity of 0, or
+waits for tasks that wait for it; a task that only waits for such a task is
+not deferred with it, and may start once that one is. A follow-up task `add()` refuses finishes as `duplicate_key`,
 so whoever waits for it is answered. Finished results settle from one deque,
 never recursively, so a long chain of skipped follow-ups costs no stack. The
 run continues while follow-ups queue work, deferred results included: a
@@ -120,14 +125,16 @@ say why a task cannot launch now (`.deferral(task)`, a `Deferral` or None): the
 queue asks it just before it would start the task, and defers the task instead.
 For a task with `fingerprint_at_start`, the queue then asks the runner for the task
 as it starts (`.starting(task)`, the same task with its fingerprint completed) and
-starts, or skips, that one.
+starts, or skips, the task with that fingerprint: of the task the runner gives, it takes
+`fingerprint`, `outside` and `fingerprint_parts`, and nothing else.
 A runner that finds the same once the task has started returns a `deferred`
 result, finished as a deferral too. A deferral is reported with its reason and its
 cause as data (`on_event("deferred", task, reason=, cause=)`, a `DeferralCause`).
 
 `cancel(key)` cancels a task (`FlowDriver` calls it for a `Task.cancellable` task no flow
 call waits for any longer): one queued finishes `cancelled` at once, without launching,
-its result given to `on_result` as attempt 0 since no attempt ran. For one running, the
+its result given to `on_result` as attempt 0: the result is the queue's own, not an
+attempt's. For one running, the
 queue calls the runner's `cancel(task)` when it has one, as it asks `deferral` and
 `starting`: the runner stops what it can (an agent task's launch) and returns its
 result, `cancelled` or the one the task ended with first; the queue does not retry it.
@@ -142,14 +149,18 @@ import time
 from collections import deque
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from typing import Any, Protocol
 
 from contraagent._internal.dispatch.entry import run_sync
 from contraagent._internal.dispatch.records import DeferralCause
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, Deferral, Task, TaskResult, TimeBox
 
-#: The queue's own deferral with no deadline in it (`Deferral.cause` names it).
+#: The queue's own deferrals with no deadline in them (`Deferral.cause` names each): of a
+#: task that nothing can launch, when nothing runs and a pass started nothing (`_give_up`).
 _NOT_QUEUED = Deferral("no launchable task (dependency never queued)", DeferralCause(cause="dependency_not_queued"))
+_NO_CAPACITY = Deferral("no launchable task (a claim capacity or its kind's cap is 0)", DeferralCause(cause="no_capacity"))
+_CYCLE = Deferral("no launchable task (its dependencies wait for each other)", DeferralCause(cause="dependency_cycle"))
 
 #: Used when a task carries no estimate and the `estimate` callback has none: about one
 #: coding-agent session, the usual task. Only an ordering default; a task with no known
@@ -220,7 +231,9 @@ class FinishChance(Protocol):
 
 class OnResult(Protocol):
     """`on_result(result, attempt)`: every attempt's result, a retried one included;
-    `attempt` counts from 1; 0 for a task cancelled before it launched (`WorkQueue.cancel`)."""
+    `attempt` counts from 1. 0 marks a result that is no attempt's but the queue's own: that
+    of a queued task it cancelled (`WorkQueue.cancel`), also one that waited for its retry
+    after an attempt."""
 
     def __call__(self, result: TaskResult, attempt: int, /) -> None: ...
 
@@ -356,7 +369,7 @@ class WorkQueue:
         # for the final attempt only.
         self._on_result = on_result
 
-        self._queued: list[Task] = []
+        self._queued: dict[str, Task] = {}  # by .id, in the order they arrived; a retry first
         self._known: set[str] = set()  # by .id: this exact dispatch
         # by .key: units of work currently queued or running. Not cumulative
         # (see `_finish`): a finished key may be dispatched again; what this
@@ -379,9 +392,11 @@ class WorkQueue:
         self._settling: deque[TaskResult] = deque()
         self._draining = False
         self._seq: dict[str, int] = {}  # by .id: arrival order
-        self._successors: dict[str, list[Task]] = {}  # by .key: known dependents
-        # Tasks queued so far: a pass that queued any (a deferral's follow-ups) did not see them.
-        self._added = 0
+        # by .key: the queued tasks that name it in `after`, by .id. Only the queued ones: a
+        # task that started or finished is no work still ahead of the key's (`_blevel`).
+        self._successors: dict[str, dict[str, Task]] = {}
+        # Results finished so far (`_finish`): a pass that finished any changed what can start.
+        self._finished = 0
         # Set by `add()` and `wake()` while `run_async` runs: what wakes its wait.
         self._wake: asyncio.Event | None = None
 
@@ -405,8 +420,6 @@ class WorkQueue:
             return False
         self._known.add(task.id)
         self._seq[task.id] = len(self._seq)
-        for dep in task.after:
-            self._successors.setdefault(dep, []).append(task)
         if task.key in self._inflight_keys:
             self.on_event("duplicate_key_refused", task, key=task.key)
             return False
@@ -415,8 +428,7 @@ class WorkQueue:
         if self._skip is not None and not task.fingerprint_at_start and self._skip(task):
             self._settle(TaskResult.skipped(task))
             return True
-        self._queued.append(task)
-        self._added += 1
+        self._enqueue(task)
         self._skip_startable([task])
         if self._wake is not None:
             self._wake.set()
@@ -436,10 +448,9 @@ class WorkQueue:
         now; for one running, the runner's `cancel(task)` is called, when it has one, and the
         task is not retried. Whether a task of `key` was queued or running; one that finished,
         or that the queue does not know, is left as it is."""
-        for task in self._queued:
+        for task in self._queued.values():
             if task.key == key:
-                self._queued.remove(task)
-                self._ready_since.pop(task.id, None)
+                self._dequeue(task)
                 result = TaskResult.cancelled(task)
                 if self._on_result is not None:
                     try:
@@ -459,6 +470,25 @@ class WorkQueue:
                         self.on_event("note", task, cancel_failed=repr(exc)[:200])
                 return True
         return False
+
+    def _enqueue(self, task: Task, *, first: bool = False) -> None:
+        """Put `task` in the queue, and among the tasks after each key it names. `first`:
+        before the others (a retry)."""
+        if first:
+            self._queued = {task.id: task, **self._queued}
+        else:
+            self._queued[task.id] = task
+        for dep in task.after:
+            self._successors.setdefault(dep, {})[task.id] = task
+
+    def _dequeue(self, task: Task) -> None:
+        """Take `task` out of the queue: it starts, or it finishes without a launch."""
+        del self._queued[task.id]
+        self._ready_since.pop(task.id, None)
+        for dep in task.after:
+            after_dep = self._successors.get(dep)
+            if after_dep is not None and after_dep.pop(task.id, None) is not None and not after_dep:
+                del self._successors[dep]
 
     # --- launch conditions --------------------------------------------------
 
@@ -510,9 +540,11 @@ class WorkQueue:
         return not any(self._held.get(name, 0) >= self.capacity(name) for name in set(task.claims))
 
     def _possible(self, task: Task) -> bool:
-        """It could start with nothing else running: no capacity of 0 stands in its way."""
+        """It could start with nothing else running: no cap or capacity of 0 stands in its
+        way. A capacity worked out when it is asked (`ClaimCapacity`) is none: what it is
+        now, while other tasks run, says nothing of then."""
         cap = self.runner.config(task).max_concurrent
-        return (cap is None or cap > 0) and all(self._capacity(name, 0) > 0 for name in task.claims)
+        return (cap is None or cap > 0) and all(entry > 0 for name in task.claims if isinstance(entry := self._entry(name), int))
 
     def _takes(self, task: Task, head: Task) -> bool:
         """Whether starting `task` takes what `head` still needs: the last place on a name
@@ -554,8 +586,13 @@ class WorkQueue:
             with ThreadPoolExecutor(max_workers=self.max_concurrent) as pool:
                 while True:
                     more = await self.between_passes() if self.between_passes is not None else False
-                    added = self._added
+                    finished = self._finished
                     self._start_ready(loop, pool)
+                    if self._finished != finished:
+                        # The pass finished a task without a launch (a rest, a closed time box,
+                        # work that cannot finish): a task after it can start now, and so can
+                        # what its follow-ups queued. The pass looked at neither.
+                        continue
                     if not self._running:
                         if not self._queued:
                             if not more or self.past_hard_stop():
@@ -565,15 +602,11 @@ class WorkQueue:
                             left = self.hard_stop_at - time.monotonic() if self.hard_stop_at is not None else POLL_S
                             await self._wait(set(), max(0.0, min(POLL_S, left)))
                             continue
-                        # A deferral in the pass (a rest, a closed time box, work that cannot
-                        # finish) queued its follow-ups during it: the pass did not look at them.
-                        if self._added != added:
-                            continue
-                        # Nothing runs and nothing started of what the pass saw: what is queued
-                        # waits for a retry, or for a task that will never come.
+                        # Nothing runs, and the pass started and finished nothing: what is
+                        # queued waits for a retry, or nothing can launch it.
                         if await self._sleep_until_retry():
                             continue
-                        self._defer_all(_NOT_QUEUED)
+                        self._give_up()
                         continue
                     for fut in await self._wait(set(self._running), POLL_S):
                         task = self._running.pop(fut)
@@ -598,11 +631,9 @@ class WorkQueue:
 
     def _defer_closed(self, now: float) -> None:
         """Defer every queued task a time box no longer lets launch (`_closed`)."""
-        closed = [(t, why) for t in self._queued if (why := self._closed(t, now)) is not None]
-        if not closed:
-            return
-        ids = {t.id for t, _ in closed}
-        self._queued = [t for t in self._queued if t.id not in ids]
+        closed = [(t, why) for t in self._queued.values() if (why := self._closed(t, now)) is not None]
+        for t, _ in closed:
+            self._dequeue(t)
         for t, why in closed:
             self._defer(t, why)
 
@@ -617,7 +648,7 @@ class WorkQueue:
 
     def _blevel(self, task: Task, memo: dict[str, float]) -> float:
         """Bottom level: this task's estimate plus the longer of the longest
-        path through its known dependents (Kwok & Ahmad 1999, the HLFET
+        path through the queued tasks after it (Kwok & Ahmad 1999, the HLFET
         family) and its `tail_s`, the work after it not queued yet. Memoized,
         cycle-safe (a key revisited while open contributes nothing), and
         iterative, so a long chain costs no stack."""
@@ -625,7 +656,7 @@ class WorkQueue:
         stack: list[tuple[Task, bool]] = [(task, False)]
         while stack:
             t, expanded = stack.pop()
-            successors = self._successors.get(t.key, ())
+            successors = self._successors.get(t.key, {}).values()
             if expanded:
                 on_path.discard(t.key)
                 tail = max((memo.get(d.key, 0.0) for d in successors), default=0.0)
@@ -683,12 +714,12 @@ class WorkQueue:
             if not isinstance(entry, int):
                 entry.refresh()
         self._defer_closed(now)
-        for t in self._queued:  # each task's wait starts when it could start but for resources
+        for t in self._queued.values():  # each task's wait starts when it could start but for resources
             if t.id not in self._ready_since and self._startable(t, now):
                 self._ready_since[t.id] = now
         memo: dict[str, float] = {}
         late = self._late(memo, now)
-        order = self._order(self._queued, memo, now)
+        order = self._order(list(self._queued.values()), memo, now)
         order = [t for t in order if t.id not in late] + [t for t in order if t.id in late]
         head: Task | None = None  # the first task in the order that cannot start
         guarded = False
@@ -700,6 +731,8 @@ class WorkQueue:
                 if started:
                     self._defer_displaced([t for t in order[i:] if t.id in late], late)
                 break
+            if task.id not in self._queued:
+                continue  # finished since the order was made: a deferral in this pass let a resume skip it
             if self._closed(task, now) is not None:
                 continue  # queued by a deferral's follow-up; deferred on the next pass
             if not self._startable(task, now):
@@ -713,16 +746,12 @@ class WorkQueue:
                 continue  # the starvation guard
             why = self._deferral(task)
             if why:  # the runner has no way to launch it now
-                self._queued.remove(task)
+                self._dequeue(task)
                 self._defer(task, why)
                 continue
-            self._queued.remove(task)
-            self._ready_since.pop(task.id, None)
+            self._dequeue(task)
             if task.fingerprint_at_start:
-                task = self._starting(task)
-                if self._skip is not None and task.id not in self._asked and task.id not in self._attempt and self._skip(task):
-                    self._settle(TaskResult.skipped(task))
-                    continue
+                task = self._starting(task)  # `skip` was asked when its dependencies were done
             attempt = self._attempt.get(task.id, 0) + 1
             self._attempt[task.id] = attempt
             self.on_event("start", task, attempt=attempt, running=len(self._running) + 1, slots=self.slots())
@@ -741,13 +770,12 @@ class WorkQueue:
         for task in tasks:
             if not task.fingerprint_at_start or task.id in self._asked or task.id in self._attempt:
                 continue
-            if not self._startable(task, now) or not any(t.id == task.id for t in self._queued):
+            if not self._startable(task, now) or task.id not in self._queued:
                 continue
             self._asked.add(task.id)
             started = self._starting(task)
             if self._skip(started):
-                self._queued = [t for t in self._queued if t.id != task.id]
-                self._ready_since.pop(task.id, None)
+                self._dequeue(task)
                 self._settle(TaskResult.skipped(started))
 
     def _late(self, memo: dict[str, float], now: float) -> dict[str, Deferral]:
@@ -755,7 +783,7 @@ class WorkQueue:
         endgame before its deadline, not one of the box's finishing kinds (they have its
         grace window), and with a finish chance below `FINISH_CHANCE`."""
         late: dict[str, Deferral] = {}
-        for t in self._queued:
+        for t in self._queued.values():
             if not self._startable(t, now):
                 continue
             for box in self._boxes(t):
@@ -776,7 +804,7 @@ class WorkQueue:
         """The chance that `task` and the work after it end within `left` seconds: from its
         own `estimate_s`, else the `finish_chance` callback, else the `estimate` callback; a
         point estimate gives 1 or 0. None when none of them knows the task."""
-        after = max((self._blevel(d, memo) for d in self._successors.get(task.key, ())), default=0.0)
+        after = max((self._blevel(d, memo) for d in self._successors.get(task.key, {}).values()), default=0.0)
         if task.estimate_s is None and self._finish_chance_fn is not None:
             chance = self._finish_chance_fn(task, left, after)
             if chance is not None:
@@ -789,10 +817,9 @@ class WorkQueue:
     def _defer_displaced(self, tasks: list[Task], late: Mapping[str, Deferral]) -> None:
         """Defer each of the late `tasks` still queued: every slot went to other tasks."""
         ids = {t.id for t in tasks}
-        displaced = [t for t in self._queued if t.id in ids]
-        if not displaced:
-            return
-        self._queued = [t for t in self._queued if t.id not in ids]
+        displaced = [t for t in self._queued.values() if t.id in ids]
+        for t in displaced:
+            self._dequeue(t)
         for t in displaced:
             self._defer(t, late[t.id])
 
@@ -824,13 +851,17 @@ class WorkQueue:
             return None
 
     def _starting(self, task: Task) -> Task:
-        """The task as it starts, from the runner (`starting`), if it gives one: its
-        fingerprint completed. One that raises leaves the task as it was, and says so."""
+        """The task as it starts: `task` with the fingerprint, the outside state's digest and
+        the fingerprint's parts of the task the runner gives (`starting`), if it gives one.
+        Nothing else of what the runner gives is taken, so the task that starts has the id,
+        the key, the dependencies and the claims the queue holds it by. A hook that raises
+        leaves the task as it was, and says so."""
         ask = getattr(self.runner, "starting", None)
         if ask is None:
             return task
         try:
-            return ask(task)
+            given = ask(task)
+            return replace(task, fingerprint=given.fingerprint, outside=given.outside, fingerprint_parts=given.fingerprint_parts)
         except Exception as exc:  # a broken hook must not stop the queue
             self.on_event("note", task, starting_failed=repr(exc)[:200])
             return task
@@ -870,9 +901,8 @@ class WorkQueue:
             # retry at the same instant.
             wait_s = random.uniform(0, self.retry_wait_s)
             self.on_event("retry", task, stop=res.stop, wait_s=wait_s, reason=res.reason)
-            self._not_before[task.id] = time.monotonic() + wait_s
-            self._ready_since.pop(task.id, None)  # its wait starts again after the retry wait
-            self._queued.insert(0, task)
+            self._not_before[task.id] = time.monotonic() + wait_s  # its wait starts again after the retry wait
+            self._enqueue(task, first=True)
             return
         self._settle(res)
 
@@ -904,6 +934,7 @@ class WorkQueue:
         or queued continues.
         """
         task = res.task
+        self._finished += 1
         if res.stop != STOP_DUPLICATE_KEY:
             self._done_keys.add(task.key)
             self._inflight_keys.discard(task.key)
@@ -918,27 +949,44 @@ class WorkQueue:
             follow_ups = []
         self.extend(follow_ups)
         if res.stop != STOP_DUPLICATE_KEY:  # its key is done: what waited for it may be skipped now
-            self._skip_startable(self._successors.get(task.key, ()))
+            self._skip_startable(list(self._successors.get(task.key, {}).values()))
 
     async def _sleep_until_retry(self) -> bool:
         """Wait for the next retry time when retries are pending (a task added from
         outside ends the wait early)."""
         now = time.monotonic()
-        waits = [self._not_before[t.id] - now for t in self._queued if self._not_before.get(t.id, 0.0) > now]
+        waits = [self._not_before[t.id] - now for t in self._queued.values() if self._not_before.get(t.id, 0.0) > now]
         if not waits:
             return False
         await self._wait(set(), min(max(0.05, min(waits)), 5.0))
         return True
 
-    def _defer_all(self, deferral: Deferral) -> None:
-        tasks, self._queued = self._queued, []
-        for t in tasks:
-            self._defer(t, deferral)
+    def _give_up(self) -> None:
+        """Nothing runs, and a pass could start nothing: defer the queued tasks that nothing
+        can launch, each with its cause. One names a key in `after` that is neither done nor
+        in flight (`dependency_not_queued`); one whose dependencies are done finds no room
+        with nothing running (`no_capacity`: a claim capacity or its kind's cap is 0). A
+        task that only waits for one of them stays queued: the deferral marks that key
+        done, as any deferral does, so the next pass may start it. With no such task, every
+        queued task waits for another: they wait for each other, and all are deferred
+        (`dependency_cycle`)."""
+        stuck: list[tuple[Task, Deferral]] = []
+        for t in self._queued.values():
+            waits_for = [d for d in t.after if d not in self._done_keys]
+            if any(d not in self._inflight_keys for d in waits_for):
+                stuck.append((t, _NOT_QUEUED))
+            elif not waits_for and not self._free(t):
+                stuck.append((t, _NO_CAPACITY))
+        if not stuck:
+            stuck = [(t, _CYCLE) for t in self._queued.values()]
+        for t, _ in stuck:
+            self._dequeue(t)
+        for t, why in stuck:
+            self._defer(t, why)
 
     def _defer(self, task: Task, deferral: Deferral) -> None:
         """Not launched: reported as `deferred`, then finished as such."""
         self.on_event("deferred", task, reason=deferral.reason, cause=deferral.cause)
-        self._ready_since.pop(task.id, None)
         self.deferred.append(task)
         self._settle(TaskResult.deferred(task, deferral))
 

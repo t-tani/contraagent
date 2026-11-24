@@ -9,7 +9,7 @@ import time
 from types import SimpleNamespace
 
 import contraagent._internal.dispatch.queue as queue_module
-from contraagent import Task, TaskResult
+from contraagent import DeferralCause, Task, TaskResult
 from contraagent._internal.dispatch.queue import FINISH_CHANCE
 from contraagent.engine import Deferral, JournalEstimates, WorkQueue
 
@@ -396,6 +396,136 @@ def test_a_dependency_that_never_comes_still_ends_deferred():
     assert seen == {"b": "deferred"} and summary["deferred"] == ["b"]
 
 
+def test_a_task_after_a_rested_one_launches_when_the_pass_met_it_first():
+    """A rest defers a task in a pass that had already met the task after it: the endgame
+    orders a finishing kind first. The deferral marks the key done, so the task after it
+    launches (it was deferred as a dependency never queued)."""
+    runner = Resting({"write"})
+    seen: dict[str, str] = {}
+    q = WorkQueue(
+        runner,
+        follow_up=lambda res: seen.update({res.task.key: res.stop}) or [],
+        deadline_s=1000,
+        slack_s=1000,
+        finishing_kinds=("report",),
+    )
+    q.add(Task("write", key="write"))
+    q.add(Task("report", key="report", after=("write",)))
+    summary = q.run()
+    assert runner.launched == ["report"]
+    assert seen == {"write": "deferred", "report": "completed"} and summary["deferred"] == ["write"]
+
+
+def test_the_queue_takes_only_the_fingerprint_of_the_task_a_runner_gives_as_it_starts():
+    """A runner's `starting` gives the task with its fingerprint completed. One that gives
+    another task (another id, key, kind, claims and dependencies) does not change the task
+    the queue holds: that one starts, with the fingerprint given."""
+
+    class Other(Runner):
+        def __init__(self) -> None:
+            super().__init__()
+            self.ran: list[Task] = []
+
+        def starting(self, task: Task) -> Task:
+            parts = {"outside": "o1"}
+            return Task("b", key="elsewhere", after=("never",), claims=("held",), fingerprint="f1", outside="o1", fingerprint_parts=parts)
+
+        def run(self, task: Task) -> TaskResult:
+            self.ran.append(task)
+            return super().run(task)
+
+    runner = Other()
+    q = WorkQueue(runner)
+    task = Task("a", key="write", claims=("x",), fingerprint_at_start=True)
+    q.add(task)
+    q.add(Task("a", key="next", after=("write",)))
+    summary = q.run()
+    assert [t.key for t in runner.ran] == ["write", "next"] and summary["ok"] == 2
+    started = runner.ran[0]
+    assert (started.id, started.kind, started.claims, started.after) == (task.id, "a", ("x",), ())
+    assert (started.fingerprint, started.outside, started.fingerprint_parts) == ("f1", "o1", {"outside": "o1"})
+
+
+def test_a_resume_skips_a_task_after_one_a_rest_deferred_in_the_same_pass():
+    """The deferral of `write` marks its key done, so the resume skips `fill`, which the
+    pass has not met yet: the pass goes on to `other` (it raised ValueError at `fill`, no
+    longer queued)."""
+    runner = Resting({"write"})
+    seen: dict[str, str] = {}
+    q = WorkQueue(runner, follow_up=lambda res: seen.update({res.task.key: res.stop}) or [], skip=lambda task: task.key == "fill")
+    q.add(Task("write", key="write"))
+    q.add(Task("fill", key="fill", after=("write",), fingerprint_at_start=True))
+    q.add(Task("other", key="other"))
+    q.run()
+    assert runner.launched == ["other"]
+    assert seen == {"write": "deferred", "fill": "skipped", "other": "completed"}
+
+
+def test_work_a_resume_skipped_does_not_count_after_a_task():
+    """`first` takes 10 s of the 60 left. The 100 s of `done`, the task after it, are not
+    ahead of it: a resume skipped `done`. So `first` is not late, and no other task's
+    start defers it."""
+    runner = Runner()
+    q = WorkQueue(runner, skip=lambda task: task.key == "done", max_concurrent=1, deadline_s=60, slack_s=60)
+    q.add(Task("a", key="first", estimate_s=10))
+    q.add(Task("a", key="done", after=("first",), estimate_s=100))
+    q.add(Task("a", key="other", estimate_s=1))
+    summary = q.run()
+    assert runner.launched == ["other", "first"] and summary["deferred"] == []
+
+
+def test_work_that_was_cancelled_does_not_count_after_a_task():
+    """As for a task a resume skipped: the 100 s of `then`, cancelled while queued, are not
+    ahead of `first`."""
+    runner = Runner()
+    q = WorkQueue(runner, max_concurrent=1, deadline_s=60, slack_s=60)
+    q.add(Task("a", key="first", estimate_s=10))
+    q.add(Task("a", key="then", after=("first",), estimate_s=100))
+    q.add(Task("a", key="other", estimate_s=1))
+    assert q.cancel("then")
+    summary = q.run()
+    assert runner.launched == ["other", "first"] and summary["deferred"] == []
+
+
+def causes_of(queue_options: dict, *tasks: Task) -> tuple[list[str], dict[str, str]]:
+    """The keys launched, and the cause each deferred task was deferred with."""
+    runner = Runner()
+    causes: dict[str, str] = {}
+    q = WorkQueue(runner, on_event=lambda e, t, **f: causes.update({t.key: f["cause"].cause}) if e == "deferred" else None, **queue_options)
+    for task in tasks:
+        q.add(task)
+    q.run()
+    return runner.launched, causes
+
+
+def test_a_task_that_nothing_can_launch_is_deferred_with_its_own_cause():
+    """A capacity of 0, a dependency never queued and tasks that wait for each other are
+    three causes (each was `dependency_not_queued`)."""
+    launched, causes = causes_of(
+        {"claim_capacity": {"heavy": 0}},
+        Task("a", key="closed", claims=("heavy",)),
+        Task("a", key="orphan", after=("never",)),
+        Task("a", key="one", after=("other",)),
+        Task("a", key="other", after=("one",)),
+    )
+    assert launched == []
+    assert causes == {"closed": "no_capacity", "orphan": "dependency_not_queued", "one": "dependency_cycle", "other": "dependency_cycle"}
+
+
+def test_a_task_after_one_that_nothing_can_launch_starts_once_that_one_is_deferred():
+    """As after any deferral: `then` only waits for `closed`, so it is not deferred with it
+    (it was, as a task whose dependency was never queued)."""
+    launched, causes = causes_of(
+        {"claim_capacity": {"heavy": 0}},
+        Task("a", key="closed", claims=("heavy",)),
+        Task("a", key="orphan", after=("never",)),
+        Task("a", key="then", after=("closed", "orphan")),
+        Task("a", key="last", after=("then",)),
+    )
+    assert launched == ["then", "last"]
+    assert causes == {"closed": "no_capacity", "orphan": "dependency_not_queued"}
+
+
 # --- no idle slot, and the finish chance ------------------------------------------------
 
 
@@ -487,8 +617,9 @@ class FakeClock:
 
 
 class Checked(WorkQueue):
-    """A queue that checks, after each pass, that no slot is free while a queued task could
-    start, and, at each `cannot_finish` deferral, that every slot is taken."""
+    """A queue that checks, each time it waits or gives up what is queued, that no slot is
+    free while a queued task could start, and, at each `cannot_finish` deferral, that every
+    slot is taken."""
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, on_event=self._seen, **kwargs)
@@ -502,13 +633,20 @@ class Checked(WorkQueue):
             if len(self._running) < self.slots():
                 self.broken.append(f"{task.key if task else ''} deferred with a slot free")
 
-    def _start_ready(self, loop, pool) -> None:
-        super()._start_ready(loop, pool)
+    def _idle(self) -> None:
         now = queue_module.time.monotonic()
         if len(self._running) < self.slots():
-            for t in self._queued:
-                if self._startable(t, now) and self._free(t) and self._closed(t, now) is None:
+            for t in self._queued.values():
+                if self._startable(t, now) and self._free(t) and self._closed(t, now) is None and self._deferral(t) is None:
                     self.broken.append(f"{t.key} could start, {len(self._running)} of {self.slots()} slots taken")
+
+    async def _wait(self, running, timeout):
+        self._idle()
+        return await super()._wait(running, timeout)
+
+    def _give_up(self) -> None:
+        self._idle()
+        super()._give_up()
 
 
 def test_no_slot_idles_while_a_task_can_start(monkeypatch):
@@ -557,3 +695,63 @@ def test_no_slot_idles_while_a_task_can_start(monkeypatch):
         assert q.broken == [], (case, q.broken)
         late += q.late
     assert late > 0  # the cases defer some late tasks
+
+
+def test_no_slot_idles_when_rests_defer_tasks_and_a_resume_skips_some(monkeypatch):
+    """The same property when the runner defers some tasks as they would start (a rest) and
+    a resume skips others, some only once their dependencies are done: each such task
+    finishes within a pass, which changes what the rest of the pass and the next can start."""
+    clock = FakeClock()
+    monkeypatch.setattr(queue_module, "time", clock)
+    rng = random.Random(29)
+    rested = skipped = 0
+    for case in range(300):
+        n = rng.randint(1, 10)
+        keys = [f"t{i}" for i in range(2 * n)]
+        resting = {k for k in keys if rng.random() < 0.25}
+        done_before = {k for k in keys if rng.random() < 0.25}
+
+        class Resting(Runner):
+            def config(self, task: Task) -> SimpleNamespace:
+                return SimpleNamespace(max_concurrent=2 if task.kind == "capped" else None)
+
+            def run(self, task: Task) -> TaskResult:
+                clock.spend(1.0)
+                return TaskResult(task=task, ok=True, stop="completed")
+
+            def deferral(self, task: Task, resting=resting) -> Deferral | None:
+                return Deferral("personal rests", DeferralCause(cause="rest")) if task.key in resting else None
+
+        def make(i: int, after: tuple[str, ...]) -> Task:
+            return Task(
+                rng.choice(["a", "b", "capped", "report"]),
+                key=f"t{i}",
+                after=after,
+                estimate_s=rng.choice([None, 1.0, 20.0]),
+                claims=tuple(rng.sample(["x", "y"], rng.randint(0, 1))),
+                fingerprint_at_start=rng.random() < 0.5,
+            )
+
+        tasks = [make(i, tuple(f"t{j}" for j in range(i) if rng.random() < 0.3)) for i in range(n)]
+        later = {t.key: make(n + i, (t.key,)) for i, t in enumerate(tasks) if rng.random() < 0.4}
+        ended: dict[str, list[str]] = {}
+
+        def follow_up(res: TaskResult, later=later, ended=ended) -> list[Task]:
+            ended.setdefault(res.task.key, []).append(res.stop)
+            return [later[res.task.key]] if res.task.key in later else []
+
+        endgame = {"deadline_s": 1000, "slack_s": 1000, "finishing_kinds": ("report",)} if case % 2 else {}
+        q = Checked(
+            Resting(), max_concurrent=rng.randint(1, 4), follow_up=follow_up, skip=lambda task, s=done_before: task.key in s, **endgame
+        )
+        for t in rng.sample(tasks, len(tasks)):  # in any order: a task may arrive before one it is after
+            q.add(t)
+        q.run()
+        assert q.broken == [], (case, q.broken)
+        expected = {t.key for t in tasks} | {t.key for t in later.values()}
+        assert {key: len(stops) for key, stops in ended.items()} == dict.fromkeys(expected, 1), case  # each finished once
+        for key, (stop,) in ended.items():
+            assert stop == ("skipped" if key in done_before else "deferred" if key in resting else "completed"), (case, key, stop)
+        rested += sum(1 for (stop,) in ended.values() if stop == "deferred")
+        skipped += sum(1 for (stop,) in ended.values() if stop == "skipped")
+    assert rested > 100 and skipped > 100

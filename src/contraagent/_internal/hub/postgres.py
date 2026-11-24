@@ -12,6 +12,7 @@ does.
     documents       run -> runs.id, name, text
     files           run -> runs.id, path, sha256, size, mtime
     heartbeats      host_id, heartbeat (the JSON), received_at
+    pruned_runs     name, run_uid, pruned_at, logs (the JSON: each log's line count)
 
 A batch is stored in one transaction that first locks its run's row, so two hub processes
 ingesting the same run apply its batches one after the other. A new `run_uid` under a held
@@ -22,7 +23,10 @@ After each committed batch that changed what the hub holds of the run (the rule 
 run's name as the payload, and after each heartbeat with `host:<host_id>` (`NOTIFY_CHANNEL`).
 
 `delete_run` deletes the run's row, and with it (`ON DELETE CASCADE`) its logs, lines,
-documents and files, in one transaction.
+documents and files, in one transaction. `prune_run` does the same and writes the run's
+`pruned_runs` row in that transaction, so a run is held or remembered as pruned, never
+neither. A table added to the schema is created by the next start (`CREATE TABLE IF NOT
+EXISTS`); the version changes when a start has to change what a table holds.
 """
 
 from __future__ import annotations
@@ -36,6 +40,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from contraagent._internal.hub.protocol import Accepted, FileRef, Heartbeat, RecordBatch, RunRef
+from contraagent._internal.hub.store import PrunedRun
 from contraagent._internal.runs.source import Pager
 
 #: The channel a `PostgresHubStore` notifies after each batch that changed a run, and each heartbeat.
@@ -87,6 +92,12 @@ _SCHEMA: list[LiteralString] = [
         host_id text COLLATE "C" PRIMARY KEY,
         heartbeat jsonb NOT NULL,
         received_at text NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS pruned_runs (
+        name text COLLATE "C" PRIMARY KEY,
+        run_uid text NOT NULL,
+        pruned_at text NOT NULL,
+        logs jsonb NOT NULL
     )""",
 ]
 
@@ -143,7 +154,7 @@ class PostgresHubStore:
 
     # --- writes ------------------------------------------------------------------------
 
-    def put_batch(self, batch: RecordBatch, received_at: str) -> Accepted:
+    def put_batch(self, batch: RecordBatch, received_at: str, *, dated: bool = False) -> Accepted:
         ref = batch.run
         held: dict[str, int] = {}
         with self._conn() as conn, conn.transaction():
@@ -151,10 +162,12 @@ class PostgresHubStore:
                 "INSERT INTO runs (name, run_uid, host_id, run_id) VALUES (%s, %s, %s, %s) ON CONFLICT (name) DO NOTHING RETURNING id",
                 (ref.name, ref.run_uid, ref.host_id, ref.run_id),
             ).fetchone()
-            changed = created is not None
+            changed = dated or created is not None
             row = conn.execute("SELECT id, run_uid FROM runs WHERE name = %s FOR UPDATE", (ref.name,)).fetchone()
             assert row is not None
             run, run_uid = row
+            # With the run's row held: a prune of the name waits, and is told the run is dated anew.
+            conn.execute("DELETE FROM pruned_runs WHERE name = %s", (ref.name,))
             if run_uid != ref.run_uid:
                 changed = True
                 conn.execute("DELETE FROM logs WHERE run = %s", (run,))
@@ -330,6 +343,25 @@ class PostgresHubStore:
             else:
                 cur = conn.execute("DELETE FROM runs WHERE name = %s AND run_uid = %s", (name, run_uid))
         return cur.rowcount > 0
+
+    def prune_run(self, name: str, run_uid: str, transcripts: dict[str, int], at: str, activity: str | None) -> bool:
+        with self._conn() as conn, conn.transaction():
+            row = conn.execute("SELECT id, received_at FROM runs WHERE name = %s AND run_uid = %s FOR UPDATE", (name, run_uid)).fetchone()
+            if row is None or (row[1] or None) != activity:
+                return False
+            held = conn.execute("SELECT log, lines FROM logs WHERE run = %s", (row[0],)).fetchall()
+            conn.execute("DELETE FROM runs WHERE id = %s", (row[0],))
+            conn.execute(
+                "INSERT INTO pruned_runs (name, run_uid, pruned_at, logs) VALUES (%s, %s, %s, %s) "
+                "ON CONFLICT (name) DO UPDATE SET run_uid = EXCLUDED.run_uid, pruned_at = EXCLUDED.pruned_at, logs = EXCLUDED.logs",
+                (name, run_uid, at, Jsonb({**transcripts, **{log: int(lines) for log, lines in held}})),
+            )
+        return True
+
+    def pruned(self, name: str) -> PrunedRun | None:
+        with self._conn() as conn:
+            row = conn.execute("SELECT run_uid, pruned_at, logs FROM pruned_runs WHERE name = %s", (name,)).fetchone()
+        return PrunedRun(row[0], row[1], {str(log): int(lines) for log, lines in row[2].items()}) if row else None
 
     def delete_heartbeat(self, host_id: str) -> bool:
         with self._conn() as conn:

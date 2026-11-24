@@ -12,9 +12,12 @@ it: a new run or a new `run_uid`, a log not held before, new lines, a document w
 differs or one removed that was held, or a file ref that differs. A batch that stores
 nothing new (a relay asking how many lines are held, a resend) leaves it as it was.
 
-Retention (`core.Hub.prune`) removes old runs (`HubStore.delete_run`), heartbeats of hosts
+Retention (`core.Hub.prune`) removes old runs (`HubStore.prune_run`), heartbeats of hosts
 long gone (`HubStore.delete_heartbeat`), and blobs no file ref references
-(`HubStore.referenced_blobs`, `BlobStore.items`, `BlobStore.delete`).
+(`HubStore.referenced_blobs`, `BlobStore.items`, `BlobStore.delete`). The store remembers
+each run it pruned (`PrunedRun`, `HubStore.pruned`): the run's host may still hold the run
+and ask how much of it the hub holds, and the hub then answers without storing it again
+(`core.pruned_answer`).
 
 `MemoryHubStore` and `MemoryBlobs` keep everything in memory (tests, a single-process
 hub); `DirectoryBlobs` keeps blobs as files. The Postgres store and the S3 blobs are in
@@ -38,11 +41,25 @@ from contraagent._internal.runs.files import write_document
 from contraagent._internal.runs.source import page
 
 
+class PrunedRun(NamedTuple):
+    """A run that retention removed, as the hub remembers it: its run uid, when it was
+    removed (ISO 8601), and how many lines of each of its logs the hub held then, the
+    transcripts too."""
+
+    run_uid: str
+    at: str
+    logs: dict[str, int]
+
+
 class HubStore(Protocol):
     """The records of every host's runs."""
 
-    def put_batch(self, batch: RecordBatch, received_at: str) -> Accepted:
-        """Store a batch by the protocol's rules; how many lines of each log it named are held."""
+    def put_batch(self, batch: RecordBatch, received_at: str, *, dated: bool = False) -> Accepted:
+        """Store a batch by the protocol's rules; how many lines of each log it named are held.
+        The run is dated `received_at` (`activity`) when the batch changes what the store
+        holds of it, and with `dated` in any case: the batch brought lines that the store
+        does not keep (a transcript's). A name the store remembers a pruned run of (`pruned`)
+        is no longer remembered so: a name holds a run or the memory of one, not both."""
         ...
 
     def put_heartbeat(self, heartbeat: Heartbeat, received_at: str) -> None:
@@ -91,7 +108,8 @@ class HubStore(Protocol):
         ...
 
     def activity(self, name: str) -> str | None:
-        """When a batch last changed what the hub holds of the run (ISO 8601), or None."""
+        """When a batch last dated the run (`put_batch`): the `received_at` it was given, or
+        None."""
         ...
 
     def heartbeats(self) -> dict[str, tuple[Heartbeat, str]]:
@@ -102,6 +120,21 @@ class HubStore(Protocol):
         """Remove everything held of the run under `name` (its logs, documents, file refs
         and activity); with `run_uid`, only while the run held under `name` has that uid.
         Whether a run was removed; removing an absent run does nothing."""
+        ...
+
+    def prune_run(self, name: str, run_uid: str, transcripts: dict[str, int], at: str, activity: str | None) -> bool:
+        """Remove the run under `name` as `delete_run` does, and remember it as pruned at `at`
+        (`pruned`), with how many lines of each log the store held and `transcripts`, the
+        same for the logs the store does not keep; only while the run still has the uid
+        `run_uid` and the activity `activity`, which the caller read (`activity(name)`): a
+        run that a batch dated since stays. One step: no batch is stored between the look at
+        the run and its removal. Whether the run was removed; nothing is remembered of a run
+        that stays, or of an absent one."""
+        ...
+
+    def pruned(self, name: str) -> PrunedRun | None:
+        """The run pruned under `name` (`prune_run`) and not stored again since (`put_batch`),
+        or None."""
         ...
 
     def delete_heartbeat(self, host_id: str) -> bool:
@@ -118,7 +151,8 @@ class HubStore(Protocol):
 
 
 class BlobItem(NamedTuple):
-    """One blob as a listing gives it: its SHA-256, its size in bytes, and when it was stored."""
+    """One blob as a listing gives it: its SHA-256, its size in bytes, and when it was stored
+    or last renewed."""
 
     sha256: str
     size: int
@@ -126,13 +160,22 @@ class BlobItem(NamedTuple):
 
 
 class BlobStore(Protocol):
-    """File contents, named by their SHA-256."""
+    """File contents, named by their SHA-256.
+
+    A blob is dated (`BlobItem.modified`) when it is stored and each time it is renewed.
+    Retention removes a blob that no file ref names only once that date is old (`expire`),
+    so whoever is about to name a blob it did not store renews it first (`renew`): the blob
+    then stays for the grace, which is the time the file ref has to arrive."""
 
     def has(self, sha256: str) -> bool: ...
 
+    def renew(self, sha256: str) -> bool:
+        """Date the blob now, as one stored now. Whether it is held."""
+        ...
+
     def put(self, sha256: str, data: bytes) -> None:
         """Store `data`; `ValueError` when it does not hash to `sha256`. Storing a blob already
-        held changes nothing, its `modified` included."""
+        held renews it."""
         ...
 
     def get(self, sha256: str) -> bytes | None: ...
@@ -141,8 +184,10 @@ class BlobStore(Protocol):
         """Every blob held, in no particular order; `modified` is timezone-aware."""
         ...
 
-    def delete(self, sha256: str) -> None:
-        """Remove the blob; nothing happens when there is none."""
+    def expire(self, sha256: str, before: datetime) -> bool:
+        """Remove the blob when it is dated before `before`, by its date as it is now, not
+        as a listing gave it: a blob renewed since stays. Whether it was removed; nothing
+        happens when there is none."""
         ...
 
 
@@ -180,16 +225,19 @@ class MemoryHubStore:
 
     def __init__(self) -> None:
         self._runs: dict[str, _Run] = {}
+        self._pruned: dict[str, PrunedRun] = {}
         self._heartbeats: dict[str, tuple[Heartbeat, str]] = {}
         self._lock = threading.Lock()
 
-    def put_batch(self, batch: RecordBatch, received_at: str) -> Accepted:
+    def put_batch(self, batch: RecordBatch, received_at: str, *, dated: bool = False) -> Accepted:
         ref = batch.run
         with self._lock:
+            self._pruned.pop(ref.name, None)
             run = self._runs.get(ref.name)
             changed = run is None or run.entry.run_uid != ref.run_uid
-            if run is None or changed:
+            if run is None or changed:  # a new run under the name
                 run = self._runs[ref.name] = _Run(ref.model_copy())
+            changed |= dated
             held: dict[str, int] = {}
             for chunk in batch.logs:
                 changed |= chunk.log not in run.logs
@@ -292,6 +340,20 @@ class MemoryHubStore:
             del self._runs[name]
             return True
 
+    def prune_run(self, name: str, run_uid: str, transcripts: dict[str, int], at: str, activity: str | None) -> bool:
+        with self._lock:
+            run = self._runs.get(name)
+            if run is None or run.entry.run_uid != run_uid or (run.received_at or None) != activity:
+                return False
+            del self._runs[name]
+            logs = {**transcripts, **{log: len(lines) for log, lines in run.logs.items()}}
+            self._pruned[name] = PrunedRun(run_uid, at, logs)
+            return True
+
+    def pruned(self, name: str) -> PrunedRun | None:
+        with self._lock:
+            return self._pruned.get(name)
+
     def delete_heartbeat(self, host_id: str) -> bool:
         with self._lock:
             return self._heartbeats.pop(host_id, None) is not None
@@ -315,10 +377,18 @@ class MemoryBlobs:
         with self._lock:
             return sha256 in self._blobs
 
+    def renew(self, sha256: str) -> bool:
+        with self._lock:
+            got = self._blobs.get(sha256)
+            if got is None:
+                return False
+            self._blobs[sha256] = (got[0], self._clock())
+            return True
+
     def put(self, sha256: str, data: bytes) -> None:
         _check(sha256, data)
         with self._lock:
-            self._blobs.setdefault(sha256, (bytes(data), self._clock()))
+            self._blobs[sha256] = (bytes(data), self._clock())
 
     def get(self, sha256: str) -> bytes | None:
         with self._lock:
@@ -331,14 +401,19 @@ class MemoryBlobs:
         for sha, (data, at) in held:
             yield BlobItem(sha, len(data), datetime.fromtimestamp(at, UTC))
 
-    def delete(self, sha256: str) -> None:
+    def expire(self, sha256: str, before: datetime) -> bool:
         with self._lock:
-            self._blobs.pop(sha256, None)
+            got = self._blobs.get(sha256)
+            if got is None or datetime.fromtimestamp(got[1], UTC) >= before:
+                return False
+            del self._blobs[sha256]
+            return True
 
 
 class DirectoryBlobs:
     """A `BlobStore` in a directory: `<root>/<sha[:2]>/<sha>`, written atomically
-    (`write_document`)."""
+    (`write_document`) and dated by its modification time. `expire` looks at that time and
+    then removes the file, two calls apart: a blob renewed between them is removed."""
 
     def __init__(self, root: str | Path) -> None:
         self.root = Path(root)
@@ -351,11 +426,18 @@ class DirectoryBlobs:
     def has(self, sha256: str) -> bool:
         return self._path(sha256).is_file()
 
+    def renew(self, sha256: str) -> bool:
+        try:
+            os.utime(self._path(sha256))
+        except FileNotFoundError:
+            return False
+        return True
+
     def put(self, sha256: str, data: bytes) -> None:
         _check(sha256, data)
-        path = self._path(sha256)
-        if path.is_file():
+        if self.renew(sha256):
             return
+        path = self._path(sha256)
         path.parent.mkdir(parents=True, exist_ok=True)
         write_document(path, data)
 
@@ -381,5 +463,12 @@ class DirectoryBlobs:
                     continue
                 yield BlobItem(entry.name, st.st_size, datetime.fromtimestamp(st.st_mtime, UTC))
 
-    def delete(self, sha256: str) -> None:
-        self._path(sha256).unlink(missing_ok=True)
+    def expire(self, sha256: str, before: datetime) -> bool:
+        path = self._path(sha256)
+        try:
+            if datetime.fromtimestamp(path.stat().st_mtime, UTC) >= before:
+                return False
+            path.unlink()
+        except FileNotFoundError:
+            return False
+        return True

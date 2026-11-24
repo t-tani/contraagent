@@ -2310,10 +2310,15 @@ class Router
     def now(self) -> float
     def on_credential(self, credential: str) -> Router
     def other_agents_after(self, route: Route) -> list[Route]
-    def pick(self) -> Route | None
+    def pick(self, *, probe: bool = True) -> Route | None
     primary
     probe_interval_s
-    def rate_limited(self, route: Route | None, retry_after_s: float | None = None) -> str
+    def rate_limited(
+        self,
+        route: Route | None,
+        retry_after_s: float | None = None,
+        started: float | None = None,
+    ) -> str
     routes: tuple[Route, ...]
     def same_agent_after(self, route: Route) -> list[Route]
     def succeeded(self, route: Route | None, started: float | None = None) -> None
@@ -3286,6 +3291,7 @@ class JournalRow(RecordModel)
     model_config: ConfigDict = ConfigDict(extra='allow')
     ok: bool
     output_of_after: str = ''
+    output_of_file: str = ''
     outside: str = ''
     played: Played | None = None
     quota: list[QuotaReading] = Field(default_factory=list)

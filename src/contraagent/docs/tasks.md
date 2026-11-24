@@ -237,7 +237,9 @@ attempt are, and a resume runs it again when the flow creates it.
 
 Cancellation is for work whose answer is no longer needed when nobody waits for
 it: several probes of one change, of which the first blocking finding settles the
-review.
+review. Only a flow call that waits counts. One that holds the task's call and
+waits for it later does not: when the flow call that created the task is closed
+before that wait begins, the task is cancelled, and the wait raises `TaskFailed`.
 
 ::code{file="examples/cancel/flow.py" from="async def ask("}
 
@@ -318,13 +320,20 @@ A resume skips a task only when its output still reads under its output schema.
 An output file that no longer does (one edited by hand into another shape) runs
 its task again, and its journal row's `rerun` says so.
 
+A task that was running when the run's process ended has no journal row of that
+attempt, and its output file may hold what the attempt wrote before it ended. A
+resume runs such a task again, also when an earlier attempt of it finished with the
+same fingerprint: the run keeps a marker of each running task, and a marker that is
+still there with no journal row since says the attempt did not finish.
+
 A task that fills in another task's file (`output_of`) left its own output in the
 file, so a resume cannot see in the file what the task found there. The journal
-row keeps both digests: the file as the task found it (`fingerprint_parts`
-`output_of`) and as the task left it (`output_of_after`). A resume skips the task
-when the file is as the task left it, or as a task after it that fills it in left
-it. A file changed by hand, or written again by a task before it that ran again,
-runs again every task after its writer that fills it in.
+row keeps both digests, the file as the task found it (`fingerprint_parts`
+`output_of`) and as the task left it (`output_of_after`), and the file's path
+(`output_of_file`). A resume skips the task when the file is as the task left it,
+or as a task after it that fills the same file in left it. A file changed by hand,
+or written again by a task before it that ran again, runs again every task after
+its writer that fills it in.
 
 A resume gives the flow the results of the tasks it skips one at a time, in the
 order the journal recorded them, so flow code that depends on the order in which
@@ -982,8 +991,10 @@ task's processes take is the memory that the processes in its coding agents'
 process groups do not share with other processes. A Python task runs inside the
 run's own process, and a process can leave its agent's group, so what they take
 counts as other programs' memory while the task's `memory_mb` stays held. The cores allow at most the
-usable cores divided by `cores`. While no task holds the name, one starts anyway,
-so a run always goes on even on a host short of memory. A larger `memory_mb` than a
+usable cores divided by `cores`, and one task where that is none. While no running task
+holds memory by a `PerTask` claim, one starts whatever the memory, so a run always goes
+on even on a host short of memory. The memory is the host's: the tasks of every
+`PerTask` name share it, also the names that one pattern matches. A larger `memory_mb` than a
 task takes holds back other tasks. A waiting task starts as soon as a task ends or
 the memory frees, while the others still run.
 
@@ -1148,6 +1159,15 @@ removes them itself, or the kind does not keep them. A kind that keeps them need
 reports a task table that sets it.
 
 ::code{file="examples/changes/flow.py" from="study = agent_task(" to="def pipeline("}
+
+A file is attributed to the task whose attempt ran when it changed, so two tasks
+that run at once under patterns that cover the same files cannot be told apart: a
+failed attempt of one removes the files the other created meanwhile. Give each
+task a directory of its own (`{unit}` in the pattern), or keep the tasks apart with
+`after=` or a claim they share. `contraagent check` warns of two tasks that may run
+at once in one working directory when their patterns may cover the same files. It
+compares the patterns, not the files, so it also warns of patterns such as
+`src/a*.py` and `src/*b.py`, which cover one file only when a name fits both.
 
 A pattern that starts with `!` leaves out what it matches, and everything under a
 directory it matches, whatever the other patterns cover: `["**", "!.git/**",
