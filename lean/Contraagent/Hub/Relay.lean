@@ -11,7 +11,9 @@ The hub is the surroundings: `answer` gives, for each request, what the hub is a
 and how many lines of each log the request names it holds then. Left out: the documents and the files a contract names
 but for whether a request carries any, the limit of a request in bytes, byte offsets, a
 log that became shorter than the part sent, the heartbeat, the fast path's choice of the
-active transcripts, and the waits after a hub that takes no request.
+active transcripts, the waits after a hub that takes no request, a run or a log whose name
+is not UTF-8, which the relay does not send, and the text of a line as a hub holds it
+(`text`), which keeps the count of a log's lines.
 -/
 
 namespace Contraagent

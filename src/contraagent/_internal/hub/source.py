@@ -17,6 +17,7 @@ from pathlib import Path
 from contraagent._internal.hub.protocol import Heartbeat
 from contraagent._internal.hub.store import BlobStore, HubStore
 from contraagent._internal.hub.streams import StreamLogs, is_stream
+from contraagent._internal.hub.text import record_text, record_value
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.liveness import empty_snapshot
 from contraagent._internal.runs.names import check_name, entry_parts
@@ -57,10 +58,13 @@ class HubSource:
         return [e.name for e in self.store.runs()]
 
     def info(self, run: str) -> dict | None:
-        """The run's `run.json`, its `host_id` the one the hub names it by (the relay's)."""
-        info = parse_info(self.store.document(self._name(run), layout.RUN_INFO))
-        if info is None:
+        """The run's `run.json`, its `host_id` the one the hub names it by (the relay's), and
+        its strings as the hub holds text (`text.record_value`): the list of every run shows
+        them, so one run's must not break it."""
+        held = parse_info(self.store.document(self._name(run), layout.RUN_INFO))
+        if held is None:
             return None
+        info: dict = record_value(held)
         entry = self.store.entry(self._name(run))
         return {**info, "host_id": entry.host_id} if entry else info
 
@@ -135,14 +139,15 @@ class HubSource:
         return max(times) if times else None
 
     def file(self, run: str, path: str) -> RunFile | None:
-        ref = self.store.file(self._name(run), path)
+        # `path` is as a contract names it; the hub holds it as `text.record_text` makes it.
+        ref = self.store.file(self._name(run), record_text(path))
         if ref is None or ref.sha256 is None:
             return None
         data = self.blobs.get(ref.sha256)
         return RunFile(data, ref.mtime) if data is not None else None
 
     def file_stat(self, run: str, path: str) -> Stat | None:
-        ref = self.store.file(self._name(run), path)
+        ref = self.store.file(self._name(run), record_text(path))
         if ref is None or ref.sha256 is None:
             return None
         return Stat(ref.size, _ns(ref.mtime))

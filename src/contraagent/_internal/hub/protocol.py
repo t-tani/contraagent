@@ -25,13 +25,21 @@ Delivery is at least once, and storing is idempotent:
 
 A run is named on the hub `<run_id>@<host_id>` (`RunRef.name`), a plain name no run of
 another host has.
+
+Every text of a request is made one the hub can hold (`text`) as the model is made, so
+on the relay before it is sent and on the hub as it arrives: a lone surrogate is written
+out as its escape, and a NUL outside a transcript's lines becomes SUB (U+001A). Both
+keep the count of a log's lines.
 """
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import AfterValidator, BaseModel, Field, model_validator
+
+from contraagent._internal.hub.streams import is_stream
+from contraagent._internal.hub.text import SUB, record_text, record_value, wire_text
 
 INGEST_RECORDS = "/ingest/records"
 INGEST_HEARTBEAT = "/ingest/heartbeat"
@@ -42,13 +50,17 @@ HEALTHZ = "/healthz"
 #: --ttl`); the hub reads a heartbeat without a TTL as this many of its intervals.
 TTL_INTERVALS = 4
 
+WireText = Annotated[str, AfterValidator(wire_text)]
+RecordText = Annotated[str, AfterValidator(record_text)]
+RecordValue = Annotated[dict, AfterValidator(record_value)]
+
 
 class RunRef(BaseModel):
     """Which run a batch or a liveness report is about."""
 
-    host_id: str
-    run_id: str
-    run_uid: str
+    host_id: RecordText
+    run_id: RecordText
+    run_uid: RecordText
 
     @property
     def name(self) -> str:
@@ -64,25 +76,32 @@ def hub_run_name(run_id: str, host_id: str) -> str:
 class LogChunk(BaseModel):
     """Complete lines of one append-only log, from line `offset` on."""
 
-    log: str = Field(description="the log's layout name: `journal.jsonl`, `streams/<key>.stream.jsonl`, ...")
+    log: RecordText = Field(description="the log's layout name: `journal.jsonl`, `streams/<key>.stream.jsonl`, ...")
     offset: int = Field(ge=0, description="the line index of `lines[0]` in the log")
-    lines: list[str] = Field(description="complete lines, without their newline")
+    lines: list[WireText] = Field(description="complete lines, without their newline")
+
+    @model_validator(mode="after")
+    def _no_nul_outside_a_transcript(self) -> LogChunk:
+        """A transcript is stored as bytes and keeps a NUL; any other log's lines are text."""
+        if not is_stream(self.log):
+            self.lines = [line.replace("\x00", SUB) for line in self.lines]
+        return self
 
 
 class DocumentPut(BaseModel):
     """A whole document of the run, or its removal."""
 
-    name: str = Field(description="the document's layout name: `run.json`, `contracts/<name>.json`, `inflight/<key>.json`, ...")
-    text: str | None = Field(description="the document's text; null when it was removed")
+    name: RecordText = Field(description="the document's layout name: `run.json`, `contracts/<name>.json`, `inflight/<key>.json`, ...")
+    text: RecordText | None = Field(description="the document's text; null when it was removed")
 
 
 class FileRef(BaseModel):
     """A file one of the run's contracts names, as the run's host sees it."""
 
-    path: str = Field(description="the path as the contract names it")
-    sha256: str | None = Field(description="the content's SHA-256 (the blob's name); null when the file does not exist")
+    path: RecordText = Field(description="the path as the contract names it")
+    sha256: RecordText | None = Field(description="the content's SHA-256 (the blob's name); null when the file does not exist")
     size: int = 0
-    mtime: str = ""
+    mtime: RecordText = ""
 
 
 class RecordBatch(BaseModel):
@@ -109,7 +128,7 @@ class RunLiveness(BaseModel):
 
     run: RunRef
     alive: bool
-    snapshot: dict = Field(description="the run's live processes, in `Liveness.snapshot`'s shape (`contraagent.monitor.Liveness`)")
+    snapshot: RecordValue = Field(description="the run's live processes, in `Liveness.snapshot`'s shape (`contraagent.monitor.Liveness`)")
 
 
 class Heartbeat(BaseModel):
@@ -117,8 +136,8 @@ class Heartbeat(BaseModel):
     for `ttl_s` seconds after it receives the heartbeat, by the hub's clock; the relay
     sets both `interval_s` and `ttl_s`."""
 
-    host_id: str
-    sent_at: str = Field(description="the host's clock, ISO 8601")
+    host_id: RecordText
+    sent_at: RecordText = Field(description="the host's clock, ISO 8601")
     interval_s: float = Field(gt=0, description="seconds until the next heartbeat")
     ttl_s: float = Field(
         gt=0,

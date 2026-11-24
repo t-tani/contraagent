@@ -7,6 +7,9 @@ Its storing rules are the protocol's: a log keeps every line once, in order, and
 chunk that leaves a gap; a document is replaced whole; a batch whose `run_uid` differs from
 the one held under the same name is a new run, which replaces the old one's records.
 
+The models of a batch and of a heartbeat hold no text a store cannot: no lone surrogate,
+and no NUL but in a transcript's lines, which go to the `StreamLogs` (`text`).
+
 A run's activity (`HubStore.activity`) is when a batch last changed what the hub holds of
 it: a new run or a new `run_uid`, a log not held before, new lines, a document whose text
 differs or one removed that was held, or a file ref that differs. A batch that stores
