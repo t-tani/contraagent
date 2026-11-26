@@ -1,31 +1,31 @@
 # Scheduling benchmark: main
 
-contraagent 0.6.2 on Python 3.12.9, 20 seeds, one minute of agent work run in 0.2 s. Written by `benchmarks/schedule.py`, whose docstring says what each figure means. Minutes of agent work, the median over the seeds; `worst` is the largest makespan.
+contraagent 0.12.0 (commit d409a78) on Python 3.12.9, 20 seeds, one minute of agent work run in 0.2 s. Written by `benchmarks/schedule.py`, whose docstring says what each figure means. Minutes of agent work, the median over the seeds; `worst` is the largest makespan.
 
 | scenario | run | makespan | worst | idle slot time | deferred | done by deadline | cost after deadline (USD) | would fit |
 |---|---|---|---|---|---|---|---|---|
-| demo | first | 35.27 | 50.99 | 9.34 | 0.0 | - | - | - |
-| demo | second | 38.06 | 51.84 | 18.95 | 0.0 | - | - | - |
-| demo-one-review | first | 34.2 | 50.24 | 5.2 | 0.0 | - | - | - |
-| demo-one-review | second | 34.91 | 49.22 | 12.19 | 0.0 | - | - | - |
-| demo-loop | first | 42.83 | 59.07 | 13.38 | 0.0 | - | - | - |
-| demo-loop | second | 42.89 | 54.83 | 14.68 | 0.0 | - | - | - |
-| demo-deadline | first | 22.07 | 30.17 | 10.27 | 5.0 | 35.84 | 1.08 | 2.0 |
-| demo-deadline | second | 19.45 | 33.3 | 6.28 | 5.0 | 37.81 | 0.65 | 5.0 |
-| demo-one-review-deadline | first | 20.19 | 35.25 | 7.71 | 6.0 | 34.31 | 0.85 | 2.0 |
-| demo-one-review-deadline | second | 28.7 | 41.41 | 12.0 | 8.0 | 37.27 | 1.68 | 1.0 |
-| analysis | first | 40.71 | 76.87 | 43.56 | 0.0 | - | - | - |
-| analysis | second | 41.18 | 76.22 | 44.45 | 0.0 | - | - | - |
-| chains | first | 60.61 | 70.79 | 4.37 | 0.0 | - | - | - |
-| chains | second | 61.36 | 70.42 | 4.04 | 0.0 | - | - | - |
-| fan-in | first | 43.15 | 49.26 | 9.19 | 0.0 | - | - | - |
-| fan-in | second | 42.06 | 48.99 | 3.38 | 0.0 | - | - | - |
-| claims | first | 44.84 | 62.62 | 26.91 | 0.0 | - | - | - |
-| claims | second | 43.0 | 65.14 | 18.14 | 0.0 | - | - | - |
-| competing | first | 43.08 | 61.42 | 14.75 | 0.0 | - | - | - |
-| competing | second | 40.56 | 63.61 | 10.25 | 0.0 | - | - | - |
-| time-box | first | 34.1 | 60.31 | 10.0 | 6.0 | 63.1 | 1.49 | 0.5 |
-| time-box | second | 34.83 | 60.54 | 13.68 | 5.0 | 65.03 | 1.53 | 1.0 |
+| demo | first | 37.27 | 52.85 | 14.19 | 0.0 | - | - | - |
+| demo | second | 38.39 | 54.2 | 16.63 | 0.0 | - | - | - |
+| demo-one-review | first | 35.61 | 51.07 | 7.96 | 0.0 | - | - | - |
+| demo-one-review | second | 36.02 | 54.01 | 13.13 | 0.0 | - | - | - |
+| demo-loop | first | 43.77 | 58.06 | 16.93 | 0.0 | - | - | - |
+| demo-loop | second | 43.95 | 55.4 | 17.85 | 0.0 | - | - | - |
+| demo-deadline | first | 21.76 | 34.3 | 15.07 | 5.0 | 35.45 | 0.84 | 2.0 |
+| demo-deadline | second | 20.52 | 33.5 | 7.89 | 5.0 | 37.61 | 0.79 | 5.0 |
+| demo-one-review-deadline | first | 18.42 | 41.14 | 9.34 | 5.5 | 34.4 | 0.83 | 2.0 |
+| demo-one-review-deadline | second | 28.46 | 43.38 | 14.35 | 8.0 | 34.94 | 1.45 | 1.0 |
+| analysis | first | 39.8 | 75.19 | 41.54 | 0.0 | - | - | - |
+| analysis | second | 41.42 | 75.97 | 45.92 | 0.0 | - | - | - |
+| chains | first | 60.61 | 71.17 | 4.04 | 0.0 | - | - | - |
+| chains | second | 61.28 | 70.77 | 3.69 | 0.0 | - | - | - |
+| fan-in | first | 43.86 | 50.25 | 11.01 | 0.0 | - | - | - |
+| fan-in | second | 42.58 | 49.56 | 5.17 | 0.0 | - | - | - |
+| claims | first | 45.74 | 63.7 | 29.08 | 0.0 | - | - | - |
+| claims | second | 43.18 | 64.35 | 18.7 | 0.0 | - | - | - |
+| competing | first | 43.19 | 62.18 | 16.24 | 0.0 | - | - | - |
+| competing | second | 40.78 | 63.56 | 10.91 | 0.0 | - | - | - |
+| time-box | first | 34.34 | 60.07 | 9.82 | 6.0 | 61.9 | 1.53 | 1.0 |
+| time-box | second | 36.05 | 60.64 | 13.21 | 5.0 | 62.08 | 1.55 | 1.0 |
 
 ## Scenarios
 

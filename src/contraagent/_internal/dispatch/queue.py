@@ -17,7 +17,10 @@ ready when:
   still run: the queue looks again each second while any task runs (`POLL_S`, the
   wait in `run_async`), not only when one finishes. A task's kind
   or unit locks nothing: tasks that claim nothing run together whatever they are;
-* the kind's own cap (`runner.config(task).max_concurrent`) has room.
+* the kind's own cap (`runner.config(task).max_concurrent`) has room;
+* no running task conflicts with it (`runner.conflicts(task, other)`, when the runner
+  has it): two tasks that conflict never run at once. A pipeline's tasks conflict when
+  they work in one directory and their `changes` patterns may cover the same files.
 
 The schedule is a greedy list schedule: whenever a slot is free, the first
 task in the order that can start, starts. Its invariant: **no slot idles while a
@@ -41,9 +44,10 @@ other work takes the slot it would have had (below). The order:
 * the **starvation guard**: when the first task in the order that cannot start
   is overdue, a later task may not take the last place it still needs: on a
   name it claims, or under its kind's cap (a task of its kind); a name or a cap
-  with room for both is shared. So a task that claims
-  two names, or a name that a stream of tasks keeps busy, starts once what
-  holds them ends.
+  with room for both is shared. Nor may a task start that the overdue one
+  conflicts with. So a task that claims two names, or a name that a stream of
+  tasks keeps busy, or a task that conflicts with a stream of others, starts
+  once what holds it back ends.
 
 A deadline is a **time box** (`TimeBox`): the run's own (`deadline_s`, with
 `grace_s`, `slack_s` and `finishing_kinds`), over every task, and a flow call's
@@ -121,6 +125,10 @@ when a running task finishes.
 
 `runner` only needs to satisfy `TaskRunner` (`.config(task).max_concurrent`
 and `.run(task)`); nothing here imports a concrete runner. A runner may also
+say which tasks may not run at once (`.conflicts(task, other)`, true when `task`
+may not start while `other` runs): the queue asks it of each running task as it
+tries to start a task, so the answer reads what the queue holds a task by (its key,
+its kind), not its fingerprint. A runner may also
 say why a task cannot launch now (`.deferral(task)`, a `Deferral` or None): the
 queue asks it just before it would start the task, and defers the task instead.
 For a task with `fingerprint_at_start`, the queue then asks the runner for the task
@@ -533,29 +541,40 @@ class WorkQueue:
         return all(d in self._done_keys for d in task.after) and now >= self._not_before.get(task.id, 0.0)
 
     def _free(self, task: Task) -> bool:
-        """What it needs is free: every name it claims, and a place under its kind's cap."""
+        """What it needs is free: a place under its kind's cap, every name it claims, and no
+        running task it conflicts with."""
         cap = self.runner.config(task).max_concurrent
         if cap is not None and sum(1 for t in self._running.values() if t.kind == task.kind) >= cap:
             return False
-        return not any(self._held.get(name, 0) >= self.capacity(name) for name in set(task.claims))
+        if any(self._held.get(name, 0) >= self.capacity(name) for name in set(task.claims)):
+            return False
+        return not any(self._conflicts(task, other) for other in self._running.values())
+
+    def _conflicts(self, task: Task, other: Task) -> bool:
+        """Whether `task` may not start while `other` runs: the runner's `conflicts`, when it
+        has one. It reads what the queue holds a task by, not its fingerprint, which the
+        runner may complete as the task starts (`starting`)."""
+        ask = getattr(self.runner, "conflicts", None)
+        return bool(ask(task, other)) if ask is not None else False
 
     def _possible(self, task: Task) -> bool:
         """It could start with nothing else running: no cap or capacity of 0 stands in its
         way. A capacity worked out when it is asked (`ClaimCapacity`) is none: what it is
-        now, while other tasks run, says nothing of then."""
+        now, while other tasks run, says nothing of then. A conflict is none: it is with a
+        running task."""
         cap = self.runner.config(task).max_concurrent
         return (cap is None or cap > 0) and all(entry > 0 for name in task.claims if isinstance(entry := self._entry(name), int))
 
     def _takes(self, task: Task, head: Task) -> bool:
         """Whether starting `task` takes what `head` still needs: the last place on a name
-        both claim, or the last place under their kind's cap. A name or a cap with room for
-        both is not taken."""
+        both claim, or the last place under their kind's cap; or `head` may not start while
+        `task` runs. A name or a cap with room for both is not taken."""
         if any(self._held.get(name, 0) + 1 >= self.capacity(name) for name in set(task.claims) & set(head.claims)):
             return True
         cap = self.runner.config(head).max_concurrent
-        if task.kind != head.kind or cap is None:
-            return False
-        return sum(1 for t in self._running.values() if t.kind == head.kind) + 1 >= cap
+        if task.kind == head.kind and cap is not None and sum(1 for t in self._running.values() if t.kind == head.kind) + 1 >= cap:
+            return True
+        return self._conflicts(head, task)
 
     # --- progress -----------------------------------------------------------
 

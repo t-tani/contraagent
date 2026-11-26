@@ -67,7 +67,7 @@ whose result it follows), `outcomes` (by id, one for each attempt; `completed` b
 them), `durations` (by id; 1 when not given) and `cancels` (by the id of the task whose
 finish it follows: the keys to cancel before the next pass) and `starts` (by id: what the
 runner gives as the task starts) are lists of pairs. `skipPrints`: the fingerprints a resume
-skips. -/
+skips. `conflicts`: the pairs of keys whose tasks may not run at once, either way round. -/
 structure Scenario where
   maxConcurrent : Nat
   deadlineS : Option Int
@@ -92,6 +92,7 @@ structure Scenario where
   cancels : List (String × List String)
   starts : List (String × ScenarioStart)
   skipPrints : List String
+  conflicts : List (String × String)
   deriving FromJson
 
 /-- Where the clock starts, as the tests' clock does. -/
@@ -120,6 +121,8 @@ def Scenario.task? (sc : Scenario) (id : String) : Option Task :=
 def Scenario.env (sc : Scenario) : QueueEnv :=
   { kindCap := fun task => sc.kindCaps.lookup task.kind,
     capacity := fun name => .number ((sc.claimCapacity.lookup name).getD 1),
+    conflicts := fun task other =>
+      sc.conflicts.contains (task.key, other.key) || sc.conflicts.contains (other.key, task.key),
     skip := fun task => sc.skip.contains task.key || sc.skipPrints.contains task.fingerprint,
     starting := fun task =>
       match sc.starts.lookup task.id with

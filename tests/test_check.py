@@ -713,10 +713,11 @@ class Page(BaseModel):
     text: str
 
 
-def test_two_tasks_that_may_run_at_once_over_the_same_files_are_warned_of():
+def test_two_tasks_that_run_one_at_a_time_for_the_same_files_are_warned_of():
     """A failed attempt removes the files it created under its `changes` patterns, and a file
-    is attributed to the task that ran when it changed. Two tasks that run at once under
-    patterns that may cover one file cannot be told apart, so the check says so."""
+    is attributed to the task that ran when it changed. Two tasks whose patterns may cover
+    one file therefore run one at a time, and the check says so of those that would
+    otherwise run at once."""
     budget = {"instructions": "Write.", "output": Page, "max_turns": 1, "timeout_s": 30}
     shared = agent_task("shared", changes=["docs/**"], **budget)
     own = agent_task("own", changes=["docs/{unit}/**"], **budget)
@@ -733,12 +734,12 @@ def test_two_tasks_that_may_run_at_once_over_the_same_files_are_warned_of():
 
     report = pipeline().check(flow)
     assert report.ok, report
-    warnings = [w for w in report.warnings if "may run at once" in w]
+    warnings = [w for w in report.warnings if "run one at a time" in w]
     assert len(warnings) == 2, warnings
     among, across = sorted(warnings, key=lambda w: "own-a" in w)
-    assert among.startswith("shared-a and shared-b (and 2 more such pairs) may run at once")
-    assert "'docs/**' and 'docs/**'" in among and "(contraagent docs tasks)" in among
-    assert across.startswith("shared-a and own-a (and 8 more such pairs) may run at once")
+    assert among.startswith("shared-a and shared-b (and 2 more such pairs) run one at a time")
+    assert "'docs/**' and 'docs/**'" in among and "(contraagent docs tasks, Files a task changes)" in among
+    assert across.startswith("shared-a and own-a (and 8 more such pairs) run one at a time")
     assert "'docs/**' and 'docs/a/**'" in across
 
 
@@ -755,3 +756,23 @@ def test_changes_patterns_overlap_when_one_path_may_be_under_both():
     assert may_overlap(["topics/a*.md"], ["topics/b*.md"]) is None
     assert may_overlap(["out/*.json"], ["out/*.md"]) is None
     assert may_overlap([], ["docs/**"]) is None
+    # As a file system that tells names apart by neither case nor Unicode form sees them.
+    assert may_overlap(["Docs/**"], ["docs/a.md"]) is not None
+    assert may_overlap(["caf\u00e9/*"], ["cafe\u0301/x"]) is not None
+    # A `?` or a set of one name may be several characters of it in another form.
+    assert may_overlap(["out/run?.txt"], ["out/runs.txt"]) is not None
+    assert may_overlap(["out/[ab].txt"], ["out/ab.txt"]) is not None
+    assert may_overlap(["out/a*b"], ["out/*c"]) is None
+
+
+def test_changes_patterns_of_two_directories_overlap_when_one_is_under_the_other(tmp_path):
+    from contraagent._internal.execution.changes import overlap
+
+    (tmp_path / "pkg" / "sub").mkdir(parents=True)
+    (tmp_path / "other").mkdir()
+    (tmp_path / "link").symlink_to(tmp_path / "pkg")
+    assert overlap(tmp_path, ["pkg/**"], tmp_path / "pkg", ["**"]) == ("pkg/**", "**")
+    assert overlap(tmp_path / "pkg", ["*.md"], tmp_path, ["pkg/notes.md"]) == ("*.md", "pkg/notes.md")
+    assert overlap(tmp_path, ["pkg/a/**"], tmp_path / "pkg", ["b/**"]) is None
+    assert overlap(tmp_path / "pkg", ["**"], tmp_path / "other", ["**"]) is None  # apart: no file of both
+    assert overlap(tmp_path / "link", ["x"], tmp_path / "pkg", ["x"]) == ("x", "x")  # one directory, by its real path

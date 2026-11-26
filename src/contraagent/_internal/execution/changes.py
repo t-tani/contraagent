@@ -11,18 +11,20 @@ them, once empty), so a retry or a later run starts from the tree as it was. A t
 whose kind keeps a failed attempt's files (`keep_failed_changes`) leaves them in place
 and lists them (`Changes.kept`): the next attempt starts from the tree with them in it.
 
-A file is attributed to the task whose attempt was running when it changed. Two
-tasks running at once under the same pattern cannot be told apart: give each its own
-directory (`{unit}` in the pattern) or keep them from overlapping (a unit, a tag).
+A file is attributed to the task whose attempt was running when it changed, so two tasks
+whose patterns may cover the same files never run at once: the queue keeps them apart
+(`Graph.conflicts`, by `overlap`). `{unit}` in the patterns lets them run together.
 """
 
 from __future__ import annotations
 
+import functools
 import itertools
 import logging
 import os
 import re
 import time
+import unicodedata
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -91,44 +93,110 @@ def _segment(seg: str) -> str:
     return out
 
 
-_WILD = re.compile(r"[*?\[]")
+def folded(pattern: str) -> tuple[str, ...]:
+    """A covering pattern as the overlap test reads it (`may_overlap`): its segments, `/` or
+    `\\` between them, an empty segment and `.` left out; each segment case-folded and in
+    Unicode's NFC form, as a file system that tells names apart by neither (macOS, Windows)
+    sees it; and `?` and a set (`[...]`, read as `_segment` reads it) made `*`, a run of
+    `*` one: a set or a `?` of one name, in another form, may be several characters of the
+    same name. A segment `**` stays `**`. So every name a segment matches, the folded
+    segment matches, read as the folded name: the test errs toward an overlap.
+    `lean/Contraagent/Execution/Changes.lean` describes it (`parse`), on ASCII."""
+    out: list[str] = []
+    for seg in pattern.replace("\\", "/").split("/"):
+        if seg in ("", "."):
+            continue
+        if seg == "**":
+            out.append(seg)
+            continue
+        chars: list[str] = []
+        j = 0
+        while j < len(seg):
+            c = seg[j]
+            end = seg.find("]", j + 2) if c == "[" else -1
+            if c in "*?" or end != -1:
+                if not chars or chars[-1] != "*":
+                    chars.append("*")
+                j = end + 1 if end != -1 else j + 1
+            else:
+                chars.append(c)
+                j += 1
+        out.append(unicodedata.normalize("NFC", "".join(chars).casefold()))
+    return tuple(out)
 
 
 def _names_meet(a: str, b: str) -> bool:
-    """Whether two segments of glob patterns may match one name. Exact when one of them has
-    no wildcard; two with wildcards are taken to meet unless their fixed starts or their
-    fixed ends differ."""
-    wild_a, wild_b = _WILD.search(a), _WILD.search(b)
-    if wild_a is None and wild_b is None:
-        return a == b
-    if wild_a is None or wild_b is None:
-        fixed, pattern = (a, b) if wild_a is None else (b, a)
-        return re.fullmatch(_segment(pattern), fixed) is not None
-    head_a, head_b = a[: wild_a.start()], b[: wild_b.start()]
-    tail_a, tail_b = re.split(r"[*?\]]", a)[-1], re.split(r"[*?\]]", b)[-1]
-    return (head_a.startswith(head_b) or head_b.startswith(head_a)) and (tail_a.endswith(tail_b) or tail_b.endswith(tail_a))
+    """Whether two folded segments (`folded`, `*` their only wildcard) match one name:
+    exact, by the recursion of `segMeet` in `lean/Contraagent/Execution/Changes.lean`."""
+
+    @functools.cache
+    def meet(i: int, j: int) -> bool:
+        if i == len(a) and j == len(b):
+            return True
+        if i == len(a):
+            return b[j] == "*" and meet(i, j + 1)
+        if j == len(b):
+            return a[i] == "*" and meet(i + 1, j)
+        if a[i] == "*":  # it matches nothing more, or one more character of the name
+            return meet(i + 1, j) or meet(i, j + 1)
+        if b[j] == "*":
+            return meet(i, j + 1) or meet(i + 1, j)
+        return a[i] == b[j] and meet(i + 1, j + 1)
+
+    return meet(0, 0)
 
 
 def _paths_meet(a: Sequence[str], b: Sequence[str]) -> bool:
-    if not a or not b:
-        return True  # the one that ended matched a path the other is under: it covers everything there
-    if a[0] == "**":
-        return _paths_meet(a[1:], b) or _paths_meet(a, b[1:])
-    if b[0] == "**":
-        return _paths_meet(a, b[1:]) or _paths_meet(a[1:], b)
-    return _names_meet(a[0], b[0]) and _paths_meet(a[1:], b[1:])
+    """Whether two folded patterns may cover one path (`meet` in the Lean description): a
+    pattern that ended matched a directory the other's path is under, and `**` is any
+    number of segments."""
+
+    @functools.cache
+    def meet(i: int, j: int) -> bool:
+        if i == len(a) or j == len(b):
+            return True  # the one that ended matched a path the other is under: it covers everything there
+        if a[i] == "**":
+            return meet(i + 1, j) or meet(i, j + 1)
+        if b[j] == "**":
+            return meet(i, j + 1) or meet(i + 1, j)
+        return _names_meet(a[i], b[j]) and meet(i + 1, j + 1)
+
+    return meet(0, 0)
 
 
 def may_overlap(a: Sequence[str], b: Sequence[str]) -> tuple[str, str] | None:
     """A pattern of `a` and one of `b` that may cover one path (two tasks' `changes`
     patterns, filled in, relative to one working directory); None when no two do. A pattern
     that matches a directory covers everything under it, so a path above another overlaps
-    it. The answer errs toward an overlap: two wildcards are taken to match one name unless
-    their fixed ends differ, and what the `!` patterns leave out is not taken off."""
+    it. The answer errs toward an overlap: each pattern is read folded (`folded`), and what
+    the `!` patterns leave out is not taken off. `lean/Contraagent/Execution/Changes.lean`
+    proves that a None means no path that both cover, as their folded forms read it
+    (`mayOverlap_sound`)."""
     for pa in split(a)[0]:
         for pb in split(b)[0]:
-            if _paths_meet(pa.replace("\\", "/").strip("/").split("/"), pb.replace("\\", "/").strip("/").split("/")):
+            if _paths_meet(folded(pa), folded(pb)):
                 return pa, pb
+    return None
+
+
+def overlap(cwd_a: Path, a: Sequence[str], cwd_b: Path, b: Sequence[str]) -> tuple[str, str] | None:
+    """`may_overlap` of the patterns `a`, relative to `cwd_a`, and `b`, relative to `cwd_b`:
+    in one directory, or in two of which one is under the other, whose patterns are then
+    read from the one above (`sub/<pattern>`). Two directories apart share no file. Each
+    directory is read as its real path (`os.path.realpath`: symbolic links followed), its
+    case folded. A pattern of the one under is given as it was written."""
+    ra = Path(os.path.realpath(cwd_a)).as_posix().casefold()
+    rb = Path(os.path.realpath(cwd_b)).as_posix().casefold()
+    if ra == rb:
+        return may_overlap(a, b)
+    for top, high, low, deep, swapped in ((ra, a, rb, b, False), (rb, b, ra, a, True)):
+        above = top.rstrip("/") + "/"
+        if low.startswith(above):
+            sub = low[len(above) :]
+            for pattern in split(deep)[0]:
+                if (found := may_overlap(high, [f"{sub}/{pattern}"])) is not None:
+                    return (pattern, found[0]) if swapped else (found[0], pattern)
+            return None
     return None
 
 

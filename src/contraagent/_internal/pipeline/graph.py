@@ -113,6 +113,7 @@ from contraagent._internal.dispatch.task import (
 )
 from contraagent._internal.dispatch.templates import PARAM_FIELD
 from contraagent._internal.errors import ContraagentError
+from contraagent._internal.execution.changes import overlap
 from contraagent._internal.pipeline import origin as origins
 from contraagent._internal.pipeline.loops import LoopCounter, bound, counting, is_while
 
@@ -369,6 +370,7 @@ class Graph:
         self.stub: Any = None
         self.run_id = ""
         self._by_key: dict[str, Node] = {}
+        self._conflicting: dict[tuple[str, str], bool] = {}  # (key, key) -> `conflicts`, as a key's node does not change
         self._bases: dict[str, tuple[str, int]] = {}  # key before numbering -> (flow call id, tasks so far)
         #: The passes of the loops of flow code while the flow runs (`loops.py`).
         self.loops = LoopCounter(current=lambda: self.driver.current if self.driver is not None else None)
@@ -567,6 +569,25 @@ class Graph:
         new = replace(task, fingerprint=node.fingerprint, outside=node.outside, fingerprint_parts=dict(node.parts))
         node.task = new
         return new
+
+    def conflicts(self, task: Task, other: Task) -> bool:
+        """Whether `task` may not start while `other` runs (`WorkQueue`'s `conflicts`): their
+        `changes` patterns, each relative to its working directory (its call options' `cwd`,
+        else the run's), may cover the same files (`overlap`). Were they to run at
+        once, a failed attempt of one would remove the files the other created meanwhile,
+        and neither's changes could be told apart. Read by key, as the queue holds a task."""
+        pair = (task.key, other.key)
+        known = self._conflicting.get(pair)
+        if known is None:
+            a, b = self._by_key.get(task.key), self._by_key.get(other.key)
+            known = (
+                a is not None
+                and b is not None
+                and bool(a.changes and b.changes)
+                and overlap(a.cwd or self.cwd, a.changes, b.cwd or self.cwd, b.changes) is not None
+            )
+            self._conflicting[pair] = known
+        return known
 
     def filled_after(self, task: Task) -> str:
         """For a task that fills in another task's file (`output_of`): the digest of the file

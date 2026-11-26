@@ -28,6 +28,7 @@ lake exe contraagent-lean flow         # the same for the flow driver
 lake exe contraagent-lean prune        # the same for the hub's retention
 lake exe contraagent-lean blobs        # the same for the hub's blobs while a prune runs beside the relays
 lake exe contraagent-lean logs         # the same for a run's log
+lake exe contraagent-lean changes      # the same for two tasks' changes patterns
 lake exe contraagent-lean trace        # checks the logs of queues that ran, one JSON line each, against what is proved of the queue
 ```
 
@@ -53,6 +54,7 @@ uv run python tests/lean/flow_scenarios.py                       # rewrites test
 uv run python tests/lean/prune_scenarios.py                      # rewrites tests/lean/prune_scenarios.jsonl
 uv run python tests/lean/blobs_scenarios.py                      # rewrites tests/lean/blobs_scenarios.jsonl
 uv run python tests/lean/logs_scenarios.py                       # rewrites tests/lean/logs_scenarios.jsonl
+uv run python tests/lean/changes_scenarios.py                    # rewrites tests/lean/changes_scenarios.jsonl
 ```
 
 ## Files
@@ -75,9 +77,9 @@ uv run python tests/lean/logs_scenarios.py                       # rewrites test
 
 A module is described when it decides which work runs, when, or whether it runs
 again: a run's logs and its journal, the schedulers, the flow driver, the task graph,
-resume, failover, capacity,
-the credential pools and rests, the services, the hub's copies of a log and what its
-retention removes. A
+resume, failover, capacity, the test of two tasks' `changes` patterns that keeps
+them apart, the credential pools and rests, the services, the hub's copies of a log and
+what its retention removes. A
 module that reads an agent's output, checks a file against a schema, counts tokens
 or draws the monitor is not described.
 
@@ -141,6 +143,7 @@ uv run python tests/lean/flow_scenarios.py
 uv run python tests/lean/prune_scenarios.py
 uv run python tests/lean/blobs_scenarios.py
 uv run python tests/lean/logs_scenarios.py
+uv run python tests/lean/changes_scenarios.py
 ```
 
 A scenario of the flow driver holds the calls that a run of its flow made on the

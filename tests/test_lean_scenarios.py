@@ -45,6 +45,7 @@ NAMES = (
     "prune",
     "blobs",
     "logs",
+    "changes",
 )
 PARTS = {name: _module(f"{name}_scenarios") for name in NAMES}
 COMMITTED = {name: [json.loads(line) for line in part.FILE.read_text(encoding="utf-8").splitlines()] for name, part in PARTS.items()}

@@ -81,6 +81,7 @@ def _play(sc: dict[str, Any], clock: Clock) -> list[list[Any]]:
     follow_ups, outcomes, durations, cancels = dict(sc["followUps"]), dict(sc["outcomes"]), dict(sc["durations"]), dict(sc["cancels"])
     skip, rests = set(sc["skip"]), set(sc["rests"])
     starts, skip_prints = dict(sc["starts"]), set(sc["skipPrints"])
+    conflicting = {tuple(pair) for pair in sc["conflicts"]}
     events: list[list[Any]] = []
     finished: list[str] = []
     ends_at: list[tuple[str, float]] = []  # the running tasks, in the order they started
@@ -95,6 +96,9 @@ def _play(sc: dict[str, Any], clock: Clock) -> list[list[Any]]:
 
         def deferral(self, task: Task) -> Deferral | None:
             return Deferral("its credential rests", DeferralCause(cause="rest")) if task.key in rests else None
+
+        def conflicts(self, task: Task, other: Task) -> bool:
+            return (task.key, other.key) in conflicting or (other.key, task.key) in conflicting
 
         def starting(self, task: Task) -> Task:
             given = starts.get(task.id)
@@ -220,7 +224,8 @@ def _play(sc: dict[str, Any], clock: Clock) -> list[list[Any]]:
 def scenario(rng: random.Random) -> dict[str, Any]:
     """A random scenario: up to eight tasks at the start and the follow-ups of some, with
     dependencies, claims, a kind under a cap, keys in flight twice, a resume's skips, rests,
-    failed and throttled attempts, cancels, and deadlines. For some tasks whose fingerprint
+    failed and throttled attempts, cancels, deadlines, and keys whose tasks conflict
+    (a task with itself too: the key of a task given again). For some tasks whose fingerprint
     is complete as they start, the runner gives a fingerprint then, which a resume may skip,
     and for some of those it gives another task: another id, key, dependencies and claims."""
     n = rng.randint(1, 8)
@@ -323,6 +328,7 @@ def scenario(rng: random.Random) -> dict[str, Any]:
         "cancels": sorted(cancels.items()),
         "starts": sorted(starts.items()),
         "skipPrints": ["f1"] if rng.random() < 0.4 else [],
+        "conflicts": sorted({(a, b) for a in keys for b in keys if rng.random() < 0.12}) if rng.random() < 0.6 else [],
     }
 
 
