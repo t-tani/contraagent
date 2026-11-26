@@ -411,7 +411,9 @@ def test_omp_denies_the_task_s_tools_inside_the_launch(tmp_path):
 
 
 def test_omp_ends_a_launch_past_its_max_turns(tmp_path):
-    """omp has no turn cap: contraagent counts the tool calls and ends the launch past it."""
+    """omp has no turn cap: contraagent counts the turns and ends the launch as the turn past
+    the cap begins. That turn's tool call is counted when omp sent it before the launch
+    ended (omp 18), and not when it was still to come (omp 19); the call after it never runs."""
     only("omp")
     from contraagent.backends import Launch
     from contraagent.config import Limits
@@ -426,7 +428,7 @@ def test_omp_ends_a_launch_past_its_max_turns(tmp_path):
     )
     result = OmpBackend().run(launch)
     print(f"\n  omp: stop={result.stop} tool_uses={dict(result.tool_uses)}")
-    assert result.stop.value == "max_turns" and sum(result.tool_uses.values()) == 3
+    assert result.stop.value == "max_turns" and sum(result.tool_uses.values()) in (2, 3)
 
 
 # --- a generator flow on each coding agent -------------------------------------------------

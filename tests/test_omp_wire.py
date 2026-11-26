@@ -172,12 +172,13 @@ STOP_VERSIONS = sorted(p.parent.name for p in FIXTURES.glob("*/stop.jsonl"))
 def test_a_stop_hook_s_objection_is_read_from_the_continued_session(version):
     """`stop.jsonl`: the plugin's stop hook objected once and omp went on in the same session,
     and the task's `Bash(rm:*)` blocked the call. The model may also read the plugin's skill
-    after the objection: each call is counted once, whichever calls the model made."""
+    after the objection, and fixes the file by writing it again or by editing it (omp 19): each
+    call is counted once, whichever calls the model made."""
     result = TraceReader().read((FIXTURES / version / "stop.jsonl").read_bytes()).result(LAUNCH, "omp", exit_code=0, killed=None)
     assert result.stop == Stop.COMPLETED and result.ok
     assert result.hook_errors == [["out.txt: must hold the word BANANA, not APPLE"]]
     started = Counter(e["toolName"] for e in events(version, "stop") if e["type"] == "tool_execution_start")
-    assert started["write"] == 2 and started["bash"] == 1
+    assert started["write"] >= 1 and started["write"] + started["edit"] == 2 and started["bash"] == 1
     assert result.tool_uses == started and result.unread_events == {}
     shown = [normalize_event(e) for e in events(version, "stop")]
     said = [e["text"] for e in shown if e["type"] == "notice" and e["text"].startswith("Stop hook feedback:")]
@@ -205,3 +206,20 @@ def test_max_turns_ends_a_launch_as_the_turn_past_it_begins(version):
     assert stop == Stop.MAX_TURNS and sum(reader.tool_uses.values()) == 3 and reader.turns == 1
     result = reader.result(LAUNCH, "omp", exit_code=None, killed=Stop.MAX_TURNS)
     assert result.stop == Stop.MAX_TURNS and result.num_turns == 1
+
+
+def test_an_edit_shows_the_files_its_input_names():
+    """omp 19's edit modes but `replace` and `patch` give an edit one `input` text, which names
+    its files in it: the monitor's preview shows them, as it shows the `path` of another call."""
+    edits = [normalize_event(e) for e in events("19.2.1", "stop") if e["type"] == "tool_execution_start" and e["toolName"] == "edit"]
+    assert [e["cmd"] for e in edits] == ["out.txt"]
+    hashline = {"input": "[a.py#12AB]\nPUT 1.=1:\n+[x]\n[b/c.ts#00ff]\nDEL 3\n[a.py#12AB]\nPUT 2:\n+y"}
+    patch = {"input": "*** Begin Patch\n*** Update File: src/x.py\n@@\n-a\n+b\n*** Add File: new.md\n+hi\n*** End Patch"}
+    shown = {
+        "hashline": hashline,
+        "patch": patch,
+        "words": {"input": "In foo.py, rename bar to baz.\nThen stop."},
+        "replace": {"path": "p.py", "old_string": "a", "new_string": "b"},
+    }
+    cmd = {name: normalize_event({"type": "tool_execution_start", "toolName": "edit", "args": args})["cmd"] for name, args in shown.items()}
+    assert cmd == {"hashline": "a.py, b/c.ts", "patch": "src/x.py, new.md", "words": "In foo.py, rename bar to baz.", "replace": "p.py"}
