@@ -7,6 +7,7 @@ Tested on recordings of a real omp (`tests/fixtures/omp/<version>/`).
 
 from __future__ import annotations
 
+import re
 from typing import Self
 
 from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResult, Stop
@@ -68,12 +69,23 @@ def normalize_text_line(line: str) -> dict:
     return {"type": "message_update", "ev": "text_delta", "delta": line[:2000] + "\n"}
 
 
+#: A file of an edit's `input`, in the edit modes that name their files in it: hashline's
+#: header (`[PATH#TAG]`, TAG four hex digits), and apply_patch's (`*** Update File: PATH`).
+_EDITED = re.compile(r"^\[(.+?)(?:#[0-9A-Fa-f]{4})?\]\s*$|^\*\*\* (?:Add|Update|Delete) File: (.+?)\s*$", re.M)
+
+
 def _preview(tool: object, args: object) -> dict:
     """A tool call's one-line preview (`cmd`); its query when it is a web search (`web_query`),
-    its URL when it reads a web page (`web_fetch`: omp's `read` of an http(s) URL)."""
+    its URL when it reads a web page (`web_fetch`: omp's `read` of an http(s) URL). An edit
+    whose arguments are one `input` text (omp's edit modes but `replace` and `patch`) shows
+    the files the text names, else its first line."""
     args = args if isinstance(args, dict) else {}
     if tool == WEB_SEARCH_TOOL:
         return tool_preview(args.get("query"), web_query=True)
+    if "command" not in args and "path" not in args and isinstance(args.get("input"), str):
+        text = args["input"]
+        files = [a or b for a, b in _EDITED.findall(text)]
+        return tool_preview(", ".join(dict.fromkeys(files)) if files else text.strip().partition("\n")[0])
     cmd = str(args.get("command", args.get("path", "")))
     return tool_preview(cmd, web_fetch=tool == "read" and cmd.startswith(("http://", "https://")))
 
@@ -189,9 +201,10 @@ def normalize_event(e: dict) -> dict:
 
 #: The event types omp sends in `--mode json` and on the RPC wire alike (its
 #: `AgentEvent` and `AgentSessionEvent` unions and `session_settled`, which the RPC wire
-#: sends once background work drains; checked against omp 18.22.0 and the recordings in
-#: `tests/fixtures/omp/`). A type outside this set is counted in
-#: `LaunchResult.unread_events`: a newer omp sends something this reader does not read.
+#: sends once background work drains; checked against omp 18.22.0, and against the
+#: recordings in `tests/fixtures/omp/`, omp 19.2.1's among them). A type outside this set
+#: is counted in `LaunchResult.unread_events`: a newer omp sends something this reader
+#: does not read.
 #: `tool_stream_update` is a preview of a tool call's arguments while the model still writes
 #: them (omp's `edit`); the reader and the monitor leave it, as they leave `toolcall_delta`.
 KNOWN_EVENTS = STREAM_FWD | {

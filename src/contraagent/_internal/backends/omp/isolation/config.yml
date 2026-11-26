@@ -4,7 +4,10 @@
 # provider is off but `claude-plugins`, which loads the `--plugin-dir` plugin; this
 # directory, which holds no plugins, is also the agent's CLAUDE_CONFIG_DIR, so the
 # user's installed Claude Code plugins are not loaded either.
-# Checked against omp 18.9 (its providers: `strings omp | grep displayName`).
+# Nor does a task's session reach omp's memory of the user's sessions: what omp
+# remembers or learned from them is not read, and the session teaches it nothing.
+# Checked against omp 19.2 (its providers: the files of `discovery/` in
+# `strings omp`).
 disabledProviders:
   - native          # ~/.omp and .omp/: AGENTS.md, skills, rules, hooks, tools, MCP servers
   - agents-md       # AGENTS.md files
@@ -24,4 +27,12 @@ disabledProviders:
   - skillshare      # registry skills installed with `omp skill install`
   - agent-plugins
   - omp-plugins     # omp extension packages
+  - omp-managed     # skills omp learned from the user's sessions (auto-learn)
   - ssh-json
+  - ssh-config      # the hosts of ~/.ssh/config and /etc/ssh/ssh_config
+autolearn:
+  enabled: false
+memories:
+  enabled: false
+memory:
+  backend: "off"

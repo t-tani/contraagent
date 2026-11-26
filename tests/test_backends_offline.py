@@ -216,6 +216,10 @@ def test_omp_launches_see_only_their_plugin():
     assert not (ISOLATION / "plugins").exists()
     disabled = [line.split("#")[0].strip(" -") for line in (ISOLATION / "config.yml").read_text().splitlines() if line.startswith("  - ")]
     assert "claude-plugins" not in disabled and {"native", "agents-md", "claude-md", "claude", "mcp-json"} <= set(disabled)
+    # omp 19: the skills it learned from the user's sessions, and the hosts of the SSH config
+    assert {"omp-managed", "ssh-config"} <= set(disabled)
+    text = (ISOLATION / "config.yml").read_text()
+    assert "autolearn:\n  enabled: false" in text and "memories:\n  enabled: false" in text and 'backend: "off"' in text
     rpc = OmpRpcBackend(base_env={"PATH": "/usr/bin"}).argv(launch)
     assert rpc[rpc.index("--config") + 1] == str(ISOLATION / "config.yml")
 

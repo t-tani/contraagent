@@ -6,7 +6,7 @@ it runs and may block it (`tool_call`, `{block, reason}`), and may change the to
 model is offered (`setActiveTools`). `rules` turns the task's list into the extension's
 rules; `problem` names what omp cannot be held to, and the routing check refuses a route on
 omp for that alone (`OmpBackend.tool_deny_problem`). What each name becomes is in the
-docstring of `OmpBackend` (checked against omp 18.9's built-in tools).
+docstring of `OmpBackend` (checked against omp 19.2's built-in tools).
 """
 
 from __future__ import annotations

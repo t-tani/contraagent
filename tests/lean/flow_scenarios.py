@@ -198,7 +198,7 @@ def _run(scenario: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]
                 group = [asyncio.create_task(run(item)) for item in step[1]]
                 try:
                     await asyncio.gather(*group)
-                except BaseException:
+                except (Exception, asyncio.CancelledError):  # not GeneratorExit: a coroutine closed waits no more
                     for other in group:
                         other.cancel()
                     await asyncio.gather(*group, return_exceptions=True)
@@ -245,14 +245,16 @@ def _run(scenario: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]
             driver.finish_here()
     finally:
         flow_module.FlowTask = real  # pyright: ignore[reportAttributeAccessIssue]
+    # Copies: flow code that outlives the run (a Task that went on after every cancellation)
+    # is closed when the collector frees it, whenever that is, and must not change the record.
     shown = {
-        "answers": driver.answers,
-        "sent": board.sent,
-        "cancels": board.cancels,
+        "answers": list(driver.answers),
+        "sent": list(board.sent),
+        "cancels": list(board.cancels),
         "states": [[call.id, call.state] for call in driver.calls.values()],
         "running": driver._running,
     }
-    return driver.ops, shown
+    return list(driver.ops), shown
 
 
 def play(scenario: dict[str, Any]) -> dict[str, Any]:
