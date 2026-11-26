@@ -23,6 +23,9 @@ contraagent run tasks.py:docs --replay DIR [--execute PATTERN] [--record-missing
                                          # a replay: every task plays its recording, nothing is spent;
                                          # with --record-missing, a task with none runs and is recorded
 contraagent recording import runs/docs DIR   # a recording of each task a run finished, from its directory
+contraagent diagnose runs/docs-2 [--against runs/docs]
+                                         # what a run's records say to change in its pipeline; with
+                                         # --against, what changed since an earlier run of the same tasks
 contraagent --version                    # the installed version
 contraagent docs [TOPIC] [--path]        # the documentation installed with the package
 contraagent docs --pointer >> AGENTS.md  # point a project's coding agent at it
@@ -193,6 +196,15 @@ def parser(command: str | None = "") -> argparse.ArgumentParser:
         "2 on a usage error (the flow's name, --kwargs, options that do not go together)",
     )
     add_command(
+        sub,
+        "diagnose",
+        help="what a finished run's records say to change in its pipeline, kind by kind (contraagent docs improving)",
+        add_arguments=_diagnose_arguments,
+        run=_diagnose,
+        epilog="exit status: 0 when the records show nothing to change, 1 when they show something or a run directory "
+        "cannot be read, 2 on a usage error",
+    )
+    add_command(
         sub, "docs", help="the documentation installed with this version: the index, or one topic", add_arguments=_docs_arguments, run=_docs
     )
     return ap
@@ -223,6 +235,29 @@ def _recording(args) -> int:
         return 1
     print(report)
     return 0 if report.ok else 1
+
+
+def _diagnose_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("run_dir", metavar="RUN_DIR", help="the run's directory (runs/<run-id>)")
+    parser.add_argument(
+        "--against",
+        metavar="EARLIER_RUN_DIR",
+        default=None,
+        help="an earlier run of the same tasks: what changed between the two, task by task (the fingerprint's parts, "
+        "the tasks that pass now and did not then, the outputs that differ)",
+    )
+
+
+def _diagnose(args) -> int:
+    from contraagent._internal.monitor.diagnosis import DiagnosisError, diagnose
+
+    try:
+        found = diagnose(args.run_dir, against=args.against)
+    except DiagnosisError as exc:
+        print(f"✗ {exc}")
+        return 1
+    print(found)
+    return 0 if found.ok else 1
 
 
 def _docs_arguments(docs: argparse.ArgumentParser) -> None:
