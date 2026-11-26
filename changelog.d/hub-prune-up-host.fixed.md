@@ -1,1 +1,0 @@
-`contraagent hub`'s retention keeps the heartbeat of a host that is still up. With a relay whose `--ttl` is longer than the retention, a prune removed the old heartbeat of a host the hub counted as up, and the next prune then removed the runs that heartbeat reported live

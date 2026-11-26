@@ -1,1 +1,0 @@
-The queue's bottom level of a task counts only the queued tasks after it. It also counted a task after it that a resume had skipped, or that had already run, so on a resume under a deadline a task could be ordered late, or deferred as `cannot_finish`, for work that was already done

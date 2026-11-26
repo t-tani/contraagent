@@ -1,1 +1,0 @@
-A flow that calls a task that fills in a file (`output_of`) before the task that writes that file is refused at the second call, with a `ValueError` that says to call them the other way round, and `contraagent check` reports it. The two tasks got no order between them, so they could run at once and write one file; so could a later task that fills in the same file
