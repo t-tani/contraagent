@@ -38,7 +38,7 @@ from contraagent._internal.dispatch.flow import FlowDriver, generator_flow_error
 from contraagent._internal.dispatch.queue import claim_entry
 from contraagent._internal.dispatch.task import kind_name
 from contraagent._internal.errors import ContraagentError, did_you_mean
-from contraagent._internal.execution.changes import may_overlap
+from contraagent._internal.execution.changes import overlap
 from contraagent._internal.execution.pipeline_files import writing_into
 from contraagent._internal.execution.services import env_clashes
 from contraagent._internal.pipeline.adapter import SpecAdapter
@@ -532,11 +532,13 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
 
 
 def _changes_warnings(pipeline: Pipeline, nodes: list[Node], configs: Mapping[str, Any]) -> list[str]:
-    """The tasks whose `changes` patterns may cover the same files and that may run at once:
-    in one working directory, neither after the other, with no claim they share that one
-    task holds at a time, and not of one kind that runs one task at a time. One line for
-    each pair of kinds, with the first two such tasks and their patterns."""
+    """The tasks whose `changes` patterns may cover the same files (`overlap`, each relative
+    to its working directory) and that would otherwise run at once: neither after the
+    other, with no claim they share that one task holds at a time, and not of one kind that
+    runs one task at a time. The queue runs them one at a time (`Graph.conflicts`). One line
+    for each pair of kinds, with the first two such tasks and their patterns."""
     by_key = {n.key: n for n in nodes}
+    cwd = Path(pipeline.cwd) if pipeline.cwd is not None else Path.cwd()
     capacity = pipeline.queue_options.get("claim_capacity") or {}
     earlier: dict[str, set[str]] = {}
 
@@ -564,16 +566,16 @@ def _changes_warnings(pipeline: Pipeline, nodes: list[Node], configs: Mapping[st
     changing = [n for n in nodes if n.changes]
     for i, a in enumerate(changing):
         for b in changing[i + 1 :]:
-            if a.cwd != b.cwd or apart(a, b):
+            if apart(a, b):
                 continue
-            both = may_overlap(a.changes, b.changes)
+            both = overlap(a.cwd or cwd, a.changes, b.cwd or cwd, b.changes)
             if both is not None:
                 found.setdefault(frozenset((a.spec.kind, b.spec.kind)), []).append((a.key, b.key, *both))
     return [
-        f"{one} and {other}{f' (and {len(pairs) - 1} more such pairs)' if len(pairs) > 1 else ''} may run at once, and "
-        f"their changes patterns {pa!r} and {pb!r} may cover the same files: a failed attempt of one would remove the files "
-        "the other created meanwhile. Put {unit} in the pattern, or keep the tasks apart with after= or a claim they share "
-        "(contraagent docs tasks)"
+        f"{one} and {other}{f' (and {len(pairs) - 1} more such pairs)' if len(pairs) > 1 else ''} run one at a time: "
+        f"their changes patterns {pa!r} and {pb!r} may cover the same files, and a failed attempt of one would remove the "
+        "files the other created meanwhile. Put {unit} in the patterns to let them run together "
+        "(contraagent docs tasks, Files a task changes)"
         for pairs in found.values()
         for one, other, pa, pb in pairs[:1]
     ]

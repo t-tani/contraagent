@@ -1197,14 +1197,18 @@ reports a task table that sets it.
 
 ::code{file="examples/changes/flow.py" from="study = agent_task(" to="def pipeline("}
 
-A file is attributed to the task whose attempt ran when it changed, so two tasks
-that run at once under patterns that cover the same files cannot be told apart: a
-failed attempt of one removes the files the other created meanwhile. Give each
-task a directory of its own (`{unit}` in the pattern), or keep the tasks apart with
-`after=` or a claim they share. `contraagent check` warns of two tasks that may run
-at once in one working directory when their patterns may cover the same files. It
-compares the patterns, not the files, so it also warns of patterns such as
-`src/a*.py` and `src/*b.py`, which cover one file only when a name fits both.
+A file is attributed to the task whose attempt ran when it changed, and a failed
+attempt removes the files it created. Two tasks whose patterns may cover the same
+files therefore never run at once: they **conflict**, and the queue starts neither
+while the other runs. Their patterns are compared, not the files, so `src/a*.py` and
+`src/*b.py` conflict, as `src/ab.py` fits both. They are read as a file system that
+tells names apart by neither case nor Unicode form reads them, with a `?` or a set
+read as `*`, so `Docs/**` and `docs/a.md` conflict too. Each pattern is relative to
+its task's working directory, and two tasks in directories of which one is under the
+other conflict when a file under both may be covered by both. Give each task a
+directory of its own (`{unit}` in the pattern) to let the tasks run together.
+`contraagent check` warns of the tasks that run one at a time for this, among those
+its flow creates before its first wait.
 
 A pattern that starts with `!` leaves out what it matches, and everything under a
 directory it matches, whatever the other patterns cover: `["**", "!.git/**",
@@ -1215,9 +1219,9 @@ the task is declared. `.gitignore` is not read: the files a task writes are ofte
 ones it lists.
 
 A file is counted as the change of the attempt that was running when it changed.
-Two tasks that run at once under one pattern cannot be told apart: put `{unit}`
-in the pattern, keep them from running at once (a claim), or give each a working
-directory of its own.
+Two tasks that conflict never run at once, so a file's change is one task's. A file
+that two patterns reach by two names (a symbolic link inside the working directory)
+is not seen as one: keep the patterns to one name of each directory.
 
 ## A working directory of its own: git worktrees
 
@@ -1359,7 +1363,7 @@ describe them.
 | `AgentRunner` / `RetryingRunner` | one agent task: input check, route, credential (skipping one that rests on its quota), launch, validate, failover; progress-aware retry |
 | `PythonTaskRunner` | Python tasks in-process, checked by the same contracts |
 | `TaskAdapter` | what a domain says about its tasks (prompt, plugin, contracts, changes, env) |
-| `WorkQueue` | claims and their capacities, caps, retry, throttle; a greedy schedule by bottom level, then priority, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first and late tasks last, deferred only when other tasks take every slot; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
+| `WorkQueue` | claims and their capacities, caps, the tasks its runner says conflict (`conflicts`), retry, throttle; a greedy schedule by bottom level, then priority, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first and late tasks last, deferred only when other tasks take every slot; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
 | `FlowDriver` | async flows over a `WorkQueue`, for flows that depend on results: each `await` waits for a task or a child flow call, and a failure raises `TaskFailed` there |
 | `RoutingPlan`, `Router`, `CredentialRests` | per-kind routing and budgets, the failover chain, and the credentials that rest on their quota or after a refused launch |
 | `run_until_valid`, `OutputContract`, `InputContract` | files checked by schema and validators; resume until they pass |

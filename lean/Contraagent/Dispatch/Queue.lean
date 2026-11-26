@@ -51,7 +51,9 @@ def Capacity.allowed : Capacity → Nat → Nat
 /-- The answers of the queue's callbacks, as they are during one step.
 
 `kindCap`: `runner.config(task).max_concurrent`. `capacity name`: the capacity of `name`
-(`claim_capacity`; the number 1 when no entry names it). `skip`: whether a resume skips the
+(`claim_capacity`; the number 1 when no entry names it). `conflicts task other`: whether
+`task` may not start while `other` runs (`runner.conflicts(task, other)`; never, for a
+runner that has none). `skip`: whether a resume skips the
 task. `starting`: the task the runner gives as a task starts, its fingerprint completed,
 of which the queue takes the fingerprint (`started`). `deferral`: why the
 runner cannot launch the task now. `estimate`: the task's expected time, when it carries
@@ -61,6 +63,7 @@ many results one drain finishes at most; the code's drain has no bound. -/
 structure QueueEnv where
   kindCap : Task → Option Nat
   capacity : String → Capacity
+  conflicts : Task → Task → Bool
   skip : Task → Bool
   starting : Task → Task
   deferral : Task → Option Deferral
@@ -223,17 +226,22 @@ def startable (now : Time) (s : QueueState) (e : QueueEntry) : Bool :=
       | some t => decide (now ≥ t)
       | none => true
 
-/-- What a task needs is free (`_free`): a place under its kind's cap, and every name it
-claims. -/
+/-- No running task conflicts with it (a part of `_free`). -/
+def apart (env : QueueEnv) (s : QueueState) (task : Task) : Bool :=
+  s.running.all fun r => ! env.conflicts task r.task
+
+/-- What a task needs is free (`_free`): a place under its kind's cap, every name it
+claims, and no running task it conflicts with. -/
 def free (env : QueueEnv) (s : QueueState) (task : Task) : Bool :=
   (match env.kindCap task with
     | some cap => decide (s.runningOf task.kind < cap)
     | none => true)
-    && task.claims.all fun name => decide (s.held name < (env.capacity name).allowed (s.held name))
+    && task.claims.all (fun name => decide (s.held name < (env.capacity name).allowed (s.held name)))
+    && apart env s task
 
 /-- It could start with nothing else running (`_possible`): no cap of 0 and no capacity
 that is the number 0 stands in its way. A capacity that is asked is none: what it answers
-while other tasks run says nothing of then. -/
+while other tasks run says nothing of then. A conflict is none: it is with a running task. -/
 def possible (env : QueueEnv) (task : Task) : Bool :=
   (match env.kindCap task with
     | some cap => decide (cap > 0)
@@ -244,14 +252,16 @@ def possible (env : QueueEnv) (task : Task) : Bool :=
       | .asked _ => true
 
 /-- Whether starting `task` takes what `head` still needs (`_takes`): the last place on a
-name both claim, or the last place under their kind's cap. -/
+name both claim, or the last place under their kind's cap; or `head` may not start while
+`task` runs. -/
 def takes (env : QueueEnv) (s : QueueState) (task head : Task) : Bool :=
   (task.claims.any fun name =>
       head.claims.contains name
         && decide (s.held name + 1 ≥ (env.capacity name).allowed (s.held name)))
-    || match env.kindCap head with
+    || (match env.kindCap head with
       | some cap => task.kind == head.kind && decide (s.runningOf head.kind + 1 ≥ cap)
-      | none => false
+      | none => false)
+    || env.conflicts head task
 
 /-! ## The order -/
 

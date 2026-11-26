@@ -138,7 +138,7 @@ theorem start_within (env : QueueEnv) (s s' : QueueState) (found entry : QueueEn
   · have room : s.held name < n := by
       unfold free at isFree
       simp only [Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq] at isFree
-      have here := isFree.2 name (by simpa using claimed)
+      have here := isFree.1.2 name (by simpa using claimed)
       rw [cap] at here
       exact here
     unfold QueueState.held at room

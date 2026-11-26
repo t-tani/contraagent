@@ -151,7 +151,8 @@ class _AsStarting:
     """The queue's runner: `runner`, but a task whose fingerprint is complete only when it
     starts is given as it starts by the graph (`Graph.starting`), and one whose outside
     state could not be worked out then is refused (`invalid_input`), its agent task's result
-    journaled by `on_refused` (a Python task's is journaled by the queue)."""
+    journaled by `on_refused` (a Python task's is journaled by the queue). Which tasks may
+    not run at once is the graph's to say (`Graph.conflicts`)."""
 
     def __init__(self, graph: Graph, runner: Any, on_refused: Callable[[TaskResult], None]) -> None:
         self._graph, self._runner, self._on_refused = graph, runner, on_refused
@@ -164,6 +165,9 @@ class _AsStarting:
 
     def starting(self, task: Task) -> Task:
         return self._graph.starting(task)
+
+    def conflicts(self, task: Task, other: Task) -> bool:
+        return self._graph.conflicts(task, other)
 
     def cancel(self, task: Task) -> None:
         ask = getattr(self._runner, "cancel", None)

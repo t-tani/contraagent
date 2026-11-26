@@ -25,6 +25,7 @@ The modules are those of `src/contraagent/_internal/`.
 | `Contraagent/Routing/Pool.lean` | `routing/pool.py` | a credential pool: the member the next launch uses, in order or in a round robin, and how long a member rests after a 429 |
 | `Contraagent/Routing/Quota.lean` | `routing/quota.py` | the credential rests: which reading of a credential counts, when a cap or the quota rule rests it and until when, the grace window of the finishing kinds, when a pool rests, and a credential refused for the rest of the run |
 | `Contraagent/Execution/Runner.lean` | `execution/runner.py` | one attempt of an agent task on its kind's failover chain: the hops it launches on, the hops it passes over because their credential rests, when it is deferred, which launch's result is its own; and whether a fresh attempt follows |
+| `Contraagent/Execution/Changes.lean` | `execution/changes.py` | whether two tasks' `changes` patterns may cover one file: how the code reads a pattern and folds it, the test of two folded segments and of two folded patterns, and of two working directories one under the other |
 | `Contraagent/Execution/Services.lean` | `execution/services.py` | the services of a run: when the service a claim name stands for starts, which tasks a start that raised fails and for how long, and what the run's end stops, in which order |
 | `Contraagent/Execution/Journal.lean` | `execution/journal.py` | the journal a resume reads: the rows of its log, each key's last row, and the tasks an attempt of which the run's end cut |
 | `Contraagent/Execution/Run.lean` | `execution/run.py` | what a resume skips, given each key's last journal row, and why it runs a finished task again |
@@ -52,6 +53,24 @@ starts has the id, the key, the dependencies and the claims the queue held it by
 it comes after have finished (`Reachable.starts_after`): wherever the queue's log
 shows a task starting, each key the task names in `after` is of a task that the log
 shows finished before, with any result.
+
+`Contraagent/Dispatch/Queue/Conflicts.lean` proves that no task runs beside one it
+conflicts with: while the conflict relation is `c` at every pass, of every two running
+tasks the one that started later does not conflict with the other
+(`ReachableApart.apart`), and with a relation that does not depend on the order of its
+two tasks, neither conflicts with the other (`ReachableApart.apart_both`). The relation is
+assumed to read none of what a task's fingerprint completes as it starts
+(`ReadsNoFingerprint`): the code's reads each task's working directory and `changes`
+patterns by its key. The starvation guard counts a conflict too (`takes`), so the queue's
+other theorems, that no slot idles and that the queue ends, hold of it as they are.
+
+`Contraagent/Execution/Changes/Sound.lean` proves that the test of two tasks' `changes`
+patterns misses no file (`mayOverlap_sound`): when it finds no pair, no path is covered by
+a pattern of each, a path that both match or one under a directory that one of them
+matches, where two paths name one file when they are the same folded. A pattern is read
+as the code reads it, a set as any one character; folding loses no name a pattern matches
+(`widen_matches`, `widen_covers`), and two folded segments, or patterns, that match one
+name, or cover one path, meet (`segMeet_sound`, `meet_sound`).
 
 `Contraagent/Dispatch/Queue/Capacity.lean` proves that a claim capacity is not
 passed: while the capacity of a claim name is the number `n` at every pass, at most
@@ -271,8 +290,8 @@ the Python package:
 - A run's log, the work queue, the flow driver, the failover breaker, a resume, the
   task graph,
   the host's room, a credential pool, the credential rests, a run's services, the
-  attempts of agent tasks, the hub's logs, the relay and the hub's retention answer
-  what their specifications do. A scenario of the breaker is a chain of routes and a list of
+  attempts of agent tasks, the hub's logs, the relay, the hub's retention and the
+  test of two tasks' `changes` patterns answer what their specifications do. A scenario of the breaker is a chain of routes and a list of
   calls of a `Router`, each at a time the scenario gives (`Conformance/Router.lean`,
   `tests/lean/router_scenarios.py`, 100 scenarios in
   `tests/lean/router_scenarios.jsonl`). A scenario of a resume is the rows of a
@@ -286,7 +305,15 @@ the Python package:
   gone, or a folder in its place; it is played on `append_lines` over a file whose
   write fails as on a full disk, and the complete lines, the line with no end and what
   `read_log` reads of the log as found are compared (`Conformance/Files.lean`,
-  `tests/lean/logs_scenarios.py`, 200 scenarios in `tests/lean/logs_scenarios.jsonl`). A scenario of the graph is some declarations
+  `tests/lean/logs_scenarios.py`, 200 scenarios in `tests/lean/logs_scenarios.jsonl`).
+  A scenario of the changes patterns is two tasks' patterns, from segments with every
+  wildcard, `**`, `.` and letters in either case, and the real path of each task's
+  working directory: one, one under another, or apart; the pairs `may_overlap` and
+  `overlap` give are compared (`Conformance/Changes.lean`,
+  `tests/lean/changes_scenarios.py`, 300 scenarios in
+  `tests/lean/changes_scenarios.jsonl`). `tests/test_conflicts.py` holds the reading of
+  a pattern to `Path.glob`'s: of random pairs of patterns over a tree of files, every
+  pair that covers a file of both, as `scan` finds them, is found to meet. A scenario of the graph is some declarations
   and a list of task calls, each by a flow call (`Conformance/Graph.lean`,
   `tests/lean/graph_scenarios.py`, 150 scenarios in
   `tests/lean/graph_scenarios.jsonl`). A scenario of the host's room is some needs
