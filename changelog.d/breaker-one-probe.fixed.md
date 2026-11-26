@@ -1,1 +1,0 @@
-After a rate limit's cool-off, one task probes the primary route, and the tasks that start before its verdict stay on the fallback. Every task that started then went to the primary: with the limit still there, each of them was refused, and each refusal doubled the wait for the next probe

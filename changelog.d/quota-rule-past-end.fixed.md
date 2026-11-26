@@ -1,1 +1,0 @@
-A credential no longer rests by a quota rule's end that has passed. A rule that gave the same end for the same reading after that end kept the credential resting until the reading's own reset, and its tasks were passed over or deferred

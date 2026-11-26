@@ -1,1 +1,0 @@
-A run that the hub's retention removed stays removed while its host still holds it. The host's relay asked what the hub held, took the answer for lost lines and sent the run again, so the hub held the run for another retention, each time. The hub now remembers each run it removed and answers the relay without storing the run again; a run that gets new lines is stored again whole
