@@ -92,6 +92,8 @@ the code, in this order:
    (`contraagent plugin new plugins/<name>`, then `contraagent plugin lint`).
 6. [Routing and credentials](routing.md), when you write `pipeline.toml`.
 7. [Checking and testing](testing.md), when you check and test the pipeline.
+8. [Improving a pipeline from its runs](improving.md), after a run on the coding
+   agents.
 
 [Concepts](concepts.md) defines each word that these topics use. Check your work with
 these steps, which launch no coding agent and spend nothing:
@@ -130,6 +132,7 @@ and the [documentation site](https://t-tani.github.io/contraagent/) print the qu
 - [Coding agents](agents.md): what each of the five coding agents does and does not do (stop hooks, budgets, tool denial, MCP servers), and how to add another.
 - [Security model](security.md): what a task's session receives and what a pipeline adds to it, refusals and failover, credentials, what each coding agent enforces, what a run records and who can read it.
 - [Checking and testing](testing.md): `contraagent check`, a stub run of the whole flow on the outputs' examples (with some or all Python tasks executed), record and replay, and flows tested on a stub agent.
+- [Improving a pipeline from its runs](improving.md): what a run's records say to change, kind by kind (`contraagent diagnose`), a change tried on the tasks it changes, two runs compared, and a change checked on other units.
 - [The monitor](monitor.md): the live view of runs, the monitor behind a reverse proxy, and an export of it that needs no server.
 - [Many hosts: the hub](hub.md): every host's runs in one monitor: `contraagent hub` and `contraagent relay`.
 - [Operating a hub](hub-operations.md): set up with compose, connect hosts, tokens, retention, backups, upgrades, troubleshooting.

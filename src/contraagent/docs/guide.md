@@ -51,6 +51,10 @@ for another port).
    (`examples/runner/run.py` lists them). A check of such a pipeline is
    `Pipeline(config, ...).check(...)` from a program too. The person
    watches it in the monitor. → [Tasks](tasks.md), [The monitor](monitor.md)
+10. **Improve.** `contraagent diagnose runs/<run>` says what a run's records show to
+    change, kind by kind: the checks that sent outputs back, the limits that stopped
+    launches, the tool calls refused. Change one part, run the changed tasks again
+    with `--resume-from`, and compare the two runs with `--against`. → [Improving](improving.md)
 
 ## Decisions
 

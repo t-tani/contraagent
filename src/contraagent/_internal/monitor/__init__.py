@@ -6,6 +6,7 @@ touches the pipeline.
 * `core`       `Monitor` (every view, as plain data), `Panel`, `RunRecords`, `PeriodRuns`
 * `trends`     `Period`, and what the runs of a period add up to
 * `aggregate`  token, cost and model sums shared by a run's views and the trends
+* `diagnosis`  what a run's records say to change in its pipeline (`contraagent diagnose`)
 * `api`        the HTTP contract: one pydantic model per response and live-feed event
 * `views`      the view table the endpoints, the live feed and the export read
 * `export`     the views as files a static page reads (`contraagent monitor export`)
