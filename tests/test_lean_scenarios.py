@@ -5,6 +5,7 @@ both sides under `-m lean`."""
 
 from __future__ import annotations
 
+import gc
 import importlib.util
 import json
 import random
@@ -92,6 +93,20 @@ def test_the_committed_answers_are_what_the_specification_gives(name: str):
     )
 
 
+def test_flow_code_that_outlives_its_run_leaves_its_record_alone():
+    """A flow call whose code goes on after every cancellation outlives the run: its Task
+    still waits when the run ends, and is closed whenever the collector frees it. That must
+    not change what the run recorded, which a scenario keeps to compare a second run with."""
+    flow = PARTS["flow"]
+    twice = [["keep", [["keep", [["never"]]], ["never"]]], ["never"]]  # past both of the driver's cancels
+    scenario = {"flow": [["task", [["group", [twice, twice]]], False]], "order": 3, "pastGrace": False, "lateAttach": False}
+    ops, shown = flow._run({**scenario, "replay": [], "own": [], "ops": []})
+    kept = json.loads(json.dumps([ops, shown]))
+    flow._run({**scenario, "flow": [], "replay": [], "own": [], "ops": []})  # the next run lets the first driver go
+    gc.collect()
+    assert [ops, shown] == kept
+
+
 @pytest.mark.lean
 @pytest.mark.parametrize("name", PARTS)
 def test_fresh_scenarios_are_answered_alike(name: str):
@@ -101,5 +116,9 @@ def test_fresh_scenarios_are_answered_alike(name: str):
     seed = random.SystemRandom().randrange(10**9)
     given = part.scenarios(seed, 400)
     for number, (scenario, specified) in enumerate(zip(given, exe.specified(part.WHAT, given), strict=True)):
-        code = json.loads(json.dumps(part.play(scenario)))
-        assert code == specified, f"scenario {number} of {name}_scenarios.scenarios({seed}, 400): {difference(code, specified)}"
+        which = f"scenario {number} of {name}_scenarios.scenarios({seed}, 400)"
+        try:
+            code = json.loads(json.dumps(part.play(scenario)))
+        except AssertionError as error:  # the player's own check
+            raise AssertionError(f"{which}: {error}") from error
+        assert code == specified, f"{which}: {difference(code, specified)}"

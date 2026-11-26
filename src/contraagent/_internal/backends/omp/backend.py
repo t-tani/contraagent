@@ -254,9 +254,11 @@ class OmpBackend(Backend):
     reads no AGENTS.md, CLAUDE.md, `.omp/`, `.claude/` or other tools' context files,
     skills, rules, hooks, tools or MCP servers; the overlay's directory, which holds no
     plugins, is the agent's `CLAUDE_CONFIG_DIR`, so the user's installed Claude Code
-    plugins are not loaded either. omp takes MCP servers from the plugin's `.mcp.json`
-    only: a launch with servers of its own (`Launch.mcp_config`, another file) loads a
-    copy of the plugin whose `.mcp.json` holds them.
+    plugins are not loaded either. The overlay also turns off what omp keeps of the user's
+    own sessions: a launch reads none of its memories or of the skills it learned, nor the
+    hosts of the SSH config, and teaches it nothing. omp takes MCP servers from the
+    plugin's `.mcp.json` only: a launch with servers of its own (`Launch.mcp_config`,
+    another file) loads a copy of the plugin whose `.mcp.json` holds them.
 
     No text of the task is on the command line: `Launch.system_prompt` and
     `append_system_prompt` are files of the launch's scratch directory (`prompt_args`),

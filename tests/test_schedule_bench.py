@@ -24,9 +24,11 @@ def bench(tmp_path: Path, *args: str) -> dict:
 
 
 def test_a_scenario_runs_twice_and_reports_its_figures(tmp_path):
-    # One minute of agent work in 0.1 s: the run's deadline (15 minutes) is 1.5 s, well past what
-    # starting a run and its first Python task take on a slow runner, so agent tasks launch.
-    result = bench(tmp_path, "--scenarios", "demo-deadline", "--scale", "0.1", "--jobs", "1")
+    # One minute of agent work in 0.3 s: the run's deadline (15 minutes) is 4.5 s, well past what
+    # starting a run and its first Python task take on a slow runner, so agent tasks launch. Both
+    # put records on disk (the run's document, a task's marker, output and journal row), which a
+    # runner whose disk is slow to flush (Windows) takes over a second for.
+    result = bench(tmp_path, "--scenarios", "demo-deadline", "--scale", "0.3", "--jobs", "1")
     runs = result["scenarios"]["demo-deadline"]["runs"]
     for run in ("first", "second"):
         (figures,) = runs[run]
