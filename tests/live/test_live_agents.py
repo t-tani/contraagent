@@ -23,6 +23,7 @@ task's instructions changed (that task and the tasks that received a changed out
 """
 
 import asyncio
+import json
 import os
 import shutil
 import sys
@@ -513,8 +514,6 @@ async def review_docs(units: list[str], revise_task):
 
 
 def _rows(path: Path) -> list[dict]:
-    import json
-
     return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
 
 
@@ -678,14 +677,19 @@ def test_review_flow_with_changed_instructions_runs_that_task_and_what_received_
         assert f"revise-{unit}" in ran
     assert {k for k in ran if not k.startswith(("revise-", "python:"))} == set()
     assert len(changed["launches"]) == len([k for k in ran if k.startswith("revise-")])
-    # a check after a revision runs again exactly when the revision's output changed
+    # A check after a revision runs again exactly when the revision's output changed: its
+    # value, which the check is given, not its text (a coding agent may space it otherwise).
     before = changed["outputs_before"]
     after = {p.relative_to(run["run_dir"]).as_posix(): p.read_text() for p in run["run_dir"].glob("out/*/*")}
+
+    def differs(unit: str) -> bool:
+        name = f"out/revise/{unit}.json"
+        return json.loads(before[name]) != json.loads(after[name])
+
     if all(len([k for k in rep.results if k.startswith(f"revise-{u}")]) == 1 for u in FLOW_UNITS):
         for unit in FLOW_UNITS:
-            differs = before[f"out/revise/{unit}.json"] != after[f"out/revise/{unit}.json"]
-            assert (f"python:check-{unit}~2" in ran) == differs, unit
-        assert ("python:report" in ran) == any(before[f"out/revise/{u}.json"] != after[f"out/revise/{u}.json"] for u in FLOW_UNITS)
+            assert (f"python:check-{unit}~2" in ran) == differs(unit), unit
+        assert ("python:report" in ran) == any(differs(u) for u in FLOW_UNITS)
 
 
 @pytest.mark.parametrize("agent", list(FLOW_ROUTES))
